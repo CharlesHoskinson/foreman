@@ -48,6 +48,7 @@ import { pathsAlias, sidecarPathFor } from "./session-paths.js";
 import {
   LegacyMigrationRefusal,
   bootstrapStore,
+  repairStore,
 } from "./session-sqlite-bootstrap.js";
 import {
   loadProjectRegistryFileV1,
@@ -57,10 +58,11 @@ import {
 
 const READ_ONLY_CMDS = new Set(["recover", "freshness", "sidecar"]);
 /** Derived-bookkeeping commands: mutate outbox only; skip automatic sidecar refresh. */
-const NO_SIDECAR_REFRESH_CMDS = new Set(["sync", "project"]);
+const NO_SIDECAR_REFRESH_CMDS = new Set(["sync", "project", "repair"]);
 const STORE_CMDS = new Set([
   "begin",
   "recover",
+  "repair",
   "freshness",
   "end",
   "fact",
@@ -367,7 +369,9 @@ type OpenedCliStore = {
  * One neutral CLI open: factory selection, SQLite prepare/bootstrap, optional
  * migration sidecar persistence from the already-open store.
  */
-function openCliStore(opts: { readonly readOnly?: boolean } = {}): OpenedCliStore {
+function openCliStore(
+  opts: { readonly readOnly?: boolean; readonly requireSessionSource?: boolean } = {},
+): OpenedCliStore {
   const readOnly = opts.readOnly === true;
   let selection: SessionStoreSelection | undefined;
   let migrated = false;
@@ -381,7 +385,11 @@ function openCliStore(opts: { readonly readOnly?: boolean } = {}): OpenedCliStor
       },
       prepareSqlite: (path, access) => {
         mkdirSync(dirname(path), { recursive: true });
-        migrated = bootstrapStore(path, access);
+        migrated = bootstrapStore(path, {
+          allowMigration: access.allowMigration,
+          readOnly: access.readOnly,
+          requireSessionSource: opts.requireSessionSource === true,
+        });
       },
     });
   } catch (e) {
@@ -1406,8 +1414,25 @@ export function main(): number | Promise<number> {
     return 0;
   }
 
+  if (cmd === "repair") {
+    const result = repairStore(dbPath());
+    if (result.status === "healthy") {
+      process.stdout.write("repair: store is healthy, nothing to do\n");
+      return 0;
+    }
+    if (result.status === "failed") {
+      process.stderr.write(`repair_failed ${result.renamedPath}: ${result.detail}\n`);
+      return 1;
+    }
+    process.stdout.write(`repair: moved aside ${result.renamedPath}\n`);
+    return 0;
+  }
+
   if (cmd === "recover") {
-    const { store, selection } = openCliStore({ readOnly: true });
+    const { store, selection } = openCliStore({
+      readOnly: true,
+      requireSessionSource: true,
+    });
     try {
       const rec = buildRecoveryFromStore(store, recoveryGitCwd(selection));
       if (parsed.options.json) {

@@ -87,7 +87,7 @@ grep -c foreman-qa install.sh   # 0
 
 ### BW-008 — the session store is stale and points at another host
 
-`open` · reproduced 2026-08-08
+`resolved` · 2026-09-05 · session-store-recovery: `fm-session repair` moves a half-migrated store aside and rebuilds from the sidecar.
 
 `fm-session.py recover` reports its last session as `2026-08-03`, still
 describing v0.2.9.0 work, with the recorded commands referencing

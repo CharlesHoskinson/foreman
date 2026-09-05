@@ -6,11 +6,16 @@
 
 setup() {
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
+  ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   # The implementation under test is overridable, so this file is a
   # cross-implementation conformance suite rather than a Python-only one.
   # 27 of these 34 tests already assert on printed output, so a port that
   # emits different stdout fails here rather than passing quietly.
   SESS="${FM_SESSION_CMD:-node $SCRIPTS/../runtime/dist/fm-session.js}"
+  # Repair lives in the TypeScript source. This change is not allowed to
+  # rebuild skills/foreman/runtime/dist, so repair tests use that entry.
+  TSX="$(cd "$ROOT" && node -p "require.resolve('tsx')")"
+  TS_SESS="node --import $TSX $ROOT/packages/orchestration/src/fm-session-main.ts"
   REPO="$BATS_TEST_TMPDIR/repo"
   mkdir -p "$REPO"
   git -C "$REPO" init -q -b main
@@ -25,6 +30,8 @@ setup() {
 
 @test "recover on an empty store succeeds and reports no session" {
   cd "$REPO"
+  printf '%s\n' '{"format":"foreman-session-sidecar","format_version":1}' \
+    > "${FOREMAN_SESSION_DB%.db}.ndjson"
   run $SESS recover
   [ "$status" -eq 0 ]
   [[ "$output" == *"last session: (none"* ]]
@@ -198,6 +205,8 @@ setup() {
 # "every measurement is fresh" over zero rows, which reads as an all-clear.
 @test "the launch point does not claim freshness when no measurement exists" {
   cd "$REPO"
+  printf '%s\n' '{"format":"foreman-session-sidecar","format_version":1}' \
+    > "${FOREMAN_SESSION_DB%.db}.ndjson"
   run $SESS recover
   [ "$status" -eq 0 ]
   [[ "$output" != *"every measurement is fresh"* ]]
@@ -474,4 +483,115 @@ PY
   [ "$(printf '%s\n' "$output" | awk -F '\t' 'NR == 2 { print $6 }')" = "$rerun" ]
   [ "$(printf '%s\n' "$output" | sed -n '1p')" = \
     $'id\tmetric\tvalue\tverdict\treason\tcommand\tscope\tsha\ttimestamp' ]
+}
+
+# @description Print each store-directory entry as "relative-name size", sorted.
+store_listing() {
+  find "$1" -mindepth 1 -printf '%P %s\n' | LC_ALL=C sort
+}
+
+@test "repair on a healthy store with a sidecar is a no-op" {
+  SESS="$TS_SESS"
+  cd "$REPO"
+  store_dir="$BATS_TEST_TMPDIR/store-with-sidecar"
+  mkdir -p "$store_dir"
+  export FOREMAN_SESSION_DB="$store_dir/session.db"
+  sidecar="${FOREMAN_SESSION_DB%.db}.ndjson"
+  $SESS fact "keep me"
+  [ -f "$sidecar" ]
+  # Valid sidecar from the real writer, then two trailing spaces on line 1.
+  # Bytes differ from canonical serialization. JSON.parse still accepts the line.
+  sed -i '1s/$/  /' "$sidecar"
+  sidecar_before=$(cksum "$sidecar")
+  $SESS recover >/dev/null
+  listing_before=$(store_listing "$store_dir")
+  run $SESS repair
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"repair: store is healthy, nothing to do"* ]]
+  [ "$(cksum "$sidecar")" = "$sidecar_before" ]
+  [ "$(store_listing "$store_dir")" = "$listing_before" ]
+}
+
+@test "repair on a healthy store without a sidecar creates none" {
+  SESS="$TS_SESS"
+  cd "$REPO"
+  store_dir="$BATS_TEST_TMPDIR/store-no-sidecar"
+  mkdir -p "$store_dir"
+  export FOREMAN_SESSION_DB="$store_dir/session.db"
+  sidecar="${FOREMAN_SESSION_DB%.db}.ndjson"
+  $SESS fact "keep me"
+  rm -f "$sidecar"
+  $SESS recover >/dev/null
+  listing_before=$(store_listing "$store_dir")
+  run $SESS repair
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"repair: store is healthy, nothing to do"* ]]
+  [ "$(store_listing "$store_dir")" = "$listing_before" ]
+  [ ! -f "$sidecar" ]
+}
+
+@test "repair moves a half-migrated store aside and recover then succeeds" {
+  SESS="$TS_SESS"
+  cd "$REPO"
+  sqlite3 "$FOREMAN_SESSION_DB" <<'SQL'
+CREATE TABLE schema_meta(key TEXT PRIMARY KEY, value TEXT);
+INSERT INTO schema_meta VALUES('version','3');
+CREATE TABLE facts(id INTEGER PRIMARY KEY, statement TEXT);
+INSERT INTO facts VALUES(36,'live fact');
+CREATE TABLE store_meta(key TEXT PRIMARY KEY, value TEXT);
+INSERT INTO store_meta VALUES('next_id.fact','1');
+SQL
+  printf '%s\n' \
+    '{"format":"foreman-session-sidecar","format_version":1}' \
+    '{"table":"facts","row":{"id":1,"statement":"sidecar fact","evidence":null,"established_ts":"2026-08-01T00:00:00Z","session_id":null,"superseded_by":null,"superseded_at":null,"supersede_reason":null}}' \
+    > "${FOREMAN_SESSION_DB%.db}.ndjson"
+
+  run $SESS recover
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"run: node skills/foreman/runtime/dist/fm-session.js repair"* ]]
+
+  run $SESS repair
+  [ "$status" -eq 0 ]
+  [[ "$output" == *".corrupt-"* ]]
+  backup=$(printf '%s\n' "$output" | grep -oE '[^[:space:]]+\.corrupt-[^[:space:]]+' | head -n1)
+  [ -n "$backup" ]
+  [ -f "$backup" ]
+  [ -f "$FOREMAN_SESSION_DB" ]
+
+  run $SESS recover
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"sidecar fact"* ]]
+}
+
+@test "repair_failed keeps the renamed file when the sidecar is unparsable" {
+  SESS="$TS_SESS"
+  cd "$REPO"
+  sqlite3 "$FOREMAN_SESSION_DB" <<'SQL'
+CREATE TABLE schema_meta(key TEXT PRIMARY KEY, value TEXT);
+INSERT INTO schema_meta VALUES('version','3');
+CREATE TABLE facts(id INTEGER PRIMARY KEY, statement TEXT);
+INSERT INTO facts VALUES(36,'live fact');
+CREATE TABLE store_meta(key TEXT PRIMARY KEY, value TEXT);
+INSERT INTO store_meta VALUES('next_id.fact','1');
+SQL
+  printf '%s\n' 'this is not a sidecar' 'junk' \
+    > "${FOREMAN_SESSION_DB%.db}.ndjson"
+
+  run $SESS repair
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"repair_failed"* ]]
+  [[ "$output" == *".corrupt-"* ]]
+  [ ! -f "$FOREMAN_SESSION_DB" ]
+  backup=$(printf '%s\n' "$output" | sed -n 's/.*repair_failed \([^ ]*\):.*/\1/p' | head -n1)
+  [ -n "$backup" ]
+  [ -f "$backup" ]
+}
+
+@test "recover with neither store nor sidecar exits 2 with no_session_source" {
+  SESS="$TS_SESS"
+  cd "$REPO"
+  run $SESS recover
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"no_session_source"* ]]
+  [ ! -f "$FOREMAN_SESSION_DB" ]
 }
