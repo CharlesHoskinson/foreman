@@ -31,7 +31,7 @@ Exact paths or terminal `/**` prefixes, as the family path grammar requires.
 - [ ] 1.7 Tick `v040-release-program` tasks 6.1 and 6.2 with `git rev-parse v0.4.0^{commit}` and the GitHub release record, and task 6.3 with a `git branch -r` listing showing no merged release branch. Move the package to `archive/2026-09-05-v040-release-program/` and re-run the policy tests against the frozen fixtures. Expected: pass.
 - [ ] 1.8 `npm run build`, `npm run verify-runtime`, `npm run typecheck`. Expected: all exit 0. Commit the bootstrap authorities.
 - [ ] 1.9 Verify with the rebuilt runtime: `node skills/foreman/runtime/dist/release-coverage.js check --program v050 --phase bootstrap --owner v050-release-program --register $PWD/openspec/changes/v050-release-program/coverage.toml`. Expected: exit 0. Commit any register correction and rebuild.
-- [ ] 1.10 Write eleven child briefs with exact-path or `/**` allowed paths equal to each package's declared scope, register the family authority with the audit and user receipts, and activate the family on the committed bootstrap candidate. Record the family digest as a SessionDB fact.
+- [ ] 1.10 Write twelve child briefs with exact-path or `/**` allowed paths equal to each package's declared scope, register the family authority with the audit and user receipts, and activate the family on the committed bootstrap candidate. Record the family digest as a SessionDB fact.
 
 ## 2. Lane runtime (child v050-lane-runtime-typescript)
 
@@ -54,6 +54,7 @@ Exact paths or terminal `/**` prefixes, as the family path grammar requires.
 
 - [ ] 5.1 Reconcile `spec-triage-gate`: the checker is `packages/orchestration/src/spec-triage.ts` bundled to `skills/foreman/runtime/dist/spec-triage.js`, and the runtime refuses an underdetermined spec before spawn. Reconcile `foreman-discover-lane` wording only.
 - [ ] 5.2 Dispatch both. Verify P7. Record the milestones.
+- [ ] 5.3 Dispatch `workflow-weight-reduction` tasks 1 through 13 in order. Its watchdog and `queue_wait_s` requirements were landed by tranche 2. Verify P12 through P15. Record the milestone.
 
 ## 6. Host truth (children v050-build-determinism, v050-wsl-preflight)
 
@@ -69,8 +70,8 @@ Exact paths or terminal `/**` prefixes, as the family path grammar requires.
 ## 8. Release (child v050-release)
 
 - [ ] 8.1 Set every workspace package version to 0.5.0 and regenerate the lockfile.
-- [ ] 8.2 Write `docs/releases/v0.5.0-notes.md` from the eleven predicate results and the register.
+- [ ] 8.2 Write `docs/releases/v0.5.0-notes.md` from the fifteen predicate results and the register.
 - [ ] 8.3 Run `tools/ci-local.sh` on the candidate. Run the cold audit through `codex-auditor`. Expected: `APPROVED` with no findings.
 - [ ] 8.3a Re-run `lane-runtime-typescript` task 7 on the frozen candidate and store the three receipts under `$FOREMAN_HOME/endstop/v050/receipts/`, outside the repository, with the candidate commit in each. No tracked file changes after the candidate freezes.
-- [ ] 8.4 Measure all eleven predicates with `release-coverage.js check --program v050 --phase release --repo $PWD --state-root $FOREMAN_HOME/endstop/v050 --contract-id <root> --contract-sha <sha> --family-sha <sha> --register $PWD/openspec/changes/v050-release-program/coverage.toml`. Expected: eleven `PASS` rows with output digests and executed-case counts, no `FAILED`, no `UNCOMPUTABLE`.
+- [ ] 8.4 Measure all fifteen predicates with `release-coverage.js check --program v050 --phase release --repo $PWD --state-root $FOREMAN_HOME/endstop/v050 --contract-id <root> --contract-sha <sha> --family-sha <sha> --register $PWD/openspec/changes/v050-release-program/coverage.toml`. Expected: fifteen `PASS` rows with output digests and executed-case counts, no `FAILED`, no `UNCOMPUTABLE`.
 - [ ] 8.5 Enter the journal at `prepared` with the recorded remote predecessor, push `main` with compare-and-set (`local_integrated`, `main_published`), create annotated tag `v0.5.0` (`tag_pushed`), publish the release from the notes file (`release_created`), and run the post-publication gate (`verified`). Expected: tag target equals the candidate and the release body digest equals the notes digest.

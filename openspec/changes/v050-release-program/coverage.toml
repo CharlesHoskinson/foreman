@@ -1,7 +1,7 @@
 schema_version = 2
 baseline_commit = "00c342bd449948ab2ea5ca0b9d0c890614dd81d6"
-active_inventory_sha256 = "8f01140652e401e61e4c3f722298e2f9aa589c736cdc524b2dcc1eb7f11779da"
-roadmap_sha256 = "72df045bd3c04df8585d265d16b9bf2a38d66b984f683bb4c4a7dfcb2871a457"
+active_inventory_sha256 = "42d972816e8d73cf0b4822d39f498badfe9c8b56a66c5aa515f61a5aeb9ce792"
+roadmap_sha256 = "56707b7fb5594cf662d187e159b12b6279fbc8b13ce89b45af8ac1b394d25350"
 
 [[future_owner]]
 name = "lane-runtime-typescript"
@@ -504,6 +504,16 @@ reconcile = "not_required"
 reason = "Its remaining doctrine and ledger work has no v0.5 owner."
 
 [[entry]]
+key = "change:workflow-weight-reduction"
+source_kind = "openspec_change"
+source_path = "openspec/changes/workflow-weight-reduction"
+disposition = "v050_owner"
+owner = "workflow-weight-reduction"
+target_release = "v0.5"
+reconcile = "complete"
+reason = "Tranche 5. Verification receipts, bound change descriptor, tiered gate plan with a small-change tier, landing transaction, test partition, doctrine compression, round instrumentation. Converged by four independent reviews."
+
+[[entry]]
 key = "change:wsl-launcher-shipped"
 source_kind = "openspec_change"
 source_path = "openspec/changes/wsl-launcher-shipped"
@@ -682,6 +692,16 @@ owner = "build-determinism"
 target_release = "v0.5"
 reconcile = "complete"
 reason = "Session-store recovery, build determinism, WSL preflight is a v0.5 promise."
+
+[[entry]]
+key = "roadmap:v050-workflow-weight"
+source_kind = "roadmap"
+source_path = "ROADMAP.md"
+disposition = "v050_owner"
+owner = "workflow-weight-reduction"
+target_release = "v0.5"
+reconcile = "complete"
+reason = "Verification receipts, one-command rounds, tiered gates, doctrine core is a v0.5 promise."
 
 [[entry]]
 key = "roadmap:v050-publication"

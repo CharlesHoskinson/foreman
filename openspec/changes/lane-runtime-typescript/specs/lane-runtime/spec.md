@@ -43,6 +43,11 @@ the Bash round of commit `00c342bd449948ab2ea5ca0b9d0c890614dd81d6`.
 - **WHEN** a round spawns CMD under the launcher
 - **THEN** the `ownership` payload contains `attempt`, `launcher_pid`, `pid`, `job_id`, `worktree`, `config_dir`, `launcher`, and `containment`
 
+#### Scenario: Round done carries phase durations
+
+- **WHEN** a round completes
+- **THEN** the `round_done` payload carries `queue_wait_s` as a number when the round was queued
+
 #### Scenario: Round done carries exit source
 
 - **WHEN** a launcher-present round completes
@@ -224,6 +229,17 @@ with a `containment` object, the state line SHALL append
 - **WHEN** the round's owning pid is gone and no `round_done` exists after the dead threshold
 - **THEN** the watch prints the kill-and-retry hint
 - **AND** exits 3
+
+#### Scenario: Watchdog survives the gate phase
+
+- **WHEN** the round enters `verifying` and the gate launcher writes heartbeats to the same file
+- **THEN** the watch judges liveness from those heartbeats
+- **AND** does not report `AGENT_ABANDONED` while the gate is alive
+
+#### Scenario: Terminal state is reported at once
+
+- **WHEN** `round_done` is appended
+- **THEN** the watch prints its terminal line within one second
 
 #### Scenario: Node absent for the watchdog
 

@@ -224,7 +224,7 @@ bootstrap exception did. The bootstrap SHALL NOT reserve a family child.
 
 ### Requirement: Package-level Endstop children
 
-The family SHALL contain exactly eleven children: one per `v050_owner`
+The family SHALL contain exactly twelve children: one per `v050_owner`
 package other than the governor, plus one release child bound to
 `v050-release-program`. Each child SHALL be bound to exactly one
 `packageId`, and no two children SHALL share a `packageId`. Child
@@ -236,7 +236,7 @@ or terminal `/**` prefixes, and its acceptance list.
 #### Scenario: Family is activated
 
 - **WHEN** `execution-guard.js activate-family` completes
-- **THEN** `family-status` lists eleven children with eleven distinct package identifiers
+- **THEN** `family-status` lists twelve children with twelve distinct package identifiers
 
 #### Scenario: Wrong package for a child
 
@@ -260,8 +260,8 @@ The program SHALL order work by dependency depth: tranche 1 is the
 bootstrap under the root contract (session-store recovery first), tranche 2
 `lane-runtime-typescript`, tranche 3 `launcher-node-port`, tranche 4
 `three-outcome-verdicts` then `audit-groundedness-gate` then
-`evidence-contracts`, tranche 5 `spec-triage-gate` and
-`foreman-discover-lane`, tranche 6 `build-determinism` and `wsl-preflight`,
+`evidence-contracts`, tranche 5 `spec-triage-gate`, `foreman-discover-lane`, and
+`workflow-weight-reduction`, tranche 6 `build-determinism` and `wsl-preflight`,
 tranche 7 `doctrine-reality-drift`, tranche 8 the release child. Children
 in tranches 4 through 6 MAY run concurrently once tranche 2 has its
 integration milestone. Tranche 7 SHALL wait for the `evidence-contracts`
@@ -274,7 +274,7 @@ milestone, because doctrine adopts its regression-injection mechanism.
 
 ### Requirement: Exit predicates
 
-The program SHALL define eleven exit predicates, P1 through P11. Each
+The program SHALL define fifteen exit predicates, P1 through P15. Each
 predicate SHALL name one command, its executed-case count where it runs
 tests, and one expected observable result. WHEN the release check runs, the
 host SHALL measure every predicate on the unchanged candidate commit and
@@ -286,7 +286,7 @@ it. IF a predicate cannot run, THEN the release check SHALL record
 #### Scenario: All predicates pass
 
 - **WHEN** the release check runs on the candidate
-- **THEN** eleven passes are recorded with their output digests and executed-case counts
+- **THEN** fifteen passes are recorded with their output digests and executed-case counts
 
 #### Scenario: A predicate fails
 

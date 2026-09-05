@@ -27,7 +27,7 @@ t1 bootstrap (root contract): session-store-recovery, runtime authorities, regis
    └─► t2 lane-runtime-typescript ─► t3 launcher-node-port ──────────────────────────────────────┐
             ├─► t4 three-outcome-verdicts ─► audit-groundedness-gate ─► evidence-contracts ─┐      │
             │                                                                              └─► t7 doctrine-reality-drift ─┤
-            ├─► t5 spec-triage-gate, foreman-discover-lane ────────────────────────────────────────┤
+            ├─► t5 spec-triage-gate, foreman-discover-lane, workflow-weight-reduction ─────────────┤
             └─► t6 build-determinism, wsl-preflight ───────────────────────────────────────────────┴─► t8 release
 ```
 
@@ -61,12 +61,13 @@ lines. New v0.5 integration cases read the live repository.
 Bootstrap runs under the root contract before activation, exactly like the
 v0.4 bootstrap exception. `session-store-recovery` is executed there as a
 dependency of the governor, so it has no child. The family then holds
-eleven children with eleven distinct package identifiers:
+twelve children with twelve distinct package identifiers:
 `v050-lane-runtime-typescript`, `v050-launcher-node-port`,
 `v050-three-outcome-verdicts`, `v050-audit-groundedness-gate`,
 `v050-evidence-contracts`, `v050-spec-triage-gate`,
-`v050-foreman-discover-lane`, `v050-build-determinism`,
-`v050-wsl-preflight`, `v050-doctrine-reality-drift`, and `v050-release`
+`v050-foreman-discover-lane`, `v050-workflow-weight-reduction`,
+`v050-build-determinism`, `v050-wsl-preflight`,
+`v050-doctrine-reality-drift`, and `v050-release`
 (package `v050-release-program`). Each brief carries `dependencyChildIds`,
 `allowedPaths` equal to the package's declared file scope in the registered
 path grammar (exact paths or a terminal `/**`), and the package's
@@ -115,9 +116,17 @@ deletion and Job Object parity are v0.6 items.
 | P8 | `npx tsx scripts/run-tests.ts "packages/orchestration/src/session-sqlite-bootstrap.test.ts"` | pass with zero skipped; the half-migrated fixture case, the fresh-clone case, and the `no_session_source` case all execute |
 | P9 | `npx tsx scripts/run-tests.ts "scripts/verify-runtime.test.ts"` | pass with zero skipped; the symlink fixture, the lockfile-mismatch fixture, and the two-path build fixture all execute |
 | P10 | `npx tsx scripts/run-tests.ts "packages/orchestration/src/secret-scan.test.ts" "packages/orchestration/src/wsl-preflight*.test.ts"` | pass; the live-traversal case executed (not skipped) on the Linux release host and reports `Clean` |
+| P12 | `node skills/foreman/runtime/dist/lane-round.js stats --last 20` | idle share (wall clock minus model, gate, and audit time) at most 25 percent over the last twenty real rounds, with `queue_wait_s` non-null in each |
+| P13 | `node skills/foreman/runtime/dist/gate-plan.js run --tier pre-commit` then `--tier full` on the candidate | pre-commit completes in at most 60 s and full in at most 600 s on the reference host, both `pass`, neither `incomplete` |
+| P14 | three real one-file changes and one three-package change through `lane-round dispatch` and `lane-round wait`, recorded in `docs/research/v050/weight-before-after.md` | each one-file change lands in at most 15 minutes wall clock with at most six manual steps and one `npm run verify` per candidate tree |
+| P15 | `node skills/foreman/runtime/dist/doctrine-check.js --read-floor` | the mandated cold read set is at most 12,000 tokens and the rule-id inventory is complete |
+| P12 | `node skills/foreman/runtime/dist/lane-round.js stats --last 20` | idle share (wall clock minus model, gate, and audit time) at most 25 percent over the last twenty real rounds, with `queue_wait_s` non-null in each |
+| P13 | `node skills/foreman/runtime/dist/gate-plan.js run --tier pre-commit` then `--tier full` on the candidate | pre-commit completes in at most 60 s and full in at most 600 s on the reference host, both `pass`, neither `incomplete` |
+| P14 | three real one-file changes and one three-package change through `lane-round dispatch` and `lane-round wait`, recorded in `docs/research/v050/weight-before-after.md` | each one-file change lands in at most 15 minutes wall clock with at most six manual steps and one `npm run verify` per candidate tree |
+| P15 | `node skills/foreman/runtime/dist/doctrine-check.js --read-floor` | the mandated cold read set is at most 12,000 tokens and the rule-id inventory is complete |
 | P11 | `node skills/foreman/runtime/dist/doctrine-check.js && node skills/foreman/runtime/dist/doctrine-check.js --mutation-control` | both exit 0; the inventory contains the fourteen claim ids listed in `doctrine-reality-drift` task 7.1 (eleven from R5 section 8.2 plus `launcher-verified-unprivileged`, `systemd-scope-collect-kills`, `launcher-kills-group-on-exit`); the mutation control reports each of the fourteen protected |
 
-Publication is not a predicate. It is gated by the eleven predicates, the
+Publication is not a predicate. It is gated by the fifteen predicates, the
 cold audit, and the journal. Task 8.4 runs
 `release-coverage.js check --program v050 --phase release --repo <abs> --state-root <abs> --contract-id <root> --contract-sha <sha> --family-sha <sha> --register <abs>`.
 

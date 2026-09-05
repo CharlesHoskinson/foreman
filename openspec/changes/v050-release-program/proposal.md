@@ -23,12 +23,13 @@ judgment was formed".
   disposition enum: `v050_owner`, `v050_dependency`, `released_reference`,
   `superseded`, `v060`.
 - Order eight dependency-bound tranches and run them under one root-anchored
-  Endstop contract family with eleven package-level children.
-- Own the four new packages: `lane-runtime-typescript`,
-  `session-store-recovery`, `build-determinism`, and this program.
+  Endstop contract family with twelve package-level children.
+- Own the five new packages: `lane-runtime-typescript`,
+  `session-store-recovery`, `build-determinism`,
+  `workflow-weight-reduction`, and this program.
 - Reconcile nine existing packages before their implementation starts.
   Re-express Bash-targeted tasks in TypeScript before dispatch.
-- Define eleven exit predicates and measure each on the unchanged candidate.
+- Define fifteen exit predicates and measure each on the unchanged candidate.
 - Reassign the Council and formal roadmap rows to v0.6 and add the v0.5 rows.
 - Publish tag `v0.5.0` only after every gate and the independent cold audit
   pass on unchanged bytes.

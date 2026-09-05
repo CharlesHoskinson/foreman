@@ -112,6 +112,7 @@ inventory. `Coverage key` values are stable machine identifiers.
 | `roadmap:v050-lane-runtime` | One TypeScript lane runtime, Bash adapters, policy pins retired | `v0.5` | `lane-runtime-typescript` |
 | `roadmap:v050-verdict-honesty` | Three-outcome verdicts, grounded gate, evidence contracts | `v0.5` | `evidence-contracts` |
 | `roadmap:v050-host-truth` | Session-store recovery, build determinism, WSL preflight | `v0.5` | `build-determinism` |
+| `roadmap:v050-workflow-weight` | Verification receipts, one-command rounds, tiered gates, doctrine core | `v0.5` | `workflow-weight-reduction` |
 | `roadmap:v050-publication` | Exact-candidate release and publication | `v0.5` | `v050-release-program` |
 
 ## Current authority

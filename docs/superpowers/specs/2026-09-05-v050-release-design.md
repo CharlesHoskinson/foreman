@@ -17,9 +17,9 @@ live dialogue. Each decision is listed so a reviewer can reject it.
 | What is the release for? | Finish the TypeScript migration of the lane path and make lane verdicts honest. | Iron Rule in `AGENTS.md`, the 2026-09-05 pidns diagnosis, the open verdict packages |
 | Why not the knowledge plane? | The v0.4 notes deferred the SQLite graph store, Council runtime, and MCP transport. They build on the lane path. Fix the path first. | `docs/releases/v0.4.0-notes.md` "Deferred work" |
 | What is the baseline? | Commit `00c342bd449948ab2ea5ca0b9d0c890614dd81d6`, the post-v0.4.0 `main` that includes the containment remedy. | `git log` |
-| How large? | Eight tranches with eleven package-level Endstop children after a root-contract bootstrap. v0.4 ran nine tranches with eight post-bootstrap children. Four new packages, nine reconciled owners, four dependency slices carried from deferred packages. | `openspec/changes/v040-release-program` |
+| How large? | Eight tranches with twelve package-level Endstop children after a root-contract bootstrap. v0.4 ran nine tranches with eight post-bootstrap children. Five new packages, nine reconciled owners, four dependency slices carried from deferred packages. | `openspec/changes/v040-release-program` |
 | What is out? | Graph store SQLite, Council review plane, the Google lane, quota policy, test-infrastructure hardening, lock hardening, formal suite, telemetry, vendor preflight, profile leasing. All move to v0.6. | Open task counts, 21 to 61 each |
-| What proves it shipped? | Eleven exit predicates measured on one unchanged commit, then a journaled compare-and-set publication. | v0.3.1 and v0.4 precedent |
+| What proves it shipped? | Fifteen exit predicates measured on one unchanged commit, then a journaled compare-and-set publication. | v0.3.1 and v0.4 precedent |
 
 ## Approaches considered
 
@@ -49,6 +49,7 @@ table is the narrative.
 | 5 | Exploratory work has a route | Spec triage runs in TypeScript before dispatch. The discover lane exists and is documented. |
 | 6 | The host tells the truth | WSL preflight runs in TypeScript. `fm-session recover` works on a fresh clone and after `fm-session repair`. `verify-runtime` refuses a symlinked `node_modules`. `secret-scan` scans a clean checkout within bounds. |
 | 7 | Doctrine matches code | `doctrine-check` runs offline on the candidate and passes. |
+| 9 | Foreman is lighter | A round family is idle at most 25 percent of its wall clock. A one-file change lands in 15 minutes with at most six manual steps and one verification per tree. The architect's cold read is at most 12,000 tokens. |
 | 8 | Release converges | Every gate passes on the unchanged candidate. Publication is a journaled compare-and-set push, then tag `v0.5.0` and the release body are verified against the candidate. |
 
 ## Package map
@@ -59,7 +60,7 @@ table is the narrative.
 | 2 | `lane-runtime-typescript` | new | `lane-round` owns the round, thin `lane-run.sh` and `watch.sh` adapters, pins retired |
 | 3 | `launcher-node-port` | reconcile | POSIX Bun build and fallback retired, cascade proofs recorded, Windows parity deferred to v0.6 |
 | 4 | `three-outcome-verdicts`, `audit-groundedness-gate`, `evidence-contracts` | reconcile | Honest verdict vocabulary, grounded gate, attempt-fresh evidence |
-| 5 | `spec-triage-gate`, `foreman-discover-lane` | reconcile to TypeScript | Exploratory route |
+| 5 | `spec-triage-gate`, `foreman-discover-lane`, `workflow-weight-reduction` | two reconcile, one new | Exploratory route, and the weight reduction the four-reviewer study converged on (`docs/research/v050/workflow-reviews/`) |
 | 6 | `build-determinism`, `wsl-preflight`, `wsl-tool-path-persistence` | one new, two reconcile | Host truth |
 | 7 | `doctrine-reality-drift` | reconcile to TypeScript | Doctrine claims registry and checker |
 | 8 | `v050-release-program` | new | Candidate verification and publication |
