@@ -22,6 +22,22 @@ network isolation, and this page previously implied otherwise; see "Hard mode
 | Reward hacking ("tests pass") | Re-run verification command | Pristine commit archive for checks |
 | Same-vendor blind spots | Prefer Grok implementer + **Codex Sol auditor** + Claude architect | Enforce worker ≠ orchestrator; audit ≠ worker (default audit = Codex Sol) |
 
+## Process containment (POSIX launcher)
+
+The Node launcher runs each lane as PID 1 of a fresh PID namespace when the
+host permits it. On an unprivileged host it uses a user namespace to get
+there. When the launcher dies for any reason the kernel kills every process
+in the namespace. That is the whole guarantee. It is **not** filesystem,
+network, credential, IPC, or resource isolation. The lane still runs as the
+host user with that user's files, sockets, and `sudo` rights, except that
+setuid binaries lose privilege inside the user namespace.
+
+`lane-run.sh` records the capability in the `ownership` event and refuses an
+implementation lane without it unless `FOREMAN_CONTAINMENT_APPROVAL` is set.
+A degraded round has process-group cleanup only. Descendants that call
+`setsid` or double-fork survive it. Diagnosis and evidence:
+`docs/research/foreman-pidns-degradation-2026-09-05.md`.
+
 ## Soft mode residual risk
 
 - Implementer can modify any file the host CLI can write

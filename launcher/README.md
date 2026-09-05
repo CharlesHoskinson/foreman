@@ -20,6 +20,37 @@ owns a spawned command's whole process tree.
 Streams the child's stdout/stderr through unmodified, writes JSON heartbeat
 lines to a file, and performs a graded stop on timeout.
 
+## Two implementations
+
+| Implementation | Path | Selected by `lane-run.sh` | POSIX containment |
+| --- | --- | --- | --- |
+| Node (current) | `skills/foreman/runtime/dist/foreman-launch.js`, source `packages/launcher/` | Default when `node` and the bundle exist (`FOREMAN_LAUNCH_IMPL` unset or `node`) | Probe ladder: user-namespace flags first, privileged flags second. Fail-closed policy flags. |
+| Bun (legacy) | `launcher/dist/foreman-launch`, source `launcher/src/` | `FOREMAN_LAUNCH_IMPL=bun`, or when the Node bundle is absent | Privileged flags only. Always degrades for an unprivileged user. |
+
+`FOREMAN_LAUNCH=<path>` overrides both. The rest of this file describes the
+CLI contract both share, then the POSIX mechanism. Flags marked *Node only*
+do not exist in the Bun binary.
+
+### Containment flags (Node only)
+
+```text
+foreman-launch [--require-containment strong|any] [--capability-file PATH] [--probe-only] ...
+```
+
+- `--capability-file PATH` writes one JSON capability record
+  (`schema: foreman-launch-capability/1`) before any execve, spawn, or
+  refusal. Fields: `tag` (`Strong`, `AlreadyInner`, `Degraded`, `Refused`),
+  `kind`, `reason`, `required`, `flags`, `detail`, `attempts` (one entry per
+  probe ladder step with exit status and up to 200 bytes of stderr),
+  `launcher_pid`, `launcher_version`, `platform`.
+- `--probe-only` runs the probe, writes the record, prints the diagnostic
+  line, and exits without spawning. `--` and CMD are optional. Exit 0 when
+  the capability is strong or the requirement is `any`, else 125.
+- `--require-containment strong` refuses to spawn when the capability is not
+  strong. The launcher prints
+  `foreman-launch: REFUSED capability=<kind> reason=refused_by_policy required=strong -- no command was spawned`
+  and exits 125. No heartbeat is written. Default `any`.
+
 ## CLI contract (frozen)
 
 ```text
@@ -179,6 +210,21 @@ reasoning) under:
 unshare --pid --mount-proc --fork --kill-child -- <this same binary> <original args>
 ```
 
+The Node launcher probes an ordered ladder and re-execs with the first entry
+that succeeds:
+
+1. `unshare --user --map-current-user --pid --mount-proc --fork --kill-child`
+   (kind `posix_pidns_userns_strong`). A new user namespace gives the caller
+   `CAP_SYS_ADMIN` inside it, which is enough for `CLONE_NEWPID`,
+   `CLONE_NEWNS`, and a private `/proc`. After the exec the child runs as the
+   same uid with no capabilities. Setuid binaries such as `sudo` lose their
+   privilege inside. Root-owned paths appear owned by `nobody`.
+2. `unshare --pid --mount-proc --fork --kill-child`
+   (kind `posix_pidns_strong`). Needs `CAP_SYS_ADMIN` in the initial user
+   namespace.
+
+The Bun launcher tries only the second entry.
+
 This makes the launcher **PID 1 (init) of a fresh PID namespace**. Per
 Linux's own pidns semantics: when a namespace's init process dies — normal
 exit, crash, OOM, an external SIGKILL, ANY cause — the kernel SIGKILLs
@@ -232,10 +278,12 @@ fork (`unshare ... -- true`) BEFORE ever committing to the irreversible
 self-replacement, precisely so a failure there doesn't strand the launcher
 mid-bootstrap with no code left to fall back from.
 
-1. **Automatic (what this launcher does today)**: fall back to the
+1. **Automatic (Bun launcher, and the Node launcher under
+   `--require-containment any`)**: fall back to the
    pre-v0.2.7.5 `setsid` + `kill(-pgid)` path, and **log a DEGRADED marker**
    to stderr — never silently proceed as if the kernel-cascade guarantee
-   still held. The old asymmetry applies in full here: an external
+   still held. Under `--require-containment strong` the Node launcher
+   refuses instead (exit 125, nothing spawned). The old asymmetry applies in full here: an external
    `kill -9 <launcher_pid>` will NOT reap a setsid-detached escapee; only
    the launcher's own internal `--timeout`/`--grace` kill path (or an
    external reaper that explicitly sends `-pid`, the pgid recorded in the
@@ -260,16 +308,16 @@ mid-bootstrap with no code left to fall back from.
    availability check (`systemctl --user is-system-running` / cgroup v2
    mounted at `/sys/fs/cgroup`) wherever it's used.
 
-**Availability, plainly**: the primary guarantee needs `unshare` with
-`--pid --mount-proc --fork --kill-child` to actually succeed. That requires
-`CAP_SYS_ADMIN` in the caller's user namespace. An unprivileged user does
-not have it, and on 2026-09-05 the shipped probe returned
-`unshare(CLONE_NEWNS|CLONE_NEWPID) = -1 EPERM` on this WSL2 host as user
-`charl`. The same host accepts
-`unshare --user --map-current-user --pid --mount-proc --fork --kill-child`
-unprivileged. The launcher does not request a user namespace yet. The
-manual cgroup/systemd-run fallback needs `systemd` and cgroup v2, and is the
-OPERATOR's responsibility to wire up, not this launcher's.
+**Availability, plainly**: the privileged flag list needs `CAP_SYS_ADMIN`
+in the caller's user namespace. An unprivileged user does not have it, and
+on 2026-09-05 that probe returned `unshare(CLONE_NEWNS|CLONE_NEWPID) = -1 EPERM`
+on this WSL2 host as user `charl`. The user-namespace entry of the Node
+launcher's ladder succeeds on the same host unprivileged. It needs
+`CONFIG_USER_NS`, a non-zero `user.max_user_namespaces`, and no AppArmor
+restriction on unprivileged user namespaces. A host that blocks user
+namespaces reports reason `userns_blocked`. The manual cgroup/systemd-run
+fallback needs `systemd` and cgroup v2, and is the OPERATOR's
+responsibility to wire up, not this launcher's.
 
 **Normal exit, plainly**: on POSIX the launcher does not signal the process
 group after CMD exits. Only the Windows Job Object path reaps remaining
@@ -282,7 +330,10 @@ send it a plain `SIGKILL` — that's now sufficient whenever the pidns
 bootstrap is active (no DEGRADED marker was logged). If a DEGRADED marker
 WAS logged for that run, the old asymmetry still applies and `-pid` (the
 group, from the heartbeat's `pid` field) is still required for a
-setsid-detached escapee specifically.
+setsid-detached escapee specifically. Never send `-pid` to the host when
+the cascade is active: the heartbeat `pid` is then namespace-local and
+names an unrelated host process group. `lane-run.sh` reads the capability
+record and picks the target accordingly.
 
 ## Known caveats carried from the research base
 

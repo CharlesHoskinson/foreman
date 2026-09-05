@@ -546,12 +546,33 @@ irreversible self-replacement), the launcher falls back to the pre-v0.2.7.5
 marker before assuming the stronger guarantee held. Full mechanism:
 `launcher/README.md` "POSIX asymmetry."
 
-An unprivileged user always gets that marker with the current flag list:
-`unshare(2)` needs `CAP_SYS_ADMIN` for `--pid` and `--mount-proc`, and the
-launcher does not request a user namespace. The marker is written only to the
-lane's stream file and the pueue log. No heartbeat, ownership event, or gate
-verdict records it. Diagnosis and remedy design:
+The Bun binary above always degrades for an unprivileged user, because
+`unshare(2)` needs `CAP_SYS_ADMIN` for `--pid` and `--mount-proc`. Since
+2026-09-05 `lane-run.sh` prefers the Node launcher
+(`skills/foreman/runtime/dist/foreman-launch.js`), which probes a
+user-namespace ladder first and gets the cascade unprivileged. Set
+`FOREMAN_LAUNCH_IMPL=bun` to force the legacy binary. Diagnosis:
 `docs/research/foreman-pidns-degradation-2026-09-05.md`.
+
+#### Containment policy in a round
+
+Before spawning CMD, `lane-run.sh` runs the launcher in `--probe-only` mode and
+reads `<WT>/.harness/capability.json`. The round's `ownership` event then
+carries `containment: {tag, kind, reason, approval}`.
+
+- `FOREMAN_CONTAINMENT_REQUIRE=strong|any`. Default `strong` when
+  `LANE_VENDOR` is set (an implementation lane), else `any`.
+- A non-strong capability under `strong` with no approval is refused:
+  `lane-run.sh` emits `alert {kind: "containment_refused"}`, prints
+  `lane-run: REFUSED containment=...`, and exits 2 before CMD runs.
+- `FOREMAN_CONTAINMENT_APPROVAL="<reason>"` admits a degraded round and
+  records the reason in the degraded alert and the ownership event. Set it
+  through the queue with `lane-queue.sh add ... --containment-approval REASON`.
+- Setup shows a `containment` row (`env/tool-check.sh`). It reports DEGRADED
+  when the probe fails and never changes generic READY.
+- With a strong capability, `lane-run.sh` kills the launcher pid with
+  `SIGKILL` on cleanup, which tears the namespace down. With a degraded
+  capability it keeps the process-group kill.
 
 If `launcher/dist/foreman-launch` itself is absent, there is no pidns launcher
 to enter and `lane-run.sh` emits the frozen `launcher_absent` degraded alert.

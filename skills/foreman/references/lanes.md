@@ -57,6 +57,9 @@ grok -p "<spec>" --cwd <worktree> -m grok-4.6 --output-format json \
 - `--verbatim` — send the five-part spec without CLI prompt rewriting
 - `GROK_HOME` is set per lane by `lane-run.sh`'s `LANE_VENDOR=grok` plumbing
   (see the vendor-home isolation contract above) — never shared across lanes
+- `LANE_VENDOR=grok` makes `lane-run.sh` require a strong PID-namespace
+  capability (`FOREMAN_CONTAINMENT_REQUIRE=strong`). Queue a degraded round
+  only with `--containment-approval REASON`
 
 Resuming a lane reuses the same session and vendor home, stdout still
 redirected to the lane's own per-lane output file:

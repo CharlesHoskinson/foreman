@@ -37,6 +37,11 @@ starts until Setup has reported READY for every lane it needs:
    device/interactive auth is always an operator action Setup only
    instructs. Idempotent: a second run on an already-ready host changes
    nothing and re-reports READY. See `references/reference-environment.md`.
+   On WSL the inventory also shows a `containment` row. It runs the Node
+   launcher in `--probe-only` mode and reports DEGRADED when the host has no
+   PID-namespace cascade. Generic READY does not depend on it. A DEGRADED
+   row means every implementation lane will refuse to start unless the queue
+   request carries `--containment-approval REASON`.
    **Before Use**, verify the installed skill runtime with the compiled
    command (repository, symlink, junction, or copied skill root):
    `node skills/foreman/runtime/dist/architecture-policy.js verify-install
@@ -60,6 +65,15 @@ starts until Setup has reported READY for every lane it needs:
    command for a not-ready vendor — citing Setup, before touching the
    worktree lock or emitting any event — so "grok wasn't signed in" is
    always a Setup-stage finding, never a mid-round Use-stage failure.
+   `lane-run.sh` also probes process containment once per round. An
+   implementation lane (`LANE_VENDOR` set) requires a strong capability
+   (`FOREMAN_CONTAINMENT_REQUIRE=strong` by default). Without it the round
+   emits `alert {kind: "containment_refused"}` and exits before the vendor
+   CLI runs. Record an explicit acceptance with
+   `lane-queue.sh add ... --containment-approval REASON`. The `ownership`
+   event carries `containment: {tag, kind, reason, approval}` for review.
+   Containment is process lifecycle only. It is not filesystem, network,
+   or credential isolation. See `references/security-model.md`.
 3. **Cleanup** closes every run, in order: best-effort SIGINT of any
    still-alive lane subprocess, `wt-cleanup.sh`'s existing dirty-worktree
    guard + report archive (composed, not reimplemented), stopping a

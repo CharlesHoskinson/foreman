@@ -472,3 +472,24 @@ degraded-mode approval now, fail closed by default once the flag fix lands.**
 The degradation does not create new data exposure, so an immediate stop is not
 required. It does remove every cleanup guarantee the documentation promises,
 so an unapproved silent continuation is not defensible either.
+
+## Implementation status (same day)
+
+The D7 design landed on 2026-09-05 in three rounds, each implemented by the
+Codex lane and verified by the architect:
+
+- `packages/launcher`: user-namespace probe ladder, capability record,
+  `--probe-only`, `--capability-file`, `--require-containment`, exec-arg
+  carry-over across the self re-exec. On this host the Node launcher now
+  reports `capability=posix_pidns_userns_strong` and runs the child as pid 1
+  of a distinct PID namespace.
+- `packages/orchestration`: `lane-queue.sh add --containment-approval REASON`
+  and the `containment` tool-inventory row.
+- `lane-run.sh` and `watch.sh`: per-round probe, `containment` in the
+  `ownership` event, degraded alert, refusal for implementation lanes, and
+  the capability-aware kill target.
+
+Not done: the destructive descendant-survival tests, the transient-service
+cleanup test, the cgroup escape check, and the same-context pueue probe. They
+still need operator approval. The Bun binary is unchanged and remains the
+fallback under `FOREMAN_LAUNCH_IMPL=bun`.
