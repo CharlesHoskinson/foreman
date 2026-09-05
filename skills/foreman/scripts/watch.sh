@@ -27,11 +27,20 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/eventlog.sh
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/eventlog.sh"
+# shellcheck source=lib/checkpoint.sh
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/checkpoint.sh"
+# shellcheck source=lib/config.sh
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/config.sh"
 # shellcheck source=lib/liveness.sh
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/liveness.sh"
 
 # @description Pure watchdog state-transition function: given the age
@@ -145,6 +154,7 @@ _WD_LIVE_EPOCH_CACHE=""
 # Pipe-delimited (not @tsv): bash IFS strips leading whitespace, so a
 # done-only sample ("\t\t2") would put the done seq into live_seq. Pipes are
 # not IFS whitespace, so empty leading fields stay empty ("||2").
+# shellcheck disable=SC2016
 _WD_SAMPLE_JQ='
 reduce inputs as $e ({live_seq:"", live_ts:"", done_seq:""};
   if $e.lane == $lane and $e.seq > $baseline then
@@ -627,6 +637,30 @@ wd_ownership_exists() {
   [[ "$found" == "true" ]]
 }
 
+# @description Look up containment from RUN/LANE's ownership event after
+#   BASELINE. This display note never changes state classification.
+# @arg $1 run  @arg $2 lane  @arg $3 baseline seq
+# @stdout " containment=<kind>" with an optional approval marker
+wd_containment_note() {
+  local run="$1" lane="$2" baseline="$3"
+  local log="${FOREMAN_HOME}/runs/${run}/events.jsonl" kind approval
+  [[ -f "$log" ]] || return 0
+  kind="$(jq -rc --arg lane "$lane" --argjson baseline "${baseline:-0}" '
+    [inputs | select(.lane==$lane and .seq>$baseline and .type=="ownership"
+      and (.payload.containment!=null))][-1].payload.containment.kind // empty
+  ' "$log" 2>/dev/null)" || return 0
+  [[ -z "$kind" ]] && return 0
+  approval="$(jq -rc --arg lane "$lane" --argjson baseline "${baseline:-0}" '
+    [inputs | select(.lane==$lane and .seq>$baseline and .type=="ownership"
+      and (.payload.containment!=null))][-1].payload.containment.approval // empty
+  ' "$log" 2>/dev/null)"
+  if [[ -n "$approval" ]]; then
+    printf ' containment=%s [approved]' "$kind"
+  else
+    printf ' containment=%s' "$kind"
+  fi
+}
+
 # @description Bounded re-poll for an `ownership` event before committing to
 #   the v1-compatibility hand-off (Rework Round 1, Opus audit finding 1,
 #   MEDIUM -- mandatory fix). A genuinely v2 round's `ownership` event can
@@ -782,6 +816,7 @@ wd_pid_alive() {
 # is pipe- not @tsv-delimited: bash IFS strips leading whitespace, and pipes
 # are not IFS whitespace, so empty leading fields stay empty and distinguishable
 # from "absent".
+# shellcheck disable=SC2016
 _WD_V2_SAMPLE_JQ='
 reduce inputs as $e (
   {round_done:false, gate_rc_present:false, gate_rc:null,
@@ -855,6 +890,7 @@ wd_sample_v2() {
   [[ "$f_abandoned" == "true" ]] && WD2_ABANDONED=1
   WD2_OWN_LPID="$f_own_lpid"
   WD2_OWN_PID="$f_own_pid"
+  # shellcheck disable=SC2034  # dynamic-scope output for callers and tests
   WD2_OWN_SEQ="$f_own_seq"
   WD2_WC_SEQ="$f_wc_seq"
   WD2_WC_TS="$f_wc_ts"
@@ -1096,10 +1132,10 @@ wd_once() {
   wd_classify_v2 "$run" "$lane" "$wt" "$hb" "$baseline" "$now_epoch"
   case "$WD2_LABEL" in
     SUCCEEDED) echo "DONE"; return 0 ;;
-    FAILED) echo "$now_ts $run/$lane FAILED"; return 4 ;;
-    AGENT_ABANDONED) echo "$now_ts $run/$lane AGENT_ABANDONED age=${WD2_AGE}s"; return 5 ;;
+    FAILED) echo "$now_ts $run/$lane FAILED$(wd_containment_note "$run" "$lane" "$baseline")"; return 4 ;;
+    AGENT_ABANDONED) echo "$now_ts $run/$lane AGENT_ABANDONED age=${WD2_AGE}s$(wd_containment_note "$run" "$lane" "$baseline")"; return 5 ;;
     DEAD)
-      echo "$now_ts $run/$lane DEAD age=${WD2_AGE}s"
+      echo "$now_ts $run/$lane DEAD age=${WD2_AGE}s$(wd_containment_note "$run" "$lane" "$baseline")"
       local sha="" ckpt_rc=0
       sha="$(ckpt_latest "$wt" "$lane" 2>/dev/null)" || ckpt_rc=$?
       sha=${sha%$'\r'}
@@ -1112,7 +1148,7 @@ wd_once() {
       fi
       return 3 ;;
     *)
-      echo "$now_ts $run/$lane $WD2_LABEL age=${WD2_AGE}s"
+      echo "$now_ts $run/$lane $WD2_LABEL age=${WD2_AGE}s$(wd_containment_note "$run" "$lane" "$baseline")"
       return 0 ;;
   esac
 }
@@ -1224,11 +1260,11 @@ wd_main_v2() {
           exit 0
           ;;
         FAILED)
-          echo "$now_ts $run/$lane FAILED age=${age}s"
+          echo "$now_ts $run/$lane FAILED age=${age}s$(wd_containment_note "$run" "$lane" "$baseline")"
           exit 4
           ;;
         AGENT_ABANDONED)
-          echo "$now_ts $run/$lane AGENT_ABANDONED age=${age}s"
+          echo "$now_ts $run/$lane AGENT_ABANDONED age=${age}s$(wd_containment_note "$run" "$lane" "$baseline")"
           local ap; ap="$(jq -cn --arg state AGENT_ABANDONED --argjson age "$age" '{state:$state,age:$age}' 2>/dev/null || echo '{}')"
           ap=${ap//$'\r'/}
           if ! el_emit "$run" alert "$lane" "$ap" >/dev/null; then
@@ -1237,7 +1273,7 @@ wd_main_v2() {
           exit 5
           ;;
         *)
-          echo "$now_ts $run/$lane $label age=${age}s"
+          echo "$now_ts $run/$lane $label age=${age}s$(wd_containment_note "$run" "$lane" "$baseline")"
           local payload; payload="$(jq -cn --arg state "$label" --argjson age "$age" '{state:$state,age:$age}' 2>/dev/null || echo '{}')"
           payload=${payload//$'\r'/}
           if ! el_emit "$run" alert "$lane" "$payload" >/dev/null; then

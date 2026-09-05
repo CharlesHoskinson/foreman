@@ -19,9 +19,9 @@
 #   end on Git Bash/MSYS2.
 #
 # CONTRACT (T2, v0.2.5 round ownership): when foreman-launch is resolvable
-#   (lane_resolve_launcher: FOREMAN_LAUNCH env override > launcher/dist/
-#   foreman-launch(.exe) relative to THIS script's own repo root > PATH lookup
-#   > absent), CMD is spawned THROUGH it instead of directly. The variable that
+#   (lane_resolve_launcher: FOREMAN_LAUNCH env override > Node bundle >
+#   launcher/dist/foreman-launch(.exe) > PATH lookup > absent), CMD is spawned
+#   THROUGH it instead of directly. The variable that
 #   tracks the spawned pid is renamed accordingly in that branch --
 #   `launcher_pid` (the supervisor's own pid) instead of `cmd_pid` (CMD's own
 #   pid, used only on the launcher-ABSENT path, unchanged/frozen) -- because
@@ -44,12 +44,11 @@
 #   forwarded by killing the launcher process instead (kill_launcher_bounded),
 #   which cascades the whole tree via the job (Windows) -- trap exit codes
 #   130/143 are unchanged either way.
-#   POSIX CAVEAT (launcher/README.md "POSIX asymmetry"): POSIX has NO kernel
-#   cascade equivalent to KILL_ON_JOB_CLOSE -- killing launcher_pid alone
-#   leaves CMD's whole process group alive. kill_launcher_bounded's POSIX
-#   branch therefore ALSO signals `-pid` (the negative pid = process group,
-#   using the child pid recorded in the ownership heartbeat, which equals its
-#   own pgid since the launcher wraps CMD in setsid), not launcher_pid alone.
+#   POSIX CAVEAT (launcher/README.md "POSIX asymmetry"): weak or unknown
+#   containment has no kernel cascade. Cleanup signals CMD's process group,
+#   then the launcher. Strong containment makes the heartbeat pid namespace
+#   local. Cleanup never signals that pid externally. It sends SIGKILL only
+#   to the launcher, which triggers unshare's child cleanup.
 #   `--round GATE_CMD REPORT_PATH` mode makes lane-run.sh own the WHOLE round
 #   (CMD -> gate -> attempt-fresh report assert -> round_done), never the
 #   agent's own turn -- see the ROUND_MODE block near the end of this file.
@@ -632,25 +631,40 @@ reap_tee_bounded() {
   wait "$pid" 2>/dev/null || true
 }
 
-# @description Resolve the foreman-launch executable (T2). Precedence:
-#   FOREMAN_LAUNCH env override (if set and non-empty, it is AUTHORITATIVE --
-#   an override pointing at a non-executable/missing path means the launcher
-#   is treated as ABSENT, never a fallthrough to the probes below; this is
-#   the deliberate neutralization knob bats tests use to force the
-#   launcher-absent path even when the compiled binary exists on disk in this
-#   checkout) > launcher/dist/foreman-launch(.exe) resolved relative to THIS
-#   script's own repo root (three levels up from skills/foreman/scripts,
-#   NOT the caller's cwd or WT, so detection is independent of which
-#   worktree CMD runs in) > PATH lookup > absent.
-# @stdout resolved executable path (nothing if absent)
-# @exitcode 0 found; 1 absent
+# @description Resolve the foreman-launch invocation (T-pidns-remedy).
+#   Precedence: FOREMAN_LAUNCH env override (authoritative: a non-executable
+#   or missing override means ABSENT, never a fallthrough) > when
+#   FOREMAN_LAUNCH_IMPL is unset or "node" and both `node` and
+#   $FOREMAN_TOOL_ROOT/skills/foreman/runtime/dist/foreman-launch.js exist,
+#   `node <that file>` > $FOREMAN_TOOL_ROOT/launcher/dist/foreman-launch(.exe)
+#   > PATH lookup > absent. FOREMAN_LAUNCH_IMPL=bun (or an absent Node bundle)
+#   skips the node arm and falls through to the compiled-binary/PATH arms.
+# @set FOREMAN_LAUNCH_ARGV indexed array: the launcher invocation as one or
+#   two words. Callers append flags with "${FOREMAN_LAUNCH_ARGV[@]}".
+# @set FOREMAN_LAUNCH_RESOLVED non-empty descriptive string on success.
+#   The function leaves it empty on failure.
+# @exitcode 0 found (FOREMAN_LAUNCH_ARGV populated), or 1 absent
 lane_resolve_launcher() {
+  FOREMAN_LAUNCH_ARGV=()
+  FOREMAN_LAUNCH_RESOLVED=""
   if [[ -n "${FOREMAN_LAUNCH:-}" ]]; then
     if [[ -x "$FOREMAN_LAUNCH" ]]; then
-      printf '%s\n' "$FOREMAN_LAUNCH"
+      FOREMAN_LAUNCH_ARGV=("$FOREMAN_LAUNCH")
+      FOREMAN_LAUNCH_RESOLVED="$FOREMAN_LAUNCH"
       return 0
     fi
     return 1
+  fi
+  local node_bundle=""
+  if [[ -n "$FOREMAN_TOOL_ROOT" ]]; then
+    node_bundle="$FOREMAN_TOOL_ROOT/skills/foreman/runtime/dist/foreman-launch.js"
+  fi
+  if [[ "${FOREMAN_LAUNCH_IMPL:-node}" == node ]] \
+     && [[ -n "$node_bundle" && -f "$node_bundle" ]] \
+     && command -v node >/dev/null 2>&1; then
+    FOREMAN_LAUNCH_ARGV=(node "$node_bundle")
+    FOREMAN_LAUNCH_RESOLVED="node $node_bundle"
+    return 0
   fi
   local candidate
   if [[ -n "$FOREMAN_TOOL_ROOT" ]]; then
@@ -659,10 +673,16 @@ lane_resolve_launcher() {
     else
       candidate="$FOREMAN_TOOL_ROOT/launcher/dist/foreman-launch"
     fi
-    [[ -x "$candidate" ]] && { printf '%s\n' "$candidate"; return 0; }
+    if [[ -x "$candidate" ]]; then
+      FOREMAN_LAUNCH_ARGV=("$candidate")
+      FOREMAN_LAUNCH_RESOLVED="$candidate"
+      return 0
+    fi
   fi
-  if candidate="$(command -v foreman-launch 2>/dev/null)"; then
-    [[ -n "$candidate" ]] && { printf '%s\n' "$candidate"; return 0; }
+  if candidate="$(command -v foreman-launch 2>/dev/null)" && [[ -n "$candidate" ]]; then
+    FOREMAN_LAUNCH_ARGV=("$candidate")
+    FOREMAN_LAUNCH_RESOLVED="$candidate"
+    return 0
   fi
   return 1
 }
@@ -740,7 +760,16 @@ lane_emit_ownership() {
       --arg job_id "$ownership_job_id" \
       --arg worktree "$WT" \
       --arg config_dir "${LANE_CONFIG_DIR:-}" \
-      '{attempt:$attempt,
+      --arg containment_tag "$containment_tag" \
+      --arg containment_kind "$containment_kind" \
+      --arg containment_reason "$containment_reason" \
+      --arg containment_approval "$containment_approval" \
+      '(if $containment_tag=="" then {} else
+          {containment:{tag:$containment_tag,kind:$containment_kind,
+            reason:$containment_reason,
+            approval:(if $containment_approval=="" then null else $containment_approval end)}}
+        end) +
+       {attempt:$attempt,
         launcher_pid:(if $launcher_pid=="" then null else ($launcher_pid|tonumber) end),
         pid:(if $pid=="" then null else ($pid|tonumber) end),
         job_id:(if $job_id=="" then null else $job_id end),
@@ -771,12 +800,11 @@ lane_emit_ownership() {
 #   kill_cmd_bounded exactly (same /proc/<pid>/winpid trick, same
 #   LANE_PROC_ROOT test knob) since the launcher, like CMD before it, is just
 #   a directly bash-spawned Windows exe.
-#   POSIX: there is NO kernel cascade (launcher/README.md "POSIX asymmetry")
-#   -- killing launcher_pid alone leaves CMD's whole process group alive.
-#   Also signal the child's own pgid (recovered as LANE_OWNERSHIP_PID from
-#   the ownership heartbeat parse -- it equals the child's pgid because the
-#   launcher wraps CMD in setsid) as a process GROUP (`kill -- -PID`), per
-#   the README's explicit external-reaper guidance, THEN the launcher itself.
+#   POSIX weak or unknown containment has no kernel cascade. Signal the
+#   child's process group, then signal the launcher. Strong containment makes
+#   the child pid namespace local. Never signal that pid from outside its
+#   namespace. Send SIGKILL only to the launcher. Unshare then removes its
+#   contained child through --kill-child handling.
 # @arg $1 launcher_pid
 # @arg $2 child_pid optional POSIX pgid target (empty on Windows / on an
 #   ownership-parse timeout -- best-effort in that case)
@@ -794,8 +822,15 @@ kill_launcher_bounded() {
       kill -KILL "$lpid" 2>/dev/null || true
     fi
   else
-    [[ -n "$cpid" ]] && kill -TERM -- "-$cpid" 2>/dev/null || true
-    kill -TERM "$lpid" 2>/dev/null || true
+    if [[ "${containment_strong:-0}" == "1" ]]; then
+      # Strong containment makes $cpid local to the launcher's namespace.
+      # An external signal could target an unrelated host process.
+      # SIGKILL triggers the unshare wrapper's child cleanup.
+      kill -KILL "$lpid" 2>/dev/null || true
+    else
+      [[ -n "$cpid" ]] && kill -TERM -- "-$cpid" 2>/dev/null || true
+      kill -TERM "$lpid" 2>/dev/null || true
+    fi
   fi
   wait "$lpid" 2>/dev/null || true
 }
@@ -1098,14 +1133,82 @@ stream_failed=0
 # not once per phase (CMD and, in --round mode, GATE_CMD share this single
 # alert instead of duplicating it).
 FOREMAN_LAUNCH_RESOLVED=""
-if FOREMAN_LAUNCH_RESOLVED="$(lane_resolve_launcher)"; then
+FOREMAN_LAUNCH_ARGV=()
+if lane_resolve_launcher; then
   :
 else
   FOREMAN_LAUNCH_RESOLVED=""
+  FOREMAN_LAUNCH_ARGV=()
   echo "lane-run: DEGRADED launcher absent; build it during Setup with: (cd launcher && bun run build:posix)" >&2
   if ! el_emit "$RUN" alert "$LANE" '{"kind":"degraded","reason":"launcher_absent"}' >/dev/null; then
     echo "lane-run: el_emit alert (degraded) failed" >&2
   fi
+fi
+containment_tag="" containment_kind="" containment_reason="" containment_approval=""
+require_effective=""
+cap_file="$WT/.harness/capability.json"
+if [[ -n "$FOREMAN_LAUNCH_RESOLVED" ]]; then
+  set +e
+  rm -f "$cap_file"
+  "${FOREMAN_LAUNCH_ARGV[@]}" --probe-only --capability-file "$cap_file" --require-containment any \
+    >/dev/null 2>"$WT/.harness/capability.stderr" || true
+
+  if [[ -s "$cap_file" ]] && jq -e . >/dev/null 2>&1 <"$cap_file"; then
+    containment_tag="$(jq -r '.tag // "Unknown"' "$cap_file" 2>/dev/null)"
+    containment_kind="$(jq -r '.kind // "unknown"' "$cap_file" 2>/dev/null)"
+    containment_reason="$(jq -r '.reason // "capability_file_missing"' "$cap_file" 2>/dev/null)"
+    [[ -z "$containment_tag" ]] && containment_tag=Unknown
+    [[ -z "$containment_kind" ]] && containment_kind=unknown
+    [[ -z "$containment_reason" ]] && containment_reason=capability_file_missing
+  else
+    containment_tag=Unknown containment_kind=unknown containment_reason=capability_file_missing
+  fi
+
+  containment_strong=0
+  [[ "$containment_tag" == "Strong" || "$containment_tag" == "AlreadyInner" ]] && containment_strong=1
+
+  containment_require="${FOREMAN_CONTAINMENT_REQUIRE:-}"
+  if [[ -z "$containment_require" ]]; then
+    if [[ -n "${LANE_VENDOR:-}" ]]; then containment_require=strong; else containment_require=any; fi
+  fi
+  containment_approval="${FOREMAN_CONTAINMENT_APPROVAL:-}"
+
+  if (( containment_strong == 0 )) && [[ "$containment_require" == strong ]] && [[ -z "$containment_approval" ]]; then
+    refused_payload="$(jq -cn \
+      --arg tag "$containment_tag" --arg kind "$containment_kind" --arg reason "$containment_reason" \
+      '{kind:"containment_refused",tag:$tag,capability_kind:$kind,reason:$reason,required:"strong"}' \
+      2>/dev/null | tr -d '\r')"
+    if [[ -n "$refused_payload" ]]; then
+      el_emit "$RUN" alert "$LANE" "$refused_payload" >/dev/null \
+        || echo "lane-run: el_emit alert (containment_refused) failed" >&2
+    else
+      echo "lane-run: containment_refused alert payload build failed (jq)" >&2
+    fi
+    echo "lane-run: REFUSED containment=$containment_kind reason=$containment_reason required=strong; set FOREMAN_CONTAINMENT_APPROVAL=\"$containment_reason\" to run degraded" >&2
+    set -e
+    exit "$EXIT_CONFIG"
+  fi
+
+  if (( containment_strong == 0 )); then
+    approval_json=null
+    [[ -n "$containment_approval" ]] && approval_json="$(jq -Rn --arg a "$containment_approval" '$a' 2>/dev/null)"
+    [[ -z "$approval_json" ]] && approval_json=null
+    degraded_payload="$(jq -cn \
+      --arg reason "containment_${containment_reason}" --arg kind "$containment_kind" --argjson approval "$approval_json" \
+      '{kind:"degraded",reason:$reason,capability_kind:$kind,approval:$approval}' \
+      2>/dev/null | tr -d '\r')"
+    if [[ -n "$degraded_payload" ]]; then
+      el_emit "$RUN" alert "$LANE" "$degraded_payload" >/dev/null \
+        || echo "lane-run: el_emit alert (degraded containment) failed" >&2
+    else
+      echo "lane-run: degraded containment alert payload build failed (jq)" >&2
+    fi
+    echo "lane-run: DEGRADED containment=$containment_kind reason=$containment_reason" >&2
+  fi
+
+  require_effective=any
+  (( containment_strong == 1 )) && require_effective=strong
+  set -e
 fi
 hb="$WT/.harness/heartbeat.ndjson"
 if [[ -n "$FOREMAN_LAUNCH_RESOLVED" ]]; then
@@ -1180,7 +1283,8 @@ if [[ -n "$FOREMAN_LAUNCH_RESOLVED" ]]; then
   # substitute for it (an inherited LD_PRELOAD would poison CMD identically
   # even without lane-run.sh wrapping anything itself).
   env -u LD_PRELOAD -u _STDBUF_O -u _STDBUF_E \
-    "$FOREMAN_LAUNCH_RESOLVED" --heartbeat-file "$hb" --heartbeat-interval 15 -- "$@" \
+    "${FOREMAN_LAUNCH_ARGV[@]}" --heartbeat-file "$hb" --heartbeat-interval 15 \
+    --require-containment "$require_effective" --capability-file "$cap_file" -- "$@" \
     < /dev/null > >(printf '%s\n' "$BASHPID" > "$tee_pid_file"; exec tee -a "$stream_file") 2>&1 &
   launcher_pid=$!
   lane_emit_ownership "$hb" "$attempt" "$launcher_pid"
@@ -1384,7 +1488,8 @@ if (( ROUND_MODE == 1 )); then
     # `bash -c` -- this lets a caller pass e.g. "scripts/gate-eval.sh run1"
     # as one quoted string.
     gate_hb_baseline="$(wc -l < "$hb" 2>/dev/null || echo 0)"
-    "$FOREMAN_LAUNCH_RESOLVED" --heartbeat-file "$hb" --heartbeat-interval 15 -- bash -c "$GATE_CMD" < /dev/null &
+    "${FOREMAN_LAUNCH_ARGV[@]}" --heartbeat-file "$hb" --heartbeat-interval 15 \
+      --require-containment "$require_effective" -- bash -c "$GATE_CMD" < /dev/null &
     launcher_pid=$!
     # Rework round 1, F2: refresh LANE_OWNERSHIP_PID to the GATE's own child
     # pid (see lane_refresh_gate_ownership_pid doc comment) -- concurrent
