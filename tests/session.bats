@@ -6,11 +6,16 @@
 
 setup() {
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
+  ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   # The implementation under test is overridable, so this file is a
   # cross-implementation conformance suite rather than a Python-only one.
   # 27 of these 34 tests already assert on printed output, so a port that
   # emits different stdout fails here rather than passing quietly.
   SESS="${FM_SESSION_CMD:-node $SCRIPTS/../runtime/dist/fm-session.js}"
+  # Repair lives in the TypeScript source. This change is not allowed to
+  # rebuild skills/foreman/runtime/dist, so repair tests use that entry.
+  TSX="$(cd "$ROOT" && node -p "require.resolve('tsx')")"
+  TS_SESS="node --import $TSX $ROOT/packages/orchestration/src/fm-session-main.ts"
   REPO="$BATS_TEST_TMPDIR/repo"
   mkdir -p "$REPO"
   git -C "$REPO" init -q -b main
@@ -480,17 +485,51 @@ PY
     $'id\tmetric\tvalue\tverdict\treason\tcommand\tscope\tsha\ttimestamp' ]
 }
 
-@test "repair on a healthy store is a no-op" {
+# @description Print each store-directory entry as "relative-name size", sorted.
+store_listing() {
+  find "$1" -mindepth 1 -printf '%P %s\n' | LC_ALL=C sort
+}
+
+@test "repair on a healthy store with a sidecar is a no-op" {
+  SESS="$TS_SESS"
   cd "$REPO"
+  store_dir="$BATS_TEST_TMPDIR/store-with-sidecar"
+  mkdir -p "$store_dir"
+  export FOREMAN_SESSION_DB="$store_dir/session.db"
+  sidecar="${FOREMAN_SESSION_DB%.db}.ndjson"
   $SESS fact "keep me"
-  before=$(cksum "$FOREMAN_SESSION_DB")
+  [ -f "$sidecar" ]
+  printf 'must-not-change\n' >> "$sidecar"
+  sidecar_before=$(cksum "$sidecar")
+  $SESS recover >/dev/null
+  listing_before=$(store_listing "$store_dir")
   run $SESS repair
   [ "$status" -eq 0 ]
   [[ "$output" == *"repair: store is healthy, nothing to do"* ]]
-  [ "$(cksum "$FOREMAN_SESSION_DB")" = "$before" ]
+  [ "$(store_listing "$store_dir")" = "$listing_before" ]
+  [ "$(cksum "$sidecar")" = "$sidecar_before" ]
+}
+
+@test "repair on a healthy store without a sidecar creates none" {
+  SESS="$TS_SESS"
+  cd "$REPO"
+  store_dir="$BATS_TEST_TMPDIR/store-no-sidecar"
+  mkdir -p "$store_dir"
+  export FOREMAN_SESSION_DB="$store_dir/session.db"
+  sidecar="${FOREMAN_SESSION_DB%.db}.ndjson"
+  $SESS fact "keep me"
+  rm -f "$sidecar"
+  $SESS recover >/dev/null
+  listing_before=$(store_listing "$store_dir")
+  run $SESS repair
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"repair: store is healthy, nothing to do"* ]]
+  [ "$(store_listing "$store_dir")" = "$listing_before" ]
+  [ ! -f "$sidecar" ]
 }
 
 @test "repair moves a half-migrated store aside and recover then succeeds" {
+  SESS="$TS_SESS"
   cd "$REPO"
   sqlite3 "$FOREMAN_SESSION_DB" <<'SQL'
 CREATE TABLE schema_meta(key TEXT PRIMARY KEY, value TEXT);
@@ -512,7 +551,8 @@ SQL
   run $SESS repair
   [ "$status" -eq 0 ]
   [[ "$output" == *".corrupt-"* ]]
-  backup=$(printf '%s\n' "$output" | awk '{print $NF}')
+  backup=$(printf '%s\n' "$output" | grep -oE '[^[:space:]]+\.corrupt-[^[:space:]]+' | head -n1)
+  [ -n "$backup" ]
   [ -f "$backup" ]
   [ -f "$FOREMAN_SESSION_DB" ]
 
@@ -522,6 +562,7 @@ SQL
 }
 
 @test "repair_failed keeps the renamed file when the sidecar is unparsable" {
+  SESS="$TS_SESS"
   cd "$REPO"
   sqlite3 "$FOREMAN_SESSION_DB" <<'SQL'
 CREATE TABLE schema_meta(key TEXT PRIMARY KEY, value TEXT);
@@ -545,6 +586,7 @@ SQL
 }
 
 @test "recover with neither store nor sidecar exits 2 with no_session_source" {
+  SESS="$TS_SESS"
   cd "$REPO"
   run $SESS recover
   [ "$status" -eq 2 ]

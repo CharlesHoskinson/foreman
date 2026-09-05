@@ -4,10 +4,16 @@ import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import {
+  chmodSync,
   existsSync,
+  lstatSync,
+  mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
+  readlinkSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -101,6 +107,19 @@ function spawnSession(dir: string, dbPath: string, args: readonly string[]) {
   });
 }
 
+function directoryModesAreEnforced(): boolean {
+  return (
+    process.platform !== "win32" &&
+    !(typeof process.getuid === "function" && process.getuid() === 0)
+  );
+}
+
+function listingOf(dir: string): readonly { name: string; size: number }[] {
+  return readdirSync(dir)
+    .map((name) => ({ name, size: lstatSync(join(dir, name)).size }))
+    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+}
+
 function captureStderr(body: () => void): string {
   let text = "";
   const orig = process.stderr.write;
@@ -141,6 +160,24 @@ test("allocateCorruptBackupPath appends -1, -2 until free and overwrites nothing
   );
 });
 
+test("allocateCorruptBackupPath treats -wal or -shm occupancy as a collision", () => {
+  const walTaken = new Set(["/tmp/session.db.corrupt-20260905T000000Z-wal"]);
+  assert.equal(
+    allocateCorruptBackupPath("/tmp/session.db", "20260905T000000Z", (p) => walTaken.has(p)),
+    "/tmp/session.db.corrupt-20260905T000000Z-1",
+  );
+  const shmTaken = new Set(["/tmp/session.db.corrupt-20260905T000000Z-shm"]);
+  assert.equal(
+    allocateCorruptBackupPath("/tmp/session.db", "20260905T000000Z", (p) => shmTaken.has(p)),
+    "/tmp/session.db.corrupt-20260905T000000Z-1",
+  );
+  const suffixWalTaken = new Set(["/tmp/session.db.corrupt-20260905T000000Z-1-wal"]);
+  assert.equal(
+    allocateCorruptBackupPath("/tmp/session.db", "20260905T000000Z", (p) => suffixWalTaken.has(p)),
+    "/tmp/session.db.corrupt-20260905T000000Z",
+  );
+});
+
 test("fresh clone: recover rebuilds from the sidecar when the store is absent", () => {
   const dir = makeTempDir("ss-fresh-clone-");
   const p = join(dir, "session.db");
@@ -172,8 +209,8 @@ test("repair moves a half-migrated store aside and recover then succeeds", () =>
   assert.match(recovered.stdout, /sidecar fact/);
 });
 
-test("repair on a healthy store changes nothing", () => {
-  const dir = makeTempDir("ss-repair-healthy-");
+test("repair on a healthy store with a sidecar changes no directory entry and leaves sidecar bytes unchanged", () => {
+  const dir = makeTempDir("ss-repair-healthy-sidecar-");
   const p = join(dir, "session.db");
   const store = SqliteSessionStore.open(p);
   store.addFact({
@@ -183,11 +220,52 @@ test("repair on a healthy store changes nothing", () => {
     session_id: null,
   });
   store.close();
-  const before = readFileSync(p);
+  const sidecar = sidecarPathFor(p);
+  const sidecarBytes = Buffer.from("distinctive-sidecar-bytes-must-not-change\n");
+  writeFileSync(sidecar, sidecarBytes);
+  classifySqliteStore(p);
+  const listingBefore = listingOf(dir);
+  const dbBefore = readFileSync(p);
   const res = spawnSession(dir, p, ["repair"]);
   assert.equal(res.status, 0, res.stderr);
   assert.equal(res.stdout, "repair: store is healthy, nothing to do\n");
-  assert.ok(Buffer.compare(before, readFileSync(p)) === 0);
+  assert.deepEqual(listingOf(dir), listingBefore);
+  assert.ok(Buffer.compare(dbBefore, readFileSync(p)) === 0);
+  assert.ok(
+    Buffer.compare(sidecarBytes, readFileSync(sidecar)) === 0,
+    "existing sidecar bytes must be unchanged; this assertion fails if repair is removed from NO_SIDECAR_REFRESH_CMDS",
+  );
+  assert.equal(classifySqliteStore(p), "port");
+  assert.ok(factStatements(p).includes("keep me"));
+});
+
+test("repair on a healthy store without a sidecar creates none and changes no directory entry", () => {
+  const dir = makeTempDir("ss-repair-healthy-nosidecar-");
+  const p = join(dir, "session.db");
+  const store = SqliteSessionStore.open(p);
+  store.addFact({
+    statement: "keep me",
+    evidence: null,
+    established_ts: "2026-08-01T00:00:00Z",
+    session_id: null,
+  });
+  store.close();
+  const sidecar = sidecarPathFor(p);
+  rmSync(sidecar, { force: true });
+  assert.equal(existsSync(sidecar), false);
+  classifySqliteStore(p);
+  const listingBefore = listingOf(dir);
+  const dbBefore = readFileSync(p);
+  const res = spawnSession(dir, p, ["repair"]);
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(res.stdout, "repair: store is healthy, nothing to do\n");
+  assert.deepEqual(listingOf(dir), listingBefore);
+  assert.ok(Buffer.compare(dbBefore, readFileSync(p)) === 0);
+  assert.equal(
+    existsSync(sidecar),
+    false,
+    "repair must not create a sidecar; this assertion fails if repair is removed from NO_SIDECAR_REFRESH_CMDS",
+  );
   assert.equal(classifySqliteStore(p), "port");
   assert.ok(factStatements(p).includes("keep me"));
 });
@@ -208,6 +286,68 @@ test("repair backup name collision appends a numeric suffix and overwrites nothi
   assert.equal(result.renamedPath, `${intended}-1`);
   assert.equal(existsSync(result.renamedPath), true);
   assert.equal(readFileSync(intended, "utf8"), occupant);
+  assert.equal(classifySqliteStore(p), "port");
+});
+
+test("repair allocates the next suffix when a dangling symlink occupies the intended backup name", () => {
+  const dir = makeTempDir("ss-repair-dangle-");
+  const p = join(dir, "session.db");
+  writeHalfMigratedStore(p);
+  writeFactSidecar(sidecarPathFor(p), "after repair");
+  const frozen = new Date("2026-09-05T12:00:00Z");
+  const intended = `${p}.corrupt-20260905T120000Z`;
+  const missingTarget = join(dir, "missing-target");
+  symlinkSync(missingTarget, intended);
+  assert.equal(lstatSync(intended).isSymbolicLink(), true);
+  assert.equal(existsSync(intended), false, "control: existsSync must not see a dangling symlink");
+
+  const result = repairStore(p, { now: () => frozen });
+  assert.equal(result.status, "repaired", result.status === "failed" ? result.detail : "");
+  if (result.status !== "repaired") return;
+  assert.equal(result.renamedPath, `${intended}-1`);
+  assert.equal(lstatSync(intended).isSymbolicLink(), true);
+  assert.equal(readlinkSync(intended), missingTarget);
+  assert.equal(existsSync(result.renamedPath), true);
+  assert.equal(classifySqliteStore(p), "port");
+});
+
+test("repair allocates the next suffix when the intended backup -wal exists and the base is free", () => {
+  const dir = makeTempDir("ss-repair-wal-");
+  const p = join(dir, "session.db");
+  writeHalfMigratedStore(p);
+  writeFactSidecar(sidecarPathFor(p), "after repair");
+  const frozen = new Date("2026-09-05T12:00:00Z");
+  const intended = `${p}.corrupt-20260905T120000Z`;
+  const occupant = Buffer.from("pre-existing-wal-bytes");
+  writeFileSync(`${intended}-wal`, occupant);
+
+  const result = repairStore(p, { now: () => frozen });
+  assert.equal(result.status, "repaired", result.status === "failed" ? result.detail : "");
+  if (result.status !== "repaired") return;
+  assert.equal(result.renamedPath, `${intended}-1`);
+  assert.equal(existsSync(intended), false);
+  assert.ok(Buffer.compare(occupant, readFileSync(`${intended}-wal`)) === 0);
+  assert.equal(existsSync(result.renamedPath), true);
+  assert.equal(classifySqliteStore(p), "port");
+});
+
+test("repair allocates the next suffix when the intended backup -shm exists", () => {
+  const dir = makeTempDir("ss-repair-shm-");
+  const p = join(dir, "session.db");
+  writeHalfMigratedStore(p);
+  writeFactSidecar(sidecarPathFor(p), "after repair");
+  const frozen = new Date("2026-09-05T12:00:00Z");
+  const intended = `${p}.corrupt-20260905T120000Z`;
+  const occupant = Buffer.from("pre-existing-shm-bytes");
+  writeFileSync(`${intended}-shm`, occupant);
+
+  const result = repairStore(p, { now: () => frozen });
+  assert.equal(result.status, "repaired", result.status === "failed" ? result.detail : "");
+  if (result.status !== "repaired") return;
+  assert.equal(result.renamedPath, `${intended}-1`);
+  assert.equal(existsSync(intended), false);
+  assert.ok(Buffer.compare(occupant, readFileSync(`${intended}-shm`)) === 0);
+  assert.equal(existsSync(result.renamedPath), true);
   assert.equal(classifySqliteStore(p), "port");
 });
 
@@ -278,4 +418,24 @@ test("recover exits 2 with no_session_source when neither file exists", () => {
   assert.equal(res.status, 2, res.stderr);
   assert.match(res.stderr, /no_session_source/);
   assert.equal(existsSync(p), false);
+});
+
+test("recover exits 2 with no_session_source when the parent is chmod 0o500 and neither file exists", (t) => {
+  if (!directoryModesAreEnforced()) {
+    t.skip("chmod 0o500 does not produce EACCES for root or on win32");
+    return;
+  }
+  const dir = makeTempDir("ss-no-source-500-");
+  const parent = join(dir, "locked");
+  mkdirSync(parent);
+  const p = join(parent, "session.db");
+  chmodSync(parent, 0o500);
+  try {
+    const res = spawnSession(dir, p, ["recover"]);
+    assert.equal(res.status, 2, res.stderr);
+    assert.match(res.stderr, /no_session_source/);
+    assert.equal(existsSync(p), false);
+  } finally {
+    chmodSync(parent, 0o700);
+  }
 });

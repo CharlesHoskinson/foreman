@@ -6,7 +6,6 @@
  */
 
 import fs from "node:fs";
-import { dirname } from "node:path";
 import {
   classifySqliteStore,
   decodeSnapshot,
@@ -89,32 +88,103 @@ export function compactUtcTimestamp(date: Date): string {
   );
 }
 
+const BACKUP_SIDECARS = ["-wal", "-shm"] as const;
+const MAX_BACKUP_MOVE_ATTEMPTS = 100;
+
+function fsErrorCode(e: unknown): string | undefined {
+  if (typeof e === "object" && e !== null && "code" in e) {
+    const code = (e as { code?: unknown }).code;
+    return typeof code === "string" ? code : undefined;
+  }
+  return undefined;
+}
+
+function pathOccupied(path: string): boolean {
+  try {
+    fs.lstatSync(path);
+    return true;
+  } catch (e) {
+    if (fsErrorCode(e) === "ENOENT") return false;
+    throw e;
+  }
+}
+
+function backupTripletOccupied(
+  dest: string,
+  occupied: (path: string) => boolean = pathOccupied,
+): boolean {
+  if (occupied(dest)) return true;
+  for (const suffix of BACKUP_SIDECARS) {
+    if (occupied(dest + suffix)) return true;
+  }
+  return false;
+}
+
 /**
  * First free `.corrupt-<stamp>` path. Collision suffixes are `-1`, `-2`, ...
- * The `exists` seam is for tests; production uses `fs.existsSync`.
+ * A candidate is free only when none of `<base>`, `<base>-wal`, and
+ * `<base>-shm` exist by `lstat` (a dangling symlink counts as occupied).
+ * The `occupied` seam is for tests; production uses `fs.lstatSync`.
  */
 export function allocateCorruptBackupPath(
   dbPath: string,
   stamp: string,
-  exists: (path: string) => boolean = (p) => fs.existsSync(p),
+  occupied: (path: string) => boolean = pathOccupied,
 ): string {
   const base = `${dbPath}.corrupt-${stamp}`;
-  if (!exists(base)) return base;
+  if (!backupTripletOccupied(base, occupied)) return base;
   let n = 1;
   let candidate = `${base}-${n}`;
-  while (exists(candidate)) {
+  while (backupTripletOccupied(candidate, occupied)) {
     n += 1;
     candidate = `${base}-${n}`;
   }
   return candidate;
 }
 
-function renameStoreAside(dbPath: string, dest: string): void {
-  fs.renameSync(dbPath, dest);
-  for (const suffix of ["-wal", "-shm"] as const) {
-    if (fs.existsSync(dbPath + suffix)) {
-      fs.renameSync(dbPath + suffix, dest + suffix);
+function eexistError(path: string): NodeJS.ErrnoException {
+  const err = new Error(`EEXIST: file already exists, ${path}`) as NodeJS.ErrnoException;
+  err.code = "EEXIST";
+  return err;
+}
+
+function unlinkCreated(paths: readonly string[]): void {
+  for (const p of paths) {
+    try {
+      fs.unlinkSync(p);
+    } catch {
+      // best-effort rollback of hardlinks created in this attempt
     }
+  }
+}
+
+/**
+ * Move the database and any existing `-wal`/`-shm` files without replacing
+ * an occupied destination. `link` then `unlink` fails with `EEXIST` when
+ * the destination is taken.
+ */
+function renameStoreAside(dbPath: string, dest: string): void {
+  if (backupTripletOccupied(dest)) {
+    throw eexistError(dest);
+  }
+  const pairs: Array<{ src: string; dest: string }> = [{ src: dbPath, dest }];
+  for (const suffix of BACKUP_SIDECARS) {
+    if (pathOccupied(dbPath + suffix)) {
+      pairs.push({ src: dbPath + suffix, dest: dest + suffix });
+    }
+  }
+  const created: string[] = [];
+  try {
+    for (const pair of pairs) {
+      fs.linkSync(pair.src, pair.dest);
+      created.push(pair.dest);
+    }
+  } catch (e) {
+    unlinkCreated(created);
+    throw e;
+  }
+  for (const pair of pairs) {
+    fs.unlinkSync(pair.src);
   }
 }
 
@@ -122,7 +192,9 @@ function renameStoreAside(dbPath: string, dest: string): void {
  * Move a half-migrated store aside and rebuild from the tracked sidecar.
  *
  * Healthy (`port` or any non-`corrupt` shape) is a no-op. After a rename,
- * a rebuild failure leaves the renamed file in place.
+ * a rebuild failure leaves the renamed file in place. If a destination
+ * appears between allocation and move, allocation retries with the next
+ * suffix, at most 100 times, then fails with the store left untouched.
  */
 export function repairStore(dbPath: string, opts: RepairStoreOpts = {}): RepairStoreResult {
   const shape = classifySqliteStore(dbPath);
@@ -130,8 +202,24 @@ export function repairStore(dbPath: string, opts: RepairStoreOpts = {}): RepairS
     return { status: "healthy" };
   }
   const stamp = compactUtcTimestamp((opts.now ?? (() => new Date()))());
-  const renamedPath = allocateCorruptBackupPath(dbPath, stamp);
-  renameStoreAside(dbPath, renamedPath);
+  let renamedPath: string | undefined;
+  for (let attempt = 0; attempt < MAX_BACKUP_MOVE_ATTEMPTS; attempt++) {
+    const dest = allocateCorruptBackupPath(dbPath, stamp);
+    try {
+      renameStoreAside(dbPath, dest);
+      renamedPath = dest;
+      break;
+    } catch (e) {
+      if (fsErrorCode(e) !== "EEXIST") throw e;
+    }
+  }
+  if (renamedPath === undefined) {
+    return {
+      status: "failed",
+      renamedPath: dbPath,
+      detail: "could not allocate a free backup path without replacing an existing file",
+    };
+  }
   const sidecar = sidecarPathFor(dbPath);
   try {
     const res = rebuildSqliteFromSidecar({
@@ -250,18 +338,10 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
     if (opts.requireSessionSource === true) {
       const sidecar = sidecarPathFor(p);
       if (!fs.existsSync(sidecar)) {
-        let parentWritable = true;
-        try {
-          fs.accessSync(dirname(p) || ".", fs.constants.W_OK);
-        } catch {
-          parentWritable = false;
-        }
-        if (parentWritable) {
-          process.stderr.write(
-            `refusing: no_session_source (neither ${p} nor ${sidecar} exists)\n`,
-          );
-          throw new LegacyMigrationRefusal("no_session_source");
-        }
+        process.stderr.write(
+          `refusing: no_session_source (neither ${p} nor ${sidecar} exists)\n`,
+        );
+        throw new LegacyMigrationRefusal("no_session_source");
       }
     }
     //
