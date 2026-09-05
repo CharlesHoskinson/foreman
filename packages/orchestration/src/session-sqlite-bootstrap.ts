@@ -162,13 +162,24 @@ function unlinkCreated(paths: readonly string[]): void {
 
 const BACKUP_TRIPLET_SUFFIXES = ["", ...BACKUP_SIDECARS] as const;
 
+function sameFileIdentity(a: string, b: string): boolean {
+  try {
+    const sa = fs.lstatSync(a);
+    const sb = fs.lstatSync(b);
+    return sa.dev === sb.dev && sa.ino === sb.ino;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Move the database and any existing `-wal`/`-shm` files without replacing
  * an occupied destination. Reserve all three destination names for the whole
  * move: `link` when the source exists, `openSync(wx)` when it does not.
  * `wx` and `link` fail with `EEXIST` when the destination is taken.
- * After reservation, abort if the source triplet changed. Unlink only the
- * sources that were linked. Reservation cleanup uses checked `unlinkSync`.
+ * After reservation, abort if occupancy changed or a linked source no longer
+ * shares `dev`/`ino` with its destination. Unlink only the sources that were
+ * linked. Reservation cleanup uses checked `unlinkSync`.
  */
 function renameStoreAside(dbPath: string, dest: string, opts: RepairStoreOpts = {}): void {
   const created: string[] = [];
@@ -196,7 +207,13 @@ function renameStoreAside(dbPath: string, dest: string, opts: RepairStoreOpts = 
   opts.beforeUnlink?.();
   for (const suffix of BACKUP_TRIPLET_SUFFIXES) {
     const src = dbPath + suffix;
-    if (pathOccupied(src) !== linkedSources.includes(src)) {
+    const dst = dest + suffix;
+    const wasLinked = linkedSources.includes(src);
+    if (pathOccupied(src) !== wasLinked) {
+      unlinkCreated(created);
+      throw new Error("source store changed during move");
+    }
+    if (wasLinked && !sameFileIdentity(src, dst)) {
       unlinkCreated(created);
       throw new Error("source store changed during move");
     }

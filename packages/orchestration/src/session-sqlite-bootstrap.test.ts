@@ -14,6 +14,7 @@ import {
   readlinkSync,
   rmSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -422,6 +423,53 @@ test("repair retries advance the suffix after dest then dest-shm collisions", ()
   assert.ok(result.renamedPath.endsWith("-2"));
   assert.equal(attempts, 3);
   assert.equal(classifySqliteStore(p), "port");
+});
+
+test("repair fails when a linked source WAL is replaced before unlink and leaves the replacement intact", () => {
+  const dir = makeTempDir("ss-repair-replace-wal-");
+  const p = join(dir, "session.db");
+  writeHalfMigratedStore(p);
+  writeFactSidecar(sidecarPathFor(p), "after repair");
+  const holder = new DatabaseSync(p);
+  let sqliteWal: Buffer;
+  try {
+    holder.exec("PRAGMA busy_timeout=5000");
+    holder.exec("PRAGMA journal_mode=WAL");
+    holder.exec("INSERT INTO facts VALUES(37,'wal-live')");
+    assert.equal(existsSync(`${p}-wal`), true, "precondition: store must have a real WAL");
+    sqliteWal = readFileSync(`${p}-wal`);
+  } finally {
+    holder.close();
+  }
+  if (!existsSync(`${p}-wal`)) {
+    writeFileSync(`${p}-wal`, sqliteWal);
+  }
+  assert.equal(existsSync(`${p}-wal`), true, "precondition: WAL must exist at link time");
+  const originalDb = readFileSync(p);
+  const replacement = Buffer.from("replacement-wal-bytes");
+  const frozen = new Date("2026-09-05T12:00:00Z");
+  const intended = `${p}.corrupt-20260905T120000Z`;
+
+  const result = repairStore(p, {
+    now: () => frozen,
+    beforeUnlink: () => {
+      unlinkSync(`${p}-wal`);
+      writeFileSync(`${p}-wal`, replacement);
+    },
+  });
+  assert.equal(result.status, "failed", result.status === "failed" ? result.detail : "");
+  if (result.status !== "failed") return;
+  assert.equal(result.renamedPath, p);
+  assert.equal(result.detail, "source store changed during move");
+  assert.ok(Buffer.compare(originalDb, readFileSync(p)) === 0);
+  assert.ok(Buffer.compare(replacement, readFileSync(`${p}-wal`)) === 0);
+  assert.equal(existsSync(intended), false);
+  assert.equal(existsSync(`${intended}-wal`), false);
+  assert.equal(existsSync(`${intended}-shm`), false);
+  assert.deepEqual(
+    readdirSync(dir).filter((name) => name.includes(".corrupt-")),
+    [],
+  );
 });
 
 test("repair fails when a source WAL appears after reservation and leaves the store untouched", () => {
