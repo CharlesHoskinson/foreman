@@ -1,0 +1,3 @@
+335611 execve("/usr/bin/unshare", ["unshare", "--pid", "--mount-proc", "--fork", "--kill-child", "--", "true"], 0x7ffd71363278 /* 65 vars */) = 0
+335611 unshare(CLONE_NEWNS|CLONE_NEWPID) = -1 EPERM (Operation not permitted)
+335611 +++ exited with 1 +++

@@ -1,0 +1,5 @@
+337982 execve("/usr/bin/unshare", ["unshare", "--pid", "--mount-proc", "--fork", "--kill-child", "--", "true"], 0x4ec4c580390 /* 65 vars */) = 0
+337982 unshare(CLONE_NEWNS|CLONE_NEWPID) = -1 EPERM (Operation not permitted)
+337974 prctl(PR_SET_CHILD_SUBREAPER, 1) = 0
+337983 execve("/usr/bin/setsid", ["setsid", "true"], 0x4ec4c541088 /* 65 vars */) = 0
+337983 setsid()                         = 337983

@@ -1,0 +1,64 @@
+# userns variant receipts 2026-09-05T02:59:13Z
+## unshare map options available
+ --map-user <uid>|<name>   map current user to uid (implies --user)
+ --map-group <gid>|<name>  map current group to gid (implies --user)
+ -c, --map-current-user    map current user to itself (implies --user)
+ --map-auto                map users and groups automatically (implies --user)
+ --map-users <inneruid>:<outeruid>:<count>
+ --map-groups <innergid>:<outergid>:<count>
+
+## U1 --user --map-current-user --pid --mount-proc --fork --kill-child: identity + caps inside
+uid=1000(charl) gid=1000(charl) groups=1000(charl),65534(nogroup),65534(nogroup),65534(nogroup),65534(nogroup)
+CapEff:	0000000000000000
+CapBnd:	000001ffffffffff
+NoNewPrivs:	0
+userns=user:[4026532498] pidns=pid:[4026532500] mntns=mnt:[4026532499] netns=net:[4026531833]
+pid inside=1
+proc entries: 4
+drwxr-x--- charl charl /home/charl
+drwx------ nobody nogroup /root
+drwxrwxrwt nobody nogroup /tmp
+rc=0
+
+## U2 same, no --mount-proc (host /proc visible?)
+proc entries: 76 pid inside=1
+rc=0
+
+## U3 setuid binary inside userns (expected: no privilege)
+sudo: sudo must be owned by uid 0 and have the setuid bit set
+rc=1
+
+## U4 supplementary groups + docker socket access inside userns (read-only stat only)
+1000 65534 65534 65534 65534
+docker.sock writable
+rc=0
+(outside) docker.sock writable
+
+## U5 git/node sanity inside userns (inert)
+45121c7
+3 1000
+rc=0
+
+## U6 nested: can a process inside the userns+pidns create another userns (nesting depth)?
+nested ok pid=1
+rc=0
+
+## C1 cgroup ownership under user@1000.service (escape surface)
+charl:charl 644 /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/cgroup.procs
+charl:charl 644 /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/cgroup.procs
+root:root 644 /sys/fs/cgroup/user.slice/user-1000.slice/cgroup.procs
+root:root 644 /sys/fs/cgroup/init.scope/cgroup.procs
+
+## C2 disposable transient service (inert) to observe unit shape
+error: process ID list syntax error
+
+Usage:
+ ps [options]
+
+ Try 'ps --help <simple|list|output|threads|misc|all>'
+  or 'ps --help <s|l|o|t|m|a>'
+ for additional help text.
+
+For more details see ps(1).
+svc cgroup=0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p338706-i339580.service pgid= caps=CapEff:	0000000000000000
+rc=0
