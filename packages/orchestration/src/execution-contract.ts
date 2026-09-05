@@ -460,7 +460,7 @@ const evaluationChildLimits: EvaluationChildLimitsV2 = {
   noProgressMs: 3_600_000,
 };
 
-const expectedFamilyChildren = [
+const v040FamilyChildren = [
   {
     tranche: 2,
     childId: "v040-t2-project-registry",
@@ -526,6 +526,96 @@ const expectedFamilyChildren = [
   "tranche" | "childId" | "packageId" | "dependencyChildIds"
 >[];
 
+const v050FamilyChildren = [
+  {
+    tranche: 2,
+    childId: "v050-lane-runtime-typescript",
+    packageId: "lane-runtime-typescript",
+    dependencyChildIds: [],
+  },
+  {
+    tranche: 3,
+    childId: "v050-launcher-node-port",
+    packageId: "launcher-node-port",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+  },
+  {
+    tranche: 4,
+    childId: "v050-three-outcome-verdicts",
+    packageId: "three-outcome-verdicts",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+  },
+  {
+    tranche: 4,
+    childId: "v050-audit-groundedness-gate",
+    packageId: "audit-groundedness-gate",
+    dependencyChildIds: ["v050-three-outcome-verdicts"],
+  },
+  {
+    tranche: 4,
+    childId: "v050-evidence-contracts",
+    packageId: "evidence-contracts",
+    dependencyChildIds: ["v050-audit-groundedness-gate"],
+  },
+  {
+    tranche: 5,
+    childId: "v050-spec-triage-gate",
+    packageId: "spec-triage-gate",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+  },
+  {
+    tranche: 5,
+    childId: "v050-foreman-discover-lane",
+    packageId: "foreman-discover-lane",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+  },
+  {
+    tranche: 6,
+    childId: "v050-build-determinism",
+    packageId: "build-determinism",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+  },
+  {
+    tranche: 6,
+    childId: "v050-wsl-preflight",
+    packageId: "wsl-preflight",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+  },
+  {
+    tranche: 7,
+    childId: "v050-doctrine-reality-drift",
+    packageId: "doctrine-reality-drift",
+    dependencyChildIds: ["v050-evidence-contracts"],
+  },
+  {
+    tranche: 7,
+    childId: "v050-workflow-weight-reduction",
+    packageId: "workflow-weight-reduction",
+    dependencyChildIds: ["v050-doctrine-reality-drift"],
+  },
+  {
+    tranche: 8,
+    childId: "v050-release",
+    packageId: "v050-release-program",
+    dependencyChildIds: [
+      "v050-lane-runtime-typescript",
+      "v050-launcher-node-port",
+      "v050-three-outcome-verdicts",
+      "v050-audit-groundedness-gate",
+      "v050-evidence-contracts",
+      "v050-spec-triage-gate",
+      "v050-foreman-discover-lane",
+      "v050-build-determinism",
+      "v050-wsl-preflight",
+      "v050-doctrine-reality-drift",
+      "v050-workflow-weight-reduction",
+    ],
+  },
+] as const satisfies readonly Pick<
+  ExecutionChildBriefV1,
+  "tranche" | "childId" | "packageId" | "dependencyChildIds"
+>[];
+
 type ExpectedFamilyChild = {
   readonly tranche: ExecutionChildTranche;
   readonly childId: string;
@@ -533,47 +623,8 @@ type ExpectedFamilyChild = {
   readonly dependencyChildIds: readonly string[];
 };
 
-function remapTemplateChildId(
-  templateId: string,
-  program: ReleaseProgram,
-): string {
-  const table = releaseProgramTable(program);
-  const v040 = releaseProgramTable("v040");
-  if (table.evaluationChild !== null && templateId === v040.evaluationChild) {
-    return table.evaluationChild;
-  }
-  if (!templateId.startsWith(v040.childIdPrefix)) return templateId;
-  return `${table.childIdPrefix}${templateId.slice(v040.childIdPrefix.length)}`;
-}
-
 function expectedChildrenFor(program: ReleaseProgram): readonly ExpectedFamilyChild[] {
-  const table = releaseProgramTable(program);
-  const [trancheMin, trancheMax] = table.trancheRange;
-  const v040Eval = releaseProgramTable("v040").evaluationChild;
-  return expectedFamilyChildren
-    .filter((child) => {
-      if (child.tranche < trancheMin || child.tranche > trancheMax) return false;
-      if (table.evaluationChild === null && child.childId === v040Eval) {
-        return false;
-      }
-      return true;
-    })
-    .map((child) => ({
-      tranche: child.tranche,
-      childId: remapTemplateChildId(child.childId, program),
-      packageId: child.packageId,
-      dependencyChildIds: child.dependencyChildIds
-        .filter((dep) => {
-          const depChild = expectedFamilyChildren.find((row) => row.childId === dep);
-          if (depChild === undefined) return false;
-          if (depChild.tranche < trancheMin || depChild.tranche > trancheMax) {
-            return false;
-          }
-          if (table.evaluationChild === null && dep === v040Eval) return false;
-          return true;
-        })
-        .map((dep) => remapTemplateChildId(dep, program)),
-    }));
+  return program === "v040" ? v040FamilyChildren : v050FamilyChildren;
 }
 
 function childViolatesProgram(
@@ -841,6 +892,11 @@ export function decodeExecutionFamilySourceV1(
   ) {
     return familyFailure("invalid_source");
   }
+  for (const raw of value.children) {
+    if (childViolatesProgram(raw, value.program)) {
+      return familyFailure("invalid_source");
+    }
+  }
   const expectedChildren = expectedChildrenFor(value.program);
   if (value.children.length !== expectedChildren.length) {
     return familyFailure("invalid_source");
@@ -848,9 +904,6 @@ export function decodeExecutionFamilySourceV1(
   const children: ExecutionChildBriefV1[] = [];
   for (const [index, expected] of expectedChildren.entries()) {
     const raw = value.children[index];
-    if (childViolatesProgram(raw, value.program)) {
-      return familyFailure("invalid_source");
-    }
     const child = decodeChildBriefV1(raw, expected, value.program);
     if (isExecutionFamilyFailure(child)) return child;
     children.push(child);
@@ -964,17 +1017,22 @@ export function decodeExecutionContractFamilyV2(
   ) {
     return familyFailure("invalid_deadline");
   }
+  if (!Array.isArray(value.children)) {
+    return familyFailure("invalid_children");
+  }
+  for (const raw of value.children) {
+    if (childViolatesProgram(raw, program)) {
+      return familyFailure("invalid_manifest");
+    }
+  }
   const expectedChildren = expectedChildrenFor(program);
-  if (!Array.isArray(value.children) || value.children.length !== expectedChildren.length) {
+  if (value.children.length !== expectedChildren.length) {
     return familyFailure("invalid_children");
   }
 
   const children: ExecutionChildContractV2[] = [];
   for (const [index, expected] of expectedChildren.entries()) {
     const raw = value.children[index];
-    if (childViolatesProgram(raw, program)) {
-      return familyFailure("invalid_manifest");
-    }
     if (!isPlainRecordV2(raw) || !hasExactKeysV2(raw, childContractKeys)) {
       return familyFailure("invalid_children");
     }

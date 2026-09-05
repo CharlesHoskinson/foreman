@@ -85,6 +85,62 @@ function familySource(): ExecutionFamilySourceV1 {
   };
 }
 
+function v050FamilySource(): ExecutionFamilySourceV1 {
+  const rows = [
+    [2, "v050-lane-runtime-typescript", "lane-runtime-typescript", []],
+    [3, "v050-launcher-node-port", "launcher-node-port", ["v050-lane-runtime-typescript"]],
+    [4, "v050-three-outcome-verdicts", "three-outcome-verdicts", [
+      "v050-lane-runtime-typescript",
+    ]],
+    [4, "v050-audit-groundedness-gate", "audit-groundedness-gate", [
+      "v050-three-outcome-verdicts",
+    ]],
+    [4, "v050-evidence-contracts", "evidence-contracts", [
+      "v050-audit-groundedness-gate",
+    ]],
+    [5, "v050-spec-triage-gate", "spec-triage-gate", ["v050-lane-runtime-typescript"]],
+    [5, "v050-foreman-discover-lane", "foreman-discover-lane", [
+      "v050-lane-runtime-typescript",
+    ]],
+    [6, "v050-build-determinism", "build-determinism", ["v050-lane-runtime-typescript"]],
+    [6, "v050-wsl-preflight", "wsl-preflight", ["v050-lane-runtime-typescript"]],
+    [7, "v050-doctrine-reality-drift", "doctrine-reality-drift", [
+      "v050-evidence-contracts",
+    ]],
+    [7, "v050-workflow-weight-reduction", "workflow-weight-reduction", [
+      "v050-doctrine-reality-drift",
+    ]],
+    [8, "v050-release", "v050-release-program", [
+      "v050-lane-runtime-typescript",
+      "v050-launcher-node-port",
+      "v050-three-outcome-verdicts",
+      "v050-audit-groundedness-gate",
+      "v050-evidence-contracts",
+      "v050-spec-triage-gate",
+      "v050-foreman-discover-lane",
+      "v050-build-determinism",
+      "v050-wsl-preflight",
+      "v050-doctrine-reality-drift",
+      "v050-workflow-weight-reduction",
+    ]],
+  ] as const;
+  return {
+    schema: "foreman.execution-family-source.v1",
+    program: "v050",
+    familyId: "v040-release-20260822-f1",
+    children: rows.map(([tranche, childId, packageId, dependencyChildIds]) => ({
+      schema: "foreman.execution-child-brief.v1",
+      childId,
+      tranche,
+      packageId,
+      objective: `Complete ${packageId}.`,
+      acceptance: [`${packageId} passes its release checks.`],
+      allowedPaths: [`packages/${packageId}/**`],
+      dependencyChildIds,
+    })),
+  };
+}
+
 function writeCanonical(path: string, value: unknown): void {
   writeFileSync(path, `${canonicalize(value)}\n`);
 }
@@ -944,25 +1000,7 @@ describe("execution-guard CLI", () => {
       mkdirSync(briefs, { recursive: true });
       const value = contract();
       const rootContractSha256 = executionContractSha256(value);
-      const v040Source = familySource();
-      const source = {
-        ...v040Source,
-        program: "v050" as const,
-        children: v040Source.children
-          .filter(
-            (child) =>
-              child.tranche >= 2 &&
-              child.tranche <= 8 &&
-              child.childId !== "v040-t8-evaluation",
-          )
-          .map((child) => ({
-            ...child,
-            childId: child.childId.replace(/^v040-t/, "v050-"),
-            dependencyChildIds: child.dependencyChildIds
-              .filter((dep) => dep !== "v040-t8-evaluation")
-              .map((dep) => dep.replace(/^v040-t/, "v050-")),
-          })),
-      };
+      const source = v050FamilySource();
       const sourceBytes = new TextEncoder().encode(`${canonicalize(source)}\n`);
       const derived = deriveExecutionContractFamilyV2({
         rootContractId: value.contractId,
