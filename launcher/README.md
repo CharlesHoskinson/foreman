@@ -195,7 +195,11 @@ If THAT outer process is killed instead of the inner one, `--kill-child`
 makes the kernel SIGKILL the forked child (the actual namespace init) too,
 which then triggers the same whole-namespace teardown. Either kill target
 cascades identically — both were verified empirically on WSL2 (util-linux
-`unshare` 2.41.3) before and after writing this code.
+`unshare` 2.41.3) before and after writing this code. That verification ran
+as root (`wsl -u root`, see the archived posix-cascade-parity design). An
+unprivileged caller gets `EPERM` from `unshare(2)` with this flag list,
+because `CLONE_NEWPID` and `CLONE_NEWNS` need `CAP_SYS_ADMIN` in the caller's
+user namespace. See `docs/research/foreman-pidns-degradation-2026-09-05.md`.
 
 **Kill-shot, updated**: unlike the pre-v0.2.7.5 build, a plain
 `kill -9 <launcher_pid>` now DOES reap the whole tree, INCLUDING escapees —
@@ -238,22 +242,39 @@ mid-bootstrap with no code left to fall back from.
    heartbeat's `pid` field) does.
 2. **Manual, operator-available, NOT automated by this launcher**: in an
    environment where `unshare --pid` specifically is blocked but
-   **systemd + cgroup v2** are available, wrap the launcher invocation in
-   `systemd-run --scope --collect -- <launcher> ...`. systemd creates a
-   per-invocation transient cgroup scope and — with `--collect` — cleans it
-   up (killing any remaining member processes) once the scope's main
-   process exits, which is a real, kernel-cgroup-backed whole-tree
-   guarantee independent of PID namespaces. This is a documented option for
-   whoever is invoking the launcher (e.g. a hardened `lane-run.sh` profile),
-   not something `foreman-launch` sets up on its own — it needs its own
-   honest availability check (`systemctl --user status` / cgroup v2 mounted
-   at `/sys/fs/cgroup`) wherever it's used.
+   **systemd + cgroup v2** are available, wrap the launcher invocation in a
+   transient **service**, not a scope:
+   `systemd-run --user --wait --pipe --collect -p KillMode=control-group -- <launcher> ...`.
+   A service has a main process. When it exits (`ExitType=main`), systemd
+   stops the unit and `KillMode=control-group` signals every remaining
+   cgroup member, including `setsid` escapees. `--wait` propagates the exit
+   status. A **scope** does not do this: scope units have no main process
+   and stay active while any member lives, and `--collect` only sets
+   `CollectMode=inactive-or-failed`, which controls unloading of the unit
+   record (systemd.scope(5), systemd-run(1)). The transient service is
+   lifecycle hygiene, not a security boundary: `cgroup.procs` under
+   `user@UID.service` is owned by the user, so a hostile process can move
+   itself out. This is a documented option for whoever is invoking the
+   launcher (e.g. a hardened `lane-run.sh` profile), not something
+   `foreman-launch` sets up on its own — it needs its own honest
+   availability check (`systemctl --user is-system-running` / cgroup v2
+   mounted at `/sys/fs/cgroup`) wherever it's used.
 
 **Availability, plainly**: the primary guarantee needs `unshare` with
-`--pid --mount-proc --fork --kill-child` to actually succeed (verified
-unprivileged on this WSL2 host); the manual cgroup/systemd-run fallback
-needs `systemd` and cgroup v2, and is the OPERATOR's responsibility to wire
-up, not this launcher's.
+`--pid --mount-proc --fork --kill-child` to actually succeed. That requires
+`CAP_SYS_ADMIN` in the caller's user namespace. An unprivileged user does
+not have it, and on 2026-09-05 the shipped probe returned
+`unshare(CLONE_NEWNS|CLONE_NEWPID) = -1 EPERM` on this WSL2 host as user
+`charl`. The same host accepts
+`unshare --user --map-current-user --pid --mount-proc --fork --kill-child`
+unprivileged. The launcher does not request a user namespace yet. The
+manual cgroup/systemd-run fallback needs `systemd` and cgroup v2, and is the
+OPERATOR's responsibility to wire up, not this launcher's.
+
+**Normal exit, plainly**: on POSIX the launcher does not signal the process
+group after CMD exits. Only the Windows Job Object path reaps remaining
+processes on close. A background descendant of a normally completed CMD
+survives the round unless the pidns cascade is active.
 
 **Conclusion for any external reaper (e.g. lane-run.sh's launcher-absent
 fallback sweep)**: recover `launcher_pid` from the last heartbeat line and

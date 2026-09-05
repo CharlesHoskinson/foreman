@@ -543,6 +543,13 @@ irreversible self-replacement), the launcher falls back to the pre-v0.2.7.5
 marker before assuming the stronger guarantee held. Full mechanism:
 `launcher/README.md` "POSIX asymmetry."
 
+An unprivileged user always gets that marker with the current flag list:
+`unshare(2)` needs `CAP_SYS_ADMIN` for `--pid` and `--mount-proc`, and the
+launcher does not request a user namespace. The marker is written only to the
+lane's stream file and the pueue log. No heartbeat, ownership event, or gate
+verdict records it. Diagnosis and remedy design:
+`docs/research/foreman-pidns-degradation-2026-09-05.md`.
+
 If `launcher/dist/foreman-launch` itself is absent, there is no pidns launcher
 to enter and `lane-run.sh` emits the frozen `launcher_absent` degraded alert.
 Re-run Setup, which builds the launcher automatically on WSL when `bun` is

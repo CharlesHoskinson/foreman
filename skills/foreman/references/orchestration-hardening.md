@@ -80,6 +80,11 @@ outer `unshare` wrapper cascades the same way). On `unshare`
 unavailability/failure (checked via a disposable probe before the
 irreversible self-replacement), the launcher falls back to the PRE-v0.2.7.5
 `setsid` + `kill(-pgid)` path and logs a DEGRADED marker — never silently.
+CAUTION: as an unprivileged user the probe always fails with `EPERM`
+(`CLONE_NEWPID` and `CLONE_NEWNS` need `CAP_SYS_ADMIN`, and the flag list has
+no `--user`). Every POSIX round on such a host runs the degraded path, and
+the marker reaches only the stream file and the pueue log. See
+`docs/research/foreman-pidns-degradation-2026-09-05.md`.
 
 The OLD asymmetry (`kill -9 <launcher_pid>` alone leaves CMD's process
 group alive; an external reaper must send the signal to `-<pid>`, the pgid
