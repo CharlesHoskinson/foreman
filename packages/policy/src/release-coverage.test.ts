@@ -3,7 +3,6 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   cpSync,
-  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -22,6 +21,11 @@ import {
   type ReleasePackageBriefV1,
   type RoadmapAssignmentV1,
 } from "./release-coverage.js";
+import {
+  isReleaseProgram,
+  RELEASE_PROGRAMS,
+  releaseProgramTable,
+} from "./release-program.js";
 
 const repoRoot = resolve(fileURLToPath(new URL(".", import.meta.url)), "../../..");
 const isWin32 = process.platform === "win32";
@@ -2413,32 +2417,38 @@ describe("release coverage policy", () => {
   });
 
   it("accepts the authored coverage.toml with independent authority inputs", () => {
+    const coverageReadPaths: string[] = [];
+    const readCoverageUtf8 = (url: URL): string => {
+      const path = fileURLToPath(url);
+      coverageReadPaths.push(path);
+      return readFileSync(url, "utf8");
+    };
+    const readCoverageBytes = (url: URL): Buffer => {
+      const path = fileURLToPath(url);
+      coverageReadPaths.push(path);
+      return readFileSync(url);
+    };
+
     const authoredPath = new URL(
-      "../../../openspec/changes/v040-release-program/coverage.toml",
+      "./fixtures/v040/coverage.toml",
       import.meta.url,
     );
-    const registerText = readFileSync(authoredPath, "utf8");
+    const registerText = readCoverageUtf8(authoredPath);
     assert.match(registerText, /^schema_version\s*=\s*1\b/m);
     const entryCount = [...registerText.matchAll(/^\[\[entry\]\]$/gm)].length;
 
-    const listed = runOpenspec(["list", "--json"]);
-    assert.equal(listed.error, undefined, `spawn error: ${listed.error}`);
-    assert.equal(
-      listed.status,
-      0,
-      `openspec list failed: ${listed.stderr || listed.stdout}`,
+    const inventoryText = readCoverageUtf8(
+      new URL("./fixtures/v040/active-inventory.txt", import.meta.url),
     );
-    const listedJson = JSON.parse(listed.stdout) as {
-      changes: { name: string }[];
-    };
-    assert.ok(Array.isArray(listedJson.changes), "list JSON must include changes");
-    const activePackageNames = listedJson.changes.map((change) => change.name);
+    const activePackageNames = inventoryText.split("\n").filter((name) => name.length > 0);
     assert.equal(
       activeInventorySha256(activePackageNames),
       "d16bd7a29580b6b642e24e301ffbd8600844b1a0436bfdaab5d1a241e4572c7a",
     );
 
-    const roadmapText = readFileSync(join(repoRoot, "ROADMAP.md"), "utf8");
+    const roadmapText = readCoverageUtf8(
+      new URL("./fixtures/v040/ROADMAP.md", import.meta.url),
+    );
     const roadmapAssignments: RoadmapAssignmentV1[] = [];
     for (const match of roadmapText.matchAll(
       /^\| `([^`]+)` \| ([^|]+) \| `([^`]+)` \| `([^`]+)` \|$/gm,
@@ -2455,23 +2465,11 @@ describe("release coverage policy", () => {
       "ROADMAP.md must declare roadmap assignment rows",
     );
 
-    const packageWorkflowByName: Record<string, string | null> = {};
-    for (const name of activePackageNames) {
-      const metaPath = join(
-        repoRoot,
-        "openspec",
-        "changes",
-        name,
-        ".openspec.yaml",
-      );
-      if (!existsSync(metaPath)) {
-        packageWorkflowByName[name] = null;
-        continue;
-      }
-      const raw = readFileSync(metaPath, "utf8");
-      const schemaMatch = /^schema:\s*(\S+)\s*$/m.exec(raw);
-      packageWorkflowByName[name] = schemaMatch ? schemaMatch[1]! : null;
-    }
+    const packageWorkflowByName = JSON.parse(
+      readCoverageUtf8(
+        new URL("./fixtures/v040/package-workflows.json", import.meta.url),
+      ),
+    ) as Record<string, string | null>;
 
     const input = validBaseline({
       registerText,
@@ -2511,20 +2509,18 @@ describe("release coverage policy", () => {
         null,
         `${owner} must declare an OpenSpec workflow`,
       );
-      const briefPath = join(
-        repoRoot,
-        "openspec",
-        "changes",
-        owner,
-        "release-brief.json",
+      const briefBytes = readCoverageBytes(
+        new URL(`./fixtures/v040/release-briefs/${owner}.json`, import.meta.url),
       );
-      assert.equal(existsSync(briefPath), true, `${owner} must have a release brief`);
-      const briefBytes = readFileSync(briefPath);
       expectedPackageBriefByName[owner] = JSON.parse(
         briefBytes.toString("utf8"),
       ) as ReleasePackageBriefV1;
       packageBriefBytesByName[owner] = briefBytes;
     }
+    assert.equal(
+      coverageReadPaths.some((path) => path.startsWith(join(repoRoot, "openspec"))),
+      false,
+    );
     for (const owner of releaseInspection.selectedOwners) {
       expectValid(
         validBaseline({
@@ -2560,5 +2556,88 @@ describe("release coverage policy", () => {
       }),
       entryCount,
     );
+  });
+
+  it("accepts v050 owner dispositions and refuses v041", () => {
+    const owner = "v050-release-program";
+    const roadmapAssignments = [
+      roadmapRow("roadmap:v050-item", owner, "v0.5", "v0.5 scope"),
+    ];
+    const roadmapText = renderRoadmapText(roadmapAssignments);
+    const registerText = sealRegister([owner], roadmapText, {
+      futureOwners: [],
+      entries: [
+        {
+          key: "change:v050-release-program",
+          sourceKind: "openspec_change",
+          sourcePath: "openspec/changes/v050-release-program",
+          disposition: "v050_owner",
+          owner,
+          targetRelease: "v0.5",
+          reconcile: "complete",
+          reason: "governor",
+        },
+        {
+          key: "roadmap:v050-item",
+          sourceKind: "roadmap",
+          sourcePath: "ROADMAP.md",
+          disposition: "v050_owner",
+          owner,
+          targetRelease: "v0.5",
+          reconcile: "complete",
+          reason: "governor roadmap",
+        },
+      ],
+    });
+    const phase: ReleaseCoveragePhaseV1 = {
+      _tag: "Bootstrap",
+      owner,
+    };
+    const common = {
+      registerText,
+      roadmapBytes: utf8(roadmapText),
+      activeChangeNames: [owner],
+      roadmapRows: roadmapAssignments,
+      workflowByChange: { [owner]: ACTIVE_WF },
+      changedSuperpowersPaths: [] as const,
+      expectedBriefByOwner: {},
+      packageBriefBytesByOwner: {},
+    };
+    assert.deepEqual(
+      validateReleaseCoverageV1({
+        ...common,
+        phase,
+        program: "v050",
+      }),
+      {
+        schemaVersion: SCHEMA,
+        _tag: "Valid",
+        activeInventorySha256: activeInventorySha256([owner]),
+        roadmapSha256: sha256Hex(utf8(roadmapText)),
+        entryCount: 2,
+      },
+    );
+    assert.deepEqual(
+      validateReleaseCoverageV1({
+        ...common,
+        phase: { _tag: "Bootstrap", owner: ACTIVE_PKG },
+        program: "v041" as never,
+      }),
+      {
+        schemaVersion: SCHEMA,
+        _tag: "Invalid",
+        reason: "wrong_program",
+      },
+    );
+    assert.equal(isReleaseProgram("v050"), true);
+    assert.equal(isReleaseProgram("v041"), false);
+    assert.deepEqual(releaseProgramTable("v050").dispositions, [
+      "v050_owner",
+      "v050_dependency",
+      "released_reference",
+      "superseded",
+      "v060",
+    ]);
+    assert.equal(RELEASE_PROGRAMS.length, 2);
   });
 });

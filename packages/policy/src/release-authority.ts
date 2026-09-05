@@ -8,10 +8,10 @@ import {
   sha256Hex,
 } from "@foreman/core";
 
+import { isReleaseProgram, releaseProgramTable, type ReleaseProgram } from "./release-program.js";
+
 const ONE_MIB = 1_048_576;
-const PROGRAM = "v040" as const;
 const EVAL_PACKAGE = "graph-eval-falsification" as const;
-const EVAL_CHILD = "v040-t8-evaluation" as const;
 const MANIFEST_SCHEMA = "foreman.approved-openspec.v1" as const;
 
 const encoder = new TextEncoder();
@@ -44,7 +44,7 @@ export type ReleaseAuditFindingV1 = {
 
 export type ReleaseChecksSourceV1 = {
   readonly schema: "foreman.checks-source.v1";
-  readonly program: "v040";
+  readonly program: ReleaseProgram;
   readonly packageId: string;
   readonly candidate: ReleaseCandidateIdentityV1;
   readonly status: "PASS" | "FAIL";
@@ -58,7 +58,7 @@ export type ReleaseChecksSourceV1 = {
 
 export type ReleaseAuditSourceV1 = {
   readonly schema: "foreman.audit-source.v1";
-  readonly program: "v040";
+  readonly program: ReleaseProgram;
   readonly packageId: string;
   readonly candidate: ReleaseCandidateIdentityV1;
   readonly verdict: "APPROVED" | "WARNING" | "BLOCKED" | "UNVERIFIED";
@@ -68,7 +68,7 @@ export type ReleaseAuditSourceV1 = {
 
 export type ReleaseEvaluationReportSourceV1 = {
   readonly schema: "foreman.evaluation-report-source.v1";
-  readonly program: "v040";
+  readonly program: ReleaseProgram;
   readonly packageId: "graph-eval-falsification";
   readonly candidateSha256: string;
   readonly authorityManifestSha256: string;
@@ -90,7 +90,7 @@ export type ReleaseProducerSourceV1 =
 export type ReleaseAuthorityReceiptV1 =
   | {
       readonly schema: "foreman.design-approval.v1";
-      readonly program: "v040";
+      readonly program: ReleaseProgram;
       readonly packageId: string;
       readonly designCommit: string;
       readonly designTree: string;
@@ -101,7 +101,7 @@ export type ReleaseAuthorityReceiptV1 =
     }
   | {
       readonly schema: "foreman.checks-evidence.v1";
-      readonly program: "v040";
+      readonly program: ReleaseProgram;
       readonly packageId: string;
       readonly candidate: ReleaseCandidateIdentityV1;
       readonly status: "PASS" | "FAIL";
@@ -110,7 +110,7 @@ export type ReleaseAuthorityReceiptV1 =
     }
   | {
       readonly schema: "foreman.release-audit.v1";
-      readonly program: "v040";
+      readonly program: ReleaseProgram;
       readonly packageId: string;
       readonly candidate: ReleaseCandidateIdentityV1;
       readonly verdict: "APPROVED" | "WARNING" | "BLOCKED" | "UNVERIFIED";
@@ -120,7 +120,7 @@ export type ReleaseAuthorityReceiptV1 =
     }
   | {
       readonly schema: "foreman.council-request.v1";
-      readonly program: "v040";
+      readonly program: ReleaseProgram;
       readonly packageId: string;
       readonly candidateSha256: string;
       readonly questionSha256: string;
@@ -130,7 +130,7 @@ export type ReleaseAuthorityReceiptV1 =
     }
   | {
       readonly schema: "foreman.evaluation-authority.v1";
-      readonly program: "v040";
+      readonly program: ReleaseProgram;
       readonly packageId: "graph-eval-falsification";
       readonly manifestSha256: string;
       readonly issuedAt: string;
@@ -138,7 +138,7 @@ export type ReleaseAuthorityReceiptV1 =
 
 export type ReleaseActionOutcomeV1 = {
   readonly schema: "foreman.release-action-outcome.v1";
-  readonly program: "v040";
+  readonly program: ReleaseProgram;
   readonly rootContractId: string;
   readonly rootContractSha256: string;
   readonly familySha256: string;
@@ -156,7 +156,7 @@ export type ReleaseActionOutcomeV1 = {
 
 export type ReleaseCouncilOutcomeV1 = {
   readonly schema: "foreman.council-outcome.v1";
-  readonly program: "v040";
+  readonly program: ReleaseProgram;
   readonly rootContractId: string;
   readonly rootContractSha256: string;
   readonly familySha256: string;
@@ -174,11 +174,11 @@ export type ReleaseCouncilOutcomeV1 = {
 
 export type ReleaseEvaluationVerdictV1 = {
   readonly schema: "foreman.evaluation-verdict.v1";
-  readonly program: "v040";
+  readonly program: ReleaseProgram;
   readonly rootContractId: string;
   readonly rootContractSha256: string;
   readonly familySha256: string;
-  readonly childId: "v040-t8-evaluation";
+  readonly childId: string;
   readonly packageId: "graph-eval-falsification";
   readonly candidateSha256: string;
   readonly authorityManifestSha256: string;
@@ -200,7 +200,7 @@ export type ReleaseEvaluationVerdictV1 = {
 export type ExecutionChildTerminalApprovalV1 =
   | {
       readonly schema: "foreman.execution-child-cancel.v1";
-      readonly program: "v040";
+      readonly program: ReleaseProgram;
       readonly rootContractId: string;
       readonly rootContractSha256: string;
       readonly familySha256: string;
@@ -210,7 +210,7 @@ export type ExecutionChildTerminalApprovalV1 =
     }
   | {
       readonly schema: "foreman.execution-child-invalidate.v1";
-      readonly program: "v040";
+      readonly program: ReleaseProgram;
       readonly rootContractId: string;
       readonly rootContractSha256: string;
       readonly familySha256: string;
@@ -230,7 +230,7 @@ export type FailedReservationAuthorityV1 = {
 
 export type ReleaseEvidenceBundleV1 = {
   readonly schema: "foreman.release-evidence-bundle.v1";
-  readonly program: "v040";
+  readonly program: ReleaseProgram;
   readonly rootContractId: string;
   readonly rootContractSha256: string;
   readonly familySha256: string;
@@ -262,7 +262,7 @@ export type ApprovedOpenSpecManifestV1 = {
 
 export type ReleaseAuthorityObjectParseResultV1 =
   | { readonly _tag: "Valid"; readonly value: ReleaseAuthorityObjectV1 }
-  | { readonly _tag: "Invalid" };
+  | { readonly _tag: "Invalid"; readonly reason?: "wrong_program" };
 
 export type ReleaseAuthorityFileDecodeResultV1 =
   | {
@@ -270,7 +270,7 @@ export type ReleaseAuthorityFileDecodeResultV1 =
       readonly value: ReleaseAuthorityObjectV1;
       readonly sha256: string;
     }
-  | { readonly _tag: "Invalid" };
+  | { readonly _tag: "Invalid"; readonly reason?: "wrong_program" };
 
 export type ReleaseProducerSourceDecodeResultV1 =
   | {
@@ -360,12 +360,31 @@ const EVAL_RESULTS = [
 const UTC_SECOND =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/;
 
-function invalidObject(): ReleaseAuthorityObjectParseResultV1 {
-  return { _tag: "Invalid" };
+function invalidObject(
+  reason?: "wrong_program",
+): ReleaseAuthorityObjectParseResultV1 {
+  return reason === undefined ? { _tag: "Invalid" } : { _tag: "Invalid", reason };
 }
 
-function invalidFile(): ReleaseAuthorityFileDecodeResultV1 {
-  return { _tag: "Invalid" };
+function invalidFile(
+  reason?: "wrong_program",
+): ReleaseAuthorityFileDecodeResultV1 {
+  return reason === undefined ? { _tag: "Invalid" } : { _tag: "Invalid", reason };
+}
+
+function presentedUnknownProgram(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  if (typeof record.program === "string" && !isReleaseProgram(record.program)) {
+    return true;
+  }
+  if (!Array.isArray(record.receipts)) return false;
+  for (const receipt of record.receipts) {
+    if (typeof receipt !== "object" || receipt === null) continue;
+    const program = (receipt as { readonly program?: unknown }).program;
+    if (typeof program === "string" && !isReleaseProgram(program)) return true;
+  }
+  return false;
 }
 
 function invalidSource(): ReleaseProducerSourceDecodeResultV1 {
@@ -664,7 +683,7 @@ function parseDesignApproval(
     return null;
   }
   if (value["schema"] !== "foreman.design-approval.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["packageId"])) return null;
   if (typeof value["designCommit"] !== "string" || !isCommitSha40(value["designCommit"])) {
     return null;
@@ -694,7 +713,7 @@ function parseDesignApproval(
   if (issuedAt === null) return null;
   return {
     schema: "foreman.design-approval.v1",
-    program: PROGRAM,
+    program: value["program"],
     packageId: value["packageId"],
     designCommit: value["designCommit"],
     designTree: value["designTree"],
@@ -722,7 +741,7 @@ function parseChecksEvidence(
     return null;
   }
   if (value["schema"] !== "foreman.checks-evidence.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["packageId"])) return null;
   const candidate = parseCandidate(value["candidate"]);
   if (candidate === null) return null;
@@ -737,7 +756,7 @@ function parseChecksEvidence(
   if (issuedAt === null) return null;
   return {
     schema: "foreman.checks-evidence.v1",
-    program: PROGRAM,
+    program: value["program"],
     packageId: value["packageId"],
     candidate,
     status: value["status"],
@@ -764,7 +783,7 @@ function parseReleaseAudit(
     return null;
   }
   if (value["schema"] !== "foreman.release-audit.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["packageId"])) return null;
   const candidate = parseCandidate(value["candidate"]);
   if (candidate === null) return null;
@@ -781,7 +800,7 @@ function parseReleaseAudit(
   if (issuedAt === null) return null;
   return {
     schema: "foreman.release-audit.v1",
-    program: PROGRAM,
+    program: value["program"],
     packageId: value["packageId"],
     candidate,
     verdict: value["verdict"],
@@ -809,7 +828,7 @@ function parseCouncilRequest(
     return null;
   }
   if (value["schema"] !== "foreman.council-request.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["packageId"])) return null;
   if (
     typeof value["candidateSha256"] !== "string" ||
@@ -839,7 +858,7 @@ function parseCouncilRequest(
   if (issuedAt === null) return null;
   return {
     schema: "foreman.council-request.v1",
-    program: PROGRAM,
+    program: value["program"],
     packageId: value["packageId"],
     candidateSha256: value["candidateSha256"],
     questionSha256: value["questionSha256"],
@@ -864,7 +883,8 @@ function parseEvaluationAuthority(
     return null;
   }
   if (value["schema"] !== "foreman.evaluation-authority.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
+  if (releaseProgramTable(value["program"]).evaluationChild === null) return null;
   if (value["packageId"] !== EVAL_PACKAGE) return null;
   if (
     typeof value["manifestSha256"] !== "string" ||
@@ -876,7 +896,7 @@ function parseEvaluationAuthority(
   if (issuedAt === null) return null;
   return {
     schema: "foreman.evaluation-authority.v1",
-    program: PROGRAM,
+    program: value["program"],
     packageId: EVAL_PACKAGE,
     manifestSha256: value["manifestSha256"],
     issuedAt,
@@ -931,7 +951,7 @@ function parseActionOutcome(
     return null;
   }
   if (value["schema"] !== "foreman.release-action-outcome.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["rootContractId"])) return null;
   if (
     typeof value["rootContractSha256"] !== "string" ||
@@ -989,7 +1009,7 @@ function parseActionOutcome(
   if (issuedAt === null) return null;
   return {
     schema: "foreman.release-action-outcome.v1",
-    program: PROGRAM,
+    program: value["program"],
     rootContractId: value["rootContractId"],
     rootContractSha256: value["rootContractSha256"],
     familySha256: value["familySha256"],
@@ -1031,7 +1051,7 @@ function parseCouncilOutcome(
     return null;
   }
   if (value["schema"] !== "foreman.council-outcome.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["rootContractId"])) return null;
   if (
     typeof value["rootContractSha256"] !== "string" ||
@@ -1085,7 +1105,7 @@ function parseCouncilOutcome(
   if (issuedAt === null) return null;
   return {
     schema: "foreman.council-outcome.v1",
-    program: PROGRAM,
+    program: value["program"],
     rootContractId: value["rootContractId"],
     rootContractSha256: value["rootContractSha256"],
     familySha256: value["familySha256"],
@@ -1130,7 +1150,7 @@ function parseEvaluationVerdict(
     return null;
   }
   if (value["schema"] !== "foreman.evaluation-verdict.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["rootContractId"])) return null;
   if (
     typeof value["rootContractSha256"] !== "string" ||
@@ -1144,7 +1164,8 @@ function parseEvaluationVerdict(
   ) {
     return null;
   }
-  if (value["childId"] !== EVAL_CHILD) return null;
+  const evaluationChild = releaseProgramTable(value["program"]).evaluationChild;
+  if (evaluationChild === null || value["childId"] !== evaluationChild) return null;
   if (value["packageId"] !== EVAL_PACKAGE) return null;
   if (
     typeof value["candidateSha256"] !== "string" ||
@@ -1188,11 +1209,11 @@ function parseEvaluationVerdict(
   if (issuedAt === null) return null;
   return {
     schema: "foreman.evaluation-verdict.v1",
-    program: PROGRAM,
+    program: value["program"],
     rootContractId: value["rootContractId"],
     rootContractSha256: value["rootContractSha256"],
     familySha256: value["familySha256"],
-    childId: EVAL_CHILD,
+    childId: evaluationChild,
     packageId: EVAL_PACKAGE,
     candidateSha256: value["candidateSha256"],
     authorityManifestSha256: value["authorityManifestSha256"],
@@ -1226,7 +1247,7 @@ function parseCancelApproval(
     return null;
   }
   if (value["schema"] !== "foreman.execution-child-cancel.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["rootContractId"])) return null;
   if (
     typeof value["rootContractSha256"] !== "string" ||
@@ -1251,7 +1272,7 @@ function parseCancelApproval(
   if (issuedAt === null) return null;
   return {
     schema: "foreman.execution-child-cancel.v1",
-    program: PROGRAM,
+    program: value["program"],
     rootContractId: value["rootContractId"],
     rootContractSha256: value["rootContractSha256"],
     familySha256: value["familySha256"],
@@ -1280,7 +1301,7 @@ function parseInvalidateApproval(
     return null;
   }
   if (value["schema"] !== "foreman.execution-child-invalidate.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["rootContractId"])) return null;
   if (
     typeof value["rootContractSha256"] !== "string" ||
@@ -1311,7 +1332,7 @@ function parseInvalidateApproval(
   if (issuedAt === null) return null;
   return {
     schema: "foreman.execution-child-invalidate.v1",
-    program: PROGRAM,
+    program: value["program"],
     rootContractId: value["rootContractId"],
     rootContractSha256: value["rootContractSha256"],
     familySha256: value["familySha256"],
@@ -1479,7 +1500,7 @@ function parseEvidenceBundle(
     : baseKeys;
   if (!hasExactOwnKeys(value, expectedKeys)) return null;
   if (value["schema"] !== "foreman.release-evidence-bundle.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["rootContractId"])) return null;
   if (
     typeof value["rootContractSha256"] !== "string" ||
@@ -1527,7 +1548,7 @@ function parseEvidenceBundle(
     }
     return {
       schema: "foreman.release-evidence-bundle.v1",
-      program: PROGRAM,
+      program: value["program"],
       rootContractId: value["rootContractId"],
       rootContractSha256: value["rootContractSha256"],
       familySha256: value["familySha256"],
@@ -1546,7 +1567,7 @@ function parseEvidenceBundle(
   if (!receiptsMatchOrdinaryAction(action, receipts)) return null;
   return {
     schema: "foreman.release-evidence-bundle.v1",
-    program: PROGRAM,
+    program: value["program"],
     rootContractId: value["rootContractId"],
     rootContractSha256: value["rootContractSha256"],
     familySha256: value["familySha256"],
@@ -1638,7 +1659,7 @@ function parseChecksSource(
     return null;
   }
   if (value["schema"] !== "foreman.checks-source.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["packageId"])) return null;
   const candidate = parseCandidate(value["candidate"]);
   if (candidate === null) return null;
@@ -1647,7 +1668,7 @@ function parseChecksSource(
   if (commands === null) return null;
   return {
     schema: "foreman.checks-source.v1",
-    program: PROGRAM,
+    program: value["program"],
     packageId: value["packageId"],
     candidate,
     status: value["status"],
@@ -1672,7 +1693,7 @@ function parseAuditSource(
     return null;
   }
   if (value["schema"] !== "foreman.audit-source.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["packageId"])) return null;
   const candidate = parseCandidate(value["candidate"]);
   if (candidate === null) return null;
@@ -1687,7 +1708,7 @@ function parseAuditSource(
   }
   return {
     schema: "foreman.audit-source.v1",
-    program: PROGRAM,
+    program: value["program"],
     packageId: value["packageId"],
     candidate,
     verdict: value["verdict"],
@@ -1719,7 +1740,8 @@ function parseEvaluationReportSource(
     return null;
   }
   if (value["schema"] !== "foreman.evaluation-report-source.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
+  if (releaseProgramTable(value["program"]).evaluationChild === null) return null;
   if (value["packageId"] !== EVAL_PACKAGE) return null;
   if (
     typeof value["candidateSha256"] !== "string" ||
@@ -1761,7 +1783,7 @@ function parseEvaluationReportSource(
   }
   return {
     schema: "foreman.evaluation-report-source.v1",
-    program: PROGRAM,
+    program: value["program"],
     packageId: EVAL_PACKAGE,
     candidateSha256: value["candidateSha256"],
     authorityManifestSha256: value["authorityManifestSha256"],
@@ -1878,7 +1900,11 @@ export function parseReleaseAuthorityObjectV1(
 ): ReleaseAuthorityObjectParseResultV1 {
   try {
     const parsed = parseAuthorityObject(value);
-    if (parsed === null) return invalidObject();
+    if (parsed === null) {
+      return presentedUnknownProgram(value)
+        ? invalidObject("wrong_program")
+        : invalidObject();
+    }
     return { _tag: "Valid", value: parsed };
   } catch {
     return invalidObject();
@@ -1893,7 +1919,11 @@ export function decodeReleaseAuthorityFileV1(
     const decoded = decodeCanonicalObjectFile(bytes);
     if (decoded === null) return invalidFile();
     const parsed = parseAuthorityObject(decoded.value);
-    if (parsed === null) return invalidFile();
+    if (parsed === null) {
+      return presentedUnknownProgram(decoded.value)
+        ? invalidFile("wrong_program")
+        : invalidFile();
+    }
     return {
       _tag: "Valid",
       value: parsed,

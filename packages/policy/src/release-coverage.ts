@@ -5,6 +5,13 @@ import {
   sha256Hex,
 } from "@foreman/core";
 
+import {
+  isReleaseProgram,
+  releaseProgramTable,
+  RELEASE_PROGRAMS,
+  type ReleaseProgram,
+} from "./release-program.js";
+
 export type ReleaseCoverageFailureReason =
   | "invalid_register"
   | "invalid_roadmap"
@@ -16,12 +23,13 @@ export type ReleaseCoverageFailureReason =
   | "brief_mismatch"
   | "unreconciled"
   | "competing_plan"
-  | "dependency_failure";
+  | "dependency_failure"
+  | "wrong_program";
 
 export type RoadmapAssignmentV1 = {
   readonly key: string;
   readonly scope: string;
-  readonly release: "v0.4" | "v0.5";
+  readonly release: "v0.4" | "v0.5" | "v0.6";
   readonly owner: string;
 };
 
@@ -42,7 +50,7 @@ export type ReleaseCoverageResultV1 =
 export type ReleaseCoveragePhaseV1 =
   | {
       readonly _tag: "Bootstrap";
-      readonly owner: "openspec-superpowers-convergence";
+      readonly owner: string;
     }
   | { readonly _tag: "Lane"; readonly owner: string }
   | { readonly _tag: "Release" };
@@ -61,8 +69,6 @@ const SCHEMA_VERSION = 1 as const;
 const ONE_MIB = 1024 * 1024;
 const IMMUTABLE_BASELINE_COMMIT =
   "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195" as const;
-const TRACK1_PACKAGE = "openspec-superpowers-convergence" as const;
-const TRACK1_KEY = `change:${TRACK1_PACKAGE}` as const;
 const ROADMAP_PATH = "ROADMAP.md";
 const OPENSPEC_PREFIX = "openspec/changes/";
 const CHANGE_PREFIX = "change:";
@@ -72,17 +78,8 @@ const ALLOWED_WORKFLOWS = new Set([
   "foreman-architectural",
 ]);
 const SOURCE_KINDS = new Set(["openspec_change", "roadmap"]);
-const DISPOSITIONS = new Set([
-  "v040_owner",
-  "v040_dependency",
-  "released_reference",
-  "superseded",
-  "v050",
-]);
 const RECONCILES = new Set(["complete", "required", "not_required"]);
-const TARGET_RELEASES = new Set(["v0.4", "v0.5", "released"]);
-const ROADMAP_RELEASES = new Set(["v0.4", "v0.5"]);
-const FUTURE_RELEASES = new Set(["v0.4", "v0.5"]);
+const SHARED_TARGET_RELEASES = ["v0.4", "v0.5", "released"] as const;
 const BRIEF_SCHEMA = "foreman.release-package-brief.v1" as const;
 const BRIEF_KEYS = [
   "acceptance",
@@ -114,6 +111,63 @@ const ENTRY_FIELDS = new Set([
 
 const encoder = new TextEncoder();
 
+function defaultReleaseProgram(): ReleaseProgram {
+  return RELEASE_PROGRAMS[0]!;
+}
+
+function resolveCoverageProgram(value: unknown): ReleaseProgram | null {
+  if (value === undefined) return defaultReleaseProgram();
+  return isReleaseProgram(value) ? value : null;
+}
+
+function programCurrentRelease(program: ReleaseProgram): "v0.4" | "v0.5" {
+  return program === RELEASE_PROGRAMS[0] ? "v0.4" : "v0.5";
+}
+
+function programFutureRelease(program: ReleaseProgram): "v0.5" | "v0.6" {
+  return program === RELEASE_PROGRAMS[0] ? "v0.5" : "v0.6";
+}
+
+function dispositionsFor(program: ReleaseProgram): Set<string> {
+  return new Set(releaseProgramTable(program).dispositions);
+}
+
+function targetReleasesFor(program: ReleaseProgram): Set<string> {
+  const releases = new Set<string>(SHARED_TARGET_RELEASES);
+  if (program !== RELEASE_PROGRAMS[0]) releases.add("v0.6");
+  return releases;
+}
+
+function roadmapReleasesFor(program: ReleaseProgram): Set<string> {
+  const releases = new Set<string>(["v0.4", "v0.5"]);
+  if (program !== RELEASE_PROGRAMS[0]) releases.add("v0.6");
+  return releases;
+}
+
+function futureReleasesFor(program: ReleaseProgram): Set<string> {
+  return roadmapReleasesFor(program);
+}
+
+function ownerDisposition(program: ReleaseProgram): string {
+  return releaseProgramTable(program).dispositions[0]!;
+}
+
+function dependencyDisposition(program: ReleaseProgram): string {
+  return releaseProgramTable(program).dispositions[1]!;
+}
+
+function futureDisposition(program: ReleaseProgram): string {
+  return releaseProgramTable(program).dispositions[4]!;
+}
+
+function bootstrapOwner(program: ReleaseProgram): string {
+  return releaseProgramTable(program).bootstrapOwner;
+}
+
+function bootstrapKey(program: ReleaseProgram): string {
+  return `${CHANGE_PREFIX}${bootstrapOwner(program)}`;
+}
+
 type FutureOwner = {
   readonly name: string;
   readonly targetRelease: string;
@@ -124,14 +178,9 @@ type RegisterEntry = {
   readonly key: string;
   readonly sourceKind: "openspec_change" | "roadmap";
   readonly sourcePath: string;
-  readonly disposition:
-    | "v040_owner"
-    | "v040_dependency"
-    | "released_reference"
-    | "superseded"
-    | "v050";
+  readonly disposition: string;
   readonly owner: string;
-  readonly targetRelease: "v0.4" | "v0.5" | "released";
+  readonly targetRelease: "v0.4" | "v0.5" | "v0.6" | "released";
   readonly reconcile: "complete" | "required" | "not_required";
   readonly reason: string;
 };
@@ -380,22 +429,28 @@ function isNonemptyReason(value: string): boolean {
   return value.length > 0 && !hasAnyControl(value) && utf8ByteLength(value) <= 16384;
 }
 
-function validateDispositionCrossField(entry: {
-  sourceKind: string;
-  disposition: string;
-  owner: string;
-  targetRelease: string;
-  reconcile: string;
-  key: string;
-}): boolean {
+function validateDispositionCrossField(
+  entry: {
+    sourceKind: string;
+    disposition: string;
+    owner: string;
+    targetRelease: string;
+    reconcile: string;
+    key: string;
+  },
+  program: ReleaseProgram,
+): boolean {
   const { disposition, targetRelease, reconcile, sourceKind, key, owner } = entry;
-  if (disposition === "v040_owner" || disposition === "v040_dependency") {
-    if (targetRelease !== "v0.4") return false;
+  if (
+    disposition === ownerDisposition(program) ||
+    disposition === dependencyDisposition(program)
+  ) {
+    if (targetRelease !== programCurrentRelease(program)) return false;
     if (reconcile !== "required" && reconcile !== "complete") return false;
     return true;
   }
-  if (disposition === "v050") {
-    return targetRelease === "v0.5" && reconcile === "not_required";
+  if (disposition === futureDisposition(program)) {
+    return targetRelease === programFutureRelease(program) && reconcile === "not_required";
   }
   if (disposition === "released_reference") {
     return targetRelease === "released" && reconcile === "complete";
@@ -412,7 +467,10 @@ function validateDispositionCrossField(entry: {
   return false;
 }
 
-function parseRegister(text: string): ParsedRegister | "invalid_register" {
+function parseRegister(
+  text: string,
+  program: ReleaseProgram = defaultReleaseProgram(),
+): ParsedRegister | "invalid_register" {
   if (typeof text !== "string") return "invalid_register";
   if (utf8ByteLength(text) > ONE_MIB) return "invalid_register";
   if (hasControlExcludingLf(text)) return "invalid_register";
@@ -444,7 +502,7 @@ function parseRegister(text: string): ParsedRegister | "invalid_register" {
       if (typeof name !== "string" || typeof targetRelease !== "string" || typeof reason !== "string") {
         return false;
       }
-      if (!isRunId(name) || !FUTURE_RELEASES.has(targetRelease) || !isNonemptyReason(reason)) {
+      if (!isRunId(name) || !futureReleasesFor(program).has(targetRelease) || !isNonemptyReason(reason)) {
         return false;
       }
       futureOwners.push({ name, targetRelease, reason });
@@ -484,20 +542,23 @@ function parseRegister(text: string): ParsedRegister | "invalid_register" {
     if (sourcePath.length === 0 || hasAnyControl(sourcePath) || utf8ByteLength(sourcePath) > 4096) {
       return false;
     }
-    if (!DISPOSITIONS.has(disposition)) return false;
+    if (!dispositionsFor(program).has(disposition)) return false;
     if (!isRunId(owner)) return false;
-    if (!TARGET_RELEASES.has(targetRelease)) return false;
+    if (!targetReleasesFor(program).has(targetRelease)) return false;
     if (!RECONCILES.has(reconcile)) return false;
     if (!isNonemptyReason(reason)) return false;
     if (
-      !validateDispositionCrossField({
-        sourceKind,
-        disposition,
-        owner,
-        targetRelease,
-        reconcile,
-        key,
-      })
+      !validateDispositionCrossField(
+        {
+          sourceKind,
+          disposition,
+          owner,
+          targetRelease,
+          reconcile,
+          key,
+        },
+        program,
+      )
     ) {
       return false;
     }
@@ -604,6 +665,7 @@ function validateKeyPathCoherence(entry: RegisterEntry): boolean {
 
 function validateRoadmapRows(
   rows: readonly RoadmapAssignmentV1[],
+  program: ReleaseProgram,
 ): boolean {
   const seen = new Set<string>();
   for (const row of rows) {
@@ -627,7 +689,7 @@ function validateRoadmapRows(
     const scopeBytes = utf8ByteLength(scope);
     if (scopeBytes < 1 || scopeBytes > 4096) return false;
     if (hasAnyControl(scope)) return false;
-    if (!ROADMAP_RELEASES.has(release)) return false;
+    if (!roadmapReleasesFor(program).has(release)) return false;
     if (!isRunId(owner)) return false;
     if (seen.has(key)) return false;
     seen.add(key);
@@ -741,17 +803,20 @@ function canonicalBriefFileBytes(brief: ReleasePackageBriefV1): Uint8Array | nul
   }
 }
 
-function validateCollectionShapes(input: {
-  readonly phase: ReleaseCoveragePhaseV1;
-  readonly registerText: string;
-  readonly roadmapBytes: Uint8Array;
-  readonly activeChangeNames: readonly string[];
-  readonly roadmapRows: readonly RoadmapAssignmentV1[];
-  readonly workflowByChange: Readonly<Record<string, string | null>>;
-  readonly changedSuperpowersPaths: readonly string[];
-  readonly expectedBriefByOwner: Readonly<Record<string, ReleasePackageBriefV1>>;
-  readonly packageBriefBytesByOwner: Readonly<Record<string, Uint8Array>>;
-}): boolean {
+function validateCollectionShapes(
+  input: {
+    readonly phase: ReleaseCoveragePhaseV1;
+    readonly registerText: string;
+    readonly roadmapBytes: Uint8Array;
+    readonly activeChangeNames: readonly string[];
+    readonly roadmapRows: readonly RoadmapAssignmentV1[];
+    readonly workflowByChange: Readonly<Record<string, string | null>>;
+    readonly changedSuperpowersPaths: readonly string[];
+    readonly expectedBriefByOwner: Readonly<Record<string, ReleasePackageBriefV1>>;
+    readonly packageBriefBytesByOwner: Readonly<Record<string, Uint8Array>>;
+  },
+  program: ReleaseProgram,
+): boolean {
   if (typeof input.registerText !== "string") return false;
   if (!(input.roadmapBytes instanceof Uint8Array)) return false;
   if (!isReadonlyStringArray(input.activeChangeNames)) return false;
@@ -771,7 +836,7 @@ function validateCollectionShapes(input: {
   const tag = phase["_tag"];
   if (tag === "Bootstrap") {
     if (!hasExactOwnKeys(phase, ["_tag", "owner"])) return false;
-    if (phase["owner"] !== TRACK1_PACKAGE) return false;
+    if (phase["owner"] !== bootstrapOwner(program)) return false;
   } else if (tag === "Lane") {
     if (!hasExactOwnKeys(phase, ["_tag", "owner"])) return false;
     if (typeof phase["owner"] !== "string") return false;
@@ -802,13 +867,16 @@ function selectPhaseCoverage(
   phase: ReleaseCoveragePhaseV1,
   entries: readonly RegisterEntry[],
   futureOwners: readonly FutureOwner[],
+  program: ReleaseProgram,
 ): {
   readonly entries: readonly RegisterEntry[];
   readonly owners: readonly string[];
 } {
+  const currentRelease = programCurrentRelease(program);
   if (phase._tag === "Bootstrap") {
+    const key = bootstrapKey(program);
     for (const entry of entries) {
-      if (entry.key === TRACK1_KEY) {
+      if (entry.key === key) {
         return { entries: [entry], owners: uniqueOwnersFromEntries([entry]) };
       }
     }
@@ -817,11 +885,11 @@ function selectPhaseCoverage(
   if (phase._tag === "Lane") {
     const selected = entries.filter(
       (entry) =>
-        entry.targetRelease === "v0.4" && entry.owner === phase.owner,
+        entry.targetRelease === currentRelease && entry.owner === phase.owner,
     );
     return { entries: selected, owners: uniqueOwnersFromEntries(selected) };
   }
-  const selected = entries.filter((entry) => entry.targetRelease === "v0.4");
+  const selected = entries.filter((entry) => entry.targetRelease === currentRelease);
   const owners: string[] = [];
   const seen = new Set<string>();
   for (const entry of selected) {
@@ -830,7 +898,7 @@ function selectPhaseCoverage(
     owners.push(entry.owner);
   }
   for (const future of futureOwners) {
-    if (future.targetRelease !== "v0.4") continue;
+    if (future.targetRelease !== currentRelease) continue;
     if (seen.has(future.name)) continue;
     seen.add(future.name);
     owners.push(future.name);
@@ -852,8 +920,13 @@ export type ReleaseCoverageRegisterInspectionV1 =
 export function inspectReleaseCoverageRegisterV1(input: {
   readonly registerText: string;
   readonly phase: ReleaseCoveragePhaseV1;
+  readonly program?: ReleaseProgram;
 }): ReleaseCoverageRegisterInspectionV1 {
-  const parsed = parseRegister(input.registerText);
+  const program = resolveCoverageProgram(input.program);
+  if (program === null) {
+    return { _tag: "Invalid", reason: "invalid_register" };
+  }
+  const parsed = parseRegister(input.registerText, program);
   if (parsed === "invalid_register") {
     return { _tag: "Invalid", reason: "invalid_register" };
   }
@@ -861,6 +934,7 @@ export function inspectReleaseCoverageRegisterV1(input: {
     input.phase,
     parsed.entries,
     parsed.futureOwners,
+    program,
   );
   return {
     _tag: "Valid",
@@ -879,9 +953,14 @@ export function validateReleaseCoverageV1(input: {
   readonly changedSuperpowersPaths: readonly string[];
   readonly expectedBriefByOwner: Readonly<Record<string, ReleasePackageBriefV1>>;
   readonly packageBriefBytesByOwner: Readonly<Record<string, Uint8Array>>;
+  readonly program?: ReleaseProgram;
 }): ReleaseCoverageResultV1 {
   try {
-    if (!validateCollectionShapes(input)) {
+    const program = resolveCoverageProgram(input.program);
+    if (program === null) {
+      return invalid("wrong_program");
+    }
+    if (!validateCollectionShapes(input, program)) {
       return invalid("dependency_failure");
     }
 
@@ -893,7 +972,7 @@ export function validateReleaseCoverageV1(input: {
       return invalid("invalid_roadmap");
     }
 
-    const parsed = parseRegister(input.registerText);
+    const parsed = parseRegister(input.registerText, program);
     if (parsed === "invalid_register") {
       return invalid("invalid_register");
     }
@@ -925,7 +1004,7 @@ export function validateReleaseCoverageV1(input: {
       }
     }
 
-    if (!validateRoadmapRows(input.roadmapRows)) {
+    if (!validateRoadmapRows(input.roadmapRows, program)) {
       return invalid("invalid_roadmap");
     }
 
@@ -990,6 +1069,7 @@ export function validateReleaseCoverageV1(input: {
       input.phase,
       parsed.entries,
       parsed.futureOwners,
+      program,
     );
     const selected = selection.entries;
 
@@ -1006,16 +1086,19 @@ export function validateReleaseCoverageV1(input: {
     }
 
     if (input.phase._tag === "Bootstrap") {
-      const track1 = parsed.entries.find((entry) => entry.key === TRACK1_KEY);
+      const expectedOwner = bootstrapOwner(program);
+      const track1 = parsed.entries.find(
+        (entry) => entry.key === bootstrapKey(program),
+      );
       const track1ReleaseStateIsValid =
         track1 !== undefined &&
-        ((track1.targetRelease === "v0.4" &&
-          track1.disposition === "v040_owner") ||
+        ((track1.targetRelease === programCurrentRelease(program) &&
+          track1.disposition === ownerDisposition(program)) ||
           (track1.targetRelease === "released" &&
             track1.disposition === "released_reference"));
       if (
         track1 === undefined ||
-        track1.owner !== TRACK1_PACKAGE ||
+        track1.owner !== expectedOwner ||
         track1.reconcile !== "complete" ||
         track1.sourceKind !== "openspec_change" ||
         !track1ReleaseStateIsValid

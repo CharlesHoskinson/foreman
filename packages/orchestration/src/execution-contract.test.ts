@@ -122,6 +122,141 @@ const CHILDREN = [
   },
 ] as const satisfies readonly ExecutionChildBriefV1[];
 
+const V050_CHILDREN = [
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v050-lane-runtime-typescript",
+    tranche: 2,
+    packageId: "lane-runtime-typescript",
+    dependencyChildIds: [],
+    objective: "Ship the TypeScript lane runtime.",
+    acceptance: ["Lane runtime compiles and runs on Node.js 24."],
+    allowedPaths: ["packages/orchestration/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v050-launcher-node-port",
+    tranche: 3,
+    packageId: "launcher-node-port",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+    objective: "Ship the Node launcher port.",
+    acceptance: ["Launcher preserves exact argv, env, and exit status."],
+    allowedPaths: ["packages/orchestration/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v050-three-outcome-verdicts",
+    tranche: 4,
+    packageId: "three-outcome-verdicts",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+    objective: "Ship three-outcome verdicts.",
+    acceptance: ["Verdicts discriminate pass, fail, and error."],
+    allowedPaths: ["packages/policy/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v050-audit-groundedness-gate",
+    tranche: 4,
+    packageId: "audit-groundedness-gate",
+    dependencyChildIds: ["v050-three-outcome-verdicts"],
+    objective: "Ship the audit groundedness gate.",
+    acceptance: ["Audit claims bind to cited evidence."],
+    allowedPaths: ["packages/policy/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v050-evidence-contracts",
+    tranche: 4,
+    packageId: "evidence-contracts",
+    dependencyChildIds: ["v050-audit-groundedness-gate"],
+    objective: "Ship evidence contracts.",
+    acceptance: ["Evidence objects carry the required digest fields."],
+    allowedPaths: ["packages/policy/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v050-spec-triage-gate",
+    tranche: 5,
+    packageId: "spec-triage-gate",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+    objective: "Ship the spec triage gate.",
+    acceptance: ["Triage admits only five-part specs."],
+    allowedPaths: ["packages/orchestration/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v050-foreman-discover-lane",
+    tranche: 5,
+    packageId: "foreman-discover-lane",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+    objective: "Ship the discover lane.",
+    acceptance: ["Discover writes a report in its worktree."],
+    allowedPaths: ["packages/orchestration/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v050-build-determinism",
+    tranche: 6,
+    packageId: "build-determinism",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+    objective: "Ship build determinism.",
+    acceptance: ["Rebuilds produce byte-identical artifacts."],
+    allowedPaths: ["packages/orchestration/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v050-wsl-preflight",
+    tranche: 6,
+    packageId: "wsl-preflight",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+    objective: "Ship WSL preflight.",
+    acceptance: ["Preflight reports READY or NOT-READY."],
+    allowedPaths: ["packages/orchestration/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v050-doctrine-reality-drift",
+    tranche: 7,
+    packageId: "doctrine-reality-drift",
+    dependencyChildIds: ["v050-evidence-contracts"],
+    objective: "Ship doctrine-reality drift detection.",
+    acceptance: ["Drift reports cite the mismatched files."],
+    allowedPaths: ["packages/policy/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v050-workflow-weight-reduction",
+    tranche: 7,
+    packageId: "workflow-weight-reduction",
+    dependencyChildIds: ["v050-doctrine-reality-drift"],
+    objective: "Ship workflow weight reduction.",
+    acceptance: ["Workflow steps stay inside the budget."],
+    allowedPaths: ["packages/orchestration/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v050-release",
+    tranche: 8,
+    packageId: "v050-release-program",
+    dependencyChildIds: [
+      "v050-lane-runtime-typescript",
+      "v050-launcher-node-port",
+      "v050-three-outcome-verdicts",
+      "v050-audit-groundedness-gate",
+      "v050-evidence-contracts",
+      "v050-spec-triage-gate",
+      "v050-foreman-discover-lane",
+      "v050-build-determinism",
+      "v050-wsl-preflight",
+      "v050-doctrine-reality-drift",
+      "v050-workflow-weight-reduction",
+    ],
+    objective: "Ship the v0.5 release program.",
+    acceptance: ["Publication uses the exact admitted candidate."],
+    allowedPaths: ["docs/releases/**"],
+  },
+] as const satisfies readonly ExecutionChildBriefV1[];
+
 const SOURCE: ExecutionFamilySourceV1 = {
   schema: "foreman.execution-family-source.v1",
   program: "v040",
@@ -437,6 +572,153 @@ test("family content and path limits use exact UTF-8 boundaries", () => {
     false,
   );
   assert.equal(executionChildPathMatchesV1("../escape/**", "escape/a"), false);
+});
+
+function v050Source(
+  children: readonly ExecutionChildBriefV1[] = V050_CHILDREN,
+): ExecutionFamilySourceV1 {
+  return {
+    ...SOURCE,
+    program: "v050",
+    children,
+  };
+}
+
+function deriveV050() {
+  return derive({
+    ...INPUT,
+    sourceBytes: canonicalFile(v050Source()),
+  });
+}
+
+test("v050 family sources derive and v041 is refused", () => {
+  const derived = deriveV050();
+  assert.equal(derived.source.program, "v050");
+  assert.equal(derived.manifest.program, "v050");
+  assert.equal(derived.manifest.children.length, 12);
+  for (const [index, child] of V050_CHILDREN.entries()) {
+    assert.equal(derived.manifest.children[index]?.childId, child.childId);
+    assert.equal(derived.manifest.children[index]?.tranche, child.tranche);
+    assert.equal(derived.manifest.children[index]?.packageId, child.packageId);
+    assert.equal(derived.manifest.children[index]?.limits.kind, "standard");
+    assert.equal(child.childId.startsWith("v050-"), true);
+  }
+  assert.deepEqual(
+    decodeExecutionFamilySourceFileV1(canonicalFile({ ...SOURCE, program: "v041" })),
+    { _tag: "ExecutionFamilyFailure", reason: "invalid_source" },
+  );
+});
+
+test("v050 expected children have twelve distinct package ids and v050-release depends on the other eleven", () => {
+  const derived = deriveV050();
+  const packageIds = derived.manifest.children.map((child) => child.packageId);
+  assert.equal(packageIds.length, 12);
+  assert.equal(new Set(packageIds).size, 12);
+  const release = derived.manifest.children[11];
+  assert.equal(release?.childId, "v050-release");
+  assert.equal(release?.packageId, "v050-release-program");
+  assert.deepEqual(
+    release?.dependencyChildIds,
+    V050_CHILDREN.slice(0, 11).map((child) => child.childId),
+  );
+});
+
+test("v050 family with a tranche 9 child is refused", () => {
+  const children = V050_CHILDREN.map((child, index) =>
+    index === 0
+      ? { ...child, tranche: 9 as const, childId: "v050-9-release" }
+      : child,
+  );
+  assert.deepEqual(
+    decodeExecutionFamilySourceFileV1(canonicalFile(v050Source(children))),
+    { _tag: "ExecutionFamilyFailure", reason: "invalid_source" },
+  );
+});
+
+test("v050 family containing v040-t8-evaluation is refused", () => {
+  const children = V050_CHILDREN.map((child, index) =>
+    index === 0 ? CHILDREN[6]! : child,
+  );
+  assert.deepEqual(
+    decodeExecutionFamilySourceFileV1(canonicalFile(v050Source(children))),
+    { _tag: "ExecutionFamilyFailure", reason: "invalid_source" },
+  );
+});
+
+test("v050 appended and replaced forbidden children return program failures", () => {
+  const tranche9Child = {
+    ...V050_CHILDREN[0]!,
+    tranche: 9 as const,
+    childId: "v050-9-release",
+  };
+  const evaluationChild = CHILDREN[6]!;
+  const replacedTranche9 = V050_CHILDREN.map((child, index) =>
+    index === 0 ? tranche9Child : child,
+  );
+  const replacedEvaluation = V050_CHILDREN.map((child, index) =>
+    index === 0 ? evaluationChild : child,
+  );
+  const appendedTranche9 = [...V050_CHILDREN, tranche9Child];
+  const appendedEvaluation = [...V050_CHILDREN, evaluationChild];
+
+  for (const children of [
+    replacedTranche9,
+    replacedEvaluation,
+    appendedTranche9,
+    appendedEvaluation,
+  ]) {
+    assert.deepEqual(
+      decodeExecutionFamilySourceFileV1(canonicalFile(v050Source(children))),
+      { _tag: "ExecutionFamilyFailure", reason: "invalid_source" },
+    );
+  }
+
+  const derived = deriveV050();
+  const tranche9ManifestChild = {
+    ...derived.manifest.children[0]!,
+    tranche: 9 as const,
+    childId: "v050-9-release",
+  };
+  const evaluationManifestChild = {
+    ...derived.manifest.children[0]!,
+    childId: "v040-t8-evaluation",
+    tranche: 8 as const,
+    packageId: "graph-eval-falsification",
+  };
+  const manifestReplacedTranche9 = derived.manifest.children.map((child, index) =>
+    index === 0 ? tranche9ManifestChild : child,
+  );
+  const manifestReplacedEvaluation = derived.manifest.children.map(
+    (child, index) => (index === 0 ? evaluationManifestChild : child),
+  );
+  const manifestAppendedTranche9 = [
+    ...derived.manifest.children,
+    tranche9ManifestChild,
+  ];
+  const manifestAppendedEvaluation = [
+    ...derived.manifest.children,
+    evaluationManifestChild,
+  ];
+
+  for (const children of [
+    manifestReplacedTranche9,
+    manifestReplacedEvaluation,
+    manifestAppendedTranche9,
+    manifestAppendedEvaluation,
+  ]) {
+    assert.deepEqual(decodeExecutionContractFamilyV2({ ...derived.manifest, children }), {
+      _tag: "ExecutionFamilyFailure",
+      reason: "invalid_manifest",
+    });
+  }
+
+  assert.deepEqual(
+    decodeExecutionContractFamilyV2({
+      ...derived.manifest,
+      children: [...derived.manifest.children, derived.manifest.children[0]!],
+    }),
+    { _tag: "ExecutionFamilyFailure", reason: "invalid_children" },
+  );
 });
 
 test("V1 action and event grammar still excludes evaluate", () => {

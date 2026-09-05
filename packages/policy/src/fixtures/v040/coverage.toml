@@ -1,0 +1,619 @@
+schema_version = 1
+baseline_commit = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195"
+active_inventory_sha256 = "d16bd7a29580b6b642e24e301ffbd8600844b1a0436bfdaab5d1a241e4572c7a"
+roadmap_sha256 = "8cdacff5a4e9b9ad790cc06ee4c0dbf3ed78282fa242e0e95778358f4582b3aa"
+
+[[future_owner]]
+name = "project-registry"
+target_release = "v0.4"
+reason = "Track 2 owns stable project identity and store resolution."
+
+[[future_owner]]
+name = "external-memory-index"
+target_release = "v0.4"
+reason = "Track 3 owns the Qdrant adapter, projection epochs, and live tests."
+
+[[future_owner]]
+name = "hermetic-foreman-appliance"
+target_release = "v0.4"
+reason = "Track 4 owns the pinned images, host bootstrap, and rootless service."
+
+[[entry]]
+key = "change:agy-lane-activation"
+source_kind = "openspec_change"
+source_path = "openspec/changes/agy-lane-activation"
+disposition = "v050"
+owner = "agy-lane-activation"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "This lane feature is outside the v0.4 knowledge and appliance promise."
+
+[[entry]]
+key = "change:audit-groundedness-gate"
+source_kind = "openspec_change"
+source_path = "openspec/changes/audit-groundedness-gate"
+disposition = "v050"
+owner = "audit-groundedness-gate"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "The existing audit gate remains deferred and does not block v0.4."
+
+[[entry]]
+key = "change:bounded-execution-terminal-policy"
+source_kind = "openspec_change"
+source_path = "openspec/changes/bounded-execution-terminal-policy"
+disposition = "released_reference"
+owner = "bounded-execution-terminal-policy"
+target_release = "released"
+reconcile = "complete"
+reason = "The shipped Endstop policy is a v0.4 execution dependency."
+
+[[entry]]
+key = "change:captured-facts-convergence"
+source_kind = "openspec_change"
+source_path = "openspec/changes/captured-facts-convergence"
+disposition = "v050"
+owner = "captured-facts-convergence"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "This broader convergence package is not required for v0.4."
+
+[[entry]]
+key = "change:council-review-plane"
+source_kind = "openspec_change"
+source_path = "openspec/changes/council-review-plane"
+disposition = "v050"
+owner = "council-review-plane"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Council runtime and deliberation move to v0.5."
+
+[[entry]]
+key = "change:council-v029-preflight-release"
+source_kind = "openspec_change"
+source_path = "openspec/changes/council-v029-preflight-release"
+disposition = "released_reference"
+owner = "council-v029-preflight-release"
+target_release = "released"
+reconcile = "complete"
+reason = "The completed Council preflight remains historical release evidence."
+
+[[entry]]
+key = "change:credential-profile-authority"
+source_kind = "openspec_change"
+source_path = "openspec/changes/credential-profile-authority"
+disposition = "v050"
+owner = "credential-profile-authority"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Credential-profile expansion is outside the hermetic image boundary."
+
+[[entry]]
+key = "change:crlf-extensionless-hardening"
+source_kind = "openspec_change"
+source_path = "openspec/changes/crlf-extensionless-hardening"
+disposition = "v050"
+owner = "crlf-extensionless-hardening"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "General CRLF hardening is separate from the focused BW-004 predicate."
+
+[[entry]]
+key = "change:decision-lineage-and-telemetry"
+source_kind = "openspec_change"
+source_path = "openspec/changes/decision-lineage-and-telemetry"
+disposition = "v050"
+owner = "decision-lineage-and-telemetry"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Broad telemetry work is not part of v0.4."
+
+[[entry]]
+key = "change:doctrine-reality-drift"
+source_kind = "openspec_change"
+source_path = "openspec/changes/doctrine-reality-drift"
+disposition = "v050"
+owner = "doctrine-reality-drift"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Doctrine drift checks remain a later governance change."
+
+[[entry]]
+key = "change:evidence-contracts"
+source_kind = "openspec_change"
+source_path = "openspec/changes/evidence-contracts"
+disposition = "v050"
+owner = "evidence-contracts"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "The release uses current evidence contracts without expanding them."
+
+[[entry]]
+key = "change:external-memory-index"
+source_kind = "openspec_change"
+source_path = "openspec/changes/external-memory-index"
+disposition = "v040_owner"
+owner = "external-memory-index"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "Track 3 owns the Qdrant adapter, projection versions, and isolated epochs."
+
+[[entry]]
+key = "change:foreman-discover-lane"
+source_kind = "openspec_change"
+source_path = "openspec/changes/foreman-discover-lane"
+disposition = "v050"
+owner = "foreman-discover-lane"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Lane discovery is unrelated to the v0.4 release promise."
+
+[[entry]]
+key = "change:formal-model-suite"
+source_kind = "openspec_change"
+source_path = "openspec/changes/formal-model-suite"
+disposition = "v050"
+owner = "formal-model-suite"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Formal-model expansion remains a v0.5 release activity."
+
+[[entry]]
+key = "change:graph-context-builder"
+source_kind = "openspec_change"
+source_path = "openspec/changes/graph-context-builder"
+disposition = "v040_owner"
+owner = "graph-context-builder"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "Track 7 ships deterministic bounded context blocks and exact citation verification."
+
+[[entry]]
+key = "change:graph-eval-falsification"
+source_kind = "openspec_change"
+source_path = "openspec/changes/graph-eval-falsification"
+disposition = "v040_owner"
+owner = "graph-eval-falsification"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "Track 8 ships a deterministic 2,000-slot evaluator and records graph-off uncomputable without fabricated observations."
+
+[[entry]]
+key = "change:graph-store-port"
+source_kind = "openspec_change"
+source_path = "openspec/changes/graph-store-port"
+disposition = "v050"
+owner = "knowledge-plane-refresh"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "The files-only graph port already ships; the unfinished SQLite ontology expansion is deferred to v0.5."
+
+[[entry]]
+key = "change:grok-secret-scan-typescript"
+source_kind = "openspec_change"
+source_path = "openspec/changes/grok-secret-scan-typescript"
+disposition = "v050"
+owner = "grok-secret-scan-typescript"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Additional secret-scan migration work is outside v0.4."
+
+[[entry]]
+key = "change:hermetic-foreman-appliance"
+source_kind = "openspec_change"
+source_path = "openspec/changes/hermetic-foreman-appliance"
+disposition = "v040_owner"
+owner = "hermetic-foreman-appliance"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "Track 4 owns the pinned control, toolchain, worker, and isolated rootless-engine boundary."
+
+[[entry]]
+key = "change:knowledge-plane-refresh"
+source_kind = "openspec_change"
+source_path = "openspec/changes/knowledge-plane-refresh"
+disposition = "v040_owner"
+owner = "knowledge-plane-refresh"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "Track 5 ships deterministic Graphify 0.9.48 qualification, atomic publication, and Graphify-free freshness checks."
+
+[[entry]]
+key = "change:lane-ownership-and-reaping"
+source_kind = "openspec_change"
+source_path = "openspec/changes/lane-ownership-and-reaping"
+disposition = "v050"
+owner = "lane-ownership-and-reaping"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Lane ownership expansion does not block v0.4."
+
+[[entry]]
+key = "change:launcher-node-port"
+source_kind = "openspec_change"
+source_path = "openspec/changes/launcher-node-port"
+disposition = "v050"
+owner = "launcher-node-port"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "The shipped launcher is reused; remaining port work is deferred."
+
+[[entry]]
+key = "change:lock-primitive-hardening"
+source_kind = "openspec_change"
+source_path = "openspec/changes/lock-primitive-hardening"
+disposition = "v050"
+owner = "lock-primitive-hardening"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "General lock hardening is not required by the v0.4 single-host claim."
+
+[[entry]]
+key = "change:node-typescript-runtime"
+source_kind = "openspec_change"
+source_path = "openspec/changes/node-typescript-runtime"
+disposition = "v050"
+owner = "node-typescript-runtime"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Node 24 is the v0.4 boundary; unrelated migration backlog is deferred."
+
+[[entry]]
+key = "change:openspec-superpowers-convergence"
+source_kind = "openspec_change"
+source_path = "openspec/changes/openspec-superpowers-convergence"
+disposition = "released_reference"
+owner = "openspec-superpowers-convergence"
+target_release = "released"
+reconcile = "complete"
+reason = "Track 1 completed workflow convergence, release policy, and family activation."
+
+[[entry]]
+key = "change:profile-bound-lane-admission"
+source_kind = "openspec_change"
+source_path = "openspec/changes/profile-bound-lane-admission"
+disposition = "released_reference"
+owner = "profile-bound-lane-admission"
+target_release = "released"
+reconcile = "complete"
+reason = "The completed admission contract is reused by the appliance."
+
+[[entry]]
+key = "change:profile-bound-setup-preflight"
+source_kind = "openspec_change"
+source_path = "openspec/changes/profile-bound-setup-preflight"
+disposition = "v050"
+owner = "profile-bound-setup-preflight"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Remaining setup-preflight expansion is outside v0.4."
+
+[[entry]]
+key = "change:profile-use-leasing"
+source_kind = "openspec_change"
+source_path = "openspec/changes/profile-use-leasing"
+disposition = "v050"
+owner = "profile-use-leasing"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Profile leasing is not part of the v0.4 appliance contract."
+
+[[entry]]
+key = "change:project-registry"
+source_kind = "openspec_change"
+source_path = "openspec/changes/project-registry"
+disposition = "v040_owner"
+owner = "project-registry"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "Track 2 owns stable local project identity and exact store resolution."
+
+[[entry]]
+key = "change:regression-harness-tiers"
+source_kind = "openspec_change"
+source_path = "openspec/changes/regression-harness-tiers"
+disposition = "v050"
+owner = "regression-harness-tiers"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "The release uses existing tiers; tier redesign is deferred."
+
+[[entry]]
+key = "change:resume-count-events-typescript"
+source_kind = "openspec_change"
+source_path = "openspec/changes/resume-count-events-typescript"
+disposition = "v050"
+owner = "resume-count-events-typescript"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Resume event migration does not block v0.4."
+
+[[entry]]
+key = "change:resume-safety-services-typescript"
+source_kind = "openspec_change"
+source_path = "openspec/changes/resume-safety-services-typescript"
+disposition = "v050"
+owner = "resume-safety-services-typescript"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Resume safety migration does not block v0.4."
+
+[[entry]]
+key = "change:resume-supervisor-typescript"
+source_kind = "openspec_change"
+source_path = "openspec/changes/resume-supervisor-typescript"
+disposition = "v050"
+owner = "resume-supervisor-typescript"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Resume supervisor migration does not block v0.4."
+
+[[entry]]
+key = "change:round-ownership-default"
+source_kind = "openspec_change"
+source_path = "openspec/changes/round-ownership-default"
+disposition = "v050"
+owner = "round-ownership-default"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Round ownership changes are outside v0.4."
+
+[[entry]]
+key = "change:round-resume-typescript"
+source_kind = "openspec_change"
+source_path = "openspec/changes/round-resume-typescript"
+disposition = "v050"
+owner = "round-resume-typescript"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Round resume migration does not block v0.4."
+
+[[entry]]
+key = "change:spec-triage-gate"
+source_kind = "openspec_change"
+source_path = "openspec/changes/spec-triage-gate"
+disposition = "v050"
+owner = "spec-triage-gate"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "General spec triage is separate from the v0.4 coverage bootstrap."
+
+[[entry]]
+key = "change:test-infrastructure-hardening"
+source_kind = "openspec_change"
+source_path = "openspec/changes/test-infrastructure-hardening"
+disposition = "v050"
+owner = "test-infrastructure-hardening"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "BW-004 has a focused v0.4 owner; broad test hardening is deferred."
+
+[[entry]]
+key = "change:three-outcome-verdicts"
+source_kind = "openspec_change"
+source_path = "openspec/changes/three-outcome-verdicts"
+disposition = "v050"
+owner = "three-outcome-verdicts"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Track 1 owns the narrow v0.4 override; the broad verdict backlog is v0.5."
+
+[[entry]]
+key = "change:v030-release-program"
+source_kind = "openspec_change"
+source_path = "openspec/changes/v030-release-program"
+disposition = "superseded"
+owner = "v040-release-program"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "The v0.4 governor supersedes the unfinished broad v0.3 program."
+
+[[entry]]
+key = "change:v040-release-program"
+source_kind = "openspec_change"
+source_path = "openspec/changes/v040-release-program"
+disposition = "v040_owner"
+owner = "v040-release-program"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "Track 9 owns the completed integration, verification, and publication work."
+
+[[entry]]
+key = "change:vendor-adapter-contract"
+source_kind = "openspec_change"
+source_path = "openspec/changes/vendor-adapter-contract"
+disposition = "v050"
+owner = "vendor-adapter-contract"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Vendor-adapter expansion is unrelated to v0.4."
+
+[[entry]]
+key = "change:vendor-concurrency-and-quota"
+source_kind = "openspec_change"
+source_path = "openspec/changes/vendor-concurrency-and-quota"
+disposition = "v050"
+owner = "vendor-concurrency-and-quota"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Vendor quota expansion is not part of v0.4."
+
+[[entry]]
+key = "change:vendor-preflight"
+source_kind = "openspec_change"
+source_path = "openspec/changes/vendor-preflight"
+disposition = "v050"
+owner = "vendor-preflight"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "The appliance uses the current preflight contract; its backlog is deferred."
+
+[[entry]]
+key = "change:work-dag-projection"
+source_kind = "openspec_change"
+source_path = "openspec/changes/work-dag-projection"
+disposition = "v040_owner"
+owner = "work-dag-projection"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "Track 6 ships the deterministic model-free event-log projection and defers the unimplemented symbol bridge."
+
+[[entry]]
+key = "change:workload-fit-accounting"
+source_kind = "openspec_change"
+source_path = "openspec/changes/workload-fit-accounting"
+disposition = "v050"
+owner = "workload-fit-accounting"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Workload accounting expansion is outside v0.4."
+
+[[entry]]
+key = "change:wsl-launcher-shipped"
+source_kind = "openspec_change"
+source_path = "openspec/changes/wsl-launcher-shipped"
+disposition = "v050"
+owner = "wsl-launcher-shipped"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "The shipped launcher is reused; remaining package work is deferred."
+
+[[entry]]
+key = "change:wsl-preflight"
+source_kind = "openspec_change"
+source_path = "openspec/changes/wsl-preflight"
+disposition = "v050"
+owner = "wsl-preflight"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "General WSL preflight work is separate from BW-004."
+
+[[entry]]
+key = "change:wsl-tool-path-persistence"
+source_kind = "openspec_change"
+source_path = "openspec/changes/wsl-tool-path-persistence"
+disposition = "v050"
+owner = "wsl-tool-path-persistence"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "WSL tool-path persistence is not a v0.4 release predicate."
+
+[[entry]]
+key = "roadmap:sprint-6-project-registry"
+source_kind = "roadmap"
+source_path = "ROADMAP.md"
+disposition = "v040_owner"
+owner = "project-registry"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "Sprint 6 project identity moves to focused Track 2."
+
+[[entry]]
+key = "roadmap:sprint-8-minimal-council"
+source_kind = "roadmap"
+source_path = "ROADMAP.md"
+disposition = "v050"
+owner = "council-review-plane"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Minimal Council work is not part of the v0.4 release promise."
+
+[[entry]]
+key = "roadmap:sprint-9-council-runtime-security"
+source_kind = "roadmap"
+source_path = "ROADMAP.md"
+disposition = "v050"
+owner = "council-review-plane"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Council runtime and security move to v0.5."
+
+[[entry]]
+key = "roadmap:sprint-10-council-research"
+source_kind = "roadmap"
+source_path = "ROADMAP.md"
+disposition = "v050"
+owner = "council-review-plane"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Gemini, deliberation, research, and provenance move to v0.5."
+
+[[entry]]
+key = "roadmap:sprint-11-council-interfaces"
+source_kind = "roadmap"
+source_path = "ROADMAP.md"
+disposition = "v050"
+owner = "council-review-plane"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Council MCP, plugin, and publication work moves to v0.5."
+
+[[entry]]
+key = "roadmap:sprint-12-release-formal-carryover"
+source_kind = "roadmap"
+source_path = "ROADMAP.md"
+disposition = "v050"
+owner = "formal-model-suite"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "The old release and formal-model carry-over moves to v0.5."
+
+[[entry]]
+key = "roadmap:sprint-13-knowledge-graph"
+source_kind = "roadmap"
+source_path = "ROADMAP.md"
+disposition = "v040_owner"
+owner = "knowledge-plane-refresh"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "Track 5 completes the Sprint 13 Graphify qualification and freshness boundary."
+
+[[entry]]
+key = "roadmap:sprint-16-windows-bats-bw004"
+source_kind = "roadmap"
+source_path = "ROADMAP.md"
+disposition = "v040_owner"
+owner = "v040-release-program"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "Track 9 completed the focused native Windows flock release predicate."
+
+[[entry]]
+key = "roadmap:sprint-16-external-dogfood"
+source_kind = "roadmap"
+source_path = "ROADMAP.md"
+disposition = "v050"
+owner = "council-review-plane"
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "Broad external dogfood and Council evaluation move to v0.5."
+
+[[entry]]
+key = "roadmap:v040-external-memory-index"
+source_kind = "roadmap"
+source_path = "ROADMAP.md"
+disposition = "v040_owner"
+owner = "external-memory-index"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "The first external adapter, projection epochs, and live tests belong to Track 3."
+
+[[entry]]
+key = "roadmap:v040-knowledge-graph-plane"
+source_kind = "roadmap"
+source_path = "ROADMAP.md"
+disposition = "v040_owner"
+owner = "knowledge-plane-refresh"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "The qualified immutable code graph is published; later knowledge consumers remain in Tracks 6 through 8."
+
+[[entry]]
+key = "roadmap:v040-publication"
+source_kind = "roadmap"
+source_path = "ROADMAP.md"
+disposition = "v040_owner"
+owner = "v040-release-program"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "The release governor owns final evidence, notes, gate, and publication."

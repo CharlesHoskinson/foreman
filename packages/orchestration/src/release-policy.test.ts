@@ -199,4 +199,172 @@ describe("release-policy", () => {
     assert.equal(laterCalls, 0);
     assert.equal(stdout.includes("brief_mismatch"), true);
   });
+
+  it("accepts v050 and refuses v041 with wrong_program", async () => {
+    const v050Args = [...block()];
+    v050Args[v050Args.indexOf("v040")] = "v050";
+    const parsed = parseReleasePolicyArgv(v050Args);
+    assert.equal(parsed._tag, "Check");
+    if (parsed._tag === "Check") {
+      assert.equal(parsed.block.program, "v050");
+    }
+
+    const v041Args = [...block()];
+    v041Args[v041Args.indexOf("v040")] = "v041";
+    assert.equal(parseReleasePolicyArgv(v041Args)._tag, "WrongProgram");
+    let stdout = "";
+    const code = await Effect.runPromise(
+      runReleasePolicyCli(
+        v041Args,
+        {
+          writeStdout: (text) => {
+            stdout += text;
+          },
+          writeStderr: () => undefined,
+        },
+        {
+          checkCoverage: () => Effect.die("late"),
+          readEvidence: () => Effect.die("late"),
+          loadGitAuthority: () => Effect.die("late"),
+          resolveFamily: () => Effect.die("late"),
+        },
+      ),
+    );
+    assert.equal(code, 1);
+    assert.equal(stdout.includes("wrong_program"), true);
+  });
+
+  it("bundle program v041 decodes as wrong_program", async () => {
+    const data = fixture();
+    const evidenceBytes = new TextEncoder().encode(
+      `${canonicalize({
+        schema: "foreman.release-evidence-bundle.v1",
+        program: "v041",
+        rootContractId: "root-contract",
+        rootContractSha256: A,
+        familySha256: B,
+        childId: "v040-t2-project-registry",
+        packageId: "project-registry",
+        action: "verify",
+        candidate: CANDIDATE,
+        taskPlanSha256: sha256Hex(data.taskPlanBytes),
+        receipts: [
+          {
+            schema: "foreman.design-approval.v1",
+            program: "v040",
+            packageId: "project-registry",
+            designCommit: COMMIT,
+            designTree: TREE,
+            approvedOpenSpecSha256: A,
+            taskPlanSha256: sha256Hex(data.taskPlanBytes),
+            approvalStatementSha256: A,
+            issuedAt: "2026-08-24T12:00:00Z",
+          },
+        ],
+        issuedAt: "2026-08-24T12:01:00Z",
+      })}\n`,
+    );
+    let laterCalls = 0;
+    let stdout = "";
+    const code = await Effect.runPromise(
+      runReleasePolicyCli(
+        block(),
+        {
+          writeStdout: (text) => {
+            stdout += text;
+          },
+          writeStderr: () => undefined,
+        },
+        {
+          checkCoverage: () =>
+            Effect.succeed({
+              schemaVersion: 1,
+              _tag: "Valid",
+              activeInventorySha256: A,
+              roadmapSha256: B,
+              entryCount: 1,
+            }),
+          readEvidence: () => Effect.succeed(evidenceBytes),
+          loadGitAuthority: () => {
+            laterCalls += 1;
+            return Effect.die("late");
+          },
+          resolveFamily: () => {
+            laterCalls += 1;
+            return Effect.die("late");
+          },
+        },
+      ),
+    );
+    assert.equal(code, 1);
+    assert.equal(laterCalls, 0);
+    assert.equal(stdout.includes("wrong_program"), true);
+  });
+
+  it("nested receipt program v041 decodes as wrong_program", async () => {
+    const data = fixture();
+    const evidenceBytes = new TextEncoder().encode(
+      `${canonicalize({
+        schema: "foreman.release-evidence-bundle.v1",
+        program: "v040",
+        rootContractId: "root-contract",
+        rootContractSha256: A,
+        familySha256: B,
+        childId: "v040-t2-project-registry",
+        packageId: "project-registry",
+        action: "verify",
+        candidate: CANDIDATE,
+        taskPlanSha256: sha256Hex(data.taskPlanBytes),
+        receipts: [
+          {
+            schema: "foreman.design-approval.v1",
+            program: "v041",
+            packageId: "project-registry",
+            designCommit: COMMIT,
+            designTree: TREE,
+            approvedOpenSpecSha256: A,
+            taskPlanSha256: sha256Hex(data.taskPlanBytes),
+            approvalStatementSha256: A,
+            issuedAt: "2026-08-24T12:00:00Z",
+          },
+        ],
+        issuedAt: "2026-08-24T12:01:00Z",
+      })}\n`,
+    );
+    let laterCalls = 0;
+    let stdout = "";
+    const code = await Effect.runPromise(
+      runReleasePolicyCli(
+        block(),
+        {
+          writeStdout: (text) => {
+            stdout += text;
+          },
+          writeStderr: () => undefined,
+        },
+        {
+          checkCoverage: () =>
+            Effect.succeed({
+              schemaVersion: 1,
+              _tag: "Valid",
+              activeInventorySha256: A,
+              roadmapSha256: B,
+              entryCount: 1,
+            }),
+          readEvidence: () => Effect.succeed(evidenceBytes),
+          loadGitAuthority: () => {
+            laterCalls += 1;
+            return Effect.die("late");
+          },
+          resolveFamily: () => {
+            laterCalls += 1;
+            return Effect.die("late");
+          },
+        },
+      ),
+    );
+    assert.equal(code, 1);
+    assert.equal(laterCalls, 0);
+    assert.equal(stdout.includes("wrong_program"), true);
+  });
 });

@@ -8,7 +8,13 @@ import {
   sha256Hex,
 } from "@foreman/core";
 import { decodeRunId, isUtcSecondTimestamp } from "@foreman/event-log";
-import type { ReleasePackageBriefV1 } from "@foreman/policy";
+import {
+  isReleaseProgram,
+  RELEASE_PROGRAMS,
+  releaseProgramTable,
+  type ReleasePackageBriefV1,
+  type ReleaseProgram,
+} from "@foreman/policy";
 
 export const executionMilestones = [
   "checks",
@@ -309,10 +315,12 @@ export function executionContractSha256(contract: ExecutionContractV1): string {
   return sha256Hex(canonicalize(contract));
 }
 
+export type ExecutionChildTranche = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+
 export type ExecutionChildBriefV1 = {
   readonly schema: "foreman.execution-child-brief.v1";
   readonly childId: string;
-  readonly tranche: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  readonly tranche: ExecutionChildTranche;
   readonly packageId: string;
   readonly dependencyChildIds: readonly string[];
   readonly objective: string;
@@ -322,7 +330,7 @@ export type ExecutionChildBriefV1 = {
 
 export type ExecutionFamilySourceV1 = {
   readonly schema: "foreman.execution-family-source.v1";
-  readonly program: "v040";
+  readonly program: ReleaseProgram;
   readonly familyId: "v040-release-20260822-f1";
   readonly children: readonly ExecutionChildBriefV1[];
 };
@@ -362,7 +370,7 @@ export type ExecutionChildLimitsV2 =
 
 export type ExecutionChildContractV2 = {
   readonly childId: string;
-  readonly tranche: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  readonly tranche: ExecutionChildTranche;
   readonly packageId: string;
   readonly objectiveSha256: string;
   readonly acceptanceSha256: string;
@@ -375,6 +383,7 @@ export type ExecutionChildContractV2 = {
 
 export type ExecutionContractFamilyV2 = {
   readonly schemaVersion: 2;
+  readonly program?: ReleaseProgram;
   readonly familyId: "v040-release-20260822-f1";
   readonly rootContractId: string;
   readonly rootContractSha256: string;
@@ -451,7 +460,7 @@ const evaluationChildLimits: EvaluationChildLimitsV2 = {
   noProgressMs: 3_600_000,
 };
 
-const expectedFamilyChildren = [
+const v040FamilyChildren = [
   {
     tranche: 2,
     childId: "v040-t2-project-registry",
@@ -516,6 +525,132 @@ const expectedFamilyChildren = [
   ExecutionChildBriefV1,
   "tranche" | "childId" | "packageId" | "dependencyChildIds"
 >[];
+
+const v050FamilyChildren = [
+  {
+    tranche: 2,
+    childId: "v050-lane-runtime-typescript",
+    packageId: "lane-runtime-typescript",
+    dependencyChildIds: [],
+  },
+  {
+    tranche: 3,
+    childId: "v050-launcher-node-port",
+    packageId: "launcher-node-port",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+  },
+  {
+    tranche: 4,
+    childId: "v050-three-outcome-verdicts",
+    packageId: "three-outcome-verdicts",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+  },
+  {
+    tranche: 4,
+    childId: "v050-audit-groundedness-gate",
+    packageId: "audit-groundedness-gate",
+    dependencyChildIds: ["v050-three-outcome-verdicts"],
+  },
+  {
+    tranche: 4,
+    childId: "v050-evidence-contracts",
+    packageId: "evidence-contracts",
+    dependencyChildIds: ["v050-audit-groundedness-gate"],
+  },
+  {
+    tranche: 5,
+    childId: "v050-spec-triage-gate",
+    packageId: "spec-triage-gate",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+  },
+  {
+    tranche: 5,
+    childId: "v050-foreman-discover-lane",
+    packageId: "foreman-discover-lane",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+  },
+  {
+    tranche: 6,
+    childId: "v050-build-determinism",
+    packageId: "build-determinism",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+  },
+  {
+    tranche: 6,
+    childId: "v050-wsl-preflight",
+    packageId: "wsl-preflight",
+    dependencyChildIds: ["v050-lane-runtime-typescript"],
+  },
+  {
+    tranche: 7,
+    childId: "v050-doctrine-reality-drift",
+    packageId: "doctrine-reality-drift",
+    dependencyChildIds: ["v050-evidence-contracts"],
+  },
+  {
+    tranche: 7,
+    childId: "v050-workflow-weight-reduction",
+    packageId: "workflow-weight-reduction",
+    dependencyChildIds: ["v050-doctrine-reality-drift"],
+  },
+  {
+    tranche: 8,
+    childId: "v050-release",
+    packageId: "v050-release-program",
+    dependencyChildIds: [
+      "v050-lane-runtime-typescript",
+      "v050-launcher-node-port",
+      "v050-three-outcome-verdicts",
+      "v050-audit-groundedness-gate",
+      "v050-evidence-contracts",
+      "v050-spec-triage-gate",
+      "v050-foreman-discover-lane",
+      "v050-build-determinism",
+      "v050-wsl-preflight",
+      "v050-doctrine-reality-drift",
+      "v050-workflow-weight-reduction",
+    ],
+  },
+] as const satisfies readonly Pick<
+  ExecutionChildBriefV1,
+  "tranche" | "childId" | "packageId" | "dependencyChildIds"
+>[];
+
+type ExpectedFamilyChild = {
+  readonly tranche: ExecutionChildTranche;
+  readonly childId: string;
+  readonly packageId: string;
+  readonly dependencyChildIds: readonly string[];
+};
+
+function expectedChildrenFor(program: ReleaseProgram): readonly ExpectedFamilyChild[] {
+  return program === "v040" ? v040FamilyChildren : v050FamilyChildren;
+}
+
+function childViolatesProgram(
+  value: unknown,
+  program: ReleaseProgram,
+): boolean {
+  if (!isPlainRecordV2(value)) return false;
+  const table = releaseProgramTable(program);
+  const [trancheMin, trancheMax] = table.trancheRange;
+  if (
+    typeof value.tranche === "number" &&
+    (value.tranche < trancheMin || value.tranche > trancheMax)
+  ) {
+    return true;
+  }
+  if (typeof value.childId === "string") {
+    if (!value.childId.startsWith(table.childIdPrefix)) return true;
+    if (
+      table.evaluationChild === null &&
+      value.childId === releaseProgramTable("v040").evaluationChild
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
 
 const familySourceKeys = new Set(["schema", "program", "familyId", "children"]);
 const childBriefKeys = new Set([
@@ -585,6 +720,24 @@ function hasExactKeysV2(
 ): boolean {
   const own = Object.keys(value);
   return own.length === keys.size && own.every((key) => keys.has(key));
+}
+
+function hasFamilyManifestKeys(value: Record<string, unknown>): boolean {
+  const own = Object.keys(value);
+  for (const key of own) {
+    if (!familyManifestKeys.has(key) && key !== "program") return false;
+  }
+  for (const key of familyManifestKeys) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) return false;
+  }
+  return true;
+}
+
+function resolveFamilyProgram(value: Record<string, unknown>): ReleaseProgram | null {
+  if (!Object.prototype.hasOwnProperty.call(value, "program")) {
+    return RELEASE_PROGRAMS[0]!;
+  }
+  return isReleaseProgram(value.program) ? value.program : null;
 }
 
 function validUnicodeText(value: string): boolean {
@@ -663,15 +816,27 @@ function sameStrings(
 
 function decodeChildBriefV1(
   value: unknown,
-  expected: (typeof expectedFamilyChildren)[number],
+  expected: ExpectedFamilyChild,
+  program: ReleaseProgram,
 ): ExecutionChildBriefV1 | ExecutionFamilyFailure {
   if (!isPlainRecordV2(value) || !hasExactKeysV2(value, childBriefKeys)) {
     return familyFailure("invalid_children");
   }
+  const table = releaseProgramTable(program);
+  const [trancheMin, trancheMax] = table.trancheRange;
   if (
     value.schema !== "foreman.execution-child-brief.v1" ||
+    typeof value.childId !== "string" ||
     value.childId !== expected.childId ||
+    !value.childId.startsWith(table.childIdPrefix) ||
     value.tranche !== expected.tranche ||
+    expected.tranche < trancheMin ||
+    expected.tranche > trancheMax ||
+    (table.evaluationChild === null &&
+      value.childId === releaseProgramTable("v040").evaluationChild) ||
+    (table.evaluationChild !== null &&
+      expected.childId === table.evaluationChild &&
+      value.childId !== table.evaluationChild) ||
     value.packageId !== expected.packageId ||
     !sameStrings(value.dependencyChildIds, expected.dependencyChildIds)
   ) {
@@ -721,22 +886,31 @@ export function decodeExecutionFamilySourceV1(
   }
   if (
     value.schema !== "foreman.execution-family-source.v1" ||
-    value.program !== "v040" ||
+    !isReleaseProgram(value.program) ||
     value.familyId !== FAMILY_ID ||
-    !Array.isArray(value.children) ||
-    value.children.length !== expectedFamilyChildren.length
+    !Array.isArray(value.children)
   ) {
     return familyFailure("invalid_source");
   }
+  for (const raw of value.children) {
+    if (childViolatesProgram(raw, value.program)) {
+      return familyFailure("invalid_source");
+    }
+  }
+  const expectedChildren = expectedChildrenFor(value.program);
+  if (value.children.length !== expectedChildren.length) {
+    return familyFailure("invalid_source");
+  }
   const children: ExecutionChildBriefV1[] = [];
-  for (const [index, expected] of expectedFamilyChildren.entries()) {
-    const child = decodeChildBriefV1(value.children[index], expected);
+  for (const [index, expected] of expectedChildren.entries()) {
+    const raw = value.children[index];
+    const child = decodeChildBriefV1(raw, expected, value.program);
     if (isExecutionFamilyFailure(child)) return child;
     children.push(child);
   }
   return {
     schema: "foreman.execution-family-source.v1",
-    program: "v040",
+    program: value.program,
     familyId: FAMILY_ID,
     children,
   };
@@ -765,9 +939,12 @@ export function decodeExecutionFamilySourceFileV1(
 }
 
 function expectedChildLimits(
-  tranche: ExecutionChildBriefV1["tranche"],
+  program: ReleaseProgram,
+  childId: string,
 ): ExecutionChildLimitsV2 {
-  return tranche === 8 ? evaluationChildLimits : standardChildLimits;
+  return releaseProgramTable(program).evaluationChild === childId
+    ? evaluationChildLimits
+    : standardChildLimits;
 }
 
 function expectedChildMilestones(
@@ -789,7 +966,11 @@ function samePlainValue(left: unknown, right: unknown): boolean {
 export function decodeExecutionContractFamilyV2(
   value: unknown,
 ): ExecutionContractFamilyV2 | ExecutionFamilyFailure {
-  if (!isPlainRecordV2(value) || !hasExactKeysV2(value, familyManifestKeys)) {
+  if (!isPlainRecordV2(value) || !hasFamilyManifestKeys(value)) {
+    return familyFailure("invalid_manifest");
+  }
+  const program = resolveFamilyProgram(value);
+  if (program === null) {
     return familyFailure("invalid_manifest");
   }
   if (
@@ -836,12 +1017,21 @@ export function decodeExecutionContractFamilyV2(
   ) {
     return familyFailure("invalid_deadline");
   }
-  if (!Array.isArray(value.children) || value.children.length !== 8) {
+  if (!Array.isArray(value.children)) {
+    return familyFailure("invalid_children");
+  }
+  for (const raw of value.children) {
+    if (childViolatesProgram(raw, program)) {
+      return familyFailure("invalid_manifest");
+    }
+  }
+  const expectedChildren = expectedChildrenFor(program);
+  if (value.children.length !== expectedChildren.length) {
     return familyFailure("invalid_children");
   }
 
   const children: ExecutionChildContractV2[] = [];
-  for (const [index, expected] of expectedFamilyChildren.entries()) {
+  for (const [index, expected] of expectedChildren.entries()) {
     const raw = value.children[index];
     if (!isPlainRecordV2(raw) || !hasExactKeysV2(raw, childContractKeys)) {
       return familyFailure("invalid_children");
@@ -866,7 +1056,7 @@ export function decodeExecutionContractFamilyV2(
     ) {
       return familyFailure("invalid_digest");
     }
-    const limits = expectedChildLimits(expected.tranche);
+    const limits = expectedChildLimits(program, expected.childId);
     if (!samePlainValue(raw.limits, limits)) {
       return familyFailure("invalid_limits");
     }
@@ -885,6 +1075,9 @@ export function decodeExecutionContractFamilyV2(
   }
   return {
     schemaVersion: 2,
+    ...(Object.prototype.hasOwnProperty.call(value, "program")
+      ? { program }
+      : {}),
     familyId: FAMILY_ID,
     rootContractId: value.rootContractId,
     rootContractSha256: value.rootContractSha256,
@@ -970,11 +1163,14 @@ export function deriveExecutionContractFamilyV2(input: {
       }),
       dependencyChildIds: [...child.dependencyChildIds],
       deadlineAt,
-      limits: expectedChildLimits(child.tranche),
+      limits: expectedChildLimits(source.program, child.childId),
       requiredMilestones: expectedChildMilestones(child.tranche),
     }));
     const manifest: ExecutionContractFamilyV2 = {
       schemaVersion: 2,
+      ...(source.program === RELEASE_PROGRAMS[0]
+        ? {}
+        : { program: source.program }),
       familyId: FAMILY_ID,
       rootContractId: input.rootContractId,
       rootContractSha256: input.rootContractSha256,
