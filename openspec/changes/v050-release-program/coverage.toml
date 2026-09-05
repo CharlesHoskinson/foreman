@@ -60,8 +60,8 @@ source_path = "openspec/changes/captured-facts-convergence"
 disposition = "v050_dependency"
 owner = "v050-release-program"
 target_release = "v0.5"
-reconcile = "not_required"
-reason = "One open task closes with session-store recovery during bootstrap."
+reconcile = "required"
+reason = "Its task 4 worked-example review runs during bootstrap task 1.6 with a receipt path. Recovery alone does not establish it."
 
 [[entry]]
 key = "change:council-review-plane"

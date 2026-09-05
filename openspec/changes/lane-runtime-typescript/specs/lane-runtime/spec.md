@@ -140,7 +140,8 @@ once per round. The ownership payload SHALL carry
 
 #### Scenario: Implementation lane refused
 
-- **WHEN** the record says `Degraded`, `LANE_VENDOR=grok`, and no approval is set
+- **WHEN** the Node launcher's probe runs with a PATH that has no `unshare`, so the record says `Degraded` with reason `unshare_missing`
+- **AND** `LANE_VENDOR=grok` and no approval is set
 - **THEN** the runtime emits `containment_refused` and exits 2
 - **AND** the vendor CLI never starts
 
@@ -167,9 +168,9 @@ absent or malformed, the runtime SHALL pass neither flag.
 - **WHEN** the probe said `Strong` and the launcher later cannot enter a namespace
 - **THEN** the launcher refuses with exit 125 and the round records `exit_source: launcher`
 
-#### Scenario: Legacy launcher gets no flags
+#### Scenario: Recordless launcher gets no flags
 
-- **WHEN** `FOREMAN_LAUNCH_IMPL=bun` selects the Bun binary
+- **WHEN** `FOREMAN_LAUNCH` names a launcher that writes no capability record
 - **THEN** the spawn argv contains no `--require-containment`
 
 ### Requirement: Kill target
@@ -195,9 +196,9 @@ baseline did.
 
 The runtime SHALL resolve the launcher in this order: `FOREMAN_LAUNCH`,
 then `node <FOREMAN_TOOL_ROOT>/skills/foreman/runtime/dist/foreman-launch.js`,
-then PATH. WHERE `FOREMAN_LAUNCH_IMPL=bun` is set and
-`<FOREMAN_TOOL_ROOT>/launcher/dist/foreman-launch` exists, the runtime
-SHALL use that binary instead of the bundle.
+then PATH. The runtime SHALL NOT read `FOREMAN_LAUNCH_IMPL`. This is an
+intentional departure from the baseline: the POSIX Bun fallback retires in
+tranche 3 and the runtime is written for that end state.
 
 #### Scenario: Node bundle preferred
 

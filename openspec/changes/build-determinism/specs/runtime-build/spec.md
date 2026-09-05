@@ -16,24 +16,40 @@ report drift.
 
 ### Requirement: Expected installed set
 
-WHEN `verify-runtime` starts, it SHALL derive the expected installed set
-from `package-lock.json` `packages`, excluding the root entry `""`, entries
-with `link: true` (workspace links), and entries marked `optional: true`
-whose `os` or `cpu` lists exclude the current platform. On the reference
-Linux x64 host this excludes the 75 platform-specific optional packages.
+WHEN `verify-runtime` starts, it SHALL derive the expected installed set by
+walking `package-lock.json` from the root entry and each workspace entry
+along `dependencies`, `devDependencies`, and `peerDependencies` edges, and
+along `optionalDependencies` edges only into entries whose `os`, `cpu`, and
+`libc` lists admit the current host. An entry reachable only through an
+excluded optional entry SHALL NOT be expected. On the reference Linux x64
+glibc host this excludes the 75 platform-specific optional packages and
+the four entries reachable only through the musl and WASM branches.
 
 #### Scenario: Platform optional package absent
 
 - **WHEN** an `optional: true` package lists `os: ["aix"]` and the host is Linux
 - **THEN** its absence from `node_modules` is not a mismatch
 
+#### Scenario: libc-mismatched optional package absent
+
+- **WHEN** an `optional: true` package lists `libc: ["musl"]` and the host reports glibc
+- **THEN** its absence is not a mismatch
+
+#### Scenario: Excluded-parent dependency absent
+
+- **WHEN** `tslib` is reachable only through an excluded optional package
+- **THEN** its absence is not a mismatch
+
 ### Requirement: Installed tree matches the expected set
 
 WHEN the expected set is derived, `verify-runtime` SHALL compare each
 expected entry's `(package path, version, resolved, integrity)` tuple with
-`node_modules/.package-lock.json`. IF an expected entry is missing or any
-tuple differs, THEN `verify-runtime` SHALL exit 1 with `lockfile_mismatch`
-and SHALL name the first differing package path.
+`node_modules/.package-lock.json`, and SHALL check that the entry's
+directory exists with a `package.json` whose `version` equals the tuple's
+version. IF an expected entry is missing from the hidden lockfile, any
+tuple differs, the directory is absent, or the installed version differs,
+THEN `verify-runtime` SHALL exit 1 with `lockfile_mismatch` and SHALL name
+the first differing package path.
 
 #### Scenario: Installed tree matches
 
@@ -75,8 +91,8 @@ SHALL produce byte-identical bundles regardless of checkout path.
 ### Requirement: Scan selection
 
 WHEN `secret-scan` runs on a repository root, it SHALL scan every tracked
-file and every untracked file that Git does not ignore, and SHALL skip
-ignored paths.
+file. WHEN it encounters an untracked file, it SHALL scan the file only if
+Git does not ignore it.
 
 #### Scenario: Ignored paths are skipped
 

@@ -67,14 +67,26 @@ bootstrap owner), `packages/orchestration/src/execution-contract.ts` (the
 child brief tranche range), `packages/policy/src/release-admission.ts`,
 `packages/policy/src/release-admission-cli.ts`,
 `packages/policy/src/release-authority.ts` (`PROGRAM` and the evaluation
-child), and `packages/policy/src/release-coverage.ts`. IF a release block,
-evidence bundle, receipt, or CLI argument names any other program, THEN the
-runtime SHALL refuse with `wrong_program`.
+child), `packages/policy/src/release-coverage.ts`, and
+`packages/orchestration/src/execution-guard-cli.ts` (the family audit and
+user receipt validators). IF a release block, evidence bundle, receipt,
+family receipt, or CLI argument names any other program, THEN the runtime
+SHALL refuse with `wrong_program` or `invalid_family_authority`.
 
 #### Scenario: Unknown program is refused at every boundary
 
 - **WHEN** `v041` is presented as a release block program, an evidence bundle program, a receipt program, or a CLI `--program` value
 - **THEN** each boundary refuses with `wrong_program`
+
+#### Scenario: v050 family registers
+
+- **WHEN** `register-family-authority` receives audit and user receipts naming program `v050`
+- **THEN** registration succeeds
+
+#### Scenario: Cross-program receipt refused
+
+- **WHEN** a `v050` family registration receives a receipt naming program `v040`
+- **THEN** registration fails with `invalid_family_authority`
 
 #### Scenario: v040 behavior is unchanged
 
@@ -87,7 +99,8 @@ WHEN bootstrap changes the runtime, it SHALL first copy the v0.4 register,
 the v0.4 active-inventory snapshot, and `ROADMAP.md` at the baseline into
 `packages/policy/src/fixtures/v040/`. The v0.4 behavioral tests SHALL read
 those fixtures instead of the live `openspec/changes/v040-release-program`
-path. Only after that change SHALL the v0.4 package move to `archive/`.
+path. WHEN the fixture-backed tests pass, the v0.4 package MAY move to
+`archive/`. WHILE they do not pass, the v0.4 package SHALL stay in place.
 
 #### Scenario: Fixture-backed v040 tests
 

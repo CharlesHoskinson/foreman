@@ -47,6 +47,7 @@ because doctrine adopts its regression-injection mechanism.
 | `packages/policy/src/release-admission-cli.ts:135` | `args[2] !== "v040"` | `ReleaseProgram` |
 | `packages/policy/src/release-authority.ts:12` | `PROGRAM`, `EVAL_CHILD` | per-program table |
 | `packages/policy/src/release-coverage.ts:76` | disposition enum | version 2 enum, cross-field rules, roadmap rows |
+| `packages/orchestration/src/execution-guard-cli.ts:134` and `:167` | `value.program === "v040"` in both family receipt validators | validate against the selected family's program |
 
 The v0.4 behavioral tests are the regression control. Two of them read the
 live `openspec/changes/v040-release-program/coverage.toml` and assert the
@@ -104,9 +105,9 @@ deletion and Job Object parity are v0.6 items.
 
 | # | Command | Expected |
 |---|---|---|
-| P1 | `npm run build && node skills/foreman/runtime/dist/architecture-policy.js check --base 00c342bd449948ab2ea5ca0b9d0c890614dd81d6` | `_tag: Pass`; `grep -c LANE_RUN_BODY_SHA256 packages/policy/src/architecture-adapter.ts` prints `0` |
+| P1 | `npm run build && node skills/foreman/runtime/dist/architecture-policy.js check --base 00c342bd449948ab2ea5ca0b9d0c890614dd81d6 && npx tsx scripts/run-tests.ts "packages/policy/src/architecture-adapter.test.ts"` | `_tag: Pass`; neither `LANE_RUN_BODY_SHA256` nor a `watch.sh` map entry exists in `architecture-adapter.ts`; the adapter test case "lane-run.sh and watch.sh pass the thin-adapter grammar" executes and passes |
 | P2 | `! grep -q '^id = "foreman-launch"' env/reference-manifest.toml && ! grep -q 'build:posix' launcher/package.json && ! grep -q 'FOREMAN_LAUNCH_IMPL' packages/orchestration/src/lane-runtime/resolve-launcher.ts && pwsh -File launcher/build.ps1` on a Windows host | exit 0; no WSL build row, no POSIX build script, no POSIX Bun fallback, Windows build still succeeds |
-| P3 | `bats tests/lane-run.bats tests/round-ownership.bats tests/watch.bats && npx tsx scripts/run-tests.ts "packages/orchestration/src/lane-runtime/*.test.ts"` | all pass with zero skipped cases; the release child re-runs `lane-runtime-typescript` task 7 on the candidate and stores the three receipts under `docs/research/v050/` naming the candidate commit |
+| P3 | `bats tests/lane-run.bats tests/round-ownership.bats tests/watch.bats && npx tsx scripts/run-tests.ts "packages/orchestration/src/lane-runtime/*.test.ts"` on the Linux release host, and the Windows-only cases (`taskkill` sweep, compiled exe) on the Windows host at the same commit | every case executes on its designated host per the host matrix in `docs/research/v050/bats-case-map.md`, none skipped on its designated host; the release child re-runs `lane-runtime-typescript` task 7 on the candidate and stores the three receipts under `$FOREMAN_HOME/endstop/v050/receipts/` naming the candidate commit |
 | P4 | `npx tsx scripts/run-tests.ts "packages/policy/src/verdict*.test.ts"` | pass; the model-facing schema rejects `UNVERIFIED`; a harness result fixture with an absent CLI records `UNVERIFIED` |
 | P5 | `npx tsx scripts/run-tests.ts "packages/policy/src/gate-ground*.test.ts"` | pass; an ungrounded audit fixture is refused |
 | P6 | `npx tsx scripts/run-tests.ts "packages/orchestration/src/evidence-contract*.test.ts"` | pass; a lane that exits 0 with no attempt-fresh deliverable is `round_incomplete` |
@@ -114,7 +115,7 @@ deletion and Job Object parity are v0.6 items.
 | P8 | `npx tsx scripts/run-tests.ts "packages/orchestration/src/session-sqlite-bootstrap.test.ts"` | pass with zero skipped; the half-migrated fixture case, the fresh-clone case, and the `no_session_source` case all execute |
 | P9 | `npx tsx scripts/run-tests.ts "scripts/verify-runtime.test.ts"` | pass with zero skipped; the symlink fixture, the lockfile-mismatch fixture, and the two-path build fixture all execute |
 | P10 | `npx tsx scripts/run-tests.ts "packages/orchestration/src/secret-scan.test.ts" "packages/orchestration/src/wsl-preflight*.test.ts"` | pass; the live-traversal case executed (not skipped) on the Linux release host and reports `Clean` |
-| P11 | `node skills/foreman/runtime/dist/doctrine-check.js && node skills/foreman/runtime/dist/doctrine-check.js --mutation-control` | both exit 0; the claims inventory has at least fourteen claims; the mutation control reports every claim protected |
+| P11 | `node skills/foreman/runtime/dist/doctrine-check.js && node skills/foreman/runtime/dist/doctrine-check.js --mutation-control` | both exit 0; the inventory contains the fourteen claim ids listed in `doctrine-reality-drift` task 7.1 (eleven from R5 section 8.2 plus `launcher-verified-unprivileged`, `systemd-scope-collect-kills`, `launcher-kills-group-on-exit`); the mutation control reports each of the fourteen protected |
 
 Publication is not a predicate. It is gated by the eleven predicates, the
 cold audit, and the journal. Task 8.4 runs
@@ -128,9 +129,14 @@ child's integration commit. No child changes the on-disk formats of
 
 ## Largest schedule risk
 
-Windows launcher parity. The decision above removes it from the v0.5
-critical path. The second risk is the size of `lane-runtime-typescript`.
-Its tasks are ordered so Bats parity is proven before the pins are retired.
+Migrating round ownership and the watchdog while preserving lifecycle and
+platform-specific contracts. `tests/watch.bats` sources `watch.sh` and
+calls its functions, and `tests/lane-run.bats` extracts a Bash function by
+name, so a thin adapter cannot satisfy those cases as written. Tranche 2
+acceptance therefore includes `docs/research/v050/bats-case-map.md`: every
+Bats case mapped to a TypeScript unit test with the same assertion or kept
+as an adapter-contract case, with the host matrix for Windows-only cases.
+Windows Job Object parity is deferred and off the critical path.
 
 ## Rejected alternatives
 

@@ -23,7 +23,7 @@ judgment was formed".
   disposition enum: `v050_owner`, `v050_dependency`, `released_reference`,
   `superseded`, `v060`.
 - Order eight dependency-bound tranches and run them under one root-anchored
-  Endstop contract family with thirteen package-level children.
+  Endstop contract family with eleven package-level children.
 - Own the four new packages: `lane-runtime-typescript`,
   `session-store-recovery`, `build-determinism`, and this program.
 - Reconcile nine existing packages before their implementation starts.
