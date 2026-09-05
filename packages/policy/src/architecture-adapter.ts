@@ -57,8 +57,12 @@ const LANE_SUPERVISE_MIGRATION_PATH =
   "skills/foreman/scripts/lane-supervise.sh";
 
 /** Exact R7B2-B profile-bound lane adapter body. */
+// Re-pinned 2026-09-05 (pidns-remedy): per-round containment probe, ownership
+// containment fields, and the capability-aware kill target. Recorded as
+// legacy debt: this policy belongs in the TypeScript round runtime once
+// lane-run.sh is strangled.
 const LANE_RUN_BODY_SHA256 =
-  "07d1f57953eb1c3cb4b7a8090743ef05c723ff900e0d3881fb8b1efc0be93f31";
+  "5368260642cac6d0ff9d38a45597dc359e6c5a0b9a008f49dee3383bc7f16110";
 
 /**
  * SHA-256 of every byte of the approved R5D lane-supervise.sh thin adapter.
@@ -106,6 +110,12 @@ const LEGACY_MIGRATION_BODY_SHA256 = new Map<string, string>([
   [
     "skills/foreman/scripts/vendor-concurrency-test.sh",
     "6433ef616bfc1fb28944b418f0291f6eedc196d5815fa73c2451e04bf327f889",
+  ],
+  // Pinned 2026-09-05 (pidns-remedy): display-only containment note on the
+  // watchdog state line. Same legacy-debt note as lane-run.sh above.
+  [
+    "skills/foreman/scripts/watch.sh",
+    "6ee0c22f756bf7395c93ff1876d42a877e0c7a0e091b06fe592d23a5b320ff14",
   ],
 ]);
 

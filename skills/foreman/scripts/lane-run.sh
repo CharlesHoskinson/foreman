@@ -1146,6 +1146,8 @@ else
 fi
 containment_tag="" containment_kind="" containment_reason="" containment_approval=""
 require_effective=""
+containment_spawn_flags=()
+containment_cmd_flags=()
 cap_file="$WT/.harness/capability.json"
 if [[ -n "$FOREMAN_LAUNCH_RESOLVED" ]]; then
   set +e
@@ -1208,6 +1210,13 @@ if [[ -n "$FOREMAN_LAUNCH_RESOLVED" ]]; then
 
   require_effective=any
   (( containment_strong == 1 )) && require_effective=strong
+  # A launcher that produced no capability record (the legacy Bun binary, or
+  # any pre-ladder build) rejects the containment flags as unknown. Pass them
+  # only when the probe proved the launcher understands them.
+  if [[ "$containment_tag" != "Unknown" ]]; then
+    containment_spawn_flags=(--require-containment "$require_effective")
+    containment_cmd_flags=("${containment_spawn_flags[@]}" --capability-file "$cap_file")
+  fi
   set -e
 fi
 hb="$WT/.harness/heartbeat.ndjson"
@@ -1284,7 +1293,7 @@ if [[ -n "$FOREMAN_LAUNCH_RESOLVED" ]]; then
   # even without lane-run.sh wrapping anything itself).
   env -u LD_PRELOAD -u _STDBUF_O -u _STDBUF_E \
     "${FOREMAN_LAUNCH_ARGV[@]}" --heartbeat-file "$hb" --heartbeat-interval 15 \
-    --require-containment "$require_effective" --capability-file "$cap_file" -- "$@" \
+    ${containment_cmd_flags[@]+"${containment_cmd_flags[@]}"} -- "$@" \
     < /dev/null > >(printf '%s\n' "$BASHPID" > "$tee_pid_file"; exec tee -a "$stream_file") 2>&1 &
   launcher_pid=$!
   lane_emit_ownership "$hb" "$attempt" "$launcher_pid"
@@ -1489,7 +1498,7 @@ if (( ROUND_MODE == 1 )); then
     # as one quoted string.
     gate_hb_baseline="$(wc -l < "$hb" 2>/dev/null || echo 0)"
     "${FOREMAN_LAUNCH_ARGV[@]}" --heartbeat-file "$hb" --heartbeat-interval 15 \
-      --require-containment "$require_effective" -- bash -c "$GATE_CMD" < /dev/null &
+      ${containment_spawn_flags[@]+"${containment_spawn_flags[@]}"} -- bash -c "$GATE_CMD" < /dev/null &
     launcher_pid=$!
     # Rework round 1, F2: refresh LANE_OWNERSHIP_PID to the GATE's own child
     # pid (see lane_refresh_gate_ownership_pid doc comment) -- concurrent

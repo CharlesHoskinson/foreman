@@ -30888,7 +30888,7 @@ function isTestsFixturesPath(path) {
 var DENY = "legacy_adapter_domain_logic";
 var LANE_RUN_MIGRATION_PATH = "skills/foreman/scripts/lane-run.sh";
 var LANE_SUPERVISE_MIGRATION_PATH = "skills/foreman/scripts/lane-supervise.sh";
-var LANE_RUN_BODY_SHA256 = "07d1f57953eb1c3cb4b7a8090743ef05c723ff900e0d3881fb8b1efc0be93f31";
+var LANE_RUN_BODY_SHA256 = "5368260642cac6d0ff9d38a45597dc359e6c5a0b9a008f49dee3383bc7f16110";
 var LANE_SUPERVISE_BODY_SHA256 = "a09929d92ce817fc861800b38529300889a62b8324fc67fea9a305ea32ac7062";
 var LEGACY_MIGRATION_BODY_SHA256 = /* @__PURE__ */ new Map([
   [
@@ -30918,6 +30918,12 @@ var LEGACY_MIGRATION_BODY_SHA256 = /* @__PURE__ */ new Map([
   [
     "skills/foreman/scripts/vendor-concurrency-test.sh",
     "6433ef616bfc1fb28944b418f0291f6eedc196d5815fa73c2451e04bf327f889"
+  ],
+  // Pinned 2026-09-05 (pidns-remedy): display-only containment note on the
+  // watchdog state line. Same legacy-debt note as lane-run.sh above.
+  [
+    "skills/foreman/scripts/watch.sh",
+    "6ee0c22f756bf7395c93ff1876d42a877e0c7a0e091b06fe592d23a5b320ff14"
   ]
 ]);
 function isPinnedLegacyMigrationArtifact(path, sourceText) {

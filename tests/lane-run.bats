@@ -801,6 +801,11 @@ EOF
   export PATH="$stub_dir:$PATH"
   export FOREMAN_LAUNCH_IMPL=bun
   unset FOREMAN_LAUNCH
+  # An empty tool root hides any host-built launcher/dist binary and the Node
+  # bundle, so PATH is the only resolution route left. Without this, a host
+  # with a built Bun binary silently tests that binary instead of the shim.
+  export FOREMAN_TOOL_ROOT="$BATS_TEST_TMPDIR/empty-tool-root"
+  mkdir -p "$FOREMAN_TOOL_ROOT"
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c "echo hi"
   [ "$status" -eq 0 ]
   events="$(run_dir run1)/events.jsonl"
@@ -1063,6 +1068,11 @@ EOF
   export PATH="$stub_dir:$PATH"
   export FOREMAN_LAUNCH_IMPL=bun
   unset FOREMAN_LAUNCH
+  # An empty tool root hides any host-built launcher/dist binary and the Node
+  # bundle, so PATH is the only resolution route left. Without this, a host
+  # with a built Bun binary silently tests that binary instead of the shim.
+  export FOREMAN_TOOL_ROOT="$BATS_TEST_TMPDIR/empty-tool-root"
+  mkdir -p "$FOREMAN_TOOL_ROOT"
   report="$BATS_TEST_TMPDIR/FOREMAN_REPORT.md"
   run bash "$SCRIPTS/lane-run.sh" --round "true" "$report" run1 lane-a "$WT" -- \
     bash -c "echo attempt: 1 > $report"
