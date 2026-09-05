@@ -116,7 +116,7 @@ adapter_implement_argv() {
   # write-first; for genuinely exploratory work route through
   # skills/foreman/scripts/vendor-multiround.sh (bounded re-prompt loop).
   ADAPTER_ARGV=(grok --prompt-file "$prompt_file"
-    -m "${WC_GROK_MODEL:-grok-4.5}"
+    -m "${WC_GROK_MODEL:-grok-4.6}"
     --allow Write --allow Edit
     --output-format plain
     --cwd "$workdir"
@@ -143,7 +143,7 @@ adapter_audit_argv() {
     schema="$(<"$schema_file")"
   fi
   ADAPTER_ARGV=(grok --prompt-file "$prompt_file"
-    -m "${ADAPTER_GROK_AUDIT_MODEL:-${WC_GROK_MODEL:-grok-4.5}}"
+    -m "${ADAPTER_GROK_AUDIT_MODEL:-${WC_GROK_MODEL:-grok-4.6}}"
     --permission-mode plan
     --json-schema "$schema" --no-leader
     --output-format json
@@ -254,6 +254,6 @@ adapter_caps() {
     'rc_unavailable=' \
     'prompt_flag=--prompt-file' \
     'prompt_flag_position=flag-value' \
-    'verified_cli_version=0.2.114' \
+    'verified_cli_version=1.0.13' \
     'single_burst=true'
 }

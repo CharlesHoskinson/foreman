@@ -115,14 +115,26 @@ write_fake_launcher() {
 #!/usr/bin/env bash
 set -uo pipefail
 hb=""
+cap_file=""
+probe_only=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --heartbeat-file) hb="$2"; shift 2 ;;
     --heartbeat-interval) shift 2 ;;
+    --capability-file) cap_file="$2"; shift 2 ;;
+    --require-containment) shift 2 ;;
+    --probe-only) probe_only=1; shift ;;
     --) shift; break ;;
     *) shift ;;
   esac
 done
+# Containment probe (2026-09-05): lane-run.sh probes the launcher once per
+# round and refuses an implementation lane without a strong record. The shim
+# reports a strong capability so vendor-home tests exercise the spawn path.
+if [[ -n "$cap_file" ]]; then
+  printf '{"schema":"foreman-launch-capability/1","tag":"Strong","kind":"posix_pidns_userns_strong","reason":"probe_ok","required":"any","flags":[],"detail":"fake shim","attempts":[],"launcher_pid":%d,"launcher_version":"fake","platform":"linux"}\n' "$$" > "$cap_file"
+fi
+if (( probe_only == 1 )); then exit 0; fi
 launcher_pid=$$
 child_pid=$((launcher_pid + 1000))
 job_id="job-$child_pid"

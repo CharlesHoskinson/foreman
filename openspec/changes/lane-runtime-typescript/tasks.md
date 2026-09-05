@@ -1,0 +1,40 @@
+## Allowed file scope
+
+Exact paths or terminal `/**` prefixes.
+
+- `packages/orchestration/src/lane-runtime/**`
+- `packages/orchestration/src/round-cli.ts`, `packages/orchestration/src/round-cli.test.ts`
+- `packages/orchestration/src/round-main.ts`
+- `packages/orchestration/src/round-live-services.ts`, `packages/orchestration/src/round-live-services.test.ts`
+- `packages/orchestration/src/round-reducer.ts`, `packages/orchestration/src/round-reducer.test.ts`
+- `packages/orchestration/src/round-transaction.ts`, `packages/orchestration/src/round-transaction.test.ts`
+- `packages/orchestration/src/round-contract.ts`, `packages/orchestration/src/round-contract.test.ts`
+- `packages/policy/src/architecture-adapter.ts`, `packages/policy/src/architecture-adapter.test.ts`
+- `skills/foreman/scripts/lane-run.sh`, `skills/foreman/scripts/watch.sh`
+- `scripts/build-runtime.ts`, `scripts/verify-runtime.ts` (the exact artifact list gains `lane-watch.js`)
+- `tests/lane-run.bats`, `tests/watch.bats`, `tests/round-ownership.bats`
+- `skills/foreman/runtime/dist/**`, `skills/foreman/runtime/manifest.json`
+- `docs/research/v050/**`
+- `openspec/changes/lock-primitive-hardening/tasks.md`, `openspec/changes/vendor-preflight/tasks.md` (slice reassignment only)
+
+## Tasks
+
+- [ ] 0. Slices. Add to this package the `mkdir` mutex atomicity evidence task from `lock-primitive-hardening` that `round-ownership-default` T3 requires, and the vendor currency check task from `vendor-preflight` that `lane-ownership-and-reaping` requires. Each becomes one TypeScript test in `lane-runtime/`. Record the reassignment in both source packages' `tasks.md`.
+- [ ] 1. Pure planning modules. RED: `lane-runtime/resolve-launcher.test.ts`, `containment.test.ts`, `ownership.test.ts`, `kill-plan.test.ts` assert the shapes in the design. Run `npx tsx scripts/run-tests.ts "packages/orchestration/src/lane-runtime/*.test.ts"`. Expected: fail. GREEN: implement the pure functions. Expected: pass. Commit.
+- [ ] 2. Spawn and mirror. RED: a test spawns `sh -c 'echo x'` through an injected fake launcher and asserts the `prompt`, `ownership`, `heartbeat`, `checkpoint`, and `round_done` sequence. Expected: fail. GREEN: implement `spawn.ts` and `mirror.ts` with Effect scopes. Expected: pass. Commit.
+- [ ] 3. Gate and report freshness. RED: a test runs a gate command that writes a report with `attempt: 2` while the current attempt is 1, sets the file's modification time to one hour before the round start, and asserts `round_incomplete`. Expected: fail. GREEN: implement `gate.ts` and `report-fresh.ts` with the baseline rule (fresh mtime or matching attempt). Expected: pass. Commit.
+- [ ] 4. Cleanup ladder. RED: a test injects SIGTERM during a strong round and asserts one `SIGKILL` to the launcher pid and no group signal. A second test does the same for a degraded round and asserts the group signal first. Expected: fail. GREEN: implement `cleanup.ts`. Expected: pass. Commit.
+- [ ] 4a. Case map. Write `docs/research/v050/bats-case-map.md`: every case in `tests/lane-run.bats`, `tests/round-ownership.bats`, and `tests/watch.bats` mapped to either an adapter-contract Bats case that stays, or a TypeScript unit test in `lane-runtime/` that keeps the same assertion. Cases that source `watch.sh` or extract a Bash function by name (for example `lane_refresh_gate_ownership_pid`) must move to TypeScript. Mark Windows-only cases with their designated host. Commit.
+- [ ] 5. Entry points and adapters. Extend `round-main.ts`, add `watch-main.ts`, add both to `scripts/build-runtime.ts`, and rewrite `lane-run.sh` and `watch.sh` as thin adapters. RED: `bats tests/lane-run.bats tests/round-ownership.bats tests/watch.bats`. Expected: fail before the adapters exist. GREEN: same command. Expected: every case that passed at the baseline passes. Commit.
+- [ ] 6. Retire the pins. Delete `LANE_RUN_BODY_SHA256`, `inspectLaneRunMigrationAdapter`, and the `watch.sh` map entry. Run `node skills/foreman/runtime/dist/architecture-policy.js check --base 00c342bd449948ab2ea5ca0b9d0c890614dd81d6`. Expected: `Pass`. Commit.
+- [ ] 7. Live checks on WSL as an unprivileged user, each receipt naming the candidate commit: one strong round with a `setsid sleep` descendant and SIGTERM to the adapter; one refused round under the Node launcher with `LANE_VENDOR=grok`, no approval, and a PATH built from a temporary directory holding only `node`, `bash`, `sh`, `jq`, and `git` links so the probe reports `unshare_missing`; one approved degraded round under the same PATH. Expected for the refused round: a `Degraded` record with reason `unshare_missing`, a `containment_refused` alert, exit 2, and zero vendor spawns. Store receipts under `docs/research/v050/`. Expected: zero survivors, exit 2 with `containment_refused`, and an ownership payload carrying the approval.
+
+## Verification
+
+```bash
+npm run typecheck
+npx tsx scripts/run-tests.ts "packages/orchestration/src/**/*.test.ts"
+bats tests/lane-run.bats tests/round-ownership.bats tests/watch.bats
+node skills/foreman/runtime/dist/architecture-policy.js check --base 00c342bd449948ab2ea5ca0b9d0c890614dd81d6
+npm run build && npm run verify-runtime
+```
