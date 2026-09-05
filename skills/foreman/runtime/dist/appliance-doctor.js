@@ -31773,8 +31773,6 @@ function enumerateDistExact(fs, runtimeRoot, distPre) {
 
 // packages/policy/src/release-coverage.ts
 var ONE_MIB = 1024 * 1024;
-var TRACK1_PACKAGE = "openspec-superpowers-convergence";
-var TRACK1_KEY = `change:${TRACK1_PACKAGE}`;
 var encoder = new TextEncoder();
 
 // packages/policy/src/release-authority.ts

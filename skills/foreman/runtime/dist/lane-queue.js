@@ -32996,17 +32996,3395 @@ var cmdKill = (io2, taskId) => Effect_exports.gen(function* () {
 // packages/orchestration/src/execution-ledger.ts
 import { randomUUID } from "node:crypto";
 import {
-  closeSync as closeSync3,
+  closeSync as closeSync5,
   existsSync as existsSync2,
   fsyncSync as fsyncSync2,
   mkdirSync as mkdirSync2,
-  openSync as openSync3,
+  openSync as openSync5,
   readFileSync,
   renameSync as renameSync2,
   unlinkSync as unlinkSync2,
   writeFileSync
 } from "node:fs";
-import { dirname as dirname2, join as join5 } from "node:path";
+import { dirname as dirname3, join as join5 } from "node:path";
+
+// packages/policy/src/schema.ts
+var ENTRY_STATES = [
+  "blocked",
+  "proposed",
+  "proposed_externalize",
+  "proposed_replace",
+  "proposed_relocate",
+  "inventory_required",
+  "protected_reference",
+  "protected_parked",
+  "unauthorized",
+  "approved",
+  "pending"
+];
+var HISTORICAL_STATES = [
+  ...ENTRY_STATES,
+  "late_register_replaced_recoverable"
+];
+
+// packages/policy/src/services.ts
+var FileSystem = class extends Context_exports.Tag("FileSystem")() {
+};
+var GitIdentity = class extends Context_exports.Tag("GitIdentity")() {
+};
+var Clock2 = class extends Context_exports.Tag("Clock")() {
+};
+var MutationProbe = class extends Context_exports.Tag("MutationProbe")() {
+};
+var liveClock = Layer_exports.succeed(Clock2, {
+  nowMs: () => Effect_exports.sync(() => Date.now())
+});
+var noopMutationProbe = Layer_exports.succeed(MutationProbe, {
+  record: () => Effect_exports.void,
+  count: () => Effect_exports.succeed(0)
+});
+
+// packages/policy/src/git-env.ts
+var STRIP_PREFIXES = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_COMMON_DIR",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_INDEX_FILE",
+  "GIT_INDEX_VERSION",
+  "GIT_NAMESPACE",
+  "GIT_CEILING_DIRECTORIES",
+  "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+  "GIT_CONFIG",
+  "GIT_CONFIG_GLOBAL",
+  "GIT_CONFIG_SYSTEM",
+  "GIT_CONFIG_NOSYSTEM",
+  "GIT_CONFIG_COUNT",
+  "GIT_CONFIG_KEY_",
+  "GIT_CONFIG_VALUE_",
+  "GIT_CONFIG_PARAMETERS",
+  "GIT_EXEC_PATH",
+  "GIT_TEMPLATE_DIR",
+  "GIT_PREFIX",
+  "GIT_SUPER_PREFIX",
+  "GIT_DIR_FINAL",
+  "GIT_WORK_TREE_FINAL",
+  "GIT_REPLACE_REF_BASE",
+  "GIT_SSH",
+  "GIT_SSH_COMMAND",
+  "GIT_TRACE",
+  "GIT_TRACE2",
+  "GIT_CURL_VERBOSE",
+  "GIT_HTTP_USER_AGENT",
+  "GIT_PROXY_COMMAND",
+  "GIT_SSL_NO_VERIFY",
+  "GIT_ATTR_SOURCE",
+  "GIT_OPTIONAL_LOCKS",
+  "GIT_TERMINAL_PROMPT",
+  "GIT_NO_REPLACE_OBJECTS"
+];
+function shouldStrip(key) {
+  if (!key.startsWith("GIT_")) return false;
+  for (const p of STRIP_PREFIXES) {
+    if (key === p || key.startsWith(p)) return true;
+  }
+  if (key.startsWith("GIT_AUTHOR_") || key.startsWith("GIT_COMMITTER_") || key === "GIT_EDITOR" || key === "GIT_PAGER" || key === "GIT_REFLOG_ACTION") {
+    return true;
+  }
+  return true;
+}
+function sanitizedGitEnv(base = process.env) {
+  const out = {};
+  for (const [k, v] of Object.entries(base)) {
+    if (v === void 0) continue;
+    if (shouldStrip(k)) continue;
+    out[k] = v;
+  }
+  out["GIT_NO_REPLACE_OBJECTS"] = "1";
+  out["GIT_TERMINAL_PROMPT"] = "0";
+  out["GIT_OPTIONAL_LOCKS"] = "0";
+  delete out["FORCE_COLOR"];
+  delete out["NO_COLOR"];
+  return out;
+}
+function gitArgv(args2) {
+  return ["--no-replace-objects", ...args2];
+}
+
+// packages/policy/src/architecture-git.ts
+import { execFile } from "node:child_process";
+
+// packages/policy/src/architecture-executable.ts
+function parseLsTreeLine(line) {
+  const trimmed = line.replace(/\0$/, "");
+  if (trimmed.length === 0) {
+    return {
+      present: false,
+      mode: null,
+      isExecutable: false,
+      isSymlink: false,
+      isSpecial: false
+    };
+  }
+  const tab = trimmed.indexOf("	");
+  if (tab < 0) return { error: true };
+  const meta = trimmed.slice(0, tab);
+  const parts2 = meta.split(" ");
+  if (parts2.length < 3) return { error: true };
+  const mode = parts2[0];
+  const type = parts2[1];
+  if (!/^[0-7]{6}$/.test(mode)) return { error: true };
+  if (type !== "blob" && type !== "tree" && type !== "commit") {
+    return { error: true };
+  }
+  if (type === "tree" || type === "commit" || mode === "160000") {
+    return {
+      present: true,
+      mode,
+      isExecutable: false,
+      isSymlink: false,
+      isSpecial: true
+    };
+  }
+  if (mode === "120000") {
+    return {
+      present: true,
+      mode,
+      isExecutable: false,
+      isSymlink: true,
+      isSpecial: false
+    };
+  }
+  if (mode === "100644" || mode === "100664") {
+    return {
+      present: true,
+      mode,
+      isExecutable: false,
+      isSymlink: false,
+      isSpecial: false
+    };
+  }
+  if (mode === "100755") {
+    return {
+      present: true,
+      mode,
+      isExecutable: true,
+      isSymlink: false,
+      isSpecial: false
+    };
+  }
+  return {
+    present: true,
+    mode,
+    isExecutable: false,
+    isSymlink: false,
+    isSpecial: true
+  };
+}
+
+// packages/policy/src/architecture-ts-inspect.ts
+var import_parser = __toESM(require_lib(), 1);
+var VALUE_TS_WRAPPERS = /* @__PURE__ */ new Set([
+  "TSAsExpression",
+  "TSTypeAssertion",
+  "TSNonNullExpression",
+  "TSSatisfiesExpression",
+  "TSInstantiationExpression"
+]);
+var VALUE_TS_NODES = /* @__PURE__ */ new Set([
+  ...VALUE_TS_WRAPPERS,
+  "TSModuleDeclaration",
+  "TSModuleBlock",
+  "TSEnumDeclaration",
+  "TSEnumMember",
+  "TSExportAssignment",
+  "TSImportEqualsDeclaration",
+  "TSExternalModuleReference",
+  "TSParameterProperty",
+  "TSDeclareFunction",
+  "TSDeclareMethod"
+]);
+
+// packages/policy/src/architecture-git.ts
+var GIT_TIMEOUT_MS = 15e3;
+var OWNED_CHILD_CANCEL_WAIT_MS2 = 5e3;
+var MAX_BLOB_BYTES = 32 * 1024 * 1024;
+var ArchitectureGitError = class {
+  constructor(reason) {
+    this.reason = reason;
+  }
+  _tag = "ArchitectureGitError";
+};
+var ArchitectureGit = class extends Context_exports.Tag("ArchitectureGit")() {
+};
+function sha40(s) {
+  const t = s.trim().toLowerCase();
+  if (!/^[0-9a-f]{40}$/.test(t)) {
+    throw new ArchitectureGitError("invalid_git_output");
+  }
+  return t;
+}
+var PRODUCTION_GIT_BINDING = {
+  executable: "git",
+  prefixArgs: []
+};
+var gitCommandBinding = PRODUCTION_GIT_BINDING;
+function cancelOwnedGitChild(child, controller, alreadyClosed, onClosed) {
+  return Effect_exports.async((resume2) => {
+    let done7 = false;
+    const finish = () => {
+      if (done7) return;
+      done7 = true;
+      resume2(Effect_exports.void);
+    };
+    const timer = setTimeout(finish, OWNED_CHILD_CANCEL_WAIT_MS2);
+    onClosed(() => {
+      clearTimeout(timer);
+      finish();
+    });
+    if (alreadyClosed()) {
+      clearTimeout(timer);
+      finish();
+    } else {
+      try {
+        controller.abort();
+      } catch {
+      }
+      if (child.pid !== void 0 && !child.killed) {
+        try {
+          child.kill("SIGTERM");
+        } catch {
+        }
+      }
+    }
+  });
+}
+function runGit(repoRoot, args2, maxBytes) {
+  return Effect_exports.async((resume2) => {
+    const controller = new AbortController();
+    let settled = false;
+    let child;
+    let childClosed = false;
+    let closeNotify;
+    const binding = gitCommandBinding;
+    const argv = [...binding.prefixArgs, ...gitArgv(args2)];
+    const timer = setTimeout(() => {
+      controller.abort();
+    }, GIT_TIMEOUT_MS);
+    const finish = (effect2) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resume2(effect2);
+    };
+    try {
+      child = execFile(
+        binding.executable,
+        argv,
+        {
+          cwd: repoRoot,
+          encoding: "buffer",
+          maxBuffer: maxBytes + 1,
+          windowsHide: true,
+          env: sanitizedGitEnv(),
+          signal: controller.signal
+        },
+        (err, stdout, stderr) => {
+          const outBuf = Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout ?? "");
+          const errBuf = Buffer.isBuffer(stderr) ? stderr : Buffer.from(stderr ?? "");
+          if (controller.signal.aborted) {
+            finish(Effect_exports.fail(new ArchitectureGitError("git_failure")));
+            return;
+          }
+          if (err) {
+            const e = err;
+            if (e.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" || /maxBuffer/i.test(String(e.message ?? ""))) {
+              finish(Effect_exports.fail(new ArchitectureGitError("oversize_output")));
+              return;
+            }
+            let status = 1;
+            if (typeof e.code === "number" && e.code !== 0) {
+              status = e.code;
+            }
+            finish(
+              Effect_exports.succeed({
+                stdout: outBuf,
+                stderr: errBuf,
+                status
+              })
+            );
+            return;
+          }
+          if (outBuf.byteLength > maxBytes) {
+            finish(Effect_exports.fail(new ArchitectureGitError("oversize_output")));
+            return;
+          }
+          finish(
+            Effect_exports.succeed({
+              stdout: outBuf,
+              stderr: errBuf,
+              status: 0
+            })
+          );
+        }
+      );
+    } catch {
+      finish(Effect_exports.fail(new ArchitectureGitError("git_failure")));
+      return;
+    }
+    const owned = child;
+    owned.once("close", () => {
+      childClosed = true;
+      closeNotify?.();
+    });
+    return Effect_exports.suspend(() => {
+      if (settled) return Effect_exports.void;
+      settled = true;
+      clearTimeout(timer);
+      return cancelOwnedGitChild(
+        owned,
+        controller,
+        () => childClosed,
+        (cb) => {
+          closeNotify = cb;
+        }
+      );
+    });
+  });
+}
+function gitTextEffect(repoRoot, args2, maxBuffer = 4096) {
+  return Effect_exports.gen(function* () {
+    const r = yield* runGit(repoRoot, args2, maxBuffer);
+    if (r.status !== 0) {
+      return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
+    }
+    if (r.stdout.byteLength > maxBuffer) {
+      return yield* Effect_exports.fail(new ArchitectureGitError("oversize_output"));
+    }
+    return r.stdout.toString("utf8");
+  });
+}
+function gitBytesEffect(repoRoot, args2, maxBytes) {
+  return Effect_exports.gen(function* () {
+    const r = yield* runGit(repoRoot, args2, maxBytes);
+    if (r.status !== 0) {
+      return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
+    }
+    if (r.stdout.byteLength > maxBytes) {
+      return yield* Effect_exports.fail(new ArchitectureGitError("oversize_output"));
+    }
+    return new Uint8Array(
+      r.stdout.buffer,
+      r.stdout.byteOffset,
+      r.stdout.byteLength
+    );
+  });
+}
+function isLikelyAbsentObject(status, stderr) {
+  void stderr;
+  return status === 128;
+}
+var liveArchitectureGit = Layer_exports.succeed(ArchitectureGit, {
+  resolveIdentity: (repoRoot, baseRef) => Effect_exports.gen(function* () {
+    if (baseRef.length === 0 || baseRef.includes("\0") || baseRef.startsWith("-")) {
+      return yield* Effect_exports.fail(new ArchitectureGitError("schema_mismatch"));
+    }
+    const headRaw = yield* gitTextEffect(repoRoot, ["rev-parse", "HEAD"]);
+    const head5 = sha40(headRaw);
+    const baseRaw = yield* gitTextEffect(repoRoot, [
+      "rev-parse",
+      "--verify",
+      baseRef
+    ]);
+    const base = sha40(baseRaw);
+    const mbRaw = yield* gitTextEffect(repoRoot, [
+      "merge-base",
+      base,
+      head5
+    ]);
+    const mergeBase = sha40(mbRaw);
+    return { head: head5, base, mergeBase };
+  }).pipe(
+    Effect_exports.mapError(
+      (e) => e instanceof ArchitectureGitError ? e : new ArchitectureGitError("git_failure")
+    )
+  ),
+  nameStatusDelta: (repoRoot, mergeBase, head5) => gitBytesEffect(
+    repoRoot,
+    ["diff", "--name-status", "-z", mergeBase, head5],
+    MAX_INPUT_BYTES
+  ),
+  listPaths: (repoRoot, commitOid) => gitBytesEffect(
+    repoRoot,
+    ["ls-tree", "-r", "-z", "--name-only", commitOid],
+    MAX_INPUT_BYTES
+  ),
+  treeEntry: (repoRoot, commitOid, path) => Effect_exports.gen(function* () {
+    const r = yield* runGit(
+      repoRoot,
+      ["ls-tree", "-z", commitOid, "--", path],
+      65536
+    );
+    if (r.status !== 0) {
+      return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
+    }
+    if (r.stdout.byteLength === 0) {
+      return {
+        present: false,
+        mode: null,
+        isExecutable: false,
+        isSymlink: false,
+        isSpecial: false
+      };
+    }
+    let text;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(r.stdout);
+    } catch {
+      return yield* Effect_exports.fail(
+        new ArchitectureGitError("invalid_git_output")
+      );
+    }
+    const line = text.split("\0").find((p) => p.length > 0) ?? "";
+    const parsed = parseLsTreeLine(line);
+    if ("error" in parsed) {
+      return yield* Effect_exports.fail(
+        new ArchitectureGitError("invalid_git_output")
+      );
+    }
+    return parsed;
+  }),
+  catBlob: (repoRoot, commitOid, path) => Effect_exports.gen(function* () {
+    const entry = yield* Effect_exports.gen(function* () {
+      const r2 = yield* runGit(
+        repoRoot,
+        ["ls-tree", "-z", commitOid, "--", path],
+        65536
+      );
+      if (r2.status !== 0) {
+        return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
+      }
+      return r2.stdout.byteLength === 0 ? "absent" : "present";
+    });
+    if (entry === "absent") {
+      return null;
+    }
+    const isLargeGeneratedArtifact = path === "graphify-out/graph.json" || path.startsWith("skills/foreman/runtime/dist/") && path.endsWith(".js");
+    const maxBytes = isLargeGeneratedArtifact ? MAX_BLOB_BYTES : MAX_INPUT_BYTES;
+    const r = yield* runGit(
+      repoRoot,
+      ["cat-file", "blob", `${commitOid}:${path}`],
+      maxBytes
+    );
+    if (r.status !== 0) {
+      if (isLikelyAbsentObject(r.status, r.stderr)) {
+        return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
+      }
+      return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
+    }
+    if (r.stdout.byteLength > maxBytes) {
+      return yield* Effect_exports.fail(new ArchitectureGitError("oversize_output"));
+    }
+    return new Uint8Array(
+      r.stdout.buffer,
+      r.stdout.byteOffset,
+      r.stdout.byteLength
+    );
+  }),
+  recheckHead: (repoRoot, expectedHead) => Effect_exports.gen(function* () {
+    const headRaw = yield* gitTextEffect(repoRoot, ["rev-parse", "HEAD"]);
+    const head5 = sha40(headRaw);
+    if (head5 !== expectedHead) {
+      return yield* Effect_exports.fail(new ArchitectureGitError("head_moved"));
+    }
+  })
+});
+
+// packages/policy/src/install-verify-fs.ts
+import {
+  closeSync as closeSync3,
+  constants as fsConstants3,
+  fstatSync as fstatSync3,
+  lstatSync as lstatSync2,
+  openSync as openSync3,
+  readdirSync,
+  readSync as readSync3,
+  realpathSync
+} from "node:fs";
+var InstallFsError = class {
+  constructor(kind) {
+    this.kind = kind;
+  }
+  _tag = "InstallFsError";
+};
+var InstallFs = class extends Context_exports.Tag("InstallFs")() {
+};
+function identityFromStats(s) {
+  return {
+    dev: String(s.dev),
+    ino: String(s.ino),
+    size: s.size,
+    nlink: s.nlink,
+    mode: s.mode,
+    mtimeMs: s.mtimeMs,
+    ctimeMs: s.ctimeMs,
+    isFile: s.isFile(),
+    isDirectory: s.isDirectory(),
+    isSymbolicLink: s.isSymbolicLink()
+  };
+}
+function openFlags() {
+  const nofollow = typeof fsConstants3.O_NOFOLLOW === "number" ? fsConstants3.O_NOFOLLOW : 0;
+  return fsConstants3.O_RDONLY | nofollow;
+}
+function readFdBoundedSync(fd, maxBytes) {
+  const cap = maxBytes + 1;
+  const buf = Buffer.allocUnsafe(cap);
+  let offset = 0;
+  while (offset < cap) {
+    const n = readSync3(fd, buf, offset, cap - offset, offset);
+    if (n === 0) break;
+    offset += n;
+  }
+  if (offset > maxBytes) {
+    throw new InstallFsError("oversize");
+  }
+  return new Uint8Array(buf.buffer, buf.byteOffset, offset);
+}
+var liveInstallFs = Layer_exports.succeed(InstallFs, {
+  resolvePath: (path) => Effect_exports.try({
+    try: () => realpathSync(path),
+    catch: () => new InstallFsError("not_resolved")
+  }),
+  lstat: (path) => Effect_exports.try({
+    try: () => identityFromStats(lstatSync2(path)),
+    catch: (e) => {
+      const err = e;
+      if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
+        return new InstallFsError("missing");
+      }
+      return new InstallFsError("unreadable");
+    }
+  }),
+  withOpenFile: (path, use) => Effect_exports.acquireUseRelease(
+    Effect_exports.try({
+      try: () => {
+        const fd = openSync3(path, openFlags());
+        try {
+          const st = fstatSync3(fd);
+          return { fd, identity: identityFromStats(st) };
+        } catch (e) {
+          closeSync3(fd);
+          throw e;
+        }
+      },
+      catch: (e) => {
+        if (e instanceof InstallFsError) return e;
+        const err = e;
+        if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
+          return new InstallFsError("missing");
+        }
+        return new InstallFsError("unreadable");
+      }
+    }),
+    ({ fd, identity: identity2 }) => use({
+      identity: identity2,
+      readBounded: (maxBytes) => Effect_exports.try({
+        try: () => readFdBoundedSync(fd, maxBytes),
+        catch: (e) => e instanceof InstallFsError ? e : new InstallFsError("unreadable")
+      }),
+      recheckIdentity: () => Effect_exports.try({
+        try: () => identityFromStats(fstatSync3(fd)),
+        catch: () => new InstallFsError("unreadable")
+      })
+    }),
+    ({ fd }) => Effect_exports.sync(() => {
+      try {
+        closeSync3(fd);
+      } catch {
+      }
+    })
+  ),
+  readdirNames: (path) => Effect_exports.try({
+    try: () => readdirSync(path),
+    catch: (e) => {
+      const err = e;
+      if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
+        return new InstallFsError("missing");
+      }
+      return new InstallFsError("unreadable");
+    }
+  })
+});
+
+// packages/policy/src/release-program.ts
+var RELEASE_PROGRAMS = ["v040", "v050"];
+function isReleaseProgram(value) {
+  return value === "v040" || value === "v050";
+}
+var TABLES = {
+  v040: {
+    program: "v040",
+    registerPath: "openspec/changes/v040-release-program/coverage.toml",
+    dispositions: [
+      "v040_owner",
+      "v040_dependency",
+      "released_reference",
+      "superseded",
+      "v050"
+    ],
+    bootstrapOwner: "openspec-superpowers-convergence",
+    childIdPrefix: "v040-t",
+    evaluationChild: "v040-t8-evaluation",
+    trancheRange: [2, 9],
+    familyId: "v040-release-20260822-f1",
+    schemaVersion: 1
+  },
+  v050: {
+    program: "v050",
+    registerPath: "openspec/changes/v050-release-program/coverage.toml",
+    dispositions: [
+      "v050_owner",
+      "v050_dependency",
+      "released_reference",
+      "superseded",
+      "v060"
+    ],
+    bootstrapOwner: "v050-release-program",
+    childIdPrefix: "v050-",
+    evaluationChild: null,
+    trancheRange: [2, 8],
+    familyId: null,
+    schemaVersion: 2
+  }
+};
+function releaseProgramTable(program2) {
+  return TABLES[program2];
+}
+
+// packages/policy/src/release-coverage.ts
+var SCHEMA_VERSION = 1;
+var ONE_MIB = 1024 * 1024;
+var V040_BASELINE_COMMIT = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195";
+var V050_BASELINE_COMMIT = "387dcd7521a45e91b2a58b309e20ffcc72902ec0";
+var IRON_RULE_EXTENSIONS = /\.(?:sh|py|ps1|cmd|mjs|cjs)$/;
+var IRON_RULE_PREFIXES = /^(?:packages|skills|env|tools|scripts)\//;
+var IRON_RULE_CREATE = /(?:new|create|Create) `([^`]+)`/g;
+var MODEL_FACING_VERDICTS = /* @__PURE__ */ new Set(["APPROVED", "WARNING", "BLOCKED"]);
+var MEASUREMENT_RESULTS = /* @__PURE__ */ new Set(["PASS", "FAILED", "UNCOMPUTABLE"]);
+var MD_VOCABULARY_LINE = /^\s*(verdict|measurement_result)\s*[:=]\s*(\S+)\s*$/i;
+var ROADMAP_PATH = "ROADMAP.md";
+var OPENSPEC_PREFIX = "openspec/changes/";
+var CHANGE_PREFIX = "change:";
+var ROADMAP_PREFIX = "roadmap:";
+var ALLOWED_WORKFLOWS = /* @__PURE__ */ new Set([
+  "foreman-bounded",
+  "foreman-architectural"
+]);
+var SOURCE_KINDS = /* @__PURE__ */ new Set(["openspec_change", "roadmap"]);
+var RECONCILES = /* @__PURE__ */ new Set(["complete", "required", "not_required"]);
+var SHARED_TARGET_RELEASES = ["v0.4", "v0.5", "released"];
+var BRIEF_SCHEMA = "foreman.release-package-brief.v1";
+var BRIEF_KEYS = [
+  "acceptance",
+  "allowedPaths",
+  "childId",
+  "familySha256",
+  "objective",
+  "packageId",
+  "schema"
+];
+var TOP_LEVEL_FIELDS = /* @__PURE__ */ new Set([
+  "schema_version",
+  "baseline_commit",
+  "active_inventory_sha256",
+  "roadmap_sha256"
+]);
+var FUTURE_OWNER_FIELDS = /* @__PURE__ */ new Set(["name", "target_release", "reason"]);
+var ENTRY_FIELDS = /* @__PURE__ */ new Set([
+  "key",
+  "source_kind",
+  "source_path",
+  "disposition",
+  "owner",
+  "target_release",
+  "reconcile",
+  "reason"
+]);
+var encoder = new TextEncoder();
+function defaultReleaseProgram() {
+  return RELEASE_PROGRAMS[0];
+}
+function resolveCoverageProgram(value) {
+  if (value === void 0) return defaultReleaseProgram();
+  return isReleaseProgram(value) ? value : null;
+}
+function programCurrentRelease(program2) {
+  return program2 === RELEASE_PROGRAMS[0] ? "v0.4" : "v0.5";
+}
+function programFutureRelease(program2) {
+  return program2 === RELEASE_PROGRAMS[0] ? "v0.5" : "v0.6";
+}
+function dispositionsFor(program2) {
+  return new Set(releaseProgramTable(program2).dispositions);
+}
+function programBaselineCommit(program2) {
+  return program2 === RELEASE_PROGRAMS[0] ? V040_BASELINE_COMMIT : V050_BASELINE_COMMIT;
+}
+function programSchemaVersion(program2) {
+  return releaseProgramTable(program2).schemaVersion;
+}
+function isV050(program2) {
+  return program2 !== RELEASE_PROGRAMS[0];
+}
+function targetReleasesFor(program2) {
+  const releases = new Set(SHARED_TARGET_RELEASES);
+  if (isV050(program2)) {
+    releases.add("v0.6");
+    releases.add("v0.2.9");
+  }
+  return releases;
+}
+function roadmapReleasesFor(program2) {
+  const releases = /* @__PURE__ */ new Set(["v0.4", "v0.5"]);
+  if (program2 !== RELEASE_PROGRAMS[0]) releases.add("v0.6");
+  return releases;
+}
+function futureReleasesFor(program2) {
+  return roadmapReleasesFor(program2);
+}
+function ownerDisposition(program2) {
+  return releaseProgramTable(program2).dispositions[0];
+}
+function dependencyDisposition(program2) {
+  return releaseProgramTable(program2).dispositions[1];
+}
+function futureDisposition(program2) {
+  return releaseProgramTable(program2).dispositions[4];
+}
+function bootstrapOwner(program2) {
+  return releaseProgramTable(program2).bootstrapOwner;
+}
+function bootstrapKey(program2) {
+  return `${CHANGE_PREFIX}${bootstrapOwner(program2)}`;
+}
+function invalid(reason) {
+  return { schemaVersion: SCHEMA_VERSION, _tag: "Invalid", reason };
+}
+function valid(activeInventorySha256, roadmapSha256, entryCount) {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    _tag: "Valid",
+    activeInventorySha256,
+    roadmapSha256,
+    entryCount
+  };
+}
+function utf8Bytes(text) {
+  return encoder.encode(text);
+}
+function utf8ByteLength(text) {
+  return utf8Bytes(text).byteLength;
+}
+function isPlainObject(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+function hasExactOwnKeys(value, keys5) {
+  const own = Object.keys(value);
+  if (own.length !== keys5.length) return false;
+  for (const key of keys5) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) return false;
+  }
+  return true;
+}
+function stripAsciiSpaces(text) {
+  let start3 = 0;
+  let end3 = text.length;
+  while (start3 < end3 && text.charCodeAt(start3) === 32) start3 += 1;
+  while (end3 > start3 && text.charCodeAt(end3 - 1) === 32) end3 -= 1;
+  return text.slice(start3, end3);
+}
+function isReadonlyStringArray(value) {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+function hasControlExcludingLf(text) {
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code === 10) continue;
+    if (code < 32 || code === 127) return true;
+  }
+  return false;
+}
+function hasAnyControl(text) {
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 32 || code === 127) return true;
+  }
+  return false;
+}
+function hasUnpairedSurrogate(text) {
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code >= 55296 && code <= 56319) {
+      const next = text.charCodeAt(i + 1);
+      if (next < 56320 || next > 57343) return true;
+      i += 1;
+      continue;
+    }
+    if (code >= 56320 && code <= 57343) return true;
+  }
+  return false;
+}
+function isPrintableAscii(text) {
+  if (text.length === 0) return false;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 32 || code > 126) return false;
+  }
+  return true;
+}
+function isRunId(value) {
+  if (typeof value !== "string" || value.length === 0) return false;
+  if (utf8ByteLength(value) > 128) return false;
+  if (value.includes("/") || value.includes("\\") || value.includes("\0")) {
+    return false;
+  }
+  return true;
+}
+function decodeUtf8Unbounded(bytes) {
+  try {
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      bytes
+    );
+  } catch {
+    return null;
+  }
+}
+function compareUtf8Bytes(a, b) {
+  const ab = utf8Bytes(a);
+  const bb = utf8Bytes(b);
+  const n = Math.min(ab.length, bb.length);
+  for (let i = 0; i < n; i++) {
+    if (ab[i] !== bb[i]) return ab[i] - bb[i];
+  }
+  return ab.length - bb.length;
+}
+function computeActiveInventorySha256(names) {
+  const sorted = [...names].sort(compareUtf8Bytes);
+  return sha256Hex(sorted.map((name) => `${name}
+`).join(""));
+}
+function bytesEqual(a, b) {
+  if (a.byteLength !== b.byteLength) return false;
+  for (let i = 0; i < a.byteLength; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+function parseBasicString(raw, start3) {
+  if (raw[start3] !== '"') return null;
+  let i = start3 + 1;
+  let out = "";
+  while (i < raw.length) {
+    const ch = raw[i];
+    if (ch === '"') {
+      if (hasAnyControl(out) || hasUnpairedSurrogate(out)) return null;
+      return { value: out, end: i + 1 };
+    }
+    if (ch === "\\") {
+      i += 1;
+      if (i >= raw.length) return null;
+      const esc = raw[i];
+      switch (esc) {
+        case "\\":
+          out += "\\";
+          break;
+        case '"':
+          out += '"';
+          break;
+        case "b":
+          out += "\b";
+          break;
+        case "f":
+          out += "\f";
+          break;
+        case "n":
+          out += "\n";
+          break;
+        case "r":
+          out += "\r";
+          break;
+        case "t":
+          out += "	";
+          break;
+        case "u": {
+          const hex = raw.slice(i + 1, i + 5);
+          if (!/^[0-9a-fA-F]{4}$/.test(hex)) return null;
+          const code = Number.parseInt(hex, 16);
+          if (code >= 55296 && code <= 57343) return null;
+          out += String.fromCharCode(code);
+          i += 4;
+          break;
+        }
+        default:
+          return null;
+      }
+      i += 1;
+      continue;
+    }
+    out += ch;
+    i += 1;
+  }
+  return null;
+}
+function parseInteger2(raw, start3) {
+  let i = start3;
+  if (i >= raw.length || raw[i] < "0" || raw[i] > "9") return null;
+  if (raw[i] === "0" && i + 1 < raw.length && raw[i + 1] >= "0" && raw[i + 1] <= "9") {
+    return null;
+  }
+  while (i < raw.length && raw[i] >= "0" && raw[i] <= "9") i += 1;
+  const text = raw.slice(start3, i);
+  if (text.length > 10) return null;
+  const value = Number.parseInt(text, 10);
+  if (!Number.isSafeInteger(value)) return null;
+  return { value, end: i };
+}
+function parseAssignmentLine(line) {
+  const eq = line.indexOf("=");
+  if (eq <= 0) return null;
+  const key = stripAsciiSpaces(line.slice(0, eq));
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) return null;
+  const rest = stripAsciiSpaces(line.slice(eq + 1));
+  if (rest.length === 0) return null;
+  if (rest[0] === '"') {
+    const parsed = parseBasicString(rest, 0);
+    if (parsed === null) return null;
+    if (stripAsciiSpaces(rest.slice(parsed.end)) !== "") return null;
+    return { key, kind: "string", value: parsed.value };
+  }
+  const parsedInt = parseInteger2(rest, 0);
+  if (parsedInt === null) return null;
+  if (stripAsciiSpaces(rest.slice(parsedInt.end)) !== "") return null;
+  return { key, kind: "integer", value: parsedInt.value };
+}
+function isNonemptyReason(value) {
+  return value.length > 0 && !hasAnyControl(value) && utf8ByteLength(value) <= 16384;
+}
+function validateDispositionCrossField(entry, program2) {
+  const { disposition, targetRelease, reconcile, sourceKind, key, owner } = entry;
+  if (disposition === ownerDisposition(program2) || disposition === dependencyDisposition(program2)) {
+    if (targetRelease !== programCurrentRelease(program2)) return false;
+    if (reconcile !== "required" && reconcile !== "complete") return false;
+    return true;
+  }
+  if (disposition === futureDisposition(program2)) {
+    return targetRelease === programFutureRelease(program2) && reconcile === "not_required";
+  }
+  if (disposition === "released_reference") {
+    if (!isV050(program2)) {
+      return targetRelease === "released" && reconcile === "complete";
+    }
+    return (targetRelease === "released" || targetRelease === "v0.4" || targetRelease === "v0.2.9") && RECONCILES.has(reconcile);
+  }
+  if (disposition === "superseded") {
+    if (reconcile !== "complete") return false;
+    if (sourceKind === "openspec_change") {
+      if (!key.startsWith(CHANGE_PREFIX)) return false;
+      const sourcePackage = key.slice(CHANGE_PREFIX.length);
+      if (owner === sourcePackage) return false;
+    }
+    return true;
+  }
+  return false;
+}
+function parseRegister(text, program2 = defaultReleaseProgram(), options = {}) {
+  if (typeof text !== "string") return "invalid_register";
+  if (utf8ByteLength(text) > ONE_MIB) return "invalid_register";
+  if (hasControlExcludingLf(text)) return "invalid_register";
+  const lines = text.split("\n");
+  const top = {};
+  const futureOwners = [];
+  const entries2 = [];
+  let mode = "top";
+  let current = null;
+  let sawTable = false;
+  let entryStartLine = -1;
+  let pendingEndLine = lines.length;
+  const flushCurrent = () => {
+    if (mode === "top" || current === null) return true;
+    if (mode === "future_owner") {
+      for (const field of FUTURE_OWNER_FIELDS) {
+        if (!(field in current)) return false;
+      }
+      for (const key2 of Object.keys(current)) {
+        if (!FUTURE_OWNER_FIELDS.has(key2)) return false;
+      }
+      const name = current["name"];
+      const targetRelease2 = current["target_release"];
+      const reason2 = current["reason"];
+      if (typeof name !== "string" || typeof targetRelease2 !== "string" || typeof reason2 !== "string") {
+        return false;
+      }
+      if (!isRunId(name) || !futureReleasesFor(program2).has(targetRelease2) || !isNonemptyReason(reason2)) {
+        return false;
+      }
+      futureOwners.push({ name, targetRelease: targetRelease2, reason: reason2 });
+      current = null;
+      return true;
+    }
+    for (const field of ENTRY_FIELDS) {
+      if (!(field in current)) return false;
+    }
+    for (const key2 of Object.keys(current)) {
+      if (!ENTRY_FIELDS.has(key2)) return false;
+    }
+    const key = current["key"];
+    const sourceKind = current["source_kind"];
+    const sourcePath = current["source_path"];
+    const disposition = current["disposition"];
+    const owner = current["owner"];
+    const targetRelease = current["target_release"];
+    const reconcile = current["reconcile"];
+    const reason = current["reason"];
+    if (typeof key !== "string" || typeof sourceKind !== "string" || typeof sourcePath !== "string" || typeof disposition !== "string" || typeof owner !== "string" || typeof targetRelease !== "string" || typeof reconcile !== "string" || typeof reason !== "string") {
+      return false;
+    }
+    if (key.length === 0 || hasAnyControl(key) || utf8ByteLength(key) > 512) {
+      return false;
+    }
+    if (!SOURCE_KINDS.has(sourceKind)) return false;
+    if (sourcePath.length === 0 || hasAnyControl(sourcePath) || utf8ByteLength(sourcePath) > 4096) {
+      return false;
+    }
+    if (!dispositionsFor(program2).has(disposition)) return false;
+    if (!isRunId(owner)) return false;
+    if (!targetReleasesFor(program2).has(targetRelease)) return false;
+    if (!RECONCILES.has(reconcile)) return false;
+    if (!isNonemptyReason(reason)) return false;
+    if (!validateDispositionCrossField(
+      {
+        sourceKind,
+        disposition,
+        owner,
+        targetRelease,
+        reconcile,
+        key
+      },
+      program2
+    )) {
+      return false;
+    }
+    entries2.push({
+      key,
+      sourceKind,
+      sourcePath,
+      disposition,
+      owner,
+      targetRelease,
+      reconcile,
+      reason,
+      startLine: entryStartLine,
+      endLine: pendingEndLine
+    });
+    current = null;
+    return true;
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.length === 0) continue;
+    if (line.startsWith("[[") && line.endsWith("]]")) {
+      pendingEndLine = i;
+      if (!flushCurrent()) return "invalid_register";
+      pendingEndLine = lines.length;
+      const name = line.slice(2, -2);
+      if (name === "future_owner") {
+        mode = "future_owner";
+        current = {};
+        sawTable = true;
+        continue;
+      }
+      if (name === "entry") {
+        mode = "entry";
+        current = {};
+        sawTable = true;
+        entryStartLine = i;
+        continue;
+      }
+      return "invalid_register";
+    }
+    if (line.startsWith("[") && line.endsWith("]")) {
+      return "invalid_register";
+    }
+    const assignment = parseAssignmentLine(line);
+    if (assignment === null) return "invalid_register";
+    if (!sawTable && mode === "top") {
+      if (!TOP_LEVEL_FIELDS.has(assignment.key)) return "invalid_register";
+      if (assignment.key in top) return "invalid_register";
+      if (assignment.key === "schema_version") {
+        if (assignment.kind !== "integer" || assignment.value !== programSchemaVersion(program2)) {
+          return "invalid_register";
+        }
+        top[assignment.key] = assignment.value;
+        continue;
+      }
+      if (assignment.kind !== "string") return "invalid_register";
+      const value = assignment.value;
+      if (assignment.key === "baseline_commit") {
+        if (!isCommitSha40(value)) return "invalid_register";
+        if (options.matchProgramBaseline !== false && value !== programBaselineCommit(program2)) {
+          return "invalid_register";
+        }
+      } else if (assignment.key === "active_inventory_sha256" || assignment.key === "roadmap_sha256") {
+        if (!isSha256Hex(value)) return "invalid_register";
+      }
+      top[assignment.key] = value;
+      continue;
+    }
+    if (mode === "top") return "invalid_register";
+    if (current === null) return "invalid_register";
+    if (assignment.key in current) return "invalid_register";
+    if (assignment.kind !== "string") return "invalid_register";
+    current[assignment.key] = assignment.value;
+  }
+  if (!flushCurrent()) return "invalid_register";
+  for (const field of TOP_LEVEL_FIELDS) {
+    if (!(field in top)) return "invalid_register";
+  }
+  if (entries2.length < 1) return "invalid_register";
+  return {
+    baselineCommit: top["baseline_commit"],
+    activeInventorySha256: top["active_inventory_sha256"],
+    roadmapSha256: top["roadmap_sha256"],
+    futureOwners,
+    entries: entries2
+  };
+}
+function validateKeyPathCoherence(entry) {
+  if (entry.sourceKind === "openspec_change") {
+    if (!entry.key.startsWith(CHANGE_PREFIX)) return false;
+    const name = entry.key.slice(CHANGE_PREFIX.length);
+    if (name.length === 0) return false;
+    if (entry.sourcePath !== `${OPENSPEC_PREFIX}${name}`) return false;
+    return true;
+  }
+  if (entry.sourceKind === "roadmap") {
+    if (!entry.key.startsWith(ROADMAP_PREFIX)) return false;
+    if (entry.sourcePath !== ROADMAP_PATH) return false;
+    return true;
+  }
+  return false;
+}
+function validateRoadmapRows(rows, program2) {
+  const seen = /* @__PURE__ */ new Set();
+  for (const row of rows) {
+    if (!isPlainObject(row)) return false;
+    if (!hasExactOwnKeys(row, ["key", "scope", "release", "owner"])) {
+      return false;
+    }
+    const { key, scope: scope5, release, owner } = row;
+    if (typeof key !== "string" || typeof scope5 !== "string" || typeof release !== "string" || typeof owner !== "string") {
+      return false;
+    }
+    const keyBytes = utf8ByteLength(key);
+    if (keyBytes < 1 || keyBytes > 256) return false;
+    if (!key.startsWith(ROADMAP_PREFIX)) return false;
+    if (!isPrintableAscii(key)) return false;
+    const scopeBytes = utf8ByteLength(scope5);
+    if (scopeBytes < 1 || scopeBytes > 4096) return false;
+    if (hasAnyControl(scope5)) return false;
+    if (!roadmapReleasesFor(program2).has(release)) return false;
+    if (!isRunId(owner)) return false;
+    if (seen.has(key)) return false;
+    seen.add(key);
+  }
+  return true;
+}
+function pathIsCompetingPlan(path) {
+  return path === "docs/superpowers/specs" || path === "docs/superpowers/plans" || path.startsWith("docs/superpowers/specs/") || path.startsWith("docs/superpowers/plans/");
+}
+function isAllowedPathValue(path) {
+  if (!isPrintableAscii(path)) return false;
+  if (path.includes("\\")) return false;
+  if (path.startsWith("/")) return false;
+  if (/^[A-Za-z]:\//.test(path)) return false;
+  let body = path;
+  let directoryPrefix = false;
+  if (body.endsWith("/**")) {
+    directoryPrefix = true;
+    body = body.slice(0, -3);
+    if (body.length === 0) return false;
+  }
+  if (body.includes("*") || body.includes("?") || body.includes("[")) {
+    return false;
+  }
+  const segments = body.split("/");
+  if (segments.length === 0) return false;
+  for (const segment of segments) {
+    if (segment.length === 0) return false;
+    if (segment === "." || segment === "..") return false;
+  }
+  if (directoryPrefix && path !== `${body}/**`) return false;
+  return true;
+}
+function isValidObjective(value) {
+  const bytes = utf8ByteLength(value);
+  if (bytes < 1 || bytes > 16384) return false;
+  return !hasControlExcludingLf(value);
+}
+function isValidAcceptanceItem(value) {
+  const bytes = utf8ByteLength(value);
+  if (bytes < 1 || bytes > 4096) return false;
+  return !hasAnyControl(value);
+}
+function validateBriefShape(brief) {
+  if (!isPlainObject(brief)) return false;
+  const keys5 = Object.keys(brief).sort();
+  if (keys5.length !== BRIEF_KEYS.length) return false;
+  for (let i = 0; i < BRIEF_KEYS.length; i++) {
+    if (keys5[i] !== BRIEF_KEYS[i]) return false;
+  }
+  if (brief["schema"] !== BRIEF_SCHEMA) return false;
+  const familySha256 = brief["familySha256"];
+  const childId = brief["childId"];
+  const packageId = brief["packageId"];
+  const objective = brief["objective"];
+  const acceptance = brief["acceptance"];
+  const allowedPaths = brief["allowedPaths"];
+  if (typeof familySha256 !== "string" || !isSha256Hex(familySha256)) return false;
+  if (typeof childId !== "string" || !isRunId(childId)) return false;
+  if (typeof packageId !== "string" || !isRunId(packageId)) return false;
+  if (typeof objective !== "string" || !isValidObjective(objective)) return false;
+  if (!Array.isArray(acceptance) || acceptance.length < 1 || acceptance.length > 256) {
+    return false;
+  }
+  for (const item of acceptance) {
+    if (typeof item !== "string" || !isValidAcceptanceItem(item)) return false;
+  }
+  if (!Array.isArray(allowedPaths) || allowedPaths.length < 1 || allowedPaths.length > 256) {
+    return false;
+  }
+  const seen = /* @__PURE__ */ new Set();
+  let previous = null;
+  for (const path of allowedPaths) {
+    if (typeof path !== "string" || !isAllowedPathValue(path)) return false;
+    if (seen.has(path)) return false;
+    seen.add(path);
+    if (previous !== null && compareUtf8Bytes(previous, path) > 0) return false;
+    previous = path;
+  }
+  return true;
+}
+function canonicalBriefFileBytes(brief) {
+  try {
+    const body = canonicalize({
+      acceptance: brief.acceptance,
+      allowedPaths: brief.allowedPaths,
+      childId: brief.childId,
+      familySha256: brief.familySha256,
+      objective: brief.objective,
+      packageId: brief.packageId,
+      schema: brief.schema
+    });
+    return utf8Bytes(`${body}
+`);
+  } catch {
+    return null;
+  }
+}
+function validateOptionalStringRecord(value) {
+  if (value === void 0) return true;
+  if (!isPlainObject(value)) return false;
+  for (const item of Object.values(value)) {
+    if (typeof item !== "string") return false;
+  }
+  return true;
+}
+function validateCollectionShapes(input, program2) {
+  if (typeof input.registerText !== "string") return false;
+  if (!(input.roadmapBytes instanceof Uint8Array)) return false;
+  if (!isReadonlyStringArray(input.activeChangeNames)) return false;
+  if (!Array.isArray(input.roadmapRows)) return false;
+  if (!isPlainObject(input.workflowByChange)) return false;
+  for (const value of Object.values(input.workflowByChange)) {
+    if (value !== null && typeof value !== "string") return false;
+  }
+  if (!isReadonlyStringArray(input.changedSuperpowersPaths)) return false;
+  if (!isPlainObject(input.expectedBriefByOwner)) return false;
+  if (!isPlainObject(input.packageBriefBytesByOwner)) return false;
+  for (const value of Object.values(input.packageBriefBytesByOwner)) {
+    if (!(value instanceof Uint8Array)) return false;
+  }
+  if (!isPlainObject(input.phase)) return false;
+  const phase = input.phase;
+  const tag = phase["_tag"];
+  if (tag === "Bootstrap") {
+    if (!hasExactOwnKeys(phase, ["_tag", "owner"])) return false;
+    if (phase["owner"] !== bootstrapOwner(program2)) return false;
+  } else if (tag === "Lane") {
+    if (!hasExactOwnKeys(phase, ["_tag", "owner"])) return false;
+    if (typeof phase["owner"] !== "string") return false;
+  } else if (tag === "Release") {
+    if (!hasExactOwnKeys(phase, ["_tag"])) return false;
+  } else {
+    return false;
+  }
+  if (!validateOptionalStringRecord(input.tasksMarkdownByOwner)) return false;
+  if (input.baselineRegisterText !== void 0 && typeof input.baselineRegisterText !== "string") {
+    return false;
+  }
+  if (input.baselineRegisterAbsent !== void 0 && typeof input.baselineRegisterAbsent !== "boolean") {
+    return false;
+  }
+  if (input.evidenceTexts !== void 0 && !isReadonlyStringArray(input.evidenceTexts)) {
+    return false;
+  }
+  if (input.evidenceArtifacts !== void 0) {
+    if (!Array.isArray(input.evidenceArtifacts)) return false;
+    for (const item of input.evidenceArtifacts) {
+      if (!isPlainObject(item)) {
+        return false;
+      }
+      if (typeof item.path !== "string" || typeof item.text !== "string") {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+function uniqueOwnersFromEntries(entries2) {
+  const names = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const entry of entries2) {
+    if (seen.has(entry.owner)) continue;
+    seen.add(entry.owner);
+    names.push(entry.owner);
+  }
+  return names;
+}
+function packageNameFromChangeKey(key) {
+  if (!key.startsWith(CHANGE_PREFIX)) return null;
+  const name = key.slice(CHANGE_PREFIX.length);
+  return name.length > 0 ? name : null;
+}
+function entryOriginalSpan(registerText, startLine, endLine) {
+  return registerText.split("\n").slice(startLine, endLine).join("\n");
+}
+function pathIsUnderPackageDirectory(path, packageName) {
+  const prefix = `${OPENSPEC_PREFIX}${packageName}`;
+  return path === prefix || path.startsWith(`${prefix}/`);
+}
+function ironRuleViolation(markdown) {
+  const lines = markdown.split("\n");
+  for (const line of lines) {
+    if (!/^\s*- \[ \] /.test(line)) continue;
+    if (line.includes("thin adapter")) continue;
+    const matcher = new RegExp(IRON_RULE_CREATE.source, "g");
+    let match12 = matcher.exec(line);
+    while (match12 !== null) {
+      const target = match12[1];
+      if (IRON_RULE_PREFIXES.test(target) && IRON_RULE_EXTENSIONS.test(target)) {
+        return true;
+      }
+      match12 = matcher.exec(line);
+    }
+  }
+  return false;
+}
+function hasAllowedFileScope(markdown) {
+  const lines = markdown.split("\n");
+  let headingIndex = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^##[ \t]+Allowed file scope[ \t]*$/.test(lines[i])) {
+      headingIndex = i;
+      break;
+    }
+  }
+  if (headingIndex < 0) return false;
+  for (let i = headingIndex + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^#{1,6}\s/.test(line)) break;
+    if (line.trim().length > 0) return true;
+  }
+  return false;
+}
+function jsonVocabularyMixed(value) {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (jsonVocabularyMixed(item)) return true;
+    }
+    return false;
+  }
+  if (value === null || typeof value !== "object") return false;
+  for (const [key, child] of Object.entries(value)) {
+    if (key === "verdict") {
+      if (typeof child !== "string" || !MODEL_FACING_VERDICTS.has(child)) {
+        return true;
+      }
+      continue;
+    }
+    if (key === "measurement_result") {
+      if (typeof child !== "string" || !MEASUREMENT_RESULTS.has(child)) {
+        return true;
+      }
+      continue;
+    }
+    if (jsonVocabularyMixed(child)) return true;
+  }
+  return false;
+}
+function markdownVocabularyMixed(text) {
+  for (const line of text.split("\n")) {
+    const match12 = MD_VOCABULARY_LINE.exec(line);
+    if (match12 === null) continue;
+    const field = match12[1].toLowerCase();
+    const captured = match12[2];
+    if (field === "verdict") {
+      if (!MODEL_FACING_VERDICTS.has(captured)) return true;
+    } else if (!MEASUREMENT_RESULTS.has(captured)) {
+      return true;
+    }
+  }
+  return false;
+}
+function evidencePathKind(path) {
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".json")) return "json";
+  return "md";
+}
+function inspectEvidenceArtifact(path, text) {
+  if (evidencePathKind(path) === "json") {
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return "dependency_failure";
+    }
+    return jsonVocabularyMixed(parsed) ? "vocabulary_mixed" : "ok";
+  }
+  return markdownVocabularyMixed(text) ? "vocabulary_mixed" : "ok";
+}
+function inspectEvidenceText(text) {
+  try {
+    const parsed = JSON.parse(text);
+    return jsonVocabularyMixed(parsed) ? "vocabulary_mixed" : "ok";
+  } catch {
+    return markdownVocabularyMixed(text) ? "vocabulary_mixed" : "ok";
+  }
+}
+function registerCrossFieldViolation(entries2, program2) {
+  const ownDisposition = /* @__PURE__ */ new Map();
+  for (const entry of entries2) {
+    if (entry.sourceKind !== "openspec_change") continue;
+    const name = packageNameFromChangeKey(entry.key);
+    if (name === null) continue;
+    ownDisposition.set(name, entry.disposition);
+  }
+  const ownerDisp = ownerDisposition(program2);
+  const dependencyDisp = dependencyDisposition(program2);
+  const futureDisp = futureDisposition(program2);
+  const governor = bootstrapOwner(program2);
+  for (const entry of entries2) {
+    if (entry.sourceKind !== "openspec_change") continue;
+    if (entry.disposition === ownerDisp || entry.disposition === dependencyDisp) {
+      if (ownDisposition.get(entry.owner) !== ownerDisp) return true;
+    }
+    if (entry.disposition === futureDisp && entry.owner !== governor) {
+      return true;
+    }
+  }
+  return false;
+}
+function collectV050OwnerPackageNames(entries2, program2) {
+  const ownerDisp = ownerDisposition(program2);
+  const names = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const entry of entries2) {
+    if (entry.sourceKind !== "openspec_change") continue;
+    if (entry.disposition !== ownerDisp) continue;
+    const name = packageNameFromChangeKey(entry.key);
+    if (name === null || seen.has(name)) continue;
+    seen.add(name);
+    names.push(name);
+  }
+  return names;
+}
+function selectPhaseCoverage(phase, entries2, futureOwners, program2) {
+  const currentRelease = programCurrentRelease(program2);
+  if (phase._tag === "Bootstrap") {
+    const key = bootstrapKey(program2);
+    for (const entry of entries2) {
+      if (entry.key === key) {
+        return { entries: [entry], owners: uniqueOwnersFromEntries([entry]) };
+      }
+    }
+    return { entries: [], owners: [] };
+  }
+  if (phase._tag === "Lane") {
+    const selected2 = entries2.filter(
+      (entry) => entry.targetRelease === currentRelease && entry.owner === phase.owner
+    );
+    return { entries: selected2, owners: uniqueOwnersFromEntries(selected2) };
+  }
+  const selected = entries2.filter((entry) => entry.targetRelease === currentRelease);
+  const owners = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const entry of selected) {
+    if (seen.has(entry.owner)) continue;
+    seen.add(entry.owner);
+    owners.push(entry.owner);
+  }
+  for (const future of futureOwners) {
+    if (future.targetRelease !== currentRelease) continue;
+    if (seen.has(future.name)) continue;
+    seen.add(future.name);
+    owners.push(future.name);
+  }
+  return { entries: selected, owners };
+}
+function inspectReleaseCoverageRegisterV1(input) {
+  const program2 = resolveCoverageProgram(input.program);
+  if (program2 === null) {
+    return { _tag: "Invalid", reason: "invalid_register" };
+  }
+  const parsed = parseRegister(input.registerText, program2);
+  if (parsed === "invalid_register") {
+    return { _tag: "Invalid", reason: "invalid_register" };
+  }
+  const selection = selectPhaseCoverage(
+    input.phase,
+    parsed.entries,
+    parsed.futureOwners,
+    program2
+  );
+  return {
+    _tag: "Valid",
+    baselineCommit: parsed.baselineCommit,
+    selectedOwners: [...selection.owners].sort(compareUtf8Bytes),
+    v050OwnerPackageNames: isV050(program2) ? collectV050OwnerPackageNames(parsed.entries, program2) : []
+  };
+}
+function validateReleaseCoverageV1(input) {
+  try {
+    const program2 = resolveCoverageProgram(input.program);
+    if (program2 === null) {
+      return invalid("wrong_program");
+    }
+    if (!validateCollectionShapes(input, program2)) {
+      return invalid("dependency_failure");
+    }
+    if (input.roadmapBytes.byteLength > ONE_MIB) {
+      return invalid("invalid_roadmap");
+    }
+    if (decodeUtf8Unbounded(input.roadmapBytes) === null) {
+      return invalid("invalid_roadmap");
+    }
+    const parsed = parseRegister(input.registerText, program2);
+    if (parsed === "invalid_register") {
+      return invalid("invalid_register");
+    }
+    const keySet = /* @__PURE__ */ new Set();
+    for (const entry of parsed.entries) {
+      if (keySet.has(entry.key)) return invalid("duplicate_identity");
+      keySet.add(entry.key);
+    }
+    const futureNames = /* @__PURE__ */ new Set();
+    for (const owner of parsed.futureOwners) {
+      if (futureNames.has(owner.name)) return invalid("duplicate_identity");
+      futureNames.add(owner.name);
+    }
+    const openspecPaths = /* @__PURE__ */ new Set();
+    for (const entry of parsed.entries) {
+      if (entry.sourceKind !== "openspec_change") continue;
+      if (openspecPaths.has(entry.sourcePath)) {
+        return invalid("duplicate_identity");
+      }
+      openspecPaths.add(entry.sourcePath);
+    }
+    for (const entry of parsed.entries) {
+      if (!validateKeyPathCoherence(entry)) {
+        return invalid("invalid_register");
+      }
+    }
+    if (!validateRoadmapRows(input.roadmapRows, program2)) {
+      return invalid("invalid_roadmap");
+    }
+    const activeNames = input.activeChangeNames;
+    const uniqueActive = /* @__PURE__ */ new Set();
+    for (const name of activeNames) {
+      if (uniqueActive.has(name)) return invalid("inventory_mismatch");
+      uniqueActive.add(name);
+    }
+    const openspecNames = /* @__PURE__ */ new Set();
+    for (const entry of parsed.entries) {
+      if (entry.sourceKind !== "openspec_change") continue;
+      const name = entry.key.slice(CHANGE_PREFIX.length);
+      openspecNames.add(name);
+    }
+    if (openspecNames.size !== uniqueActive.size) {
+      return invalid("inventory_mismatch");
+    }
+    for (const name of uniqueActive) {
+      if (!openspecNames.has(name)) return invalid("inventory_mismatch");
+    }
+    const activeInventorySha256 = computeActiveInventorySha256(activeNames);
+    if (activeInventorySha256 !== parsed.activeInventorySha256) {
+      return invalid("inventory_mismatch");
+    }
+    const roadmapSha256 = sha256Hex(input.roadmapBytes);
+    if (roadmapSha256 !== parsed.roadmapSha256) {
+      return invalid("roadmap_mismatch");
+    }
+    const roadmapEntries = parsed.entries.filter(
+      (entry) => entry.sourceKind === "roadmap"
+    );
+    const rowByKey = /* @__PURE__ */ new Map();
+    for (const row of input.roadmapRows) {
+      rowByKey.set(row.key, row);
+    }
+    if (roadmapEntries.length !== rowByKey.size) {
+      return invalid("roadmap_mismatch");
+    }
+    for (const entry of roadmapEntries) {
+      const row = rowByKey.get(entry.key);
+      if (row === void 0) return invalid("roadmap_mismatch");
+      if (row.owner !== entry.owner) return invalid("roadmap_mismatch");
+      if (row.release !== entry.targetRelease) return invalid("roadmap_mismatch");
+    }
+    if (isV050(program2) && registerCrossFieldViolation(parsed.entries, program2)) {
+      return invalid("register_cross_field");
+    }
+    for (const entry of parsed.entries) {
+      if (!uniqueActive.has(entry.owner) && !futureNames.has(entry.owner)) {
+        return invalid("unknown_owner");
+      }
+    }
+    for (const path of input.changedSuperpowersPaths) {
+      if (pathIsCompetingPlan(path)) return invalid("competing_plan");
+    }
+    if (isV050(program2) && (input.phase._tag === "Bootstrap" || input.phase._tag === "Release")) {
+      const futureDisp = futureDisposition(program2);
+      const baselineText = input.baselineRegisterText;
+      const baselineAbsent = input.baselineRegisterAbsent === true;
+      let baselineByKey = null;
+      if (typeof baselineText === "string") {
+        const baselineParsed = parseRegister(baselineText, program2, {
+          matchProgramBaseline: false
+        });
+        if (baselineParsed === "invalid_register") {
+          return invalid("dependency_failure");
+        }
+        baselineByKey = new Map(
+          baselineParsed.entries.map((item) => [item.key, item])
+        );
+      }
+      for (const entry of parsed.entries) {
+        if (entry.sourceKind !== "openspec_change") continue;
+        if (entry.disposition !== futureDisp) continue;
+        const name = packageNameFromChangeKey(entry.key);
+        if (name === null) continue;
+        const directoryChanged = input.changedSuperpowersPaths.some(
+          (path) => pathIsUnderPackageDirectory(path, name)
+        );
+        if (!directoryChanged) continue;
+        if (baselineAbsent) {
+          return invalid("deferred_package_changed");
+        }
+        if (baselineByKey === null) continue;
+        const baselineEntry = baselineByKey.get(entry.key);
+        if (baselineEntry === void 0) continue;
+        const currentSpan3 = entryOriginalSpan(
+          input.registerText,
+          entry.startLine,
+          entry.endLine
+        );
+        const baselineSpan = entryOriginalSpan(
+          baselineText,
+          baselineEntry.startLine,
+          baselineEntry.endLine
+        );
+        if (currentSpan3 === baselineSpan) {
+          return invalid("deferred_package_changed");
+        }
+      }
+    }
+    const selection = selectPhaseCoverage(
+      input.phase,
+      parsed.entries,
+      parsed.futureOwners,
+      program2
+    );
+    const selected = selection.entries;
+    if (input.phase._tag === "Lane") {
+      if (!uniqueActive.has(input.phase.owner) && !futureNames.has(input.phase.owner)) {
+        return invalid("unknown_owner");
+      }
+      if (selected.length === 0) {
+        return invalid("unknown_owner");
+      }
+    }
+    if (input.phase._tag === "Bootstrap") {
+      const expectedOwner = bootstrapOwner(program2);
+      const track1 = parsed.entries.find(
+        (entry) => entry.key === bootstrapKey(program2)
+      );
+      const track1ReleaseStateIsValid = track1 !== void 0 && (track1.targetRelease === programCurrentRelease(program2) && track1.disposition === ownerDisposition(program2) || track1.targetRelease === "released" && track1.disposition === "released_reference");
+      if (track1 === void 0 || track1.owner !== expectedOwner || track1.reconcile !== "complete" || track1.sourceKind !== "openspec_change" || !track1ReleaseStateIsValid) {
+        return invalid("unreconciled");
+      }
+    }
+    for (const entry of selected) {
+      if (entry.reconcile === "required") return invalid("unreconciled");
+    }
+    if (isV050(program2) && input.phase._tag === "Lane") {
+      const ownerKey = `${CHANGE_PREFIX}${input.phase.owner}`;
+      for (const entry of parsed.entries) {
+        if (entry.reconcile !== "required") continue;
+        if (entry.key === ownerKey || entry.owner === input.phase.owner) {
+          return invalid("unreconciled");
+        }
+      }
+      const markdown = input.tasksMarkdownByOwner?.[input.phase.owner];
+      if (typeof markdown === "string") {
+        if (ironRuleViolation(markdown)) {
+          return invalid("iron_rule_violation");
+        }
+        if (!hasAllowedFileScope(markdown)) {
+          return invalid("workflow_mismatch");
+        }
+      }
+    }
+    const owners = selection.owners;
+    for (const owner of owners) {
+      const workflow = input.workflowByChange[owner];
+      if (typeof workflow !== "string" || !ALLOWED_WORKFLOWS.has(workflow)) {
+        return invalid("workflow_mismatch");
+      }
+    }
+    if (isV050(program2) && input.phase._tag === "Bootstrap") {
+      for (const name of collectV050OwnerPackageNames(parsed.entries, program2)) {
+        const workflow = input.workflowByChange[name];
+        if (typeof workflow !== "string" || !ALLOWED_WORKFLOWS.has(workflow)) {
+          return invalid("workflow_mismatch");
+        }
+      }
+    }
+    if (isV050(program2) && input.phase._tag === "Release") {
+      if (input.evidenceArtifacts !== void 0) {
+        for (const artifact of input.evidenceArtifacts) {
+          const inspected = inspectEvidenceArtifact(artifact.path, artifact.text);
+          if (inspected !== "ok") return invalid(inspected);
+        }
+      } else {
+        for (const text of input.evidenceTexts ?? []) {
+          if (inspectEvidenceText(text) === "vocabulary_mixed") {
+            return invalid("vocabulary_mixed");
+          }
+        }
+      }
+    }
+    const expectedKeys = Object.keys(input.expectedBriefByOwner);
+    const bytesKeys = Object.keys(input.packageBriefBytesByOwner);
+    if (input.phase._tag === "Bootstrap") {
+      if (expectedKeys.length !== 0 || bytesKeys.length !== 0) {
+        return invalid("brief_mismatch");
+      }
+    } else {
+      const ownerSet = new Set(owners);
+      if (expectedKeys.length !== ownerSet.size || bytesKeys.length !== ownerSet.size) {
+        return invalid("brief_mismatch");
+      }
+      for (const key of expectedKeys) {
+        if (!ownerSet.has(key)) return invalid("brief_mismatch");
+      }
+      for (const key of bytesKeys) {
+        if (!ownerSet.has(key)) return invalid("brief_mismatch");
+      }
+      for (const owner of owners) {
+        const brief = input.expectedBriefByOwner[owner];
+        const bytes = input.packageBriefBytesByOwner[owner];
+        if (brief === void 0 || bytes === void 0) {
+          return invalid("brief_mismatch");
+        }
+        if (bytes.byteLength > ONE_MIB) return invalid("brief_mismatch");
+        if (decodeUtf8Unbounded(bytes) === null) return invalid("brief_mismatch");
+        if (!validateBriefShape(brief)) return invalid("brief_mismatch");
+        if (brief.packageId !== owner) return invalid("brief_mismatch");
+        const expectedBytes = canonicalBriefFileBytes(brief);
+        if (expectedBytes === null || !bytesEqual(expectedBytes, bytes)) {
+          return invalid("brief_mismatch");
+        }
+      }
+    }
+    return valid(activeInventorySha256, roadmapSha256, parsed.entries.length);
+  } catch {
+    return invalid("dependency_failure");
+  }
+}
+
+// packages/policy/src/release-authority.ts
+var ONE_MIB2 = 1048576;
+var EVAL_PACKAGE = "graph-eval-falsification";
+var MANIFEST_SCHEMA = "foreman.approved-openspec.v1";
+var encoder2 = new TextEncoder();
+var RELEASE_ACTIONS = [
+  "implement",
+  "verify",
+  "audit",
+  "correct",
+  "council",
+  "provider_retry",
+  "resume",
+  "integrate",
+  "publish",
+  "evaluate"
+];
+var ORDINARY_ACTIONS = [
+  "implement",
+  "verify",
+  "audit",
+  "correct",
+  "council",
+  "integrate",
+  "publish",
+  "evaluate"
+];
+var CHECK_STATUSES = ["PASS", "FAIL"];
+var AUDIT_VERDICTS = [
+  "APPROVED",
+  "WARNING",
+  "BLOCKED",
+  "UNVERIFIED"
+];
+var BLOCKING_AUDIT_VERDICTS = [
+  "WARNING",
+  "BLOCKED",
+  "UNVERIFIED"
+];
+var FINDING_SEVERITIES = ["low", "medium", "high", "critical"];
+var OUTCOME_STATUSES = ["PASS", "BLOCKING", "EXTERNAL_FAILURE"];
+var PASS_OUTCOME_ACTIONS = [
+  "verify",
+  "audit",
+  "integrate",
+  "publish",
+  "evaluate"
+];
+var BLOCKING_OUTCOME_ACTIONS = ["verify", "audit", "evaluate"];
+var COUNCIL_STATUSES = ["ADVICE", "BLOCKING"];
+var COUNCIL_RESERVATION_ACTIONS = [
+  "council",
+  "provider_retry",
+  "resume"
+];
+var EVAL_RESULTS = [
+  "PROMOTE",
+  "GRAPH_OFF_FAILED",
+  "GRAPH_OFF_INCONCLUSIVE",
+  "GRAPH_OFF_UNCOMPUTABLE"
+];
+var UTC_SECOND2 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/;
+function invalidFile(reason) {
+  return reason === void 0 ? { _tag: "Invalid" } : { _tag: "Invalid", reason };
+}
+function presentedUnknownProgram(value) {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value;
+  if (typeof record.program === "string" && !isReleaseProgram(record.program)) {
+    return true;
+  }
+  if (!Array.isArray(record.receipts)) return false;
+  for (const receipt of record.receipts) {
+    if (typeof receipt !== "object" || receipt === null) continue;
+    const program2 = receipt.program;
+    if (typeof program2 === "string" && !isReleaseProgram(program2)) return true;
+  }
+  return false;
+}
+function invalidManifest() {
+  return { _tag: "Invalid" };
+}
+function utf8Bytes2(text) {
+  return encoder2.encode(text);
+}
+function utf8ByteLength2(text) {
+  return utf8Bytes2(text).byteLength;
+}
+function isPlainObject2(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+function hasExactOwnKeys2(value, keys5) {
+  const own = Object.keys(value);
+  if (own.length !== keys5.length) return false;
+  for (const key of keys5) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) return false;
+  }
+  return true;
+}
+function isLeapYear2(y) {
+  return y % 4 === 0 && y % 100 !== 0 || y % 400 === 0;
+}
+function daysInMonth2(y, m) {
+  switch (m) {
+    case 1:
+    case 3:
+    case 5:
+    case 7:
+    case 8:
+    case 10:
+    case 12:
+      return 31;
+    case 4:
+    case 6:
+    case 9:
+    case 11:
+      return 30;
+    case 2:
+      return isLeapYear2(y) ? 29 : 28;
+    default:
+      return 0;
+  }
+}
+function isUtcSecondTimestamp2(s) {
+  if (typeof s !== "string" || s.length === 0) return false;
+  const m = UTC_SECOND2.exec(s);
+  if (!m) return false;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const second = Number(m[6]);
+  if (month < 1 || month > 12) return false;
+  const dim = daysInMonth2(year, month);
+  if (day < 1 || day > dim) return false;
+  if (hour > 23 || minute > 59 || second > 59) return false;
+  const utc = Date.UTC(year, month - 1, day, hour, minute, second);
+  if (!Number.isFinite(utc)) return false;
+  const check2 = new Date(utc);
+  return check2.getUTCFullYear() === year && check2.getUTCMonth() + 1 === month && check2.getUTCDate() === day && check2.getUTCHours() === hour && check2.getUTCMinutes() === minute && check2.getUTCSeconds() === second;
+}
+function hasForbiddenControl(text) {
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i);
+    if (code <= 31 || code === 127) return true;
+  }
+  return false;
+}
+function isIdentifier(value) {
+  if (typeof value !== "string") return false;
+  const bytes = utf8ByteLength2(value);
+  if (bytes < 1 || bytes > 128) return false;
+  if (hasForbiddenControl(value)) return false;
+  if (value.includes("/") || value.includes("\\")) return false;
+  return true;
+}
+function isFindingText(value, minBytes, maxBytes) {
+  if (typeof value !== "string") return false;
+  const bytes = utf8ByteLength2(value);
+  if (bytes < minBytes || bytes > maxBytes) return false;
+  if (hasForbiddenControl(value)) return false;
+  return true;
+}
+function isLiteral(value, allowed) {
+  return typeof value === "string" && allowed.includes(value);
+}
+function isSafeIntInRange(value, min3, max5) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= min3 && value <= max5;
+}
+function parseCandidate(value) {
+  if (!isPlainObject2(value)) return null;
+  if (!hasExactOwnKeys2(value, ["commit", "tree", "candidateSha256"])) {
+    return null;
+  }
+  const commit = value["commit"];
+  const tree = value["tree"];
+  const candidateSha256 = value["candidateSha256"];
+  if (typeof commit !== "string" || !isCommitSha40(commit)) return null;
+  if (typeof tree !== "string" || !isCommitSha40(tree)) return null;
+  if (typeof candidateSha256 !== "string" || !isSha256Hex(candidateSha256)) {
+    return null;
+  }
+  if (sha256Hex(commit) !== candidateSha256) return null;
+  return { commit, tree, candidateSha256 };
+}
+function parseFinding(value) {
+  if (!isPlainObject2(value)) return null;
+  if (!hasExactOwnKeys2(value, [
+    "severity",
+    "file",
+    "line",
+    "summary",
+    "evidence"
+  ])) {
+    return null;
+  }
+  const severity = value["severity"];
+  const file = value["file"];
+  const line = value["line"];
+  const summary5 = value["summary"];
+  const evidence = value["evidence"];
+  if (!isLiteral(severity, FINDING_SEVERITIES)) return null;
+  if (!isFindingText(file, 1, 4096)) return null;
+  if (!isSafeIntInRange(line, 1, 2147483647)) return null;
+  if (!isFindingText(summary5, 1, 4096)) return null;
+  if (!isFindingText(evidence, 1, 16384)) return null;
+  return { severity, file, line, summary: summary5, evidence };
+}
+function parseFindings(value) {
+  if (!Array.isArray(value)) return null;
+  if (value.length > 100) return null;
+  const out = [];
+  for (const item of value) {
+    const finding = parseFinding(item);
+    if (finding === null) return null;
+    out.push(finding);
+  }
+  return out;
+}
+function parseEvaluationCounts(input) {
+  if (input.plannedRuns !== 2e3) return null;
+  if (!isSafeIntInRange(input.completedRuns, 0, 2e3)) return null;
+  if (!isSafeIntInRange(input.unavailableRuns, 0, 2e3)) return null;
+  if (!isSafeIntInRange(input.notRunRuns, 0, 2e3)) return null;
+  if (input.completedRuns + input.unavailableRuns + input.notRunRuns !== 2e3) {
+    return null;
+  }
+  return {
+    plannedRuns: 2e3,
+    completedRuns: input.completedRuns,
+    unavailableRuns: input.unavailableRuns,
+    notRunRuns: input.notRunRuns
+  };
+}
+function requireIssuedAt(value) {
+  if (typeof value !== "string" || !isUtcSecondTimestamp2(value)) return null;
+  return value;
+}
+function parseDesignApproval(value) {
+  if (!hasExactOwnKeys2(value, [
+    "schema",
+    "program",
+    "packageId",
+    "designCommit",
+    "designTree",
+    "approvedOpenSpecSha256",
+    "taskPlanSha256",
+    "approvalStatementSha256",
+    "issuedAt"
+  ])) {
+    return null;
+  }
+  if (value["schema"] !== "foreman.design-approval.v1") return null;
+  if (!isReleaseProgram(value["program"])) return null;
+  if (!isIdentifier(value["packageId"])) return null;
+  if (typeof value["designCommit"] !== "string" || !isCommitSha40(value["designCommit"])) {
+    return null;
+  }
+  if (typeof value["designTree"] !== "string" || !isCommitSha40(value["designTree"])) {
+    return null;
+  }
+  if (typeof value["approvedOpenSpecSha256"] !== "string" || !isSha256Hex(value["approvedOpenSpecSha256"])) {
+    return null;
+  }
+  if (typeof value["taskPlanSha256"] !== "string" || !isSha256Hex(value["taskPlanSha256"])) {
+    return null;
+  }
+  if (typeof value["approvalStatementSha256"] !== "string" || !isSha256Hex(value["approvalStatementSha256"])) {
+    return null;
+  }
+  const issuedAt = requireIssuedAt(value["issuedAt"]);
+  if (issuedAt === null) return null;
+  return {
+    schema: "foreman.design-approval.v1",
+    program: value["program"],
+    packageId: value["packageId"],
+    designCommit: value["designCommit"],
+    designTree: value["designTree"],
+    approvedOpenSpecSha256: value["approvedOpenSpecSha256"],
+    taskPlanSha256: value["taskPlanSha256"],
+    approvalStatementSha256: value["approvalStatementSha256"],
+    issuedAt
+  };
+}
+function parseChecksEvidence(value) {
+  if (!hasExactOwnKeys2(value, [
+    "schema",
+    "program",
+    "packageId",
+    "candidate",
+    "status",
+    "checksSha256",
+    "issuedAt"
+  ])) {
+    return null;
+  }
+  if (value["schema"] !== "foreman.checks-evidence.v1") return null;
+  if (!isReleaseProgram(value["program"])) return null;
+  if (!isIdentifier(value["packageId"])) return null;
+  const candidate = parseCandidate(value["candidate"]);
+  if (candidate === null) return null;
+  if (!isLiteral(value["status"], CHECK_STATUSES)) return null;
+  if (typeof value["checksSha256"] !== "string" || !isSha256Hex(value["checksSha256"])) {
+    return null;
+  }
+  const issuedAt = requireIssuedAt(value["issuedAt"]);
+  if (issuedAt === null) return null;
+  return {
+    schema: "foreman.checks-evidence.v1",
+    program: value["program"],
+    packageId: value["packageId"],
+    candidate,
+    status: value["status"],
+    checksSha256: value["checksSha256"],
+    issuedAt
+  };
+}
+function parseReleaseAudit(value) {
+  if (!hasExactOwnKeys2(value, [
+    "schema",
+    "program",
+    "packageId",
+    "candidate",
+    "verdict",
+    "findings",
+    "evidenceSha256",
+    "issuedAt"
+  ])) {
+    return null;
+  }
+  if (value["schema"] !== "foreman.release-audit.v1") return null;
+  if (!isReleaseProgram(value["program"])) return null;
+  if (!isIdentifier(value["packageId"])) return null;
+  const candidate = parseCandidate(value["candidate"]);
+  if (candidate === null) return null;
+  if (!isLiteral(value["verdict"], AUDIT_VERDICTS)) return null;
+  const findings = parseFindings(value["findings"]);
+  if (findings === null) return null;
+  if (typeof value["evidenceSha256"] !== "string" || !isSha256Hex(value["evidenceSha256"])) {
+    return null;
+  }
+  const issuedAt = requireIssuedAt(value["issuedAt"]);
+  if (issuedAt === null) return null;
+  return {
+    schema: "foreman.release-audit.v1",
+    program: value["program"],
+    packageId: value["packageId"],
+    candidate,
+    verdict: value["verdict"],
+    findings,
+    evidenceSha256: value["evidenceSha256"],
+    issuedAt
+  };
+}
+function parseCouncilRequest(value) {
+  if (!hasExactOwnKeys2(value, [
+    "schema",
+    "program",
+    "packageId",
+    "candidateSha256",
+    "questionSha256",
+    "constraintsSha256",
+    "optionsSha256",
+    "issuedAt"
+  ])) {
+    return null;
+  }
+  if (value["schema"] !== "foreman.council-request.v1") return null;
+  if (!isReleaseProgram(value["program"])) return null;
+  if (!isIdentifier(value["packageId"])) return null;
+  if (typeof value["candidateSha256"] !== "string" || !isSha256Hex(value["candidateSha256"])) {
+    return null;
+  }
+  if (typeof value["questionSha256"] !== "string" || !isSha256Hex(value["questionSha256"])) {
+    return null;
+  }
+  if (typeof value["constraintsSha256"] !== "string" || !isSha256Hex(value["constraintsSha256"])) {
+    return null;
+  }
+  if (typeof value["optionsSha256"] !== "string" || !isSha256Hex(value["optionsSha256"])) {
+    return null;
+  }
+  const issuedAt = requireIssuedAt(value["issuedAt"]);
+  if (issuedAt === null) return null;
+  return {
+    schema: "foreman.council-request.v1",
+    program: value["program"],
+    packageId: value["packageId"],
+    candidateSha256: value["candidateSha256"],
+    questionSha256: value["questionSha256"],
+    constraintsSha256: value["constraintsSha256"],
+    optionsSha256: value["optionsSha256"],
+    issuedAt
+  };
+}
+function parseEvaluationAuthority(value) {
+  if (!hasExactOwnKeys2(value, [
+    "schema",
+    "program",
+    "packageId",
+    "manifestSha256",
+    "issuedAt"
+  ])) {
+    return null;
+  }
+  if (value["schema"] !== "foreman.evaluation-authority.v1") return null;
+  if (!isReleaseProgram(value["program"])) return null;
+  if (releaseProgramTable(value["program"]).evaluationChild === null) return null;
+  if (value["packageId"] !== EVAL_PACKAGE) return null;
+  if (typeof value["manifestSha256"] !== "string" || !isSha256Hex(value["manifestSha256"])) {
+    return null;
+  }
+  const issuedAt = requireIssuedAt(value["issuedAt"]);
+  if (issuedAt === null) return null;
+  return {
+    schema: "foreman.evaluation-authority.v1",
+    program: value["program"],
+    packageId: EVAL_PACKAGE,
+    manifestSha256: value["manifestSha256"],
+    issuedAt
+  };
+}
+function parseReceipt(value) {
+  if (!isPlainObject2(value)) return null;
+  const schema = value["schema"];
+  if (schema === "foreman.design-approval.v1") {
+    return parseDesignApproval(value);
+  }
+  if (schema === "foreman.checks-evidence.v1") {
+    return parseChecksEvidence(value);
+  }
+  if (schema === "foreman.release-audit.v1") {
+    return parseReleaseAudit(value);
+  }
+  if (schema === "foreman.council-request.v1") {
+    return parseCouncilRequest(value);
+  }
+  if (schema === "foreman.evaluation-authority.v1") {
+    return parseEvaluationAuthority(value);
+  }
+  return null;
+}
+function parseActionOutcome(value) {
+  if (!hasExactOwnKeys2(value, [
+    "schema",
+    "program",
+    "rootContractId",
+    "rootContractSha256",
+    "familySha256",
+    "childId",
+    "packageId",
+    "reservationAction",
+    "effectiveAction",
+    "reservationId",
+    "originReservationId",
+    "candidateSha256",
+    "status",
+    "evidenceSha256",
+    "issuedAt"
+  ])) {
+    return null;
+  }
+  if (value["schema"] !== "foreman.release-action-outcome.v1") return null;
+  if (!isReleaseProgram(value["program"])) return null;
+  if (!isIdentifier(value["rootContractId"])) return null;
+  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
+    return null;
+  }
+  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
+    return null;
+  }
+  if (!isIdentifier(value["childId"])) return null;
+  if (!isIdentifier(value["packageId"])) return null;
+  if (!isLiteral(value["reservationAction"], RELEASE_ACTIONS)) return null;
+  if (!isLiteral(value["effectiveAction"], RELEASE_ACTIONS)) return null;
+  const reservationAction = value["reservationAction"];
+  const effectiveAction = value["effectiveAction"];
+  const isWrapper = reservationAction === "provider_retry" || reservationAction === "resume";
+  if (isWrapper) {
+    if (!isLiteral(effectiveAction, ORDINARY_ACTIONS)) return null;
+  } else if (effectiveAction !== reservationAction) {
+    return null;
+  }
+  if (!isIdentifier(value["reservationId"])) return null;
+  if (!isIdentifier(value["originReservationId"])) return null;
+  const reservationId = value["reservationId"];
+  const originReservationId = value["originReservationId"];
+  if (!isWrapper && originReservationId !== reservationId) {
+    return null;
+  }
+  if (typeof value["candidateSha256"] !== "string" || !isSha256Hex(value["candidateSha256"])) {
+    return null;
+  }
+  if (!isLiteral(value["status"], OUTCOME_STATUSES)) return null;
+  const status = value["status"];
+  if (status === "PASS") {
+    if (!isLiteral(effectiveAction, PASS_OUTCOME_ACTIONS)) return null;
+  } else if (status === "BLOCKING") {
+    if (!isLiteral(effectiveAction, BLOCKING_OUTCOME_ACTIONS)) return null;
+  }
+  if (typeof value["evidenceSha256"] !== "string" || !isSha256Hex(value["evidenceSha256"])) {
+    return null;
+  }
+  const issuedAt = requireIssuedAt(value["issuedAt"]);
+  if (issuedAt === null) return null;
+  return {
+    schema: "foreman.release-action-outcome.v1",
+    program: value["program"],
+    rootContractId: value["rootContractId"],
+    rootContractSha256: value["rootContractSha256"],
+    familySha256: value["familySha256"],
+    childId: value["childId"],
+    packageId: value["packageId"],
+    reservationAction,
+    effectiveAction,
+    reservationId,
+    originReservationId,
+    candidateSha256: value["candidateSha256"],
+    status,
+    evidenceSha256: value["evidenceSha256"],
+    issuedAt
+  };
+}
+function parseCouncilOutcome(value) {
+  if (!hasExactOwnKeys2(value, [
+    "schema",
+    "program",
+    "rootContractId",
+    "rootContractSha256",
+    "familySha256",
+    "childId",
+    "packageId",
+    "reservationAction",
+    "reservationId",
+    "originReservationId",
+    "candidateSha256",
+    "requestSha256",
+    "decisionSha256",
+    "status",
+    "issuedAt"
+  ])) {
+    return null;
+  }
+  if (value["schema"] !== "foreman.council-outcome.v1") return null;
+  if (!isReleaseProgram(value["program"])) return null;
+  if (!isIdentifier(value["rootContractId"])) return null;
+  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
+    return null;
+  }
+  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
+    return null;
+  }
+  if (!isIdentifier(value["childId"])) return null;
+  if (!isIdentifier(value["packageId"])) return null;
+  if (!isLiteral(value["reservationAction"], COUNCIL_RESERVATION_ACTIONS)) {
+    return null;
+  }
+  const reservationAction = value["reservationAction"];
+  if (!isIdentifier(value["reservationId"])) return null;
+  if (!isIdentifier(value["originReservationId"])) return null;
+  const reservationId = value["reservationId"];
+  const originReservationId = value["originReservationId"];
+  if (reservationAction === "council" && originReservationId !== reservationId) {
+    return null;
+  }
+  if (typeof value["candidateSha256"] !== "string" || !isSha256Hex(value["candidateSha256"])) {
+    return null;
+  }
+  if (typeof value["requestSha256"] !== "string" || !isSha256Hex(value["requestSha256"])) {
+    return null;
+  }
+  if (typeof value["decisionSha256"] !== "string" || !isSha256Hex(value["decisionSha256"])) {
+    return null;
+  }
+  if (!isLiteral(value["status"], COUNCIL_STATUSES)) return null;
+  const status = value["status"];
+  const issuedAt = requireIssuedAt(value["issuedAt"]);
+  if (issuedAt === null) return null;
+  return {
+    schema: "foreman.council-outcome.v1",
+    program: value["program"],
+    rootContractId: value["rootContractId"],
+    rootContractSha256: value["rootContractSha256"],
+    familySha256: value["familySha256"],
+    childId: value["childId"],
+    packageId: value["packageId"],
+    reservationAction,
+    reservationId,
+    originReservationId,
+    candidateSha256: value["candidateSha256"],
+    requestSha256: value["requestSha256"],
+    decisionSha256: value["decisionSha256"],
+    status,
+    issuedAt
+  };
+}
+function parseEvaluationVerdict(value) {
+  if (!hasExactOwnKeys2(value, [
+    "schema",
+    "program",
+    "rootContractId",
+    "rootContractSha256",
+    "familySha256",
+    "childId",
+    "packageId",
+    "candidateSha256",
+    "authorityManifestSha256",
+    "evaluationAuthorityReceiptSha256",
+    "result",
+    "plannedRuns",
+    "completedRuns",
+    "unavailableRuns",
+    "notRunRuns",
+    "runSetSha256",
+    "reportSha256",
+    "issuedAt"
+  ])) {
+    return null;
+  }
+  if (value["schema"] !== "foreman.evaluation-verdict.v1") return null;
+  if (!isReleaseProgram(value["program"])) return null;
+  if (!isIdentifier(value["rootContractId"])) return null;
+  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
+    return null;
+  }
+  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
+    return null;
+  }
+  const evaluationChild = releaseProgramTable(value["program"]).evaluationChild;
+  if (evaluationChild === null || value["childId"] !== evaluationChild) return null;
+  if (value["packageId"] !== EVAL_PACKAGE) return null;
+  if (typeof value["candidateSha256"] !== "string" || !isSha256Hex(value["candidateSha256"])) {
+    return null;
+  }
+  if (typeof value["authorityManifestSha256"] !== "string" || !isSha256Hex(value["authorityManifestSha256"])) {
+    return null;
+  }
+  if (typeof value["evaluationAuthorityReceiptSha256"] !== "string" || !isSha256Hex(value["evaluationAuthorityReceiptSha256"])) {
+    return null;
+  }
+  if (!isLiteral(value["result"], EVAL_RESULTS)) return null;
+  const counts = parseEvaluationCounts({
+    plannedRuns: value["plannedRuns"],
+    completedRuns: value["completedRuns"],
+    unavailableRuns: value["unavailableRuns"],
+    notRunRuns: value["notRunRuns"]
+  });
+  if (counts === null) return null;
+  if (typeof value["runSetSha256"] !== "string" || !isSha256Hex(value["runSetSha256"])) {
+    return null;
+  }
+  if (typeof value["reportSha256"] !== "string" || !isSha256Hex(value["reportSha256"])) {
+    return null;
+  }
+  const issuedAt = requireIssuedAt(value["issuedAt"]);
+  if (issuedAt === null) return null;
+  return {
+    schema: "foreman.evaluation-verdict.v1",
+    program: value["program"],
+    rootContractId: value["rootContractId"],
+    rootContractSha256: value["rootContractSha256"],
+    familySha256: value["familySha256"],
+    childId: evaluationChild,
+    packageId: EVAL_PACKAGE,
+    candidateSha256: value["candidateSha256"],
+    authorityManifestSha256: value["authorityManifestSha256"],
+    evaluationAuthorityReceiptSha256: value["evaluationAuthorityReceiptSha256"],
+    result: value["result"],
+    plannedRuns: counts.plannedRuns,
+    completedRuns: counts.completedRuns,
+    unavailableRuns: counts.unavailableRuns,
+    notRunRuns: counts.notRunRuns,
+    runSetSha256: value["runSetSha256"],
+    reportSha256: value["reportSha256"],
+    issuedAt
+  };
+}
+function parseCancelApproval(value) {
+  if (!hasExactOwnKeys2(value, [
+    "schema",
+    "program",
+    "rootContractId",
+    "rootContractSha256",
+    "familySha256",
+    "childId",
+    "reasonSha256",
+    "issuedAt"
+  ])) {
+    return null;
+  }
+  if (value["schema"] !== "foreman.execution-child-cancel.v1") return null;
+  if (!isReleaseProgram(value["program"])) return null;
+  if (!isIdentifier(value["rootContractId"])) return null;
+  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
+    return null;
+  }
+  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
+    return null;
+  }
+  if (!isIdentifier(value["childId"])) return null;
+  if (typeof value["reasonSha256"] !== "string" || !isSha256Hex(value["reasonSha256"])) {
+    return null;
+  }
+  const issuedAt = requireIssuedAt(value["issuedAt"]);
+  if (issuedAt === null) return null;
+  return {
+    schema: "foreman.execution-child-cancel.v1",
+    program: value["program"],
+    rootContractId: value["rootContractId"],
+    rootContractSha256: value["rootContractSha256"],
+    familySha256: value["familySha256"],
+    childId: value["childId"],
+    reasonSha256: value["reasonSha256"],
+    issuedAt
+  };
+}
+function parseInvalidateApproval(value) {
+  if (!hasExactOwnKeys2(value, [
+    "schema",
+    "program",
+    "rootContractId",
+    "rootContractSha256",
+    "familySha256",
+    "childId",
+    "observedFamilySha256",
+    "reasonSha256",
+    "issuedAt"
+  ])) {
+    return null;
+  }
+  if (value["schema"] !== "foreman.execution-child-invalidate.v1") return null;
+  if (!isReleaseProgram(value["program"])) return null;
+  if (!isIdentifier(value["rootContractId"])) return null;
+  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
+    return null;
+  }
+  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
+    return null;
+  }
+  if (!isIdentifier(value["childId"])) return null;
+  if (typeof value["observedFamilySha256"] !== "string" || !isSha256Hex(value["observedFamilySha256"])) {
+    return null;
+  }
+  if (typeof value["reasonSha256"] !== "string" || !isSha256Hex(value["reasonSha256"])) {
+    return null;
+  }
+  const issuedAt = requireIssuedAt(value["issuedAt"]);
+  if (issuedAt === null) return null;
+  return {
+    schema: "foreman.execution-child-invalidate.v1",
+    program: value["program"],
+    rootContractId: value["rootContractId"],
+    rootContractSha256: value["rootContractSha256"],
+    familySha256: value["familySha256"],
+    childId: value["childId"],
+    observedFamilySha256: value["observedFamilySha256"],
+    reasonSha256: value["reasonSha256"],
+    issuedAt
+  };
+}
+function parsePriorReservation(value) {
+  if (!isPlainObject2(value)) return null;
+  if (!hasExactOwnKeys2(value, [
+    "reservationId",
+    "originReservationId",
+    "originalAction",
+    "candidate",
+    "failureEvidenceSha256"
+  ])) {
+    return null;
+  }
+  if (!isIdentifier(value["reservationId"])) return null;
+  if (!isIdentifier(value["originReservationId"])) return null;
+  if (!isLiteral(value["originalAction"], ORDINARY_ACTIONS)) return null;
+  const candidate = parseCandidate(value["candidate"]);
+  if (candidate === null) return null;
+  if (typeof value["failureEvidenceSha256"] !== "string" || !isSha256Hex(value["failureEvidenceSha256"])) {
+    return null;
+  }
+  return {
+    reservationId: value["reservationId"],
+    originReservationId: value["originReservationId"],
+    originalAction: value["originalAction"],
+    candidate,
+    failureEvidenceSha256: value["failureEvidenceSha256"]
+  };
+}
+function isDesignReceipt(receipt) {
+  return receipt.schema === "foreman.design-approval.v1";
+}
+function isChecksReceipt(receipt) {
+  return receipt.schema === "foreman.checks-evidence.v1";
+}
+function isAuditReceipt(receipt) {
+  return receipt.schema === "foreman.release-audit.v1";
+}
+function isCouncilRequestReceipt(receipt) {
+  return receipt.schema === "foreman.council-request.v1";
+}
+function isEvaluationAuthorityReceipt(receipt) {
+  return receipt.schema === "foreman.evaluation-authority.v1";
+}
+function receiptsMatchOrdinaryAction(action, receipts) {
+  switch (action) {
+    case "implement":
+    case "verify":
+      return receipts.length === 1 && isDesignReceipt(receipts[0]);
+    case "audit":
+      return receipts.length === 2 && isDesignReceipt(receipts[0]) && isChecksReceipt(receipts[1]) && receipts[1].status === "PASS";
+    case "correct": {
+      if (receipts.length !== 2 || !isDesignReceipt(receipts[0])) return false;
+      const second = receipts[1];
+      if (isChecksReceipt(second)) return second.status === "FAIL";
+      if (isAuditReceipt(second)) {
+        return isLiteral(second.verdict, BLOCKING_AUDIT_VERDICTS);
+      }
+      return false;
+    }
+    case "council":
+      return receipts.length === 2 && isDesignReceipt(receipts[0]) && isCouncilRequestReceipt(receipts[1]);
+    case "integrate":
+    case "publish":
+      return receipts.length === 2 && isDesignReceipt(receipts[0]) && isAuditReceipt(receipts[1]) && receipts[1].verdict === "APPROVED" && receipts[1].findings.length === 0;
+    case "evaluate":
+      return receipts.length === 2 && isDesignReceipt(receipts[0]) && isEvaluationAuthorityReceipt(receipts[1]);
+    case "provider_retry":
+    case "resume":
+      return false;
+  }
+}
+function parseEvidenceBundle(value) {
+  const hasPrior = Object.prototype.hasOwnProperty.call(
+    value,
+    "priorReservation"
+  );
+  const baseKeys = [
+    "schema",
+    "program",
+    "rootContractId",
+    "rootContractSha256",
+    "familySha256",
+    "childId",
+    "packageId",
+    "action",
+    "candidate",
+    "taskPlanSha256",
+    "receipts",
+    "issuedAt"
+  ];
+  const expectedKeys = hasPrior ? [...baseKeys, "priorReservation"] : baseKeys;
+  if (!hasExactOwnKeys2(value, expectedKeys)) return null;
+  if (value["schema"] !== "foreman.release-evidence-bundle.v1") return null;
+  if (!isReleaseProgram(value["program"])) return null;
+  if (!isIdentifier(value["rootContractId"])) return null;
+  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
+    return null;
+  }
+  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
+    return null;
+  }
+  if (!isIdentifier(value["childId"])) return null;
+  if (!isIdentifier(value["packageId"])) return null;
+  if (!isLiteral(value["action"], RELEASE_ACTIONS)) return null;
+  const candidate = parseCandidate(value["candidate"]);
+  if (candidate === null) return null;
+  if (typeof value["taskPlanSha256"] !== "string" || !isSha256Hex(value["taskPlanSha256"])) {
+    return null;
+  }
+  if (!Array.isArray(value["receipts"])) return null;
+  if (value["receipts"].length < 1 || value["receipts"].length > 2) return null;
+  const receipts = [];
+  for (const item of value["receipts"]) {
+    const receipt = parseReceipt(item);
+    if (receipt === null) return null;
+    receipts.push(receipt);
+  }
+  const issuedAt = requireIssuedAt(value["issuedAt"]);
+  if (issuedAt === null) return null;
+  const action = value["action"];
+  if (action === "provider_retry" || action === "resume") {
+    if (!hasPrior) return null;
+    const priorReservation = parsePriorReservation(value["priorReservation"]);
+    if (priorReservation === null) return null;
+    if (!receiptsMatchOrdinaryAction(priorReservation.originalAction, receipts)) {
+      return null;
+    }
+    return {
+      schema: "foreman.release-evidence-bundle.v1",
+      program: value["program"],
+      rootContractId: value["rootContractId"],
+      rootContractSha256: value["rootContractSha256"],
+      familySha256: value["familySha256"],
+      childId: value["childId"],
+      packageId: value["packageId"],
+      action,
+      candidate,
+      taskPlanSha256: value["taskPlanSha256"],
+      receipts,
+      priorReservation,
+      issuedAt
+    };
+  }
+  if (hasPrior) return null;
+  if (!receiptsMatchOrdinaryAction(action, receipts)) return null;
+  return {
+    schema: "foreman.release-evidence-bundle.v1",
+    program: value["program"],
+    rootContractId: value["rootContractId"],
+    rootContractSha256: value["rootContractSha256"],
+    familySha256: value["familySha256"],
+    childId: value["childId"],
+    packageId: value["packageId"],
+    action,
+    candidate,
+    taskPlanSha256: value["taskPlanSha256"],
+    receipts,
+    issuedAt
+  };
+}
+function parseAuthorityObject(value) {
+  if (!isPlainObject2(value)) return null;
+  const schema = value["schema"];
+  if (typeof schema !== "string") return null;
+  switch (schema) {
+    case "foreman.design-approval.v1":
+      return parseDesignApproval(value);
+    case "foreman.checks-evidence.v1":
+      return parseChecksEvidence(value);
+    case "foreman.release-audit.v1":
+      return parseReleaseAudit(value);
+    case "foreman.council-request.v1":
+      return parseCouncilRequest(value);
+    case "foreman.evaluation-authority.v1":
+      return parseEvaluationAuthority(value);
+    case "foreman.release-action-outcome.v1":
+      return parseActionOutcome(value);
+    case "foreman.council-outcome.v1":
+      return parseCouncilOutcome(value);
+    case "foreman.evaluation-verdict.v1":
+      return parseEvaluationVerdict(value);
+    case "foreman.execution-child-cancel.v1":
+      return parseCancelApproval(value);
+    case "foreman.execution-child-invalidate.v1":
+      return parseInvalidateApproval(value);
+    case "foreman.release-evidence-bundle.v1":
+      return parseEvidenceBundle(value);
+    default:
+      return null;
+  }
+}
+function decodeCanonicalObjectFile(bytes) {
+  if (bytes.byteLength > ONE_MIB2) return null;
+  const textOrFailure = decodeUtf8Fatal(bytes);
+  if (isCoreFailure(textOrFailure)) return null;
+  const text = textOrFailure;
+  if (!text.endsWith("\n") || text.endsWith("\r\n")) return null;
+  const body = text.slice(0, -1);
+  if (body.endsWith("\n")) return null;
+  let parsed;
+  try {
+    parsed = parseJsonRejectDuplicateKeys(body);
+  } catch {
+    return null;
+  }
+  if (isCoreFailure(parsed)) return null;
+  let canonical;
+  try {
+    canonical = canonicalize(parsed);
+  } catch {
+    return null;
+  }
+  if (canonical !== body) return null;
+  return { value: parsed, sha256: sha256Hex(bytes) };
+}
+function compareUtf8(a, b) {
+  const ab = utf8Bytes2(a);
+  const bb = utf8Bytes2(b);
+  const n = Math.min(ab.byteLength, bb.byteLength);
+  for (let i = 0; i < n; i += 1) {
+    if (ab[i] !== bb[i]) return ab[i] - bb[i];
+  }
+  return ab.byteLength - bb.byteLength;
+}
+function isValidPackageRelativePath(path) {
+  if (typeof path !== "string" || path.length === 0) return false;
+  if (hasForbiddenControl(path)) return false;
+  if (path.includes("\\")) return false;
+  if (path.startsWith("/")) return false;
+  if (/^[A-Za-z]:\//.test(path)) return false;
+  const segments = path.split("/");
+  for (const segment of segments) {
+    if (segment.length === 0 || segment === "." || segment === "..") {
+      return false;
+    }
+  }
+  return true;
+}
+function classifyManifestPath(path) {
+  if (path === "proposal.md") return "proposal";
+  if (path === "design.md") return "design";
+  if (path === "tasks.md") return "tasks";
+  if (path.startsWith("specs/") && path.endsWith(".md") && path.length > "specs/".length + ".md".length) {
+    return "spec";
+  }
+  return "other";
+}
+function decodeReleaseAuthorityFileV1(bytes) {
+  try {
+    if (!(bytes instanceof Uint8Array)) return invalidFile();
+    const decoded = decodeCanonicalObjectFile(bytes);
+    if (decoded === null) return invalidFile();
+    const parsed = parseAuthorityObject(decoded.value);
+    if (parsed === null) {
+      return presentedUnknownProgram(decoded.value) ? invalidFile("wrong_program") : invalidFile();
+    }
+    return {
+      _tag: "Valid",
+      value: parsed,
+      sha256: decoded.sha256
+    };
+  } catch {
+    return invalidFile();
+  }
+}
+function buildApprovedOpenSpecManifestV1(input) {
+  try {
+    if (!isPlainObject2(input)) return invalidManifest();
+    if (!hasExactOwnKeys2(input, ["workflow", "files"])) return invalidManifest();
+    const workflow = input["workflow"];
+    if (workflow !== "foreman-architectural" && workflow !== "foreman-bounded") {
+      return invalidManifest();
+    }
+    const files = input["files"];
+    if (!Array.isArray(files) || files.length === 0) return invalidManifest();
+    const rows = [];
+    for (const row of files) {
+      if (!isPlainObject2(row)) return invalidManifest();
+      if (!hasExactOwnKeys2(row, ["path", "bytes"])) return invalidManifest();
+      const path = row["path"];
+      const bytes = row["bytes"];
+      if (typeof path !== "string") return invalidManifest();
+      if (!(bytes instanceof Uint8Array)) return invalidManifest();
+      if (!isValidPackageRelativePath(path)) return invalidManifest();
+      rows.push({ path, bytes });
+    }
+    for (let i = 0; i < rows.length; i += 1) {
+      if (i > 0 && compareUtf8(rows[i - 1].path, rows[i].path) >= 0) {
+        return invalidManifest();
+      }
+    }
+    let proposalCount = 0;
+    let designCount = 0;
+    let specCount = 0;
+    const manifestFiles = [];
+    for (const row of rows) {
+      const kind = classifyManifestPath(row.path);
+      if (kind === "tasks" || kind === "other") return invalidManifest();
+      if (kind === "design") {
+        if (workflow === "foreman-bounded") return invalidManifest();
+        designCount += 1;
+      } else if (kind === "proposal") {
+        proposalCount += 1;
+      } else if (kind === "spec") {
+        specCount += 1;
+      }
+      manifestFiles.push({
+        path: row.path,
+        sha256: sha256Hex(row.bytes)
+      });
+    }
+    if (proposalCount !== 1) return invalidManifest();
+    if (specCount < 1) return invalidManifest();
+    if (designCount > 1) return invalidManifest();
+    const manifest = {
+      schema: MANIFEST_SCHEMA,
+      files: manifestFiles
+    };
+    const digest = sha256Hex(utf8Bytes2(canonicalize(manifest)));
+    return { _tag: "Valid", manifest, sha256: digest };
+  } catch {
+    return invalidManifest();
+  }
+}
+
+// packages/policy/src/release-admission.ts
+var encoder3 = new TextEncoder();
+function invalidEvidence(reason) {
+  return { _tag: "Invalid", reason };
+}
+function refused(reason) {
+  return { schemaVersion: 1, _tag: "Refused", reason };
+}
+function compareUtf82(left3, right3) {
+  const a = encoder3.encode(left3);
+  const b = encoder3.encode(right3);
+  const length2 = Math.min(a.byteLength, b.byteLength);
+  for (let index = 0; index < length2; index += 1) {
+    const delta = a[index] - b[index];
+    if (delta !== 0) return delta;
+  }
+  return a.byteLength - b.byteLength;
+}
+function sameValue(left3, right3) {
+  try {
+    return canonicalize(left3) === canonicalize(right3);
+  } catch {
+    return false;
+  }
+}
+function canonicalFileSha256(value) {
+  try {
+    return sha256Hex(encoder3.encode(`${canonicalize(value)}
+`));
+  } catch {
+    return null;
+  }
+}
+function designReceipt(bundle) {
+  const receipt = bundle.receipts[0];
+  if (receipt?.schema !== "foreman.design-approval.v1") return null;
+  return receipt;
+}
+function receiptBindingFailure(bundle) {
+  for (const receipt of bundle.receipts) {
+    if (Object.prototype.hasOwnProperty.call(receipt, "program") && receipt.program !== bundle.program) {
+      return "wrong_program";
+    }
+    if (receipt.packageId !== bundle.packageId) return "wrong_package";
+    switch (receipt.schema) {
+      case "foreman.checks-evidence.v1":
+      case "foreman.release-audit.v1":
+        if (!sameValue(receipt.candidate, bundle.candidate)) {
+          return "wrong_candidate";
+        }
+        break;
+      case "foreman.council-request.v1":
+        if (receipt.candidateSha256 !== bundle.candidate.candidateSha256) {
+          return "wrong_candidate";
+        }
+        break;
+      case "foreman.evaluation-authority.v1": {
+        const evaluationChild = isReleaseProgram(bundle.program) ? releaseProgramTable(bundle.program).evaluationChild : null;
+        if (evaluationChild === null || bundle.packageId !== "graph-eval-falsification" || bundle.childId !== evaluationChild) {
+          return "wrong_package";
+        }
+        break;
+      }
+      case "foreman.design-approval.v1":
+        break;
+    }
+  }
+  return null;
+}
+function checkEvidence(input, allowResolvedImplementationDescendant = false) {
+  if (typeof input !== "object" || input === null || !(input.evidenceBytes instanceof Uint8Array) || !(input.taskPlanBytes instanceof Uint8Array)) {
+    return invalidEvidence("invalid_evidence");
+  }
+  if (input.program !== void 0 && !isReleaseProgram(input.program)) {
+    return invalidEvidence("wrong_program");
+  }
+  const decoded = decodeReleaseAuthorityFileV1(input.evidenceBytes);
+  if (decoded._tag !== "Valid") {
+    if (decoded.reason === "wrong_program") {
+      return invalidEvidence("wrong_program");
+    }
+    return invalidEvidence("invalid_evidence");
+  }
+  if (decoded.value.schema !== "foreman.release-evidence-bundle.v1") {
+    return invalidEvidence("invalid_evidence");
+  }
+  const bundle = decoded.value;
+  const requestedProgram = input.program === void 0 ? RELEASE_PROGRAMS[0] : input.program;
+  if (!isReleaseProgram(bundle.program) || bundle.program !== requestedProgram) {
+    return invalidEvidence("wrong_program");
+  }
+  if (bundle.action !== input.action) return invalidEvidence("wrong_action");
+  if (bundle.packageId !== input.packageId) {
+    return invalidEvidence("wrong_package");
+  }
+  if (!sameValue(bundle.candidate, input.candidate)) {
+    return invalidEvidence("wrong_candidate");
+  }
+  const design = designReceipt(bundle);
+  if (design === null) return invalidEvidence("invalid_evidence");
+  if (design.packageId !== bundle.packageId) {
+    return invalidEvidence("wrong_package");
+  }
+  const receiptFailure = receiptBindingFailure(bundle);
+  if (receiptFailure !== null) return invalidEvidence(receiptFailure);
+  if (bundle.action === "implement" && !allowResolvedImplementationDescendant && (bundle.candidate.commit !== design.designCommit || bundle.candidate.tree !== design.designTree)) {
+    return invalidEvidence("wrong_design_base");
+  }
+  const files = Object.entries(input.approvedOpenSpecBytes).map(([path, bytes]) => ({ path, bytes })).sort((left3, right3) => compareUtf82(left3.path, right3.path));
+  const manifest = buildApprovedOpenSpecManifestV1({
+    workflow: Object.prototype.hasOwnProperty.call(
+      input.approvedOpenSpecBytes,
+      "design.md"
+    ) ? "foreman-architectural" : "foreman-bounded",
+    files
+  });
+  if (manifest._tag !== "Valid" || manifest.sha256 !== design.approvedOpenSpecSha256) {
+    return invalidEvidence("approved_openspec_mismatch");
+  }
+  const taskPlanSha256 = sha256Hex(input.taskPlanBytes);
+  if (taskPlanSha256 !== design.taskPlanSha256 || taskPlanSha256 !== bundle.taskPlanSha256) {
+    return invalidEvidence("task_plan_mismatch");
+  }
+  let effectiveAction = bundle.action;
+  let priorReservationId = null;
+  let originReservationId = null;
+  if (bundle.action === "provider_retry" || bundle.action === "resume") {
+    const prior = bundle.priorReservation;
+    if (prior === void 0 || prior.originalAction === "provider_retry" || prior.originalAction === "resume" || !sameValue(prior.candidate, bundle.candidate)) {
+      return invalidEvidence("invalid_retry");
+    }
+    effectiveAction = prior.originalAction;
+    priorReservationId = prior.reservationId;
+    originReservationId = prior.originReservationId;
+  }
+  const receiptSha256s = [];
+  for (const receipt of bundle.receipts) {
+    const digest = canonicalFileSha256(receipt);
+    if (digest === null) return invalidEvidence("invalid_evidence");
+    receiptSha256s.push(digest);
+  }
+  const evaluation = bundle.receipts.find(
+    (receipt) => receipt.schema === "foreman.evaluation-authority.v1"
+  );
+  return {
+    _tag: "Valid",
+    checked: {
+      bundle,
+      bundleSha256: decoded.sha256,
+      receiptSchemas: bundle.receipts.map((receipt) => receipt.schema),
+      receiptSha256s,
+      effectiveAction,
+      priorReservationId,
+      originReservationId,
+      evaluationManifestSha256: evaluation?.schema === "foreman.evaluation-authority.v1" ? evaluation.manifestSha256 : null
+    }
+  };
+}
+function registrationMatches(checked, registered) {
+  const bundle = checked.bundle;
+  return registered.rootContractId === bundle.rootContractId && registered.rootContractSha256 === bundle.rootContractSha256 && registered.familySha256 === bundle.familySha256 && registered.childId === bundle.childId && registered.action === bundle.action && registered.effectiveAction === checked.effectiveAction && registered.priorReservationId === checked.priorReservationId && registered.originReservationId === checked.originReservationId && sameValue(registered.candidate, bundle.candidate) && registered.taskPlanSha256 === bundle.taskPlanSha256 && registered.bundleSha256 === checked.bundleSha256 && sameValue(registered.receiptSchemas, checked.receiptSchemas) && sameValue(registered.receiptSha256s, checked.receiptSha256s) && registered.evaluationManifestSha256 === checked.evaluationManifestSha256;
+}
+function evaluateReleaseAdmissionV1(input) {
+  try {
+    const decision = checkEvidence(input, true);
+    if (decision._tag === "Invalid") return refused(decision.reason);
+    if (input.registered === null) return refused("missing_registration");
+    if (!registrationMatches(decision.checked, input.registered)) {
+      return refused("registration_mismatch");
+    }
+    return { schemaVersion: 1, _tag: "Admitted" };
+  } catch {
+    return refused("invalid_evidence");
+  }
+}
+
+// packages/policy/src/release-admission-cli.ts
+import { execFile as execFile2 } from "node:child_process";
+import {
+  accessSync as accessSync2,
+  closeSync as closeSync4,
+  constants as fsConstants4,
+  fstatSync as fstatSync4,
+  lstatSync as lstatSync3,
+  openSync as openSync4,
+  readSync as readSync4,
+  realpathSync as realpathSync2,
+  statSync as statSync2
+} from "node:fs";
+import { devNull } from "node:os";
+import {
+  delimiter as delimiter2,
+  dirname as dirname2,
+  isAbsolute,
+  relative,
+  resolve,
+  sep
+} from "node:path";
+import { promisify } from "node:util";
+var ONE_MIB3 = 1048576;
+var encoder4 = new TextEncoder();
+var execFileAsync = promisify(execFile2);
+var GIT_TIMEOUT_MS2 = 15e3;
+function compareUtf83(left3, right3) {
+  const a = encoder4.encode(left3);
+  const b = encoder4.encode(right3);
+  const length2 = Math.min(a.byteLength, b.byteLength);
+  for (let index = 0; index < length2; index += 1) {
+    const delta = a[index] - b[index];
+    if (delta !== 0) return delta;
+  }
+  return a.byteLength - b.byteLength;
+}
+function isSha40(value) {
+  return /^[0-9a-f]{40}$/.test(value);
+}
+function readBoundedRegularFile(path, maxBytes) {
+  const noFollow = typeof fsConstants4.O_NOFOLLOW === "number" ? fsConstants4.O_NOFOLLOW : 0;
+  const descriptor3 = openSync4(path, fsConstants4.O_RDONLY | noFollow);
+  try {
+    const stat = fstatSync4(descriptor3);
+    if (!stat.isFile() || stat.isSymbolicLink()) {
+      throw new Error("authority file is not regular");
+    }
+    const buffer = Buffer.allocUnsafe(maxBytes + 1);
+    let offset = 0;
+    while (offset < buffer.byteLength) {
+      const count = readSync4(
+        descriptor3,
+        buffer,
+        offset,
+        buffer.byteLength - offset,
+        offset
+      );
+      if (count === 0) break;
+      offset += count;
+    }
+    if (offset > maxBytes) throw new Error("authority file is oversized");
+    return Uint8Array.from(buffer.subarray(0, offset));
+  } finally {
+    closeSync4(descriptor3);
+  }
+}
+function isContainedPath(root, path) {
+  const rel = relative(root, path);
+  return rel.length === 0 || !isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`);
+}
+function resolveTrustedGitContext(repository) {
+  const physicalRepository = realpathSync2(repository);
+  const searchPath = process.env.PATH;
+  if (searchPath === void 0) throw new Error("Git path is unavailable");
+  const executableNames = process.platform === "win32" ? ["git.exe"] : ["git"];
+  for (const entry of searchPath.split(delimiter2)) {
+    const directory = entry.length === 0 ? repository : isAbsolute(entry) ? entry : resolve(repository, entry);
+    for (const name of executableNames) {
+      const candidate = resolve(directory, name);
+      try {
+        lstatSync3(candidate);
+      } catch (error) {
+        if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
+          continue;
+        }
+        throw error;
+      }
+      const physicalExecutable = realpathSync2(candidate);
+      if (isContainedPath(repository, candidate) || isContainedPath(physicalRepository, physicalExecutable)) {
+        throw new Error("repository-selected Git is forbidden");
+      }
+      if (!statSync2(physicalExecutable).isFile()) {
+        throw new Error("Git executable is not a regular file");
+      }
+      accessSync2(
+        physicalExecutable,
+        process.platform === "win32" ? fsConstants4.F_OK : fsConstants4.X_OK
+      );
+      return {
+        repository: physicalRepository,
+        executable: physicalExecutable
+      };
+    }
+  }
+  throw new Error("Git executable is unavailable");
+}
+function closedGitEnvironment(executable) {
+  const base = { PATH: dirname2(executable) };
+  if (process.platform === "win32") base["PATHEXT"] = ".EXE";
+  const environment2 = sanitizedGitEnv(base);
+  environment2["GIT_CONFIG_NOSYSTEM"] = "1";
+  environment2["GIT_CONFIG_GLOBAL"] = devNull;
+  return environment2;
+}
+async function runGitBytes(context5, args2, maxBytes) {
+  const result = await execFileAsync(
+    context5.executable,
+    gitArgv([
+      "-c",
+      "core.fsmonitor=false",
+      "-c",
+      `core.excludesFile=${devNull}`,
+      ...args2
+    ]),
+    {
+      cwd: context5.repository,
+      encoding: "buffer",
+      env: closedGitEnvironment(context5.executable),
+      maxBuffer: maxBytes + 1,
+      timeout: GIT_TIMEOUT_MS2,
+      windowsHide: true
+    }
+  );
+  const stdout = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.from(result.stdout ?? "");
+  if (stdout.byteLength > maxBytes) throw new Error("Git output is oversized");
+  return Uint8Array.from(stdout);
+}
+async function resolveGitObject(context5, expression) {
+  const bytes = await runGitBytes(
+    context5,
+    ["rev-parse", "--verify", expression],
+    64
+  );
+  const text = decodeUtf8Fatal(bytes);
+  if (isCoreFailure(text) || !/^[0-9a-f]{40}\n$/.test(text)) {
+    throw new Error("Git object identity is invalid");
+  }
+  return text.slice(0, -1);
+}
+async function isLinearDesignDescendant(context5, designCommit, candidateCommit) {
+  if (candidateCommit === designCommit) return true;
+  const bytes = await runGitBytes(
+    context5,
+    [
+      "rev-list",
+      "--ancestry-path",
+      "--parents",
+      `${designCommit}..${candidateCommit}`
+    ],
+    ONE_MIB3
+  );
+  const text = decodeUtf8Fatal(bytes);
+  if (isCoreFailure(text) || text.length === 0 || !text.endsWith("\n")) {
+    return false;
+  }
+  const parents = /* @__PURE__ */ new Map();
+  for (const line of text.slice(0, -1).split("\n")) {
+    const fields = line.split(" ");
+    if (fields.length !== 2 || !isSha40(fields[0]) || !isSha40(fields[1])) {
+      return false;
+    }
+    parents.set(fields[0], fields[1]);
+  }
+  const visited = /* @__PURE__ */ new Set();
+  let cursor = candidateCommit;
+  while (cursor !== designCommit) {
+    if (visited.has(cursor)) return false;
+    visited.add(cursor);
+    const parent = parents.get(cursor);
+    if (parent === void 0) return false;
+    cursor = parent;
+  }
+  return true;
+}
+function parseNulPaths(bytes) {
+  if (bytes.byteLength === 0) return [];
+  const text = decodeUtf8Fatal(bytes);
+  if (isCoreFailure(text) || !text.endsWith("\0")) {
+    throw new Error("Git path frame is invalid");
+  }
+  const paths = text.slice(0, -1).split("\0");
+  if (paths.some(
+    (path) => path.length === 0 || /[\u0000-\u001f\u007f\\]/.test(path) || path.split("/").some((segment) => segment === "" || segment === "." || segment === "..")
+  )) {
+    throw new Error("Git path is invalid");
+  }
+  return paths;
+}
+async function loadGitAuthorityLive(input) {
+  const context5 = resolveTrustedGitContext(input.repository);
+  const candidateCommit = await resolveGitObject(
+    context5,
+    `${input.candidateCommit}^{commit}`
+  );
+  if (candidateCommit !== input.candidateCommit) {
+    throw new Error("candidate identity changed");
+  }
+  const candidateTree = await resolveGitObject(
+    context5,
+    `${candidateCommit}^{tree}`
+  );
+  const designCommit = await resolveGitObject(
+    context5,
+    `${input.designCommit}^{commit}`
+  );
+  if (designCommit !== input.designCommit) {
+    throw new Error("design identity changed");
+  }
+  const designTree = await resolveGitObject(
+    context5,
+    `${designCommit}^{tree}`
+  );
+  const designLineageValid = await isLinearDesignDescendant(
+    context5,
+    designCommit,
+    candidateCommit
+  );
+  const prefix = `openspec/changes/${input.packageId}/`;
+  const listed = parseNulPaths(
+    await runGitBytes(
+      context5,
+      ["ls-tree", "-r", "-z", "--name-only", designCommit, "--", prefix],
+      ONE_MIB3
+    )
+  );
+  const retainedPaths = [];
+  let specCount = 0;
+  for (const path of listed) {
+    if (!path.startsWith(prefix)) throw new Error("Git path escaped package");
+    const relative3 = path.slice(prefix.length);
+    if (relative3 === "proposal.md" || relative3 === "design.md" || relative3 === "tasks.md" || relative3.startsWith("specs/")) {
+      retainedPaths.push(path);
+      if (relative3.startsWith("specs/")) specCount += 1;
+    }
+  }
+  if (specCount > input.maxSpecFiles) throw new Error("too many specifications");
+  let retainedBytes = 0;
+  let taskPlanBytes = null;
+  const approvedRows = [];
+  for (const path of retainedPaths) {
+    const bytes = await runGitBytes(
+      context5,
+      ["cat-file", "blob", `${designCommit}:${path}`],
+      input.maxBlobBytes
+    );
+    retainedBytes += bytes.byteLength;
+    if (retainedBytes > input.maxRetainedBytes) {
+      throw new Error("retained authority is oversized");
+    }
+    const relative3 = path.slice(prefix.length);
+    if (relative3 === "tasks.md") {
+      taskPlanBytes = bytes;
+    } else {
+      approvedRows.push({ path: relative3, bytes });
+    }
+  }
+  if (taskPlanBytes === null) throw new Error("task plan is missing");
+  approvedRows.sort((left3, right3) => compareUtf83(left3.path, right3.path));
+  const approvedOpenSpecBytes = {};
+  for (const row of approvedRows) approvedOpenSpecBytes[row.path] = row.bytes;
+  return {
+    candidate: {
+      commit: candidateCommit,
+      tree: candidateTree,
+      candidateSha256: sha256Hex(candidateCommit)
+    },
+    designTree,
+    designLineageValid,
+    approvedOpenSpecBytes,
+    taskPlanBytes
+  };
+}
+var liveReleaseAdmissionCliServices = {
+  readEvidence: (input) => Effect_exports.try({
+    try: () => readBoundedRegularFile(input.path, input.maxBytes),
+    catch: (error) => error
+  }),
+  loadGitAuthority: (input) => Effect_exports.tryPromise({
+    try: () => loadGitAuthorityLive(input),
+    catch: (error) => error
+  })
+};
 
 // packages/orchestration/src/execution-contract.ts
 var executionMilestones = [
@@ -33208,7 +36586,7 @@ var evaluationChildLimits = {
   wallTimeMs: 3888e6,
   noProgressMs: 36e5
 };
-var expectedFamilyChildren = [
+var v040FamilyChildren = [
   {
     tranche: 2,
     childId: "v040-t2-project-registry",
@@ -33270,6 +36648,110 @@ var expectedFamilyChildren = [
     ]
   }
 ];
+var v050FamilyChildren = [
+  {
+    tranche: 2,
+    childId: "v050-lane-runtime-typescript",
+    packageId: "lane-runtime-typescript",
+    dependencyChildIds: []
+  },
+  {
+    tranche: 3,
+    childId: "v050-launcher-node-port",
+    packageId: "launcher-node-port",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 4,
+    childId: "v050-three-outcome-verdicts",
+    packageId: "three-outcome-verdicts",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 4,
+    childId: "v050-audit-groundedness-gate",
+    packageId: "audit-groundedness-gate",
+    dependencyChildIds: ["v050-three-outcome-verdicts"]
+  },
+  {
+    tranche: 4,
+    childId: "v050-evidence-contracts",
+    packageId: "evidence-contracts",
+    dependencyChildIds: ["v050-audit-groundedness-gate"]
+  },
+  {
+    tranche: 5,
+    childId: "v050-spec-triage-gate",
+    packageId: "spec-triage-gate",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 5,
+    childId: "v050-foreman-discover-lane",
+    packageId: "foreman-discover-lane",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 6,
+    childId: "v050-build-determinism",
+    packageId: "build-determinism",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 6,
+    childId: "v050-wsl-preflight",
+    packageId: "wsl-preflight",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 7,
+    childId: "v050-doctrine-reality-drift",
+    packageId: "doctrine-reality-drift",
+    dependencyChildIds: ["v050-evidence-contracts"]
+  },
+  {
+    tranche: 7,
+    childId: "v050-workflow-weight-reduction",
+    packageId: "workflow-weight-reduction",
+    dependencyChildIds: ["v050-doctrine-reality-drift"]
+  },
+  {
+    tranche: 8,
+    childId: "v050-release",
+    packageId: "v050-release-program",
+    dependencyChildIds: [
+      "v050-lane-runtime-typescript",
+      "v050-launcher-node-port",
+      "v050-three-outcome-verdicts",
+      "v050-audit-groundedness-gate",
+      "v050-evidence-contracts",
+      "v050-spec-triage-gate",
+      "v050-foreman-discover-lane",
+      "v050-build-determinism",
+      "v050-wsl-preflight",
+      "v050-doctrine-reality-drift",
+      "v050-workflow-weight-reduction"
+    ]
+  }
+];
+function expectedChildrenFor(program2) {
+  return program2 === "v040" ? v040FamilyChildren : v050FamilyChildren;
+}
+function childViolatesProgram(value, program2) {
+  if (!isPlainRecordV2(value)) return false;
+  const table = releaseProgramTable(program2);
+  const [trancheMin, trancheMax] = table.trancheRange;
+  if (typeof value.tranche === "number" && (value.tranche < trancheMin || value.tranche > trancheMax)) {
+    return true;
+  }
+  if (typeof value.childId === "string") {
+    if (!value.childId.startsWith(table.childIdPrefix)) return true;
+    if (table.evaluationChild === null && value.childId === releaseProgramTable("v040").evaluationChild) {
+      return true;
+    }
+  }
+  return false;
+}
 var familySourceKeys = /* @__PURE__ */ new Set(["schema", "program", "familyId", "children"]);
 var childBriefKeys = /* @__PURE__ */ new Set([
   "schema",
@@ -33324,6 +36806,22 @@ function hasExactKeysV2(value, keys5) {
   const own = Object.keys(value);
   return own.length === keys5.size && own.every((key) => keys5.has(key));
 }
+function hasFamilyManifestKeys(value) {
+  const own = Object.keys(value);
+  for (const key of own) {
+    if (!familyManifestKeys.has(key) && key !== "program") return false;
+  }
+  for (const key of familyManifestKeys) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) return false;
+  }
+  return true;
+}
+function resolveFamilyProgram(value) {
+  if (!Object.prototype.hasOwnProperty.call(value, "program")) {
+    return RELEASE_PROGRAMS[0];
+  }
+  return isReleaseProgram(value.program) ? value.program : null;
+}
 function validUnicodeText(value) {
   const decoded = decodeUtf8Fatal(textEncoder.encode(value));
   return !isCoreFailure(decoded) && decoded === value;
@@ -33358,11 +36856,13 @@ function validAllowedPath(value) {
 function sameStrings(value, expected) {
   return Array.isArray(value) && value.length === expected.length && value.every((item, index) => item === expected[index]);
 }
-function decodeChildBriefV1(value, expected) {
+function decodeChildBriefV1(value, expected, program2) {
   if (!isPlainRecordV2(value) || !hasExactKeysV2(value, childBriefKeys)) {
     return familyFailure("invalid_children");
   }
-  if (value.schema !== "foreman.execution-child-brief.v1" || value.childId !== expected.childId || value.tranche !== expected.tranche || value.packageId !== expected.packageId || !sameStrings(value.dependencyChildIds, expected.dependencyChildIds)) {
+  const table = releaseProgramTable(program2);
+  const [trancheMin, trancheMax] = table.trancheRange;
+  if (value.schema !== "foreman.execution-child-brief.v1" || typeof value.childId !== "string" || value.childId !== expected.childId || !value.childId.startsWith(table.childIdPrefix) || value.tranche !== expected.tranche || expected.tranche < trancheMin || expected.tranche > trancheMax || table.evaluationChild === null && value.childId === releaseProgramTable("v040").evaluationChild || table.evaluationChild !== null && expected.childId === table.evaluationChild && value.childId !== table.evaluationChild || value.packageId !== expected.packageId || !sameStrings(value.dependencyChildIds, expected.dependencyChildIds)) {
     return familyFailure("invalid_children");
   }
   if (!validBoundedText(value.objective, 16384, true)) {
@@ -33394,18 +36894,28 @@ function decodeExecutionFamilySourceV1(value) {
   if (!isPlainRecordV2(value) || !hasExactKeysV2(value, familySourceKeys)) {
     return familyFailure("invalid_source");
   }
-  if (value.schema !== "foreman.execution-family-source.v1" || value.program !== "v040" || value.familyId !== FAMILY_ID || !Array.isArray(value.children) || value.children.length !== expectedFamilyChildren.length) {
+  if (value.schema !== "foreman.execution-family-source.v1" || !isReleaseProgram(value.program) || value.familyId !== FAMILY_ID || !Array.isArray(value.children)) {
+    return familyFailure("invalid_source");
+  }
+  for (const raw of value.children) {
+    if (childViolatesProgram(raw, value.program)) {
+      return familyFailure("invalid_source");
+    }
+  }
+  const expectedChildren = expectedChildrenFor(value.program);
+  if (value.children.length !== expectedChildren.length) {
     return familyFailure("invalid_source");
   }
   const children = [];
-  for (const [index, expected] of expectedFamilyChildren.entries()) {
-    const child = decodeChildBriefV1(value.children[index], expected);
+  for (const [index, expected] of expectedChildren.entries()) {
+    const raw = value.children[index];
+    const child = decodeChildBriefV1(raw, expected, value.program);
     if (isExecutionFamilyFailure(child)) return child;
     children.push(child);
   }
   return {
     schema: "foreman.execution-family-source.v1",
-    program: "v040",
+    program: value.program,
     familyId: FAMILY_ID,
     children
   };
@@ -33429,8 +36939,8 @@ function decodeExecutionFamilySourceFileV1(bytes) {
     return familyFailure("invalid_source");
   }
 }
-function expectedChildLimits(tranche) {
-  return tranche === 8 ? evaluationChildLimits : standardChildLimits;
+function expectedChildLimits(program2, childId) {
+  return releaseProgramTable(program2).evaluationChild === childId ? evaluationChildLimits : standardChildLimits;
 }
 function expectedChildMilestones(tranche) {
   return tranche === 9 ? ["checks", "audit", "integrated", "published"] : ["checks", "audit", "integrated"];
@@ -33443,7 +36953,11 @@ function samePlainValue(left3, right3) {
   }
 }
 function decodeExecutionContractFamilyV2(value) {
-  if (!isPlainRecordV2(value) || !hasExactKeysV2(value, familyManifestKeys)) {
+  if (!isPlainRecordV2(value) || !hasFamilyManifestKeys(value)) {
+    return familyFailure("invalid_manifest");
+  }
+  const program2 = resolveFamilyProgram(value);
+  if (program2 === null) {
     return familyFailure("invalid_manifest");
   }
   if (value.schemaVersion !== 2 || value.familyId !== FAMILY_ID || value.wallTimeMs !== FAMILY_WALL_TIME_MS || value.totalActions !== FAMILY_TOTAL_ACTIONS) {
@@ -33464,11 +36978,20 @@ function decodeExecutionContractFamilyV2(value) {
   if (Date.parse(value.deadlineAt) - Date.parse(value.createdAt) !== FAMILY_WALL_TIME_MS) {
     return familyFailure("invalid_deadline");
   }
-  if (!Array.isArray(value.children) || value.children.length !== 8) {
+  if (!Array.isArray(value.children)) {
+    return familyFailure("invalid_children");
+  }
+  for (const raw of value.children) {
+    if (childViolatesProgram(raw, program2)) {
+      return familyFailure("invalid_manifest");
+    }
+  }
+  const expectedChildren = expectedChildrenFor(program2);
+  if (value.children.length !== expectedChildren.length) {
     return familyFailure("invalid_children");
   }
   const children = [];
-  for (const [index, expected] of expectedFamilyChildren.entries()) {
+  for (const [index, expected] of expectedChildren.entries()) {
     const raw = value.children[index];
     if (!isPlainRecordV2(raw) || !hasExactKeysV2(raw, childContractKeys)) {
       return familyFailure("invalid_children");
@@ -33479,7 +37002,7 @@ function decodeExecutionContractFamilyV2(value) {
     if (typeof raw.objectiveSha256 !== "string" || typeof raw.acceptanceSha256 !== "string" || typeof raw.allowedPathsSha256 !== "string" || !isSha256Hex(raw.objectiveSha256) || !isSha256Hex(raw.acceptanceSha256) || !isSha256Hex(raw.allowedPathsSha256)) {
       return familyFailure("invalid_digest");
     }
-    const limits = expectedChildLimits(expected.tranche);
+    const limits = expectedChildLimits(program2, expected.childId);
     if (!samePlainValue(raw.limits, limits)) {
       return familyFailure("invalid_limits");
     }
@@ -33498,6 +37021,7 @@ function decodeExecutionContractFamilyV2(value) {
   }
   return {
     schemaVersion: 2,
+    ...Object.prototype.hasOwnProperty.call(value, "program") ? { program: program2 } : {},
     familyId: FAMILY_ID,
     rootContractId: value.rootContractId,
     rootContractSha256: value.rootContractSha256,
@@ -34413,7 +37937,7 @@ function evaluationVerdictFromUnknown(value) {
     "evaluationAuthorityReceiptSha256",
     "verdictSha256",
     "registeredAt"
-  ]) || typeof value.rootContractId !== "string" || typeof decodeRunId(value.rootContractId) !== "string" || typeof value.rootContractSha256 !== "string" || !isSha256Hex(value.rootContractSha256) || typeof value.familySha256 !== "string" || !isSha256Hex(value.familySha256) || value.childId !== "v040-t8-evaluation" || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || ![
+  ]) || typeof value.rootContractId !== "string" || typeof decodeRunId(value.rootContractId) !== "string" || typeof value.rootContractSha256 !== "string" || !isSha256Hex(value.rootContractSha256) || typeof value.familySha256 !== "string" || !isSha256Hex(value.familySha256) || typeof value.childId !== "string" || typeof decodeRunId(value.childId) !== "string" || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || ![
     "PROMOTE",
     "GRAPH_OFF_FAILED",
     "GRAPH_OFF_INCONCLUSIVE",
@@ -34748,8 +38272,15 @@ function outcomeMatchesReservation(outcome, family) {
 function operationOutcome(operation) {
   return operation._tag === "RecordMilestone" || operation._tag === "RecordBlockingOutcome" || operation._tag === "RecordExternalFailure" ? operation : null;
 }
+function familyProgram(manifest) {
+  return isReleaseProgram(manifest.program) ? manifest.program : RELEASE_PROGRAMS[0];
+}
 function evaluationRunSetSha256(family) {
-  const child = family.children["v040-t8-evaluation"];
+  const evaluationChild = releaseProgramTable(
+    familyProgram(family.manifest)
+  ).evaluationChild;
+  if (evaluationChild === null) return null;
+  const child = family.children[evaluationChild];
   if (child === void 0) return null;
   const encoder6 = new TextEncoder();
   const rows = Object.entries(child.evaluationPassOrigins).map(([originReservationId, outcomeSha256]) => ({
@@ -35008,7 +38539,7 @@ function publishFamilyManifestLive(stateRoot, manifest, familySha256) {
   const bytes = familyManifestEncoder.encode(`${canonicalize(decoded)}
 `);
   const path = familyManifestPath(stateRoot, familySha256);
-  const parent = dirname2(path);
+  const parent = dirname3(path);
   mkdirSync2(parent, { recursive: true, mode: 448 });
   if (existsSync2(path)) {
     const current = readFileSync(path);
@@ -35018,20 +38549,20 @@ function publishFamilyManifestLive(stateRoot, manifest, familySha256) {
   const temporary = join5(parent, `.manifest-${randomUUID()}.tmp`);
   let fd = null;
   try {
-    fd = openSync3(temporary, "wx", 384);
+    fd = openSync5(temporary, "wx", 384);
     writeFileSync(fd, bytes);
     fsyncSync2(fd);
-    closeSync3(fd);
+    closeSync5(fd);
     fd = null;
     renameSync2(temporary, path);
-    const parentFd = openSync3(parent, "r");
+    const parentFd = openSync5(parent, "r");
     try {
       fsyncSync2(parentFd);
     } finally {
-      closeSync3(parentFd);
+      closeSync5(parentFd);
     }
   } catch (error) {
-    if (fd !== null) closeSync3(fd);
+    if (fd !== null) closeSync5(fd);
     try {
       unlinkSync2(temporary);
     } catch {
@@ -35827,2962 +39358,6 @@ function makeLiveEndstopLedgerLayer(stateRoot) {
   });
 }
 
-// packages/policy/src/schema.ts
-var ENTRY_STATES = [
-  "blocked",
-  "proposed",
-  "proposed_externalize",
-  "proposed_replace",
-  "proposed_relocate",
-  "inventory_required",
-  "protected_reference",
-  "protected_parked",
-  "unauthorized",
-  "approved",
-  "pending"
-];
-var HISTORICAL_STATES = [
-  ...ENTRY_STATES,
-  "late_register_replaced_recoverable"
-];
-
-// packages/policy/src/services.ts
-var FileSystem = class extends Context_exports.Tag("FileSystem")() {
-};
-var GitIdentity = class extends Context_exports.Tag("GitIdentity")() {
-};
-var Clock2 = class extends Context_exports.Tag("Clock")() {
-};
-var MutationProbe = class extends Context_exports.Tag("MutationProbe")() {
-};
-var liveClock = Layer_exports.succeed(Clock2, {
-  nowMs: () => Effect_exports.sync(() => Date.now())
-});
-var noopMutationProbe = Layer_exports.succeed(MutationProbe, {
-  record: () => Effect_exports.void,
-  count: () => Effect_exports.succeed(0)
-});
-
-// packages/policy/src/git-env.ts
-var STRIP_PREFIXES = [
-  "GIT_DIR",
-  "GIT_WORK_TREE",
-  "GIT_COMMON_DIR",
-  "GIT_OBJECT_DIRECTORY",
-  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-  "GIT_INDEX_FILE",
-  "GIT_INDEX_VERSION",
-  "GIT_NAMESPACE",
-  "GIT_CEILING_DIRECTORIES",
-  "GIT_DISCOVERY_ACROSS_FILESYSTEM",
-  "GIT_CONFIG",
-  "GIT_CONFIG_GLOBAL",
-  "GIT_CONFIG_SYSTEM",
-  "GIT_CONFIG_NOSYSTEM",
-  "GIT_CONFIG_COUNT",
-  "GIT_CONFIG_KEY_",
-  "GIT_CONFIG_VALUE_",
-  "GIT_CONFIG_PARAMETERS",
-  "GIT_EXEC_PATH",
-  "GIT_TEMPLATE_DIR",
-  "GIT_PREFIX",
-  "GIT_SUPER_PREFIX",
-  "GIT_DIR_FINAL",
-  "GIT_WORK_TREE_FINAL",
-  "GIT_REPLACE_REF_BASE",
-  "GIT_SSH",
-  "GIT_SSH_COMMAND",
-  "GIT_TRACE",
-  "GIT_TRACE2",
-  "GIT_CURL_VERBOSE",
-  "GIT_HTTP_USER_AGENT",
-  "GIT_PROXY_COMMAND",
-  "GIT_SSL_NO_VERIFY",
-  "GIT_ATTR_SOURCE",
-  "GIT_OPTIONAL_LOCKS",
-  "GIT_TERMINAL_PROMPT",
-  "GIT_NO_REPLACE_OBJECTS"
-];
-function shouldStrip(key) {
-  if (!key.startsWith("GIT_")) return false;
-  for (const p of STRIP_PREFIXES) {
-    if (key === p || key.startsWith(p)) return true;
-  }
-  if (key.startsWith("GIT_AUTHOR_") || key.startsWith("GIT_COMMITTER_") || key === "GIT_EDITOR" || key === "GIT_PAGER" || key === "GIT_REFLOG_ACTION") {
-    return true;
-  }
-  return true;
-}
-function sanitizedGitEnv(base = process.env) {
-  const out = {};
-  for (const [k, v] of Object.entries(base)) {
-    if (v === void 0) continue;
-    if (shouldStrip(k)) continue;
-    out[k] = v;
-  }
-  out["GIT_NO_REPLACE_OBJECTS"] = "1";
-  out["GIT_TERMINAL_PROMPT"] = "0";
-  out["GIT_OPTIONAL_LOCKS"] = "0";
-  delete out["FORCE_COLOR"];
-  delete out["NO_COLOR"];
-  return out;
-}
-function gitArgv(args2) {
-  return ["--no-replace-objects", ...args2];
-}
-
-// packages/policy/src/architecture-git.ts
-import { execFile } from "node:child_process";
-
-// packages/policy/src/architecture-executable.ts
-function parseLsTreeLine(line) {
-  const trimmed = line.replace(/\0$/, "");
-  if (trimmed.length === 0) {
-    return {
-      present: false,
-      mode: null,
-      isExecutable: false,
-      isSymlink: false,
-      isSpecial: false
-    };
-  }
-  const tab = trimmed.indexOf("	");
-  if (tab < 0) return { error: true };
-  const meta = trimmed.slice(0, tab);
-  const parts2 = meta.split(" ");
-  if (parts2.length < 3) return { error: true };
-  const mode = parts2[0];
-  const type = parts2[1];
-  if (!/^[0-7]{6}$/.test(mode)) return { error: true };
-  if (type !== "blob" && type !== "tree" && type !== "commit") {
-    return { error: true };
-  }
-  if (type === "tree" || type === "commit" || mode === "160000") {
-    return {
-      present: true,
-      mode,
-      isExecutable: false,
-      isSymlink: false,
-      isSpecial: true
-    };
-  }
-  if (mode === "120000") {
-    return {
-      present: true,
-      mode,
-      isExecutable: false,
-      isSymlink: true,
-      isSpecial: false
-    };
-  }
-  if (mode === "100644" || mode === "100664") {
-    return {
-      present: true,
-      mode,
-      isExecutable: false,
-      isSymlink: false,
-      isSpecial: false
-    };
-  }
-  if (mode === "100755") {
-    return {
-      present: true,
-      mode,
-      isExecutable: true,
-      isSymlink: false,
-      isSpecial: false
-    };
-  }
-  return {
-    present: true,
-    mode,
-    isExecutable: false,
-    isSymlink: false,
-    isSpecial: true
-  };
-}
-
-// packages/policy/src/architecture-ts-inspect.ts
-var import_parser = __toESM(require_lib(), 1);
-var VALUE_TS_WRAPPERS = /* @__PURE__ */ new Set([
-  "TSAsExpression",
-  "TSTypeAssertion",
-  "TSNonNullExpression",
-  "TSSatisfiesExpression",
-  "TSInstantiationExpression"
-]);
-var VALUE_TS_NODES = /* @__PURE__ */ new Set([
-  ...VALUE_TS_WRAPPERS,
-  "TSModuleDeclaration",
-  "TSModuleBlock",
-  "TSEnumDeclaration",
-  "TSEnumMember",
-  "TSExportAssignment",
-  "TSImportEqualsDeclaration",
-  "TSExternalModuleReference",
-  "TSParameterProperty",
-  "TSDeclareFunction",
-  "TSDeclareMethod"
-]);
-
-// packages/policy/src/architecture-git.ts
-var GIT_TIMEOUT_MS = 15e3;
-var OWNED_CHILD_CANCEL_WAIT_MS2 = 5e3;
-var MAX_BLOB_BYTES = 32 * 1024 * 1024;
-var ArchitectureGitError = class {
-  constructor(reason) {
-    this.reason = reason;
-  }
-  _tag = "ArchitectureGitError";
-};
-var ArchitectureGit = class extends Context_exports.Tag("ArchitectureGit")() {
-};
-function sha40(s) {
-  const t = s.trim().toLowerCase();
-  if (!/^[0-9a-f]{40}$/.test(t)) {
-    throw new ArchitectureGitError("invalid_git_output");
-  }
-  return t;
-}
-var PRODUCTION_GIT_BINDING = {
-  executable: "git",
-  prefixArgs: []
-};
-var gitCommandBinding = PRODUCTION_GIT_BINDING;
-function cancelOwnedGitChild(child, controller, alreadyClosed, onClosed) {
-  return Effect_exports.async((resume2) => {
-    let done7 = false;
-    const finish = () => {
-      if (done7) return;
-      done7 = true;
-      resume2(Effect_exports.void);
-    };
-    const timer = setTimeout(finish, OWNED_CHILD_CANCEL_WAIT_MS2);
-    onClosed(() => {
-      clearTimeout(timer);
-      finish();
-    });
-    if (alreadyClosed()) {
-      clearTimeout(timer);
-      finish();
-    } else {
-      try {
-        controller.abort();
-      } catch {
-      }
-      if (child.pid !== void 0 && !child.killed) {
-        try {
-          child.kill("SIGTERM");
-        } catch {
-        }
-      }
-    }
-  });
-}
-function runGit(repoRoot, args2, maxBytes) {
-  return Effect_exports.async((resume2) => {
-    const controller = new AbortController();
-    let settled = false;
-    let child;
-    let childClosed = false;
-    let closeNotify;
-    const binding = gitCommandBinding;
-    const argv = [...binding.prefixArgs, ...gitArgv(args2)];
-    const timer = setTimeout(() => {
-      controller.abort();
-    }, GIT_TIMEOUT_MS);
-    const finish = (effect2) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resume2(effect2);
-    };
-    try {
-      child = execFile(
-        binding.executable,
-        argv,
-        {
-          cwd: repoRoot,
-          encoding: "buffer",
-          maxBuffer: maxBytes + 1,
-          windowsHide: true,
-          env: sanitizedGitEnv(),
-          signal: controller.signal
-        },
-        (err, stdout, stderr) => {
-          const outBuf = Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout ?? "");
-          const errBuf = Buffer.isBuffer(stderr) ? stderr : Buffer.from(stderr ?? "");
-          if (controller.signal.aborted) {
-            finish(Effect_exports.fail(new ArchitectureGitError("git_failure")));
-            return;
-          }
-          if (err) {
-            const e = err;
-            if (e.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" || /maxBuffer/i.test(String(e.message ?? ""))) {
-              finish(Effect_exports.fail(new ArchitectureGitError("oversize_output")));
-              return;
-            }
-            let status = 1;
-            if (typeof e.code === "number" && e.code !== 0) {
-              status = e.code;
-            }
-            finish(
-              Effect_exports.succeed({
-                stdout: outBuf,
-                stderr: errBuf,
-                status
-              })
-            );
-            return;
-          }
-          if (outBuf.byteLength > maxBytes) {
-            finish(Effect_exports.fail(new ArchitectureGitError("oversize_output")));
-            return;
-          }
-          finish(
-            Effect_exports.succeed({
-              stdout: outBuf,
-              stderr: errBuf,
-              status: 0
-            })
-          );
-        }
-      );
-    } catch {
-      finish(Effect_exports.fail(new ArchitectureGitError("git_failure")));
-      return;
-    }
-    const owned = child;
-    owned.once("close", () => {
-      childClosed = true;
-      closeNotify?.();
-    });
-    return Effect_exports.suspend(() => {
-      if (settled) return Effect_exports.void;
-      settled = true;
-      clearTimeout(timer);
-      return cancelOwnedGitChild(
-        owned,
-        controller,
-        () => childClosed,
-        (cb) => {
-          closeNotify = cb;
-        }
-      );
-    });
-  });
-}
-function gitTextEffect(repoRoot, args2, maxBuffer = 4096) {
-  return Effect_exports.gen(function* () {
-    const r = yield* runGit(repoRoot, args2, maxBuffer);
-    if (r.status !== 0) {
-      return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
-    }
-    if (r.stdout.byteLength > maxBuffer) {
-      return yield* Effect_exports.fail(new ArchitectureGitError("oversize_output"));
-    }
-    return r.stdout.toString("utf8");
-  });
-}
-function gitBytesEffect(repoRoot, args2, maxBytes) {
-  return Effect_exports.gen(function* () {
-    const r = yield* runGit(repoRoot, args2, maxBytes);
-    if (r.status !== 0) {
-      return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
-    }
-    if (r.stdout.byteLength > maxBytes) {
-      return yield* Effect_exports.fail(new ArchitectureGitError("oversize_output"));
-    }
-    return new Uint8Array(
-      r.stdout.buffer,
-      r.stdout.byteOffset,
-      r.stdout.byteLength
-    );
-  });
-}
-function isLikelyAbsentObject(status, stderr) {
-  void stderr;
-  return status === 128;
-}
-var liveArchitectureGit = Layer_exports.succeed(ArchitectureGit, {
-  resolveIdentity: (repoRoot, baseRef) => Effect_exports.gen(function* () {
-    if (baseRef.length === 0 || baseRef.includes("\0") || baseRef.startsWith("-")) {
-      return yield* Effect_exports.fail(new ArchitectureGitError("schema_mismatch"));
-    }
-    const headRaw = yield* gitTextEffect(repoRoot, ["rev-parse", "HEAD"]);
-    const head5 = sha40(headRaw);
-    const baseRaw = yield* gitTextEffect(repoRoot, [
-      "rev-parse",
-      "--verify",
-      baseRef
-    ]);
-    const base = sha40(baseRaw);
-    const mbRaw = yield* gitTextEffect(repoRoot, [
-      "merge-base",
-      base,
-      head5
-    ]);
-    const mergeBase = sha40(mbRaw);
-    return { head: head5, base, mergeBase };
-  }).pipe(
-    Effect_exports.mapError(
-      (e) => e instanceof ArchitectureGitError ? e : new ArchitectureGitError("git_failure")
-    )
-  ),
-  nameStatusDelta: (repoRoot, mergeBase, head5) => gitBytesEffect(
-    repoRoot,
-    ["diff", "--name-status", "-z", mergeBase, head5],
-    MAX_INPUT_BYTES
-  ),
-  listPaths: (repoRoot, commitOid) => gitBytesEffect(
-    repoRoot,
-    ["ls-tree", "-r", "-z", "--name-only", commitOid],
-    MAX_INPUT_BYTES
-  ),
-  treeEntry: (repoRoot, commitOid, path) => Effect_exports.gen(function* () {
-    const r = yield* runGit(
-      repoRoot,
-      ["ls-tree", "-z", commitOid, "--", path],
-      65536
-    );
-    if (r.status !== 0) {
-      return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
-    }
-    if (r.stdout.byteLength === 0) {
-      return {
-        present: false,
-        mode: null,
-        isExecutable: false,
-        isSymlink: false,
-        isSpecial: false
-      };
-    }
-    let text;
-    try {
-      text = new TextDecoder("utf-8", { fatal: true }).decode(r.stdout);
-    } catch {
-      return yield* Effect_exports.fail(
-        new ArchitectureGitError("invalid_git_output")
-      );
-    }
-    const line = text.split("\0").find((p) => p.length > 0) ?? "";
-    const parsed = parseLsTreeLine(line);
-    if ("error" in parsed) {
-      return yield* Effect_exports.fail(
-        new ArchitectureGitError("invalid_git_output")
-      );
-    }
-    return parsed;
-  }),
-  catBlob: (repoRoot, commitOid, path) => Effect_exports.gen(function* () {
-    const entry = yield* Effect_exports.gen(function* () {
-      const r2 = yield* runGit(
-        repoRoot,
-        ["ls-tree", "-z", commitOid, "--", path],
-        65536
-      );
-      if (r2.status !== 0) {
-        return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
-      }
-      return r2.stdout.byteLength === 0 ? "absent" : "present";
-    });
-    if (entry === "absent") {
-      return null;
-    }
-    const isLargeGeneratedArtifact = path === "graphify-out/graph.json" || path.startsWith("skills/foreman/runtime/dist/") && path.endsWith(".js");
-    const maxBytes = isLargeGeneratedArtifact ? MAX_BLOB_BYTES : MAX_INPUT_BYTES;
-    const r = yield* runGit(
-      repoRoot,
-      ["cat-file", "blob", `${commitOid}:${path}`],
-      maxBytes
-    );
-    if (r.status !== 0) {
-      if (isLikelyAbsentObject(r.status, r.stderr)) {
-        return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
-      }
-      return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
-    }
-    if (r.stdout.byteLength > maxBytes) {
-      return yield* Effect_exports.fail(new ArchitectureGitError("oversize_output"));
-    }
-    return new Uint8Array(
-      r.stdout.buffer,
-      r.stdout.byteOffset,
-      r.stdout.byteLength
-    );
-  }),
-  recheckHead: (repoRoot, expectedHead) => Effect_exports.gen(function* () {
-    const headRaw = yield* gitTextEffect(repoRoot, ["rev-parse", "HEAD"]);
-    const head5 = sha40(headRaw);
-    if (head5 !== expectedHead) {
-      return yield* Effect_exports.fail(new ArchitectureGitError("head_moved"));
-    }
-  })
-});
-
-// packages/policy/src/install-verify-fs.ts
-import {
-  closeSync as closeSync4,
-  constants as fsConstants3,
-  fstatSync as fstatSync3,
-  lstatSync as lstatSync2,
-  openSync as openSync4,
-  readdirSync,
-  readSync as readSync3,
-  realpathSync
-} from "node:fs";
-var InstallFsError = class {
-  constructor(kind) {
-    this.kind = kind;
-  }
-  _tag = "InstallFsError";
-};
-var InstallFs = class extends Context_exports.Tag("InstallFs")() {
-};
-function identityFromStats(s) {
-  return {
-    dev: String(s.dev),
-    ino: String(s.ino),
-    size: s.size,
-    nlink: s.nlink,
-    mode: s.mode,
-    mtimeMs: s.mtimeMs,
-    ctimeMs: s.ctimeMs,
-    isFile: s.isFile(),
-    isDirectory: s.isDirectory(),
-    isSymbolicLink: s.isSymbolicLink()
-  };
-}
-function openFlags() {
-  const nofollow = typeof fsConstants3.O_NOFOLLOW === "number" ? fsConstants3.O_NOFOLLOW : 0;
-  return fsConstants3.O_RDONLY | nofollow;
-}
-function readFdBoundedSync(fd, maxBytes) {
-  const cap = maxBytes + 1;
-  const buf = Buffer.allocUnsafe(cap);
-  let offset = 0;
-  while (offset < cap) {
-    const n = readSync3(fd, buf, offset, cap - offset, offset);
-    if (n === 0) break;
-    offset += n;
-  }
-  if (offset > maxBytes) {
-    throw new InstallFsError("oversize");
-  }
-  return new Uint8Array(buf.buffer, buf.byteOffset, offset);
-}
-var liveInstallFs = Layer_exports.succeed(InstallFs, {
-  resolvePath: (path) => Effect_exports.try({
-    try: () => realpathSync(path),
-    catch: () => new InstallFsError("not_resolved")
-  }),
-  lstat: (path) => Effect_exports.try({
-    try: () => identityFromStats(lstatSync2(path)),
-    catch: (e) => {
-      const err = e;
-      if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
-        return new InstallFsError("missing");
-      }
-      return new InstallFsError("unreadable");
-    }
-  }),
-  withOpenFile: (path, use) => Effect_exports.acquireUseRelease(
-    Effect_exports.try({
-      try: () => {
-        const fd = openSync4(path, openFlags());
-        try {
-          const st = fstatSync3(fd);
-          return { fd, identity: identityFromStats(st) };
-        } catch (e) {
-          closeSync4(fd);
-          throw e;
-        }
-      },
-      catch: (e) => {
-        if (e instanceof InstallFsError) return e;
-        const err = e;
-        if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
-          return new InstallFsError("missing");
-        }
-        return new InstallFsError("unreadable");
-      }
-    }),
-    ({ fd, identity: identity2 }) => use({
-      identity: identity2,
-      readBounded: (maxBytes) => Effect_exports.try({
-        try: () => readFdBoundedSync(fd, maxBytes),
-        catch: (e) => e instanceof InstallFsError ? e : new InstallFsError("unreadable")
-      }),
-      recheckIdentity: () => Effect_exports.try({
-        try: () => identityFromStats(fstatSync3(fd)),
-        catch: () => new InstallFsError("unreadable")
-      })
-    }),
-    ({ fd }) => Effect_exports.sync(() => {
-      try {
-        closeSync4(fd);
-      } catch {
-      }
-    })
-  ),
-  readdirNames: (path) => Effect_exports.try({
-    try: () => readdirSync(path),
-    catch: (e) => {
-      const err = e;
-      if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
-        return new InstallFsError("missing");
-      }
-      return new InstallFsError("unreadable");
-    }
-  })
-});
-
-// packages/policy/src/release-coverage.ts
-var SCHEMA_VERSION = 1;
-var ONE_MIB = 1024 * 1024;
-var IMMUTABLE_BASELINE_COMMIT = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195";
-var TRACK1_PACKAGE = "openspec-superpowers-convergence";
-var TRACK1_KEY = `change:${TRACK1_PACKAGE}`;
-var ROADMAP_PATH = "ROADMAP.md";
-var OPENSPEC_PREFIX = "openspec/changes/";
-var CHANGE_PREFIX = "change:";
-var ROADMAP_PREFIX = "roadmap:";
-var ALLOWED_WORKFLOWS = /* @__PURE__ */ new Set([
-  "foreman-bounded",
-  "foreman-architectural"
-]);
-var SOURCE_KINDS = /* @__PURE__ */ new Set(["openspec_change", "roadmap"]);
-var DISPOSITIONS = /* @__PURE__ */ new Set([
-  "v040_owner",
-  "v040_dependency",
-  "released_reference",
-  "superseded",
-  "v050"
-]);
-var RECONCILES = /* @__PURE__ */ new Set(["complete", "required", "not_required"]);
-var TARGET_RELEASES = /* @__PURE__ */ new Set(["v0.4", "v0.5", "released"]);
-var ROADMAP_RELEASES = /* @__PURE__ */ new Set(["v0.4", "v0.5"]);
-var FUTURE_RELEASES = /* @__PURE__ */ new Set(["v0.4", "v0.5"]);
-var BRIEF_SCHEMA = "foreman.release-package-brief.v1";
-var BRIEF_KEYS = [
-  "acceptance",
-  "allowedPaths",
-  "childId",
-  "familySha256",
-  "objective",
-  "packageId",
-  "schema"
-];
-var TOP_LEVEL_FIELDS = /* @__PURE__ */ new Set([
-  "schema_version",
-  "baseline_commit",
-  "active_inventory_sha256",
-  "roadmap_sha256"
-]);
-var FUTURE_OWNER_FIELDS = /* @__PURE__ */ new Set(["name", "target_release", "reason"]);
-var ENTRY_FIELDS = /* @__PURE__ */ new Set([
-  "key",
-  "source_kind",
-  "source_path",
-  "disposition",
-  "owner",
-  "target_release",
-  "reconcile",
-  "reason"
-]);
-var encoder = new TextEncoder();
-function invalid(reason) {
-  return { schemaVersion: SCHEMA_VERSION, _tag: "Invalid", reason };
-}
-function valid(activeInventorySha256, roadmapSha256, entryCount) {
-  return {
-    schemaVersion: SCHEMA_VERSION,
-    _tag: "Valid",
-    activeInventorySha256,
-    roadmapSha256,
-    entryCount
-  };
-}
-function utf8Bytes(text) {
-  return encoder.encode(text);
-}
-function utf8ByteLength(text) {
-  return utf8Bytes(text).byteLength;
-}
-function isPlainObject(value) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-function hasExactOwnKeys(value, keys5) {
-  const own = Object.keys(value);
-  if (own.length !== keys5.length) return false;
-  for (const key of keys5) {
-    if (!Object.prototype.hasOwnProperty.call(value, key)) return false;
-  }
-  return true;
-}
-function stripAsciiSpaces(text) {
-  let start3 = 0;
-  let end3 = text.length;
-  while (start3 < end3 && text.charCodeAt(start3) === 32) start3 += 1;
-  while (end3 > start3 && text.charCodeAt(end3 - 1) === 32) end3 -= 1;
-  return text.slice(start3, end3);
-}
-function isReadonlyStringArray(value) {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
-}
-function hasControlExcludingLf(text) {
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (code === 10) continue;
-    if (code < 32 || code === 127) return true;
-  }
-  return false;
-}
-function hasAnyControl(text) {
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (code < 32 || code === 127) return true;
-  }
-  return false;
-}
-function hasUnpairedSurrogate(text) {
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (code >= 55296 && code <= 56319) {
-      const next = text.charCodeAt(i + 1);
-      if (next < 56320 || next > 57343) return true;
-      i += 1;
-      continue;
-    }
-    if (code >= 56320 && code <= 57343) return true;
-  }
-  return false;
-}
-function isPrintableAscii(text) {
-  if (text.length === 0) return false;
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (code < 32 || code > 126) return false;
-  }
-  return true;
-}
-function isRunId(value) {
-  if (typeof value !== "string" || value.length === 0) return false;
-  if (utf8ByteLength(value) > 128) return false;
-  if (value.includes("/") || value.includes("\\") || value.includes("\0")) {
-    return false;
-  }
-  return true;
-}
-function decodeUtf8Unbounded(bytes) {
-  try {
-    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
-      bytes
-    );
-  } catch {
-    return null;
-  }
-}
-function compareUtf8Bytes(a, b) {
-  const ab = utf8Bytes(a);
-  const bb = utf8Bytes(b);
-  const n = Math.min(ab.length, bb.length);
-  for (let i = 0; i < n; i++) {
-    if (ab[i] !== bb[i]) return ab[i] - bb[i];
-  }
-  return ab.length - bb.length;
-}
-function computeActiveInventorySha256(names) {
-  const sorted = [...names].sort(compareUtf8Bytes);
-  return sha256Hex(sorted.map((name) => `${name}
-`).join(""));
-}
-function bytesEqual(a, b) {
-  if (a.byteLength !== b.byteLength) return false;
-  for (let i = 0; i < a.byteLength; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
-}
-function parseBasicString(raw, start3) {
-  if (raw[start3] !== '"') return null;
-  let i = start3 + 1;
-  let out = "";
-  while (i < raw.length) {
-    const ch = raw[i];
-    if (ch === '"') {
-      if (hasAnyControl(out) || hasUnpairedSurrogate(out)) return null;
-      return { value: out, end: i + 1 };
-    }
-    if (ch === "\\") {
-      i += 1;
-      if (i >= raw.length) return null;
-      const esc = raw[i];
-      switch (esc) {
-        case "\\":
-          out += "\\";
-          break;
-        case '"':
-          out += '"';
-          break;
-        case "b":
-          out += "\b";
-          break;
-        case "f":
-          out += "\f";
-          break;
-        case "n":
-          out += "\n";
-          break;
-        case "r":
-          out += "\r";
-          break;
-        case "t":
-          out += "	";
-          break;
-        case "u": {
-          const hex = raw.slice(i + 1, i + 5);
-          if (!/^[0-9a-fA-F]{4}$/.test(hex)) return null;
-          const code = Number.parseInt(hex, 16);
-          if (code >= 55296 && code <= 57343) return null;
-          out += String.fromCharCode(code);
-          i += 4;
-          break;
-        }
-        default:
-          return null;
-      }
-      i += 1;
-      continue;
-    }
-    out += ch;
-    i += 1;
-  }
-  return null;
-}
-function parseInteger2(raw, start3) {
-  let i = start3;
-  if (i >= raw.length || raw[i] < "0" || raw[i] > "9") return null;
-  if (raw[i] === "0" && i + 1 < raw.length && raw[i + 1] >= "0" && raw[i + 1] <= "9") {
-    return null;
-  }
-  while (i < raw.length && raw[i] >= "0" && raw[i] <= "9") i += 1;
-  const text = raw.slice(start3, i);
-  if (text.length > 10) return null;
-  const value = Number.parseInt(text, 10);
-  if (!Number.isSafeInteger(value)) return null;
-  return { value, end: i };
-}
-function parseAssignmentLine(line) {
-  const eq = line.indexOf("=");
-  if (eq <= 0) return null;
-  const key = stripAsciiSpaces(line.slice(0, eq));
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) return null;
-  const rest = stripAsciiSpaces(line.slice(eq + 1));
-  if (rest.length === 0) return null;
-  if (rest[0] === '"') {
-    const parsed = parseBasicString(rest, 0);
-    if (parsed === null) return null;
-    if (stripAsciiSpaces(rest.slice(parsed.end)) !== "") return null;
-    return { key, kind: "string", value: parsed.value };
-  }
-  const parsedInt = parseInteger2(rest, 0);
-  if (parsedInt === null) return null;
-  if (stripAsciiSpaces(rest.slice(parsedInt.end)) !== "") return null;
-  return { key, kind: "integer", value: parsedInt.value };
-}
-function isNonemptyReason(value) {
-  return value.length > 0 && !hasAnyControl(value) && utf8ByteLength(value) <= 16384;
-}
-function validateDispositionCrossField(entry) {
-  const { disposition, targetRelease, reconcile, sourceKind, key, owner } = entry;
-  if (disposition === "v040_owner" || disposition === "v040_dependency") {
-    if (targetRelease !== "v0.4") return false;
-    if (reconcile !== "required" && reconcile !== "complete") return false;
-    return true;
-  }
-  if (disposition === "v050") {
-    return targetRelease === "v0.5" && reconcile === "not_required";
-  }
-  if (disposition === "released_reference") {
-    return targetRelease === "released" && reconcile === "complete";
-  }
-  if (disposition === "superseded") {
-    if (reconcile !== "complete") return false;
-    if (sourceKind === "openspec_change") {
-      if (!key.startsWith(CHANGE_PREFIX)) return false;
-      const sourcePackage = key.slice(CHANGE_PREFIX.length);
-      if (owner === sourcePackage) return false;
-    }
-    return true;
-  }
-  return false;
-}
-function parseRegister(text) {
-  if (typeof text !== "string") return "invalid_register";
-  if (utf8ByteLength(text) > ONE_MIB) return "invalid_register";
-  if (hasControlExcludingLf(text)) return "invalid_register";
-  const lines = text.split("\n");
-  if (lines.length > 0 && lines[lines.length - 1] === "") {
-    lines.pop();
-  }
-  const top = {};
-  const futureOwners = [];
-  const entries2 = [];
-  let mode = "top";
-  let current = null;
-  let sawTable = false;
-  const flushCurrent = () => {
-    if (mode === "top" || current === null) return true;
-    if (mode === "future_owner") {
-      for (const field of FUTURE_OWNER_FIELDS) {
-        if (!(field in current)) return false;
-      }
-      for (const key2 of Object.keys(current)) {
-        if (!FUTURE_OWNER_FIELDS.has(key2)) return false;
-      }
-      const name = current["name"];
-      const targetRelease2 = current["target_release"];
-      const reason2 = current["reason"];
-      if (typeof name !== "string" || typeof targetRelease2 !== "string" || typeof reason2 !== "string") {
-        return false;
-      }
-      if (!isRunId(name) || !FUTURE_RELEASES.has(targetRelease2) || !isNonemptyReason(reason2)) {
-        return false;
-      }
-      futureOwners.push({ name, targetRelease: targetRelease2, reason: reason2 });
-      current = null;
-      return true;
-    }
-    for (const field of ENTRY_FIELDS) {
-      if (!(field in current)) return false;
-    }
-    for (const key2 of Object.keys(current)) {
-      if (!ENTRY_FIELDS.has(key2)) return false;
-    }
-    const key = current["key"];
-    const sourceKind = current["source_kind"];
-    const sourcePath = current["source_path"];
-    const disposition = current["disposition"];
-    const owner = current["owner"];
-    const targetRelease = current["target_release"];
-    const reconcile = current["reconcile"];
-    const reason = current["reason"];
-    if (typeof key !== "string" || typeof sourceKind !== "string" || typeof sourcePath !== "string" || typeof disposition !== "string" || typeof owner !== "string" || typeof targetRelease !== "string" || typeof reconcile !== "string" || typeof reason !== "string") {
-      return false;
-    }
-    if (key.length === 0 || hasAnyControl(key) || utf8ByteLength(key) > 512) {
-      return false;
-    }
-    if (!SOURCE_KINDS.has(sourceKind)) return false;
-    if (sourcePath.length === 0 || hasAnyControl(sourcePath) || utf8ByteLength(sourcePath) > 4096) {
-      return false;
-    }
-    if (!DISPOSITIONS.has(disposition)) return false;
-    if (!isRunId(owner)) return false;
-    if (!TARGET_RELEASES.has(targetRelease)) return false;
-    if (!RECONCILES.has(reconcile)) return false;
-    if (!isNonemptyReason(reason)) return false;
-    if (!validateDispositionCrossField({
-      sourceKind,
-      disposition,
-      owner,
-      targetRelease,
-      reconcile,
-      key
-    })) {
-      return false;
-    }
-    entries2.push({
-      key,
-      sourceKind,
-      sourcePath,
-      disposition,
-      owner,
-      targetRelease,
-      reconcile,
-      reason
-    });
-    current = null;
-    return true;
-  };
-  for (const line of lines) {
-    if (line.length === 0) continue;
-    if (line.startsWith("[[") && line.endsWith("]]")) {
-      if (!flushCurrent()) return "invalid_register";
-      const name = line.slice(2, -2);
-      if (name === "future_owner") {
-        mode = "future_owner";
-        current = {};
-        sawTable = true;
-        continue;
-      }
-      if (name === "entry") {
-        mode = "entry";
-        current = {};
-        sawTable = true;
-        continue;
-      }
-      return "invalid_register";
-    }
-    if (line.startsWith("[") && line.endsWith("]")) {
-      return "invalid_register";
-    }
-    const assignment = parseAssignmentLine(line);
-    if (assignment === null) return "invalid_register";
-    if (!sawTable && mode === "top") {
-      if (!TOP_LEVEL_FIELDS.has(assignment.key)) return "invalid_register";
-      if (assignment.key in top) return "invalid_register";
-      if (assignment.key === "schema_version") {
-        if (assignment.kind !== "integer" || assignment.value !== 1) {
-          return "invalid_register";
-        }
-        top[assignment.key] = assignment.value;
-        continue;
-      }
-      if (assignment.kind !== "string") return "invalid_register";
-      const value = assignment.value;
-      if (assignment.key === "baseline_commit") {
-        if (!isCommitSha40(value) || value !== IMMUTABLE_BASELINE_COMMIT) {
-          return "invalid_register";
-        }
-      } else if (assignment.key === "active_inventory_sha256" || assignment.key === "roadmap_sha256") {
-        if (!isSha256Hex(value)) return "invalid_register";
-      }
-      top[assignment.key] = value;
-      continue;
-    }
-    if (mode === "top") return "invalid_register";
-    if (current === null) return "invalid_register";
-    if (assignment.key in current) return "invalid_register";
-    if (assignment.kind !== "string") return "invalid_register";
-    current[assignment.key] = assignment.value;
-  }
-  if (!flushCurrent()) return "invalid_register";
-  for (const field of TOP_LEVEL_FIELDS) {
-    if (!(field in top)) return "invalid_register";
-  }
-  if (entries2.length < 1) return "invalid_register";
-  return {
-    baselineCommit: top["baseline_commit"],
-    activeInventorySha256: top["active_inventory_sha256"],
-    roadmapSha256: top["roadmap_sha256"],
-    futureOwners,
-    entries: entries2
-  };
-}
-function validateKeyPathCoherence(entry) {
-  if (entry.sourceKind === "openspec_change") {
-    if (!entry.key.startsWith(CHANGE_PREFIX)) return false;
-    const name = entry.key.slice(CHANGE_PREFIX.length);
-    if (name.length === 0) return false;
-    if (entry.sourcePath !== `${OPENSPEC_PREFIX}${name}`) return false;
-    return true;
-  }
-  if (entry.sourceKind === "roadmap") {
-    if (!entry.key.startsWith(ROADMAP_PREFIX)) return false;
-    if (entry.sourcePath !== ROADMAP_PATH) return false;
-    return true;
-  }
-  return false;
-}
-function validateRoadmapRows(rows) {
-  const seen = /* @__PURE__ */ new Set();
-  for (const row of rows) {
-    if (!isPlainObject(row)) return false;
-    if (!hasExactOwnKeys(row, ["key", "scope", "release", "owner"])) {
-      return false;
-    }
-    const { key, scope: scope5, release, owner } = row;
-    if (typeof key !== "string" || typeof scope5 !== "string" || typeof release !== "string" || typeof owner !== "string") {
-      return false;
-    }
-    const keyBytes = utf8ByteLength(key);
-    if (keyBytes < 1 || keyBytes > 256) return false;
-    if (!key.startsWith(ROADMAP_PREFIX)) return false;
-    if (!isPrintableAscii(key)) return false;
-    const scopeBytes = utf8ByteLength(scope5);
-    if (scopeBytes < 1 || scopeBytes > 4096) return false;
-    if (hasAnyControl(scope5)) return false;
-    if (!ROADMAP_RELEASES.has(release)) return false;
-    if (!isRunId(owner)) return false;
-    if (seen.has(key)) return false;
-    seen.add(key);
-  }
-  return true;
-}
-function pathIsCompetingPlan(path) {
-  return path === "docs/superpowers/specs" || path === "docs/superpowers/plans" || path.startsWith("docs/superpowers/specs/") || path.startsWith("docs/superpowers/plans/");
-}
-function isAllowedPathValue(path) {
-  if (!isPrintableAscii(path)) return false;
-  if (path.includes("\\")) return false;
-  if (path.startsWith("/")) return false;
-  if (/^[A-Za-z]:\//.test(path)) return false;
-  let body = path;
-  let directoryPrefix = false;
-  if (body.endsWith("/**")) {
-    directoryPrefix = true;
-    body = body.slice(0, -3);
-    if (body.length === 0) return false;
-  }
-  if (body.includes("*") || body.includes("?") || body.includes("[")) {
-    return false;
-  }
-  const segments = body.split("/");
-  if (segments.length === 0) return false;
-  for (const segment of segments) {
-    if (segment.length === 0) return false;
-    if (segment === "." || segment === "..") return false;
-  }
-  if (directoryPrefix && path !== `${body}/**`) return false;
-  return true;
-}
-function isValidObjective(value) {
-  const bytes = utf8ByteLength(value);
-  if (bytes < 1 || bytes > 16384) return false;
-  return !hasControlExcludingLf(value);
-}
-function isValidAcceptanceItem(value) {
-  const bytes = utf8ByteLength(value);
-  if (bytes < 1 || bytes > 4096) return false;
-  return !hasAnyControl(value);
-}
-function validateBriefShape(brief) {
-  if (!isPlainObject(brief)) return false;
-  const keys5 = Object.keys(brief).sort();
-  if (keys5.length !== BRIEF_KEYS.length) return false;
-  for (let i = 0; i < BRIEF_KEYS.length; i++) {
-    if (keys5[i] !== BRIEF_KEYS[i]) return false;
-  }
-  if (brief["schema"] !== BRIEF_SCHEMA) return false;
-  const familySha256 = brief["familySha256"];
-  const childId = brief["childId"];
-  const packageId = brief["packageId"];
-  const objective = brief["objective"];
-  const acceptance = brief["acceptance"];
-  const allowedPaths = brief["allowedPaths"];
-  if (typeof familySha256 !== "string" || !isSha256Hex(familySha256)) return false;
-  if (typeof childId !== "string" || !isRunId(childId)) return false;
-  if (typeof packageId !== "string" || !isRunId(packageId)) return false;
-  if (typeof objective !== "string" || !isValidObjective(objective)) return false;
-  if (!Array.isArray(acceptance) || acceptance.length < 1 || acceptance.length > 256) {
-    return false;
-  }
-  for (const item of acceptance) {
-    if (typeof item !== "string" || !isValidAcceptanceItem(item)) return false;
-  }
-  if (!Array.isArray(allowedPaths) || allowedPaths.length < 1 || allowedPaths.length > 256) {
-    return false;
-  }
-  const seen = /* @__PURE__ */ new Set();
-  let previous = null;
-  for (const path of allowedPaths) {
-    if (typeof path !== "string" || !isAllowedPathValue(path)) return false;
-    if (seen.has(path)) return false;
-    seen.add(path);
-    if (previous !== null && compareUtf8Bytes(previous, path) > 0) return false;
-    previous = path;
-  }
-  return true;
-}
-function canonicalBriefFileBytes(brief) {
-  try {
-    const body = canonicalize({
-      acceptance: brief.acceptance,
-      allowedPaths: brief.allowedPaths,
-      childId: brief.childId,
-      familySha256: brief.familySha256,
-      objective: brief.objective,
-      packageId: brief.packageId,
-      schema: brief.schema
-    });
-    return utf8Bytes(`${body}
-`);
-  } catch {
-    return null;
-  }
-}
-function validateCollectionShapes(input) {
-  if (typeof input.registerText !== "string") return false;
-  if (!(input.roadmapBytes instanceof Uint8Array)) return false;
-  if (!isReadonlyStringArray(input.activeChangeNames)) return false;
-  if (!Array.isArray(input.roadmapRows)) return false;
-  if (!isPlainObject(input.workflowByChange)) return false;
-  for (const value of Object.values(input.workflowByChange)) {
-    if (value !== null && typeof value !== "string") return false;
-  }
-  if (!isReadonlyStringArray(input.changedSuperpowersPaths)) return false;
-  if (!isPlainObject(input.expectedBriefByOwner)) return false;
-  if (!isPlainObject(input.packageBriefBytesByOwner)) return false;
-  for (const value of Object.values(input.packageBriefBytesByOwner)) {
-    if (!(value instanceof Uint8Array)) return false;
-  }
-  if (!isPlainObject(input.phase)) return false;
-  const phase = input.phase;
-  const tag = phase["_tag"];
-  if (tag === "Bootstrap") {
-    if (!hasExactOwnKeys(phase, ["_tag", "owner"])) return false;
-    if (phase["owner"] !== TRACK1_PACKAGE) return false;
-  } else if (tag === "Lane") {
-    if (!hasExactOwnKeys(phase, ["_tag", "owner"])) return false;
-    if (typeof phase["owner"] !== "string") return false;
-  } else if (tag === "Release") {
-    if (!hasExactOwnKeys(phase, ["_tag"])) return false;
-  } else {
-    return false;
-  }
-  return true;
-}
-function uniqueOwnersFromEntries(entries2) {
-  const names = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const entry of entries2) {
-    if (seen.has(entry.owner)) continue;
-    seen.add(entry.owner);
-    names.push(entry.owner);
-  }
-  return names;
-}
-function selectPhaseCoverage(phase, entries2, futureOwners) {
-  if (phase._tag === "Bootstrap") {
-    for (const entry of entries2) {
-      if (entry.key === TRACK1_KEY) {
-        return { entries: [entry], owners: uniqueOwnersFromEntries([entry]) };
-      }
-    }
-    return { entries: [], owners: [] };
-  }
-  if (phase._tag === "Lane") {
-    const selected2 = entries2.filter(
-      (entry) => entry.targetRelease === "v0.4" && entry.owner === phase.owner
-    );
-    return { entries: selected2, owners: uniqueOwnersFromEntries(selected2) };
-  }
-  const selected = entries2.filter((entry) => entry.targetRelease === "v0.4");
-  const owners = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const entry of selected) {
-    if (seen.has(entry.owner)) continue;
-    seen.add(entry.owner);
-    owners.push(entry.owner);
-  }
-  for (const future of futureOwners) {
-    if (future.targetRelease !== "v0.4") continue;
-    if (seen.has(future.name)) continue;
-    seen.add(future.name);
-    owners.push(future.name);
-  }
-  return { entries: selected, owners };
-}
-function inspectReleaseCoverageRegisterV1(input) {
-  const parsed = parseRegister(input.registerText);
-  if (parsed === "invalid_register") {
-    return { _tag: "Invalid", reason: "invalid_register" };
-  }
-  const selection = selectPhaseCoverage(
-    input.phase,
-    parsed.entries,
-    parsed.futureOwners
-  );
-  return {
-    _tag: "Valid",
-    baselineCommit: parsed.baselineCommit,
-    selectedOwners: [...selection.owners].sort(compareUtf8Bytes)
-  };
-}
-function validateReleaseCoverageV1(input) {
-  try {
-    if (!validateCollectionShapes(input)) {
-      return invalid("dependency_failure");
-    }
-    if (input.roadmapBytes.byteLength > ONE_MIB) {
-      return invalid("invalid_roadmap");
-    }
-    if (decodeUtf8Unbounded(input.roadmapBytes) === null) {
-      return invalid("invalid_roadmap");
-    }
-    const parsed = parseRegister(input.registerText);
-    if (parsed === "invalid_register") {
-      return invalid("invalid_register");
-    }
-    const keySet = /* @__PURE__ */ new Set();
-    for (const entry of parsed.entries) {
-      if (keySet.has(entry.key)) return invalid("duplicate_identity");
-      keySet.add(entry.key);
-    }
-    const futureNames = /* @__PURE__ */ new Set();
-    for (const owner of parsed.futureOwners) {
-      if (futureNames.has(owner.name)) return invalid("duplicate_identity");
-      futureNames.add(owner.name);
-    }
-    const openspecPaths = /* @__PURE__ */ new Set();
-    for (const entry of parsed.entries) {
-      if (entry.sourceKind !== "openspec_change") continue;
-      if (openspecPaths.has(entry.sourcePath)) {
-        return invalid("duplicate_identity");
-      }
-      openspecPaths.add(entry.sourcePath);
-    }
-    for (const entry of parsed.entries) {
-      if (!validateKeyPathCoherence(entry)) {
-        return invalid("invalid_register");
-      }
-    }
-    if (!validateRoadmapRows(input.roadmapRows)) {
-      return invalid("invalid_roadmap");
-    }
-    const activeNames = input.activeChangeNames;
-    const uniqueActive = /* @__PURE__ */ new Set();
-    for (const name of activeNames) {
-      if (uniqueActive.has(name)) return invalid("inventory_mismatch");
-      uniqueActive.add(name);
-    }
-    const openspecNames = /* @__PURE__ */ new Set();
-    for (const entry of parsed.entries) {
-      if (entry.sourceKind !== "openspec_change") continue;
-      const name = entry.key.slice(CHANGE_PREFIX.length);
-      openspecNames.add(name);
-    }
-    if (openspecNames.size !== uniqueActive.size) {
-      return invalid("inventory_mismatch");
-    }
-    for (const name of uniqueActive) {
-      if (!openspecNames.has(name)) return invalid("inventory_mismatch");
-    }
-    const activeInventorySha256 = computeActiveInventorySha256(activeNames);
-    if (activeInventorySha256 !== parsed.activeInventorySha256) {
-      return invalid("inventory_mismatch");
-    }
-    const roadmapSha256 = sha256Hex(input.roadmapBytes);
-    if (roadmapSha256 !== parsed.roadmapSha256) {
-      return invalid("roadmap_mismatch");
-    }
-    const roadmapEntries = parsed.entries.filter(
-      (entry) => entry.sourceKind === "roadmap"
-    );
-    const rowByKey = /* @__PURE__ */ new Map();
-    for (const row of input.roadmapRows) {
-      rowByKey.set(row.key, row);
-    }
-    if (roadmapEntries.length !== rowByKey.size) {
-      return invalid("roadmap_mismatch");
-    }
-    for (const entry of roadmapEntries) {
-      const row = rowByKey.get(entry.key);
-      if (row === void 0) return invalid("roadmap_mismatch");
-      if (row.owner !== entry.owner) return invalid("roadmap_mismatch");
-      if (row.release !== entry.targetRelease) return invalid("roadmap_mismatch");
-    }
-    for (const entry of parsed.entries) {
-      if (!uniqueActive.has(entry.owner) && !futureNames.has(entry.owner)) {
-        return invalid("unknown_owner");
-      }
-    }
-    for (const path of input.changedSuperpowersPaths) {
-      if (pathIsCompetingPlan(path)) return invalid("competing_plan");
-    }
-    const selection = selectPhaseCoverage(
-      input.phase,
-      parsed.entries,
-      parsed.futureOwners
-    );
-    const selected = selection.entries;
-    if (input.phase._tag === "Lane") {
-      if (!uniqueActive.has(input.phase.owner) && !futureNames.has(input.phase.owner)) {
-        return invalid("unknown_owner");
-      }
-      if (selected.length === 0) {
-        return invalid("unknown_owner");
-      }
-    }
-    if (input.phase._tag === "Bootstrap") {
-      const track1 = parsed.entries.find((entry) => entry.key === TRACK1_KEY);
-      const track1ReleaseStateIsValid = track1 !== void 0 && (track1.targetRelease === "v0.4" && track1.disposition === "v040_owner" || track1.targetRelease === "released" && track1.disposition === "released_reference");
-      if (track1 === void 0 || track1.owner !== TRACK1_PACKAGE || track1.reconcile !== "complete" || track1.sourceKind !== "openspec_change" || !track1ReleaseStateIsValid) {
-        return invalid("unreconciled");
-      }
-    }
-    for (const entry of selected) {
-      if (entry.reconcile === "required") return invalid("unreconciled");
-    }
-    const owners = selection.owners;
-    for (const owner of owners) {
-      const workflow = input.workflowByChange[owner];
-      if (typeof workflow !== "string" || !ALLOWED_WORKFLOWS.has(workflow)) {
-        return invalid("workflow_mismatch");
-      }
-    }
-    const expectedKeys = Object.keys(input.expectedBriefByOwner);
-    const bytesKeys = Object.keys(input.packageBriefBytesByOwner);
-    if (input.phase._tag === "Bootstrap") {
-      if (expectedKeys.length !== 0 || bytesKeys.length !== 0) {
-        return invalid("brief_mismatch");
-      }
-    } else {
-      const ownerSet = new Set(owners);
-      if (expectedKeys.length !== ownerSet.size || bytesKeys.length !== ownerSet.size) {
-        return invalid("brief_mismatch");
-      }
-      for (const key of expectedKeys) {
-        if (!ownerSet.has(key)) return invalid("brief_mismatch");
-      }
-      for (const key of bytesKeys) {
-        if (!ownerSet.has(key)) return invalid("brief_mismatch");
-      }
-      for (const owner of owners) {
-        const brief = input.expectedBriefByOwner[owner];
-        const bytes = input.packageBriefBytesByOwner[owner];
-        if (brief === void 0 || bytes === void 0) {
-          return invalid("brief_mismatch");
-        }
-        if (bytes.byteLength > ONE_MIB) return invalid("brief_mismatch");
-        if (decodeUtf8Unbounded(bytes) === null) return invalid("brief_mismatch");
-        if (!validateBriefShape(brief)) return invalid("brief_mismatch");
-        if (brief.packageId !== owner) return invalid("brief_mismatch");
-        const expectedBytes = canonicalBriefFileBytes(brief);
-        if (expectedBytes === null || !bytesEqual(expectedBytes, bytes)) {
-          return invalid("brief_mismatch");
-        }
-      }
-    }
-    return valid(activeInventorySha256, roadmapSha256, parsed.entries.length);
-  } catch {
-    return invalid("dependency_failure");
-  }
-}
-
-// packages/policy/src/release-authority.ts
-var ONE_MIB2 = 1048576;
-var PROGRAM = "v040";
-var EVAL_PACKAGE = "graph-eval-falsification";
-var EVAL_CHILD = "v040-t8-evaluation";
-var MANIFEST_SCHEMA = "foreman.approved-openspec.v1";
-var encoder2 = new TextEncoder();
-var RELEASE_ACTIONS = [
-  "implement",
-  "verify",
-  "audit",
-  "correct",
-  "council",
-  "provider_retry",
-  "resume",
-  "integrate",
-  "publish",
-  "evaluate"
-];
-var ORDINARY_ACTIONS = [
-  "implement",
-  "verify",
-  "audit",
-  "correct",
-  "council",
-  "integrate",
-  "publish",
-  "evaluate"
-];
-var CHECK_STATUSES = ["PASS", "FAIL"];
-var AUDIT_VERDICTS = [
-  "APPROVED",
-  "WARNING",
-  "BLOCKED",
-  "UNVERIFIED"
-];
-var BLOCKING_AUDIT_VERDICTS = [
-  "WARNING",
-  "BLOCKED",
-  "UNVERIFIED"
-];
-var FINDING_SEVERITIES = ["low", "medium", "high", "critical"];
-var OUTCOME_STATUSES = ["PASS", "BLOCKING", "EXTERNAL_FAILURE"];
-var PASS_OUTCOME_ACTIONS = [
-  "verify",
-  "audit",
-  "integrate",
-  "publish",
-  "evaluate"
-];
-var BLOCKING_OUTCOME_ACTIONS = ["verify", "audit", "evaluate"];
-var COUNCIL_STATUSES = ["ADVICE", "BLOCKING"];
-var COUNCIL_RESERVATION_ACTIONS = [
-  "council",
-  "provider_retry",
-  "resume"
-];
-var EVAL_RESULTS = [
-  "PROMOTE",
-  "GRAPH_OFF_FAILED",
-  "GRAPH_OFF_INCONCLUSIVE",
-  "GRAPH_OFF_UNCOMPUTABLE"
-];
-var UTC_SECOND2 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/;
-function invalidFile() {
-  return { _tag: "Invalid" };
-}
-function invalidManifest() {
-  return { _tag: "Invalid" };
-}
-function utf8Bytes2(text) {
-  return encoder2.encode(text);
-}
-function utf8ByteLength2(text) {
-  return utf8Bytes2(text).byteLength;
-}
-function isPlainObject2(value) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-function hasExactOwnKeys2(value, keys5) {
-  const own = Object.keys(value);
-  if (own.length !== keys5.length) return false;
-  for (const key of keys5) {
-    if (!Object.prototype.hasOwnProperty.call(value, key)) return false;
-  }
-  return true;
-}
-function isLeapYear2(y) {
-  return y % 4 === 0 && y % 100 !== 0 || y % 400 === 0;
-}
-function daysInMonth2(y, m) {
-  switch (m) {
-    case 1:
-    case 3:
-    case 5:
-    case 7:
-    case 8:
-    case 10:
-    case 12:
-      return 31;
-    case 4:
-    case 6:
-    case 9:
-    case 11:
-      return 30;
-    case 2:
-      return isLeapYear2(y) ? 29 : 28;
-    default:
-      return 0;
-  }
-}
-function isUtcSecondTimestamp2(s) {
-  if (typeof s !== "string" || s.length === 0) return false;
-  const m = UTC_SECOND2.exec(s);
-  if (!m) return false;
-  const year = Number(m[1]);
-  const month = Number(m[2]);
-  const day = Number(m[3]);
-  const hour = Number(m[4]);
-  const minute = Number(m[5]);
-  const second = Number(m[6]);
-  if (month < 1 || month > 12) return false;
-  const dim = daysInMonth2(year, month);
-  if (day < 1 || day > dim) return false;
-  if (hour > 23 || minute > 59 || second > 59) return false;
-  const utc = Date.UTC(year, month - 1, day, hour, minute, second);
-  if (!Number.isFinite(utc)) return false;
-  const check2 = new Date(utc);
-  return check2.getUTCFullYear() === year && check2.getUTCMonth() + 1 === month && check2.getUTCDate() === day && check2.getUTCHours() === hour && check2.getUTCMinutes() === minute && check2.getUTCSeconds() === second;
-}
-function hasForbiddenControl(text) {
-  for (let i = 0; i < text.length; i += 1) {
-    const code = text.charCodeAt(i);
-    if (code <= 31 || code === 127) return true;
-  }
-  return false;
-}
-function isIdentifier(value) {
-  if (typeof value !== "string") return false;
-  const bytes = utf8ByteLength2(value);
-  if (bytes < 1 || bytes > 128) return false;
-  if (hasForbiddenControl(value)) return false;
-  if (value.includes("/") || value.includes("\\")) return false;
-  return true;
-}
-function isFindingText(value, minBytes, maxBytes) {
-  if (typeof value !== "string") return false;
-  const bytes = utf8ByteLength2(value);
-  if (bytes < minBytes || bytes > maxBytes) return false;
-  if (hasForbiddenControl(value)) return false;
-  return true;
-}
-function isLiteral(value, allowed) {
-  return typeof value === "string" && allowed.includes(value);
-}
-function isSafeIntInRange(value, min3, max5) {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= min3 && value <= max5;
-}
-function parseCandidate(value) {
-  if (!isPlainObject2(value)) return null;
-  if (!hasExactOwnKeys2(value, ["commit", "tree", "candidateSha256"])) {
-    return null;
-  }
-  const commit = value["commit"];
-  const tree = value["tree"];
-  const candidateSha256 = value["candidateSha256"];
-  if (typeof commit !== "string" || !isCommitSha40(commit)) return null;
-  if (typeof tree !== "string" || !isCommitSha40(tree)) return null;
-  if (typeof candidateSha256 !== "string" || !isSha256Hex(candidateSha256)) {
-    return null;
-  }
-  if (sha256Hex(commit) !== candidateSha256) return null;
-  return { commit, tree, candidateSha256 };
-}
-function parseFinding(value) {
-  if (!isPlainObject2(value)) return null;
-  if (!hasExactOwnKeys2(value, [
-    "severity",
-    "file",
-    "line",
-    "summary",
-    "evidence"
-  ])) {
-    return null;
-  }
-  const severity = value["severity"];
-  const file = value["file"];
-  const line = value["line"];
-  const summary5 = value["summary"];
-  const evidence = value["evidence"];
-  if (!isLiteral(severity, FINDING_SEVERITIES)) return null;
-  if (!isFindingText(file, 1, 4096)) return null;
-  if (!isSafeIntInRange(line, 1, 2147483647)) return null;
-  if (!isFindingText(summary5, 1, 4096)) return null;
-  if (!isFindingText(evidence, 1, 16384)) return null;
-  return { severity, file, line, summary: summary5, evidence };
-}
-function parseFindings(value) {
-  if (!Array.isArray(value)) return null;
-  if (value.length > 100) return null;
-  const out = [];
-  for (const item of value) {
-    const finding = parseFinding(item);
-    if (finding === null) return null;
-    out.push(finding);
-  }
-  return out;
-}
-function parseEvaluationCounts(input) {
-  if (input.plannedRuns !== 2e3) return null;
-  if (!isSafeIntInRange(input.completedRuns, 0, 2e3)) return null;
-  if (!isSafeIntInRange(input.unavailableRuns, 0, 2e3)) return null;
-  if (!isSafeIntInRange(input.notRunRuns, 0, 2e3)) return null;
-  if (input.completedRuns + input.unavailableRuns + input.notRunRuns !== 2e3) {
-    return null;
-  }
-  return {
-    plannedRuns: 2e3,
-    completedRuns: input.completedRuns,
-    unavailableRuns: input.unavailableRuns,
-    notRunRuns: input.notRunRuns
-  };
-}
-function requireIssuedAt(value) {
-  if (typeof value !== "string" || !isUtcSecondTimestamp2(value)) return null;
-  return value;
-}
-function parseDesignApproval(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "packageId",
-    "designCommit",
-    "designTree",
-    "approvedOpenSpecSha256",
-    "taskPlanSha256",
-    "approvalStatementSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.design-approval.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["packageId"])) return null;
-  if (typeof value["designCommit"] !== "string" || !isCommitSha40(value["designCommit"])) {
-    return null;
-  }
-  if (typeof value["designTree"] !== "string" || !isCommitSha40(value["designTree"])) {
-    return null;
-  }
-  if (typeof value["approvedOpenSpecSha256"] !== "string" || !isSha256Hex(value["approvedOpenSpecSha256"])) {
-    return null;
-  }
-  if (typeof value["taskPlanSha256"] !== "string" || !isSha256Hex(value["taskPlanSha256"])) {
-    return null;
-  }
-  if (typeof value["approvalStatementSha256"] !== "string" || !isSha256Hex(value["approvalStatementSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.design-approval.v1",
-    program: PROGRAM,
-    packageId: value["packageId"],
-    designCommit: value["designCommit"],
-    designTree: value["designTree"],
-    approvedOpenSpecSha256: value["approvedOpenSpecSha256"],
-    taskPlanSha256: value["taskPlanSha256"],
-    approvalStatementSha256: value["approvalStatementSha256"],
-    issuedAt
-  };
-}
-function parseChecksEvidence(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "packageId",
-    "candidate",
-    "status",
-    "checksSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.checks-evidence.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["packageId"])) return null;
-  const candidate = parseCandidate(value["candidate"]);
-  if (candidate === null) return null;
-  if (!isLiteral(value["status"], CHECK_STATUSES)) return null;
-  if (typeof value["checksSha256"] !== "string" || !isSha256Hex(value["checksSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.checks-evidence.v1",
-    program: PROGRAM,
-    packageId: value["packageId"],
-    candidate,
-    status: value["status"],
-    checksSha256: value["checksSha256"],
-    issuedAt
-  };
-}
-function parseReleaseAudit(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "packageId",
-    "candidate",
-    "verdict",
-    "findings",
-    "evidenceSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.release-audit.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["packageId"])) return null;
-  const candidate = parseCandidate(value["candidate"]);
-  if (candidate === null) return null;
-  if (!isLiteral(value["verdict"], AUDIT_VERDICTS)) return null;
-  const findings = parseFindings(value["findings"]);
-  if (findings === null) return null;
-  if (typeof value["evidenceSha256"] !== "string" || !isSha256Hex(value["evidenceSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.release-audit.v1",
-    program: PROGRAM,
-    packageId: value["packageId"],
-    candidate,
-    verdict: value["verdict"],
-    findings,
-    evidenceSha256: value["evidenceSha256"],
-    issuedAt
-  };
-}
-function parseCouncilRequest(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "packageId",
-    "candidateSha256",
-    "questionSha256",
-    "constraintsSha256",
-    "optionsSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.council-request.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["packageId"])) return null;
-  if (typeof value["candidateSha256"] !== "string" || !isSha256Hex(value["candidateSha256"])) {
-    return null;
-  }
-  if (typeof value["questionSha256"] !== "string" || !isSha256Hex(value["questionSha256"])) {
-    return null;
-  }
-  if (typeof value["constraintsSha256"] !== "string" || !isSha256Hex(value["constraintsSha256"])) {
-    return null;
-  }
-  if (typeof value["optionsSha256"] !== "string" || !isSha256Hex(value["optionsSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.council-request.v1",
-    program: PROGRAM,
-    packageId: value["packageId"],
-    candidateSha256: value["candidateSha256"],
-    questionSha256: value["questionSha256"],
-    constraintsSha256: value["constraintsSha256"],
-    optionsSha256: value["optionsSha256"],
-    issuedAt
-  };
-}
-function parseEvaluationAuthority(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "packageId",
-    "manifestSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.evaluation-authority.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (value["packageId"] !== EVAL_PACKAGE) return null;
-  if (typeof value["manifestSha256"] !== "string" || !isSha256Hex(value["manifestSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.evaluation-authority.v1",
-    program: PROGRAM,
-    packageId: EVAL_PACKAGE,
-    manifestSha256: value["manifestSha256"],
-    issuedAt
-  };
-}
-function parseReceipt(value) {
-  if (!isPlainObject2(value)) return null;
-  const schema = value["schema"];
-  if (schema === "foreman.design-approval.v1") {
-    return parseDesignApproval(value);
-  }
-  if (schema === "foreman.checks-evidence.v1") {
-    return parseChecksEvidence(value);
-  }
-  if (schema === "foreman.release-audit.v1") {
-    return parseReleaseAudit(value);
-  }
-  if (schema === "foreman.council-request.v1") {
-    return parseCouncilRequest(value);
-  }
-  if (schema === "foreman.evaluation-authority.v1") {
-    return parseEvaluationAuthority(value);
-  }
-  return null;
-}
-function parseActionOutcome(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "rootContractId",
-    "rootContractSha256",
-    "familySha256",
-    "childId",
-    "packageId",
-    "reservationAction",
-    "effectiveAction",
-    "reservationId",
-    "originReservationId",
-    "candidateSha256",
-    "status",
-    "evidenceSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.release-action-outcome.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["rootContractId"])) return null;
-  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
-    return null;
-  }
-  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
-    return null;
-  }
-  if (!isIdentifier(value["childId"])) return null;
-  if (!isIdentifier(value["packageId"])) return null;
-  if (!isLiteral(value["reservationAction"], RELEASE_ACTIONS)) return null;
-  if (!isLiteral(value["effectiveAction"], RELEASE_ACTIONS)) return null;
-  const reservationAction = value["reservationAction"];
-  const effectiveAction = value["effectiveAction"];
-  const isWrapper = reservationAction === "provider_retry" || reservationAction === "resume";
-  if (isWrapper) {
-    if (!isLiteral(effectiveAction, ORDINARY_ACTIONS)) return null;
-  } else if (effectiveAction !== reservationAction) {
-    return null;
-  }
-  if (!isIdentifier(value["reservationId"])) return null;
-  if (!isIdentifier(value["originReservationId"])) return null;
-  const reservationId = value["reservationId"];
-  const originReservationId = value["originReservationId"];
-  if (!isWrapper && originReservationId !== reservationId) {
-    return null;
-  }
-  if (typeof value["candidateSha256"] !== "string" || !isSha256Hex(value["candidateSha256"])) {
-    return null;
-  }
-  if (!isLiteral(value["status"], OUTCOME_STATUSES)) return null;
-  const status = value["status"];
-  if (status === "PASS") {
-    if (!isLiteral(effectiveAction, PASS_OUTCOME_ACTIONS)) return null;
-  } else if (status === "BLOCKING") {
-    if (!isLiteral(effectiveAction, BLOCKING_OUTCOME_ACTIONS)) return null;
-  }
-  if (typeof value["evidenceSha256"] !== "string" || !isSha256Hex(value["evidenceSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.release-action-outcome.v1",
-    program: PROGRAM,
-    rootContractId: value["rootContractId"],
-    rootContractSha256: value["rootContractSha256"],
-    familySha256: value["familySha256"],
-    childId: value["childId"],
-    packageId: value["packageId"],
-    reservationAction,
-    effectiveAction,
-    reservationId,
-    originReservationId,
-    candidateSha256: value["candidateSha256"],
-    status,
-    evidenceSha256: value["evidenceSha256"],
-    issuedAt
-  };
-}
-function parseCouncilOutcome(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "rootContractId",
-    "rootContractSha256",
-    "familySha256",
-    "childId",
-    "packageId",
-    "reservationAction",
-    "reservationId",
-    "originReservationId",
-    "candidateSha256",
-    "requestSha256",
-    "decisionSha256",
-    "status",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.council-outcome.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["rootContractId"])) return null;
-  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
-    return null;
-  }
-  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
-    return null;
-  }
-  if (!isIdentifier(value["childId"])) return null;
-  if (!isIdentifier(value["packageId"])) return null;
-  if (!isLiteral(value["reservationAction"], COUNCIL_RESERVATION_ACTIONS)) {
-    return null;
-  }
-  const reservationAction = value["reservationAction"];
-  if (!isIdentifier(value["reservationId"])) return null;
-  if (!isIdentifier(value["originReservationId"])) return null;
-  const reservationId = value["reservationId"];
-  const originReservationId = value["originReservationId"];
-  if (reservationAction === "council" && originReservationId !== reservationId) {
-    return null;
-  }
-  if (typeof value["candidateSha256"] !== "string" || !isSha256Hex(value["candidateSha256"])) {
-    return null;
-  }
-  if (typeof value["requestSha256"] !== "string" || !isSha256Hex(value["requestSha256"])) {
-    return null;
-  }
-  if (typeof value["decisionSha256"] !== "string" || !isSha256Hex(value["decisionSha256"])) {
-    return null;
-  }
-  if (!isLiteral(value["status"], COUNCIL_STATUSES)) return null;
-  const status = value["status"];
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.council-outcome.v1",
-    program: PROGRAM,
-    rootContractId: value["rootContractId"],
-    rootContractSha256: value["rootContractSha256"],
-    familySha256: value["familySha256"],
-    childId: value["childId"],
-    packageId: value["packageId"],
-    reservationAction,
-    reservationId,
-    originReservationId,
-    candidateSha256: value["candidateSha256"],
-    requestSha256: value["requestSha256"],
-    decisionSha256: value["decisionSha256"],
-    status,
-    issuedAt
-  };
-}
-function parseEvaluationVerdict(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "rootContractId",
-    "rootContractSha256",
-    "familySha256",
-    "childId",
-    "packageId",
-    "candidateSha256",
-    "authorityManifestSha256",
-    "evaluationAuthorityReceiptSha256",
-    "result",
-    "plannedRuns",
-    "completedRuns",
-    "unavailableRuns",
-    "notRunRuns",
-    "runSetSha256",
-    "reportSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.evaluation-verdict.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["rootContractId"])) return null;
-  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
-    return null;
-  }
-  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
-    return null;
-  }
-  if (value["childId"] !== EVAL_CHILD) return null;
-  if (value["packageId"] !== EVAL_PACKAGE) return null;
-  if (typeof value["candidateSha256"] !== "string" || !isSha256Hex(value["candidateSha256"])) {
-    return null;
-  }
-  if (typeof value["authorityManifestSha256"] !== "string" || !isSha256Hex(value["authorityManifestSha256"])) {
-    return null;
-  }
-  if (typeof value["evaluationAuthorityReceiptSha256"] !== "string" || !isSha256Hex(value["evaluationAuthorityReceiptSha256"])) {
-    return null;
-  }
-  if (!isLiteral(value["result"], EVAL_RESULTS)) return null;
-  const counts = parseEvaluationCounts({
-    plannedRuns: value["plannedRuns"],
-    completedRuns: value["completedRuns"],
-    unavailableRuns: value["unavailableRuns"],
-    notRunRuns: value["notRunRuns"]
-  });
-  if (counts === null) return null;
-  if (typeof value["runSetSha256"] !== "string" || !isSha256Hex(value["runSetSha256"])) {
-    return null;
-  }
-  if (typeof value["reportSha256"] !== "string" || !isSha256Hex(value["reportSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.evaluation-verdict.v1",
-    program: PROGRAM,
-    rootContractId: value["rootContractId"],
-    rootContractSha256: value["rootContractSha256"],
-    familySha256: value["familySha256"],
-    childId: EVAL_CHILD,
-    packageId: EVAL_PACKAGE,
-    candidateSha256: value["candidateSha256"],
-    authorityManifestSha256: value["authorityManifestSha256"],
-    evaluationAuthorityReceiptSha256: value["evaluationAuthorityReceiptSha256"],
-    result: value["result"],
-    plannedRuns: counts.plannedRuns,
-    completedRuns: counts.completedRuns,
-    unavailableRuns: counts.unavailableRuns,
-    notRunRuns: counts.notRunRuns,
-    runSetSha256: value["runSetSha256"],
-    reportSha256: value["reportSha256"],
-    issuedAt
-  };
-}
-function parseCancelApproval(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "rootContractId",
-    "rootContractSha256",
-    "familySha256",
-    "childId",
-    "reasonSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.execution-child-cancel.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["rootContractId"])) return null;
-  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
-    return null;
-  }
-  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
-    return null;
-  }
-  if (!isIdentifier(value["childId"])) return null;
-  if (typeof value["reasonSha256"] !== "string" || !isSha256Hex(value["reasonSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.execution-child-cancel.v1",
-    program: PROGRAM,
-    rootContractId: value["rootContractId"],
-    rootContractSha256: value["rootContractSha256"],
-    familySha256: value["familySha256"],
-    childId: value["childId"],
-    reasonSha256: value["reasonSha256"],
-    issuedAt
-  };
-}
-function parseInvalidateApproval(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "rootContractId",
-    "rootContractSha256",
-    "familySha256",
-    "childId",
-    "observedFamilySha256",
-    "reasonSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.execution-child-invalidate.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["rootContractId"])) return null;
-  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
-    return null;
-  }
-  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
-    return null;
-  }
-  if (!isIdentifier(value["childId"])) return null;
-  if (typeof value["observedFamilySha256"] !== "string" || !isSha256Hex(value["observedFamilySha256"])) {
-    return null;
-  }
-  if (typeof value["reasonSha256"] !== "string" || !isSha256Hex(value["reasonSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.execution-child-invalidate.v1",
-    program: PROGRAM,
-    rootContractId: value["rootContractId"],
-    rootContractSha256: value["rootContractSha256"],
-    familySha256: value["familySha256"],
-    childId: value["childId"],
-    observedFamilySha256: value["observedFamilySha256"],
-    reasonSha256: value["reasonSha256"],
-    issuedAt
-  };
-}
-function parsePriorReservation(value) {
-  if (!isPlainObject2(value)) return null;
-  if (!hasExactOwnKeys2(value, [
-    "reservationId",
-    "originReservationId",
-    "originalAction",
-    "candidate",
-    "failureEvidenceSha256"
-  ])) {
-    return null;
-  }
-  if (!isIdentifier(value["reservationId"])) return null;
-  if (!isIdentifier(value["originReservationId"])) return null;
-  if (!isLiteral(value["originalAction"], ORDINARY_ACTIONS)) return null;
-  const candidate = parseCandidate(value["candidate"]);
-  if (candidate === null) return null;
-  if (typeof value["failureEvidenceSha256"] !== "string" || !isSha256Hex(value["failureEvidenceSha256"])) {
-    return null;
-  }
-  return {
-    reservationId: value["reservationId"],
-    originReservationId: value["originReservationId"],
-    originalAction: value["originalAction"],
-    candidate,
-    failureEvidenceSha256: value["failureEvidenceSha256"]
-  };
-}
-function isDesignReceipt(receipt) {
-  return receipt.schema === "foreman.design-approval.v1";
-}
-function isChecksReceipt(receipt) {
-  return receipt.schema === "foreman.checks-evidence.v1";
-}
-function isAuditReceipt(receipt) {
-  return receipt.schema === "foreman.release-audit.v1";
-}
-function isCouncilRequestReceipt(receipt) {
-  return receipt.schema === "foreman.council-request.v1";
-}
-function isEvaluationAuthorityReceipt(receipt) {
-  return receipt.schema === "foreman.evaluation-authority.v1";
-}
-function receiptsMatchOrdinaryAction(action, receipts) {
-  switch (action) {
-    case "implement":
-    case "verify":
-      return receipts.length === 1 && isDesignReceipt(receipts[0]);
-    case "audit":
-      return receipts.length === 2 && isDesignReceipt(receipts[0]) && isChecksReceipt(receipts[1]) && receipts[1].status === "PASS";
-    case "correct": {
-      if (receipts.length !== 2 || !isDesignReceipt(receipts[0])) return false;
-      const second = receipts[1];
-      if (isChecksReceipt(second)) return second.status === "FAIL";
-      if (isAuditReceipt(second)) {
-        return isLiteral(second.verdict, BLOCKING_AUDIT_VERDICTS);
-      }
-      return false;
-    }
-    case "council":
-      return receipts.length === 2 && isDesignReceipt(receipts[0]) && isCouncilRequestReceipt(receipts[1]);
-    case "integrate":
-    case "publish":
-      return receipts.length === 2 && isDesignReceipt(receipts[0]) && isAuditReceipt(receipts[1]) && receipts[1].verdict === "APPROVED" && receipts[1].findings.length === 0;
-    case "evaluate":
-      return receipts.length === 2 && isDesignReceipt(receipts[0]) && isEvaluationAuthorityReceipt(receipts[1]);
-    case "provider_retry":
-    case "resume":
-      return false;
-  }
-}
-function parseEvidenceBundle(value) {
-  const hasPrior = Object.prototype.hasOwnProperty.call(
-    value,
-    "priorReservation"
-  );
-  const baseKeys = [
-    "schema",
-    "program",
-    "rootContractId",
-    "rootContractSha256",
-    "familySha256",
-    "childId",
-    "packageId",
-    "action",
-    "candidate",
-    "taskPlanSha256",
-    "receipts",
-    "issuedAt"
-  ];
-  const expectedKeys = hasPrior ? [...baseKeys, "priorReservation"] : baseKeys;
-  if (!hasExactOwnKeys2(value, expectedKeys)) return null;
-  if (value["schema"] !== "foreman.release-evidence-bundle.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["rootContractId"])) return null;
-  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
-    return null;
-  }
-  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
-    return null;
-  }
-  if (!isIdentifier(value["childId"])) return null;
-  if (!isIdentifier(value["packageId"])) return null;
-  if (!isLiteral(value["action"], RELEASE_ACTIONS)) return null;
-  const candidate = parseCandidate(value["candidate"]);
-  if (candidate === null) return null;
-  if (typeof value["taskPlanSha256"] !== "string" || !isSha256Hex(value["taskPlanSha256"])) {
-    return null;
-  }
-  if (!Array.isArray(value["receipts"])) return null;
-  if (value["receipts"].length < 1 || value["receipts"].length > 2) return null;
-  const receipts = [];
-  for (const item of value["receipts"]) {
-    const receipt = parseReceipt(item);
-    if (receipt === null) return null;
-    receipts.push(receipt);
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  const action = value["action"];
-  if (action === "provider_retry" || action === "resume") {
-    if (!hasPrior) return null;
-    const priorReservation = parsePriorReservation(value["priorReservation"]);
-    if (priorReservation === null) return null;
-    if (!receiptsMatchOrdinaryAction(priorReservation.originalAction, receipts)) {
-      return null;
-    }
-    return {
-      schema: "foreman.release-evidence-bundle.v1",
-      program: PROGRAM,
-      rootContractId: value["rootContractId"],
-      rootContractSha256: value["rootContractSha256"],
-      familySha256: value["familySha256"],
-      childId: value["childId"],
-      packageId: value["packageId"],
-      action,
-      candidate,
-      taskPlanSha256: value["taskPlanSha256"],
-      receipts,
-      priorReservation,
-      issuedAt
-    };
-  }
-  if (hasPrior) return null;
-  if (!receiptsMatchOrdinaryAction(action, receipts)) return null;
-  return {
-    schema: "foreman.release-evidence-bundle.v1",
-    program: PROGRAM,
-    rootContractId: value["rootContractId"],
-    rootContractSha256: value["rootContractSha256"],
-    familySha256: value["familySha256"],
-    childId: value["childId"],
-    packageId: value["packageId"],
-    action,
-    candidate,
-    taskPlanSha256: value["taskPlanSha256"],
-    receipts,
-    issuedAt
-  };
-}
-function parseAuthorityObject(value) {
-  if (!isPlainObject2(value)) return null;
-  const schema = value["schema"];
-  if (typeof schema !== "string") return null;
-  switch (schema) {
-    case "foreman.design-approval.v1":
-      return parseDesignApproval(value);
-    case "foreman.checks-evidence.v1":
-      return parseChecksEvidence(value);
-    case "foreman.release-audit.v1":
-      return parseReleaseAudit(value);
-    case "foreman.council-request.v1":
-      return parseCouncilRequest(value);
-    case "foreman.evaluation-authority.v1":
-      return parseEvaluationAuthority(value);
-    case "foreman.release-action-outcome.v1":
-      return parseActionOutcome(value);
-    case "foreman.council-outcome.v1":
-      return parseCouncilOutcome(value);
-    case "foreman.evaluation-verdict.v1":
-      return parseEvaluationVerdict(value);
-    case "foreman.execution-child-cancel.v1":
-      return parseCancelApproval(value);
-    case "foreman.execution-child-invalidate.v1":
-      return parseInvalidateApproval(value);
-    case "foreman.release-evidence-bundle.v1":
-      return parseEvidenceBundle(value);
-    default:
-      return null;
-  }
-}
-function decodeCanonicalObjectFile(bytes) {
-  if (bytes.byteLength > ONE_MIB2) return null;
-  const textOrFailure = decodeUtf8Fatal(bytes);
-  if (isCoreFailure(textOrFailure)) return null;
-  const text = textOrFailure;
-  if (!text.endsWith("\n") || text.endsWith("\r\n")) return null;
-  const body = text.slice(0, -1);
-  if (body.endsWith("\n")) return null;
-  let parsed;
-  try {
-    parsed = parseJsonRejectDuplicateKeys(body);
-  } catch {
-    return null;
-  }
-  if (isCoreFailure(parsed)) return null;
-  let canonical;
-  try {
-    canonical = canonicalize(parsed);
-  } catch {
-    return null;
-  }
-  if (canonical !== body) return null;
-  return { value: parsed, sha256: sha256Hex(bytes) };
-}
-function compareUtf8(a, b) {
-  const ab = utf8Bytes2(a);
-  const bb = utf8Bytes2(b);
-  const n = Math.min(ab.byteLength, bb.byteLength);
-  for (let i = 0; i < n; i += 1) {
-    if (ab[i] !== bb[i]) return ab[i] - bb[i];
-  }
-  return ab.byteLength - bb.byteLength;
-}
-function isValidPackageRelativePath(path) {
-  if (typeof path !== "string" || path.length === 0) return false;
-  if (hasForbiddenControl(path)) return false;
-  if (path.includes("\\")) return false;
-  if (path.startsWith("/")) return false;
-  if (/^[A-Za-z]:\//.test(path)) return false;
-  const segments = path.split("/");
-  for (const segment of segments) {
-    if (segment.length === 0 || segment === "." || segment === "..") {
-      return false;
-    }
-  }
-  return true;
-}
-function classifyManifestPath(path) {
-  if (path === "proposal.md") return "proposal";
-  if (path === "design.md") return "design";
-  if (path === "tasks.md") return "tasks";
-  if (path.startsWith("specs/") && path.endsWith(".md") && path.length > "specs/".length + ".md".length) {
-    return "spec";
-  }
-  return "other";
-}
-function decodeReleaseAuthorityFileV1(bytes) {
-  try {
-    if (!(bytes instanceof Uint8Array)) return invalidFile();
-    const decoded = decodeCanonicalObjectFile(bytes);
-    if (decoded === null) return invalidFile();
-    const parsed = parseAuthorityObject(decoded.value);
-    if (parsed === null) return invalidFile();
-    return {
-      _tag: "Valid",
-      value: parsed,
-      sha256: decoded.sha256
-    };
-  } catch {
-    return invalidFile();
-  }
-}
-function buildApprovedOpenSpecManifestV1(input) {
-  try {
-    if (!isPlainObject2(input)) return invalidManifest();
-    if (!hasExactOwnKeys2(input, ["workflow", "files"])) return invalidManifest();
-    const workflow = input["workflow"];
-    if (workflow !== "foreman-architectural" && workflow !== "foreman-bounded") {
-      return invalidManifest();
-    }
-    const files = input["files"];
-    if (!Array.isArray(files) || files.length === 0) return invalidManifest();
-    const rows = [];
-    for (const row of files) {
-      if (!isPlainObject2(row)) return invalidManifest();
-      if (!hasExactOwnKeys2(row, ["path", "bytes"])) return invalidManifest();
-      const path = row["path"];
-      const bytes = row["bytes"];
-      if (typeof path !== "string") return invalidManifest();
-      if (!(bytes instanceof Uint8Array)) return invalidManifest();
-      if (!isValidPackageRelativePath(path)) return invalidManifest();
-      rows.push({ path, bytes });
-    }
-    for (let i = 0; i < rows.length; i += 1) {
-      if (i > 0 && compareUtf8(rows[i - 1].path, rows[i].path) >= 0) {
-        return invalidManifest();
-      }
-    }
-    let proposalCount = 0;
-    let designCount = 0;
-    let specCount = 0;
-    const manifestFiles = [];
-    for (const row of rows) {
-      const kind = classifyManifestPath(row.path);
-      if (kind === "tasks" || kind === "other") return invalidManifest();
-      if (kind === "design") {
-        if (workflow === "foreman-bounded") return invalidManifest();
-        designCount += 1;
-      } else if (kind === "proposal") {
-        proposalCount += 1;
-      } else if (kind === "spec") {
-        specCount += 1;
-      }
-      manifestFiles.push({
-        path: row.path,
-        sha256: sha256Hex(row.bytes)
-      });
-    }
-    if (proposalCount !== 1) return invalidManifest();
-    if (specCount < 1) return invalidManifest();
-    if (designCount > 1) return invalidManifest();
-    const manifest = {
-      schema: MANIFEST_SCHEMA,
-      files: manifestFiles
-    };
-    const digest = sha256Hex(utf8Bytes2(canonicalize(manifest)));
-    return { _tag: "Valid", manifest, sha256: digest };
-  } catch {
-    return invalidManifest();
-  }
-}
-
-// packages/policy/src/release-admission.ts
-var encoder3 = new TextEncoder();
-function invalidEvidence(reason) {
-  return { _tag: "Invalid", reason };
-}
-function refused(reason) {
-  return { schemaVersion: 1, _tag: "Refused", reason };
-}
-function compareUtf82(left3, right3) {
-  const a = encoder3.encode(left3);
-  const b = encoder3.encode(right3);
-  const length2 = Math.min(a.byteLength, b.byteLength);
-  for (let index = 0; index < length2; index += 1) {
-    const delta = a[index] - b[index];
-    if (delta !== 0) return delta;
-  }
-  return a.byteLength - b.byteLength;
-}
-function sameValue(left3, right3) {
-  try {
-    return canonicalize(left3) === canonicalize(right3);
-  } catch {
-    return false;
-  }
-}
-function canonicalFileSha256(value) {
-  try {
-    return sha256Hex(encoder3.encode(`${canonicalize(value)}
-`));
-  } catch {
-    return null;
-  }
-}
-function designReceipt(bundle) {
-  const receipt = bundle.receipts[0];
-  if (receipt?.schema !== "foreman.design-approval.v1") return null;
-  return receipt;
-}
-function receiptBindingFailure(bundle) {
-  for (const receipt of bundle.receipts) {
-    if (receipt.packageId !== bundle.packageId) return "wrong_package";
-    switch (receipt.schema) {
-      case "foreman.checks-evidence.v1":
-      case "foreman.release-audit.v1":
-        if (!sameValue(receipt.candidate, bundle.candidate)) {
-          return "wrong_candidate";
-        }
-        break;
-      case "foreman.council-request.v1":
-        if (receipt.candidateSha256 !== bundle.candidate.candidateSha256) {
-          return "wrong_candidate";
-        }
-        break;
-      case "foreman.evaluation-authority.v1":
-        if (bundle.packageId !== "graph-eval-falsification" || bundle.childId !== "v040-t8-evaluation") {
-          return "wrong_package";
-        }
-        break;
-      case "foreman.design-approval.v1":
-        break;
-    }
-  }
-  return null;
-}
-function checkEvidence(input, allowResolvedImplementationDescendant = false) {
-  if (typeof input !== "object" || input === null || !(input.evidenceBytes instanceof Uint8Array) || !(input.taskPlanBytes instanceof Uint8Array)) {
-    return invalidEvidence("invalid_evidence");
-  }
-  const decoded = decodeReleaseAuthorityFileV1(input.evidenceBytes);
-  if (decoded._tag !== "Valid") return invalidEvidence("invalid_evidence");
-  if (decoded.value.schema !== "foreman.release-evidence-bundle.v1") {
-    return invalidEvidence("invalid_evidence");
-  }
-  const bundle = decoded.value;
-  if (bundle.program !== "v040") return invalidEvidence("wrong_program");
-  if (bundle.action !== input.action) return invalidEvidence("wrong_action");
-  if (bundle.packageId !== input.packageId) {
-    return invalidEvidence("wrong_package");
-  }
-  if (!sameValue(bundle.candidate, input.candidate)) {
-    return invalidEvidence("wrong_candidate");
-  }
-  const design = designReceipt(bundle);
-  if (design === null) return invalidEvidence("invalid_evidence");
-  if (design.packageId !== bundle.packageId) {
-    return invalidEvidence("wrong_package");
-  }
-  const receiptFailure = receiptBindingFailure(bundle);
-  if (receiptFailure !== null) return invalidEvidence(receiptFailure);
-  if (bundle.action === "implement" && !allowResolvedImplementationDescendant && (bundle.candidate.commit !== design.designCommit || bundle.candidate.tree !== design.designTree)) {
-    return invalidEvidence("wrong_design_base");
-  }
-  const files = Object.entries(input.approvedOpenSpecBytes).map(([path, bytes]) => ({ path, bytes })).sort((left3, right3) => compareUtf82(left3.path, right3.path));
-  const manifest = buildApprovedOpenSpecManifestV1({
-    workflow: Object.prototype.hasOwnProperty.call(
-      input.approvedOpenSpecBytes,
-      "design.md"
-    ) ? "foreman-architectural" : "foreman-bounded",
-    files
-  });
-  if (manifest._tag !== "Valid" || manifest.sha256 !== design.approvedOpenSpecSha256) {
-    return invalidEvidence("approved_openspec_mismatch");
-  }
-  const taskPlanSha256 = sha256Hex(input.taskPlanBytes);
-  if (taskPlanSha256 !== design.taskPlanSha256 || taskPlanSha256 !== bundle.taskPlanSha256) {
-    return invalidEvidence("task_plan_mismatch");
-  }
-  let effectiveAction = bundle.action;
-  let priorReservationId = null;
-  let originReservationId = null;
-  if (bundle.action === "provider_retry" || bundle.action === "resume") {
-    const prior = bundle.priorReservation;
-    if (prior === void 0 || prior.originalAction === "provider_retry" || prior.originalAction === "resume" || !sameValue(prior.candidate, bundle.candidate)) {
-      return invalidEvidence("invalid_retry");
-    }
-    effectiveAction = prior.originalAction;
-    priorReservationId = prior.reservationId;
-    originReservationId = prior.originReservationId;
-  }
-  const receiptSha256s = [];
-  for (const receipt of bundle.receipts) {
-    const digest = canonicalFileSha256(receipt);
-    if (digest === null) return invalidEvidence("invalid_evidence");
-    receiptSha256s.push(digest);
-  }
-  const evaluation = bundle.receipts.find(
-    (receipt) => receipt.schema === "foreman.evaluation-authority.v1"
-  );
-  return {
-    _tag: "Valid",
-    checked: {
-      bundle,
-      bundleSha256: decoded.sha256,
-      receiptSchemas: bundle.receipts.map((receipt) => receipt.schema),
-      receiptSha256s,
-      effectiveAction,
-      priorReservationId,
-      originReservationId,
-      evaluationManifestSha256: evaluation?.schema === "foreman.evaluation-authority.v1" ? evaluation.manifestSha256 : null
-    }
-  };
-}
-function registrationMatches(checked, registered) {
-  const bundle = checked.bundle;
-  return registered.rootContractId === bundle.rootContractId && registered.rootContractSha256 === bundle.rootContractSha256 && registered.familySha256 === bundle.familySha256 && registered.childId === bundle.childId && registered.action === bundle.action && registered.effectiveAction === checked.effectiveAction && registered.priorReservationId === checked.priorReservationId && registered.originReservationId === checked.originReservationId && sameValue(registered.candidate, bundle.candidate) && registered.taskPlanSha256 === bundle.taskPlanSha256 && registered.bundleSha256 === checked.bundleSha256 && sameValue(registered.receiptSchemas, checked.receiptSchemas) && sameValue(registered.receiptSha256s, checked.receiptSha256s) && registered.evaluationManifestSha256 === checked.evaluationManifestSha256;
-}
-function evaluateReleaseAdmissionV1(input) {
-  try {
-    const decision = checkEvidence(input, true);
-    if (decision._tag === "Invalid") return refused(decision.reason);
-    if (input.registered === null) return refused("missing_registration");
-    if (!registrationMatches(decision.checked, input.registered)) {
-      return refused("registration_mismatch");
-    }
-    return { schemaVersion: 1, _tag: "Admitted" };
-  } catch {
-    return refused("invalid_evidence");
-  }
-}
-
-// packages/policy/src/release-admission-cli.ts
-import { execFile as execFile2 } from "node:child_process";
-import {
-  accessSync as accessSync2,
-  closeSync as closeSync5,
-  constants as fsConstants4,
-  fstatSync as fstatSync4,
-  lstatSync as lstatSync3,
-  openSync as openSync5,
-  readSync as readSync4,
-  realpathSync as realpathSync2,
-  statSync as statSync2
-} from "node:fs";
-import { devNull } from "node:os";
-import {
-  delimiter as delimiter2,
-  dirname as dirname3,
-  isAbsolute,
-  relative,
-  resolve,
-  sep
-} from "node:path";
-import { promisify } from "node:util";
-var ONE_MIB3 = 1048576;
-var encoder4 = new TextEncoder();
-var execFileAsync = promisify(execFile2);
-var GIT_TIMEOUT_MS2 = 15e3;
-function compareUtf83(left3, right3) {
-  const a = encoder4.encode(left3);
-  const b = encoder4.encode(right3);
-  const length2 = Math.min(a.byteLength, b.byteLength);
-  for (let index = 0; index < length2; index += 1) {
-    const delta = a[index] - b[index];
-    if (delta !== 0) return delta;
-  }
-  return a.byteLength - b.byteLength;
-}
-function isSha40(value) {
-  return /^[0-9a-f]{40}$/.test(value);
-}
-function readBoundedRegularFile(path, maxBytes) {
-  const noFollow = typeof fsConstants4.O_NOFOLLOW === "number" ? fsConstants4.O_NOFOLLOW : 0;
-  const descriptor3 = openSync5(path, fsConstants4.O_RDONLY | noFollow);
-  try {
-    const stat = fstatSync4(descriptor3);
-    if (!stat.isFile() || stat.isSymbolicLink()) {
-      throw new Error("authority file is not regular");
-    }
-    const buffer = Buffer.allocUnsafe(maxBytes + 1);
-    let offset = 0;
-    while (offset < buffer.byteLength) {
-      const count = readSync4(
-        descriptor3,
-        buffer,
-        offset,
-        buffer.byteLength - offset,
-        offset
-      );
-      if (count === 0) break;
-      offset += count;
-    }
-    if (offset > maxBytes) throw new Error("authority file is oversized");
-    return Uint8Array.from(buffer.subarray(0, offset));
-  } finally {
-    closeSync5(descriptor3);
-  }
-}
-function isContainedPath(root, path) {
-  const rel = relative(root, path);
-  return rel.length === 0 || !isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`);
-}
-function resolveTrustedGitContext(repository) {
-  const physicalRepository = realpathSync2(repository);
-  const searchPath = process.env.PATH;
-  if (searchPath === void 0) throw new Error("Git path is unavailable");
-  const executableNames = process.platform === "win32" ? ["git.exe"] : ["git"];
-  for (const entry of searchPath.split(delimiter2)) {
-    const directory = entry.length === 0 ? repository : isAbsolute(entry) ? entry : resolve(repository, entry);
-    for (const name of executableNames) {
-      const candidate = resolve(directory, name);
-      try {
-        lstatSync3(candidate);
-      } catch (error) {
-        if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
-          continue;
-        }
-        throw error;
-      }
-      const physicalExecutable = realpathSync2(candidate);
-      if (isContainedPath(repository, candidate) || isContainedPath(physicalRepository, physicalExecutable)) {
-        throw new Error("repository-selected Git is forbidden");
-      }
-      if (!statSync2(physicalExecutable).isFile()) {
-        throw new Error("Git executable is not a regular file");
-      }
-      accessSync2(
-        physicalExecutable,
-        process.platform === "win32" ? fsConstants4.F_OK : fsConstants4.X_OK
-      );
-      return {
-        repository: physicalRepository,
-        executable: physicalExecutable
-      };
-    }
-  }
-  throw new Error("Git executable is unavailable");
-}
-function closedGitEnvironment(executable) {
-  const base = { PATH: dirname3(executable) };
-  if (process.platform === "win32") base["PATHEXT"] = ".EXE";
-  const environment2 = sanitizedGitEnv(base);
-  environment2["GIT_CONFIG_NOSYSTEM"] = "1";
-  environment2["GIT_CONFIG_GLOBAL"] = devNull;
-  return environment2;
-}
-async function runGitBytes(context5, args2, maxBytes) {
-  const result = await execFileAsync(
-    context5.executable,
-    gitArgv([
-      "-c",
-      "core.fsmonitor=false",
-      "-c",
-      `core.excludesFile=${devNull}`,
-      ...args2
-    ]),
-    {
-      cwd: context5.repository,
-      encoding: "buffer",
-      env: closedGitEnvironment(context5.executable),
-      maxBuffer: maxBytes + 1,
-      timeout: GIT_TIMEOUT_MS2,
-      windowsHide: true
-    }
-  );
-  const stdout = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.from(result.stdout ?? "");
-  if (stdout.byteLength > maxBytes) throw new Error("Git output is oversized");
-  return Uint8Array.from(stdout);
-}
-async function resolveGitObject(context5, expression) {
-  const bytes = await runGitBytes(
-    context5,
-    ["rev-parse", "--verify", expression],
-    64
-  );
-  const text = decodeUtf8Fatal(bytes);
-  if (isCoreFailure(text) || !/^[0-9a-f]{40}\n$/.test(text)) {
-    throw new Error("Git object identity is invalid");
-  }
-  return text.slice(0, -1);
-}
-async function isLinearDesignDescendant(context5, designCommit, candidateCommit) {
-  if (candidateCommit === designCommit) return true;
-  const bytes = await runGitBytes(
-    context5,
-    [
-      "rev-list",
-      "--ancestry-path",
-      "--parents",
-      `${designCommit}..${candidateCommit}`
-    ],
-    ONE_MIB3
-  );
-  const text = decodeUtf8Fatal(bytes);
-  if (isCoreFailure(text) || text.length === 0 || !text.endsWith("\n")) {
-    return false;
-  }
-  const parents = /* @__PURE__ */ new Map();
-  for (const line of text.slice(0, -1).split("\n")) {
-    const fields = line.split(" ");
-    if (fields.length !== 2 || !isSha40(fields[0]) || !isSha40(fields[1])) {
-      return false;
-    }
-    parents.set(fields[0], fields[1]);
-  }
-  const visited = /* @__PURE__ */ new Set();
-  let cursor = candidateCommit;
-  while (cursor !== designCommit) {
-    if (visited.has(cursor)) return false;
-    visited.add(cursor);
-    const parent = parents.get(cursor);
-    if (parent === void 0) return false;
-    cursor = parent;
-  }
-  return true;
-}
-function parseNulPaths(bytes) {
-  if (bytes.byteLength === 0) return [];
-  const text = decodeUtf8Fatal(bytes);
-  if (isCoreFailure(text) || !text.endsWith("\0")) {
-    throw new Error("Git path frame is invalid");
-  }
-  const paths = text.slice(0, -1).split("\0");
-  if (paths.some(
-    (path) => path.length === 0 || /[\u0000-\u001f\u007f\\]/.test(path) || path.split("/").some((segment) => segment === "" || segment === "." || segment === "..")
-  )) {
-    throw new Error("Git path is invalid");
-  }
-  return paths;
-}
-async function loadGitAuthorityLive(input) {
-  const context5 = resolveTrustedGitContext(input.repository);
-  const candidateCommit = await resolveGitObject(
-    context5,
-    `${input.candidateCommit}^{commit}`
-  );
-  if (candidateCommit !== input.candidateCommit) {
-    throw new Error("candidate identity changed");
-  }
-  const candidateTree = await resolveGitObject(
-    context5,
-    `${candidateCommit}^{tree}`
-  );
-  const designCommit = await resolveGitObject(
-    context5,
-    `${input.designCommit}^{commit}`
-  );
-  if (designCommit !== input.designCommit) {
-    throw new Error("design identity changed");
-  }
-  const designTree = await resolveGitObject(
-    context5,
-    `${designCommit}^{tree}`
-  );
-  const designLineageValid = await isLinearDesignDescendant(
-    context5,
-    designCommit,
-    candidateCommit
-  );
-  const prefix = `openspec/changes/${input.packageId}/`;
-  const listed = parseNulPaths(
-    await runGitBytes(
-      context5,
-      ["ls-tree", "-r", "-z", "--name-only", designCommit, "--", prefix],
-      ONE_MIB3
-    )
-  );
-  const retainedPaths = [];
-  let specCount = 0;
-  for (const path of listed) {
-    if (!path.startsWith(prefix)) throw new Error("Git path escaped package");
-    const relative3 = path.slice(prefix.length);
-    if (relative3 === "proposal.md" || relative3 === "design.md" || relative3 === "tasks.md" || relative3.startsWith("specs/")) {
-      retainedPaths.push(path);
-      if (relative3.startsWith("specs/")) specCount += 1;
-    }
-  }
-  if (specCount > input.maxSpecFiles) throw new Error("too many specifications");
-  let retainedBytes = 0;
-  let taskPlanBytes = null;
-  const approvedRows = [];
-  for (const path of retainedPaths) {
-    const bytes = await runGitBytes(
-      context5,
-      ["cat-file", "blob", `${designCommit}:${path}`],
-      input.maxBlobBytes
-    );
-    retainedBytes += bytes.byteLength;
-    if (retainedBytes > input.maxRetainedBytes) {
-      throw new Error("retained authority is oversized");
-    }
-    const relative3 = path.slice(prefix.length);
-    if (relative3 === "tasks.md") {
-      taskPlanBytes = bytes;
-    } else {
-      approvedRows.push({ path: relative3, bytes });
-    }
-  }
-  if (taskPlanBytes === null) throw new Error("task plan is missing");
-  approvedRows.sort((left3, right3) => compareUtf83(left3.path, right3.path));
-  const approvedOpenSpecBytes = {};
-  for (const row of approvedRows) approvedOpenSpecBytes[row.path] = row.bytes;
-  return {
-    candidate: {
-      commit: candidateCommit,
-      tree: candidateTree,
-      candidateSha256: sha256Hex(candidateCommit)
-    },
-    designTree,
-    designLineageValid,
-    approvedOpenSpecBytes,
-    taskPlanBytes
-  };
-}
-var liveReleaseAdmissionCliServices = {
-  readEvidence: (input) => Effect_exports.try({
-    try: () => readBoundedRegularFile(input.path, input.maxBytes),
-    catch: (error) => error
-  }),
-  loadGitAuthority: (input) => Effect_exports.tryPromise({
-    try: () => loadGitAuthorityLive(input),
-    catch: (error) => error
-  })
-};
-
 // packages/orchestration/src/release-policy.ts
 import { isAbsolute as isAbsolute3 } from "node:path";
 
@@ -38793,6 +39368,7 @@ import {
   fstatSync as fstatSync5,
   lstatSync as lstatSync4,
   openSync as openSync6,
+  readdirSync as readdirSync2,
   readSync as readSync5,
   realpathSync as realpathSync3
 } from "node:fs";
@@ -38812,12 +39388,11 @@ var EXIT_OK2 = 0;
 var EXIT_EVALUATED = 1;
 var EXIT_USAGE = 64;
 var USAGE_DIAGNOSTIC = "release-coverage: invalid invocation\n";
-var TRACK1_OWNER = "openspec-superpowers-convergence";
-var PROGRAM2 = "v040";
 var FAMILY_SCHEMA = "foreman.execution-family-source.v1";
 var CHILD_SCHEMA = "foreman.execution-child-brief.v1";
-var FAMILY_ID2 = "v040-release-20260822-f1";
 var BRIEF_SCHEMA2 = "foreman.release-package-brief.v1";
+var OPENSPEC_CHANGES_PREFIX = "openspec/changes";
+var EVIDENCE_FILE_LIMIT = 512;
 var ROADMAP_HEADER = "| Coverage key | Scope | Release | Owner |";
 var ROADMAP_SEPARATOR = "|---|---|---|---|";
 var OPENSPEC_LIST_ARGV = ["list", "--json"];
@@ -38825,7 +39400,6 @@ var SUPERPOWERS_SPECS = "docs/superpowers/specs";
 var SUPERPOWERS_PLANS = "docs/superpowers/plans";
 var GIT_TIMEOUT_MS3 = 3e4;
 var OPENSPEC_TIMEOUT_MS = 3e4;
-var TRANCHES = [2, 3, 4, 5, 6, 7, 8, 9];
 var encoder5 = new TextEncoder();
 function buildTrustedGitEnvironment(physicalGit, platform, nullDevice) {
   const pathApi = platform === "win32" ? win32 : posix;
@@ -39010,6 +39584,14 @@ function makeLiveReleaseCoverageCliServices(dependencies) {
           input.containmentRoot
         ),
         catch: (error) => error
+      }),
+      classifyPath: (input) => Effect_exports.try({
+        try: () => classifyPathLive(input.path, input.containmentRoot),
+        catch: (error) => error
+      }),
+      listDirectory: (input) => Effect_exports.try({
+        try: () => listDirectoryLive(input.path, input.containmentRoot),
+        catch: (error) => error
       })
     },
     openspecList: {
@@ -39086,6 +39668,10 @@ function makeLiveReleaseCoverageCliServices(dependencies) {
           dependencies.platform,
           dependencies.nullDevice
         );
+        const prefixes = input.pathPrefixes ?? [
+          SUPERPOWERS_SPECS,
+          SUPERPOWERS_PLANS
+        ];
         const tracked = yield* dependencies.runCaptured({
           command: trusted.physicalGit,
           args: gitArguments(trusted.physicalRepository, [
@@ -39096,8 +39682,7 @@ function makeLiveReleaseCoverageCliServices(dependencies) {
             "--no-textconv",
             input.baselineCommit,
             "--",
-            SUPERPOWERS_SPECS,
-            SUPERPOWERS_PLANS
+            ...prefixes
           ]),
           env,
           maxOutputBytes: ONE_MIB4,
@@ -39115,8 +39700,7 @@ function makeLiveReleaseCoverageCliServices(dependencies) {
             "--others",
             "-z",
             "--",
-            SUPERPOWERS_SPECS,
-            SUPERPOWERS_PLANS
+            ...prefixes
           ]),
           env,
           maxOutputBytes: ONE_MIB4,
@@ -39128,6 +39712,78 @@ function makeLiveReleaseCoverageCliServices(dependencies) {
           return yield* Effect_exports.fail({ _tag: "GitPathsInvalid" });
         }
         return dedupeUtf8ByteOrder([...trackedPaths, ...untrackedPaths]);
+      }),
+      readAtCommit: (input) => Effect_exports.gen(function* () {
+        const trusted = yield* resolveTrustedGitContext2(
+          input.repository,
+          "explicit"
+        );
+        const env = buildTrustedGitEnvironment(
+          trusted.physicalGit,
+          dependencies.platform,
+          dependencies.nullDevice
+        );
+        if (typeof input.path !== "string" || input.path.length === 0 || input.path.includes("\0") || input.path.includes("\\") || input.path.startsWith("/") || input.path.includes(":")) {
+          return yield* Effect_exports.fail({ _tag: "GitPathsInvalid" });
+        }
+        const captured = yield* dependencies.runCaptured({
+          command: trusted.physicalGit,
+          args: gitArguments(trusted.physicalRepository, [
+            "show",
+            `${input.commit}:${input.path}`
+          ]),
+          env,
+          maxOutputBytes: ONE_MIB4,
+          timeoutMs: GIT_TIMEOUT_MS3
+        });
+        return yield* requireCapturedStdoutBytes(captured);
+      }),
+      existsAtCommit: (input) => Effect_exports.gen(function* () {
+        const trusted = yield* resolveTrustedGitContext2(
+          input.repository,
+          "explicit"
+        );
+        const env = buildTrustedGitEnvironment(
+          trusted.physicalGit,
+          dependencies.platform,
+          dependencies.nullDevice
+        );
+        if (typeof input.path !== "string" || input.path.length === 0 || input.path.includes("\0") || input.path.includes("\\") || input.path.startsWith("/") || input.path.includes(":")) {
+          return yield* Effect_exports.fail({ _tag: "GitPathsInvalid" });
+        }
+        const tree = yield* dependencies.runCaptured({
+          command: trusted.physicalGit,
+          args: gitArguments(trusted.physicalRepository, [
+            "cat-file",
+            "-e",
+            `${input.commit}^{tree}`
+          ]),
+          env,
+          maxOutputBytes: ONE_MIB4,
+          timeoutMs: GIT_TIMEOUT_MS3
+        });
+        if (tree.exitCode !== 0) {
+          return yield* Effect_exports.fail({ _tag: "GitError" });
+        }
+        const listing = yield* dependencies.runCaptured({
+          command: trusted.physicalGit,
+          args: gitArguments(trusted.physicalRepository, [
+            "ls-tree",
+            "--name-only",
+            input.commit,
+            "--",
+            input.path
+          ]),
+          env,
+          maxOutputBytes: ONE_MIB4,
+          timeoutMs: GIT_TIMEOUT_MS3
+        });
+        const stderrText = capturedStderrText(listing);
+        if (listing.exitCode !== 0 || stderrText.includes("fatal:")) {
+          return yield* Effect_exports.fail({ _tag: "GitError" });
+        }
+        const stdoutBytes = listing.stdoutBytes ?? encoder5.encode(listing.stdout);
+        return stdoutBytes.byteLength > 0;
       })
     },
     familySource: {
@@ -39276,19 +39932,22 @@ function parseArgv(argv) {
   const program2 = raw["--program"];
   const phase = raw["--phase"];
   const register = raw["--register"];
-  if (program2 !== PROGRAM2) return { _tag: "Invalid" };
+  if (typeof program2 !== "string") return { _tag: "Invalid" };
+  if (!isReleaseProgram(program2)) return { _tag: "WrongProgram" };
   if (phase !== "bootstrap" && phase !== "lane" && phase !== "release") {
     return { _tag: "Invalid" };
   }
   if (typeof register !== "string" || !isNativeAbsolutePath(register)) {
     return { _tag: "Invalid" };
   }
+  const table = releaseProgramTable(program2);
   const owner = raw["--owner"];
   const repo = raw["--repo"];
   const stateRoot = raw["--state-root"];
   const contractId = raw["--contract-id"];
   const contractSha = raw["--contract-sha"];
   const familySha = raw["--family-sha"];
+  const evidence = raw["--evidence"];
   const flags = {
     phase,
     owner,
@@ -39297,7 +39956,8 @@ function parseArgv(argv) {
     stateRoot,
     contractId,
     contractSha,
-    familySha
+    familySha,
+    evidence
   };
   if (phase === "bootstrap") {
     const allowed2 = /* @__PURE__ */ new Set([
@@ -39309,19 +39969,21 @@ function parseArgv(argv) {
     for (const key of Object.keys(raw)) {
       if (!allowed2.has(key)) return { _tag: "Invalid" };
     }
-    if (owner !== TRACK1_OWNER) return { _tag: "Invalid" };
+    if (owner !== table.bootstrapOwner) return { _tag: "Invalid" };
     if (repo !== void 0 || stateRoot !== void 0 || contractId !== void 0 || contractSha !== void 0 || familySha !== void 0) {
       return { _tag: "Invalid" };
     }
     return {
       _tag: "Ok",
-      phase: { _tag: "Bootstrap", owner: TRACK1_OWNER },
+      program: program2,
+      phase: { _tag: "Bootstrap", owner: table.bootstrapOwner },
       register,
       repo: void 0,
       stateRoot: void 0,
       contractId: void 0,
       contractSha: void 0,
-      familySha: void 0
+      familySha: void 0,
+      evidence: void 0
     };
   }
   if (phase === "lane") {
@@ -39357,15 +40019,18 @@ function parseArgv(argv) {
     }
     return {
       _tag: "Ok",
+      program: program2,
       phase: { _tag: "Lane", owner },
       register: flags.register,
       repo,
       stateRoot,
       contractId,
       contractSha,
-      familySha
+      familySha,
+      evidence: void 0
     };
   }
+  const isV0502 = program2 !== RELEASE_PROGRAMS[0];
   const allowed = /* @__PURE__ */ new Set([
     "--program",
     "--phase",
@@ -39374,7 +40039,8 @@ function parseArgv(argv) {
     "--contract-id",
     "--contract-sha",
     "--family-sha",
-    "--register"
+    "--register",
+    ...isV0502 ? ["--evidence"] : []
   ]);
   for (const key of Object.keys(raw)) {
     if (!allowed.has(key)) return { _tag: "Invalid" };
@@ -39395,15 +40061,24 @@ function parseArgv(argv) {
   if (typeof familySha !== "string" || !isSha256Hex(familySha)) {
     return { _tag: "Invalid" };
   }
+  if (isV0502) {
+    if (typeof evidence !== "string" || !isNativeAbsolutePath(evidence)) {
+      return { _tag: "Invalid" };
+    }
+  } else if (evidence !== void 0) {
+    return { _tag: "Invalid" };
+  }
   return {
     _tag: "Ok",
+    program: program2,
     phase: { _tag: "Release" },
     register: flags.register,
     repo,
     stateRoot,
     contractId,
     contractSha,
-    familySha
+    familySha,
+    evidence: isV0502 ? evidence : void 0
   };
 }
 function readBoundedPort(fileRead, path, containmentRoot) {
@@ -39470,7 +40145,7 @@ function parseRoadmapRows(text) {
   for (let i = headerIndex + 2; i < lines.length; i++) {
     const line = lines[i];
     if (line.length === 0) break;
-    const match12 = /^\| `([^`]+)` \| ([^|]+) \| `(v0\.[45])` \| `([^`]+)` \|$/.exec(line);
+    const match12 = /^\| `([^`]+)` \| ([^|]+) \| `(v0\.[456])` \| `([^`]+)` \|$/.exec(line);
     if (match12 === null) return null;
     rows.push({
       key: match12[1],
@@ -39494,6 +40169,18 @@ function extractWorkflowSchema(text) {
   }
   return found;
 }
+function repositoryRelativePosixPath(repository, absoluteFile) {
+  const rel = relative2(repository, absoluteFile);
+  if (rel.length === 0) return null;
+  if (isAbsolute2(rel)) return null;
+  if (rel === "..") return null;
+  if (rel.startsWith(`..${sep2}`)) return null;
+  return rel.split(sep2).join("/");
+}
+function evidenceFileNameIsIncluded(name) {
+  const lower = name.toLowerCase();
+  return lower.endsWith(".json") || lower.endsWith(".md");
+}
 function resolveContainedPath(repository, segments) {
   for (const segment of segments) {
     if (segment.includes("\\") || segment.includes("\0")) return null;
@@ -39508,16 +40195,26 @@ function resolveContainedPath(repository, segments) {
   if (rel.startsWith(`..${sep2}`)) return null;
   return absolute;
 }
-function validateFamilySource(source) {
+function trancheSequence(program2) {
+  const [min3, max5] = releaseProgramTable(program2).trancheRange;
+  const values3 = [];
+  for (let value = min3; value <= max5; value += 1) values3.push(value);
+  return values3;
+}
+function validateFamilySource(source, program2) {
   if (!isPlainObject3(source)) return false;
   if (!hasExactOwnKeys3(source, ["schema", "program", "familyId", "children"])) {
     return false;
   }
   if (source["schema"] !== FAMILY_SCHEMA) return false;
-  if (source["program"] !== PROGRAM2) return false;
-  if (source["familyId"] !== FAMILY_ID2) return false;
+  if (source["program"] !== program2) return false;
+  if (source["familyId"] !== releaseProgramTable(program2).familyId) return false;
   const children = source["children"];
-  if (!Array.isArray(children) || children.length !== 8) return false;
+  const expectedTranches = trancheSequence(program2);
+  const isDefaultProgram = program2 === RELEASE_PROGRAMS[0];
+  if (!Array.isArray(children)) return false;
+  if (isDefaultProgram && children.length !== expectedTranches.length) return false;
+  if (!isDefaultProgram && children.length < 1) return false;
   const childIds = /* @__PURE__ */ new Set();
   const packageIds = /* @__PURE__ */ new Set();
   for (let i = 0; i < children.length; i++) {
@@ -39544,7 +40241,14 @@ function validateFamilySource(source) {
     const acceptance = child["acceptance"];
     const allowedPaths = child["allowedPaths"];
     if (typeof childId !== "string" || !isRunId2(childId)) return false;
-    if (tranche !== TRANCHES[i]) return false;
+    if (isDefaultProgram) {
+      if (tranche !== expectedTranches[i]) return false;
+    } else {
+      const [min3, max5] = releaseProgramTable(program2).trancheRange;
+      if (typeof tranche !== "number" || tranche < min3 || tranche > max5) {
+        return false;
+      }
+    }
     if (typeof packageId !== "string" || !isRunId2(packageId)) return false;
     if (childIds.has(childId) || packageIds.has(packageId)) return false;
     childIds.add(childId);
@@ -39599,7 +40303,8 @@ function evaluateReleaseCoverage(parsed, services) {
     if (registerText === null) return dependencyFailure();
     const inspection = inspectReleaseCoverageRegisterV1({
       registerText,
-      phase: parsed.phase
+      phase: parsed.phase,
+      program: parsed.program
     });
     if (inspection._tag === "Invalid") {
       return invalidResult("invalid_register");
@@ -39646,12 +40351,20 @@ function evaluateReleaseCoverage(parsed, services) {
     const changed = yield* callPort(
       () => services.gitChangedPaths.discover({
         repository,
-        baselineCommit: inspection.baselineCommit
+        baselineCommit: inspection.baselineCommit,
+        ...parsed.program !== RELEASE_PROGRAMS[0] ? {
+          pathPrefixes: [
+            SUPERPOWERS_SPECS,
+            SUPERPOWERS_PLANS,
+            OPENSPEC_CHANGES_PREFIX
+          ]
+        } : {}
       })
     ).pipe(Effect_exports.either);
     if (changed._tag === "Left") return dependencyFailure();
+    const workflowOwners = parsed.program !== RELEASE_PROGRAMS[0] && parsed.phase._tag === "Bootstrap" ? inspection.v050OwnerPackageNames : inspection.selectedOwners;
     const workflowByChange = {};
-    for (const owner of inspection.selectedOwners) {
+    for (const owner of workflowOwners) {
       const workflowPath = resolveContainedPath(repository, [
         "openspec",
         "changes",
@@ -39698,7 +40411,7 @@ function evaluateReleaseCoverage(parsed, services) {
       if (resolved.stateRoot !== parsed.stateRoot || resolved.contractId !== parsed.contractId || resolved.contractSha256 !== parsed.contractSha || resolved.familySha256 !== parsed.familySha) {
         return dependencyFailure();
       }
-      if (!validateFamilySource(resolved.source)) {
+      if (!validateFamilySource(resolved.source, parsed.program)) {
         return dependencyFailure();
       }
       const children = resolved.source.children;
@@ -39733,6 +40446,136 @@ function evaluateReleaseCoverage(parsed, services) {
         packageBriefBytesByOwner[owner] = briefRead.bytes;
       }
     }
+    const tasksMarkdownByOwner = {};
+    if (parsed.program !== RELEASE_PROGRAMS[0] && parsed.phase._tag === "Lane") {
+      for (const owner of inspection.selectedOwners) {
+        const tasksPath = resolveContainedPath(repository, [
+          "openspec",
+          "changes",
+          owner,
+          "tasks.md"
+        ]);
+        if (tasksPath === null) continue;
+        const tasksRead = yield* readBoundedPort(
+          services.fileRead,
+          tasksPath,
+          repository
+        );
+        if (tasksRead._tag === "Fail") return dependencyFailure();
+        if (tasksRead._tag === "NotFound") continue;
+        const tasksText = decodeUtf8Fatal2(tasksRead.bytes);
+        if (tasksText === null) continue;
+        tasksMarkdownByOwner[owner] = tasksText;
+      }
+    }
+    let baselineRegisterText;
+    let baselineRegisterAbsent = false;
+    if (parsed.program !== RELEASE_PROGRAMS[0] && (parsed.phase._tag === "Bootstrap" || parsed.phase._tag === "Release")) {
+      const relativeRegister = repositoryRelativePosixPath(
+        repository,
+        parsed.register
+      );
+      if (relativeRegister === null) return dependencyFailure();
+      const baselineBytes = yield* callPort(
+        () => services.gitChangedPaths.readAtCommit({
+          repository,
+          commit: inspection.baselineCommit,
+          path: relativeRegister
+        })
+      ).pipe(Effect_exports.either);
+      if (baselineBytes._tag === "Right") {
+        const baselineText = decodeUtf8Fatal2(baselineBytes.right);
+        if (baselineText === null) return dependencyFailure();
+        baselineRegisterText = baselineText;
+      } else {
+        const present = yield* callPort(
+          () => services.gitChangedPaths.existsAtCommit({
+            repository,
+            commit: inspection.baselineCommit,
+            path: relativeRegister
+          })
+        ).pipe(Effect_exports.either);
+        if (present._tag === "Left" || present.right) {
+          return dependencyFailure();
+        }
+        baselineRegisterAbsent = true;
+      }
+    }
+    const evidenceArtifacts = [];
+    if (parsed.program !== RELEASE_PROGRAMS[0] && parsed.phase._tag === "Release") {
+      const evidencePath = parsed.evidence;
+      if (typeof evidencePath !== "string" || !isNativeAbsolutePath(evidencePath)) {
+        return dependencyFailure();
+      }
+      const classified = yield* callPort(
+        () => services.fileRead.classifyPath({
+          path: evidencePath
+        })
+      ).pipe(Effect_exports.either);
+      if (classified._tag === "Left") return dependencyFailure();
+      const kind = classified.right;
+      if (kind._tag === "NotFound" || kind._tag === "Other") {
+        return dependencyFailure();
+      }
+      const collected = [];
+      let evidenceBound;
+      if (kind._tag === "File") {
+        const parent = dirname4(evidencePath);
+        if (!isNativeAbsolutePath(parent)) return dependencyFailure();
+        evidenceBound = parent;
+        collected.push(evidencePath);
+      } else {
+        evidenceBound = evidencePath;
+        const pending3 = [evidencePath];
+        while (pending3.length > 0) {
+          const directory = pending3.pop();
+          const listed = yield* callPort(
+            () => services.fileRead.listDirectory({
+              path: directory,
+              containmentRoot: evidenceBound
+            })
+          ).pipe(Effect_exports.either);
+          if (listed._tag === "Left") return dependencyFailure();
+          const names = [...listed.right].sort(compareUtf8Bytes2);
+          for (const name of names) {
+            if (name.includes("/") || name.includes("\\") || name.includes("\0")) {
+              return dependencyFailure();
+            }
+            if (name === "." || name === "..") continue;
+            const child = join6(directory, name);
+            const childKind = yield* callPort(
+              () => services.fileRead.classifyPath({
+                path: child,
+                containmentRoot: evidenceBound
+              })
+            ).pipe(Effect_exports.either);
+            if (childKind._tag === "Left") return dependencyFailure();
+            if (childKind.right._tag === "Directory") {
+              pending3.push(child);
+              continue;
+            }
+            if (childKind.right._tag !== "File") continue;
+            if (!evidenceFileNameIsIncluded(name)) continue;
+            collected.push(child);
+            if (collected.length > EVIDENCE_FILE_LIMIT) {
+              return dependencyFailure();
+            }
+          }
+        }
+        collected.sort(compareUtf8Bytes2);
+      }
+      for (const filePath of collected) {
+        const evidenceRead = yield* readBoundedPort(
+          services.fileRead,
+          filePath,
+          evidenceBound
+        );
+        if (evidenceRead._tag !== "Ok") return dependencyFailure();
+        const evidenceText = decodeUtf8Fatal2(evidenceRead.bytes);
+        if (evidenceText === null) return dependencyFailure();
+        evidenceArtifacts.push({ path: filePath, text: evidenceText });
+      }
+    }
     return validateReleaseCoverageV1({
       phase: parsed.phase,
       registerText,
@@ -39742,7 +40585,12 @@ function evaluateReleaseCoverage(parsed, services) {
       workflowByChange,
       changedSuperpowersPaths: changed.right,
       expectedBriefByOwner,
-      packageBriefBytesByOwner
+      packageBriefBytesByOwner,
+      program: parsed.program,
+      ...Object.keys(tasksMarkdownByOwner).length > 0 ? { tasksMarkdownByOwner } : {},
+      ...baselineRegisterText !== void 0 ? { baselineRegisterText } : {},
+      ...baselineRegisterAbsent ? { baselineRegisterAbsent: true } : {},
+      ...evidenceArtifacts.length > 0 ? { evidenceArtifacts } : {}
     });
   }).pipe(
     Effect_exports.catchAll(
@@ -39759,6 +40607,9 @@ function runReleaseCoverageCli(argv, io2, services) {
     if (parsed._tag === "Invalid") {
       io2.writeStderr(USAGE_DIAGNOSTIC);
       return EXIT_USAGE;
+    }
+    if (parsed._tag === "WrongProgram") {
+      return emitEvaluated(io2, invalidResult("wrong_program"));
     }
     const result = yield* evaluateReleaseCoverage(parsed, services);
     return emitEvaluated(io2, result);
@@ -39910,6 +40761,49 @@ function readBoundedBytesLive(path, maxBytes, containmentRoot) {
     }
   }
 }
+function classifyPathLive(path, containmentRoot) {
+  if (containmentRoot !== void 0) {
+    try {
+      validateContainmentLive(path, containmentRoot);
+    } catch (error) {
+      if (isNotFoundError2(error)) return { _tag: "NotFound" };
+      throw error;
+    }
+  }
+  let stats;
+  try {
+    stats = lstatSync4(path);
+  } catch (error) {
+    if (isEnoentLive(error)) return { _tag: "NotFound" };
+    throw error;
+  }
+  if (stats.isSymbolicLink()) return { _tag: "Other" };
+  if (stats.isFile()) return { _tag: "File" };
+  if (stats.isDirectory()) return { _tag: "Directory" };
+  return { _tag: "Other" };
+}
+function listDirectoryLive(path, containmentRoot) {
+  if (containmentRoot !== void 0) {
+    validateContainmentLive(path, containmentRoot);
+  }
+  let stats;
+  try {
+    stats = lstatSync4(path);
+  } catch (error) {
+    if (isEnoentLive(error)) readFailureLive("NotFound", "directory not found");
+    throw error;
+  }
+  if (stats.isSymbolicLink()) readFailureLive("Symlink", "directory is a symlink");
+  if (!stats.isDirectory()) {
+    readFailureLive("NotFile", "path is not a directory");
+  }
+  const names = [];
+  for (const entry of readdirSync2(path, { withFileTypes: true })) {
+    if (entry.isSymbolicLink()) continue;
+    names.push(entry.name);
+  }
+  return names;
+}
 function isWindowsSafeAbsolutePath(value, expectedBasename) {
   if (typeof value !== "string" || value.length === 0) return false;
   if (!win32.isAbsolute(value)) return false;
@@ -40014,6 +40908,11 @@ function parseGitTopLevel(bytes, platform = process.platform) {
 }
 function gitArgv2(args2) {
   return ["--no-replace-objects", ...args2];
+}
+function capturedStderrText(result) {
+  if (result.stderrBytes === void 0) return result.stderr;
+  const decoded = decodeUtf8Fatal2(result.stderrBytes);
+  return decoded === null ? "fatal:" : decoded;
 }
 function requireCapturedStdoutBytes(result) {
   if (result.exitCode !== 0) {
@@ -40146,8 +41045,11 @@ function parseReleasePolicyArgv(argv) {
     args2[26],
     args2[28]
   ];
-  if (typeof stateRoot !== "string" || !isAbsolute3(stateRoot) || !validId(contractId) || typeof contractSha256 !== "string" || !isSha256Hex(contractSha256) || typeof familySha256 !== "string" || !isSha256Hex(familySha256) || !validId(childId) || typeof action !== "string" || !ACTIONS.includes(action) || typeof candidateSha256 !== "string" || !isSha256Hex(candidateSha256) || program2 !== "v040" || phase !== "bootstrap" && phase !== "lane" && phase !== "release" || !validId(owner) || typeof repository !== "string" || !isAbsolute3(repository) || typeof candidateCommit !== "string" || !isCommitSha40(candidateCommit) || typeof register !== "string" || !isAbsolute3(register) || typeof evidence !== "string" || !isAbsolute3(evidence) || candidateSha256 !== sha256Hex(candidateCommit)) {
+  if (typeof stateRoot !== "string" || !isAbsolute3(stateRoot) || !validId(contractId) || typeof contractSha256 !== "string" || !isSha256Hex(contractSha256) || typeof familySha256 !== "string" || !isSha256Hex(familySha256) || !validId(childId) || typeof action !== "string" || !ACTIONS.includes(action) || typeof candidateSha256 !== "string" || !isSha256Hex(candidateSha256) || typeof program2 !== "string" || phase !== "bootstrap" && phase !== "lane" && phase !== "release" || !validId(owner) || typeof repository !== "string" || !isAbsolute3(repository) || typeof candidateCommit !== "string" || !isCommitSha40(candidateCommit) || typeof register !== "string" || !isAbsolute3(register) || typeof evidence !== "string" || !isAbsolute3(evidence) || candidateSha256 !== sha256Hex(candidateCommit)) {
     return { _tag: "Invalid" };
+  }
+  if (!isReleaseProgram(program2)) {
+    return { _tag: "WrongProgram" };
   }
   return {
     _tag: "Check",
@@ -40204,7 +41106,10 @@ function releasePolicyBlockArgv(block) {
 function phaseForCoverage(block) {
   if (block.phase === "release") return { _tag: "Release" };
   if (block.phase === "bootstrap") {
-    return { _tag: "Bootstrap", owner: "openspec-superpowers-convergence" };
+    return {
+      _tag: "Bootstrap",
+      owner: releaseProgramTable(block.program).bootstrapOwner
+    };
   }
   return { _tag: "Lane", owner: block.owner };
 }
@@ -40232,6 +41137,9 @@ function runReleasePolicyCli(argv, io2, services) {
       safeWrite(io2.writeStderr, RELEASE_POLICY_USAGE);
       return 64;
     }
+    if (parsed._tag === "WrongProgram") {
+      return emit(io2, refused2("wrong_program"));
+    }
     const block = parsed.block;
     void phaseForCoverage(block);
     const coverage = yield* services.checkCoverage(block);
@@ -40241,8 +41149,16 @@ function runReleasePolicyCli(argv, io2, services) {
       maxBytes: ONE_MIB5
     });
     const decoded = decodeReleaseAuthorityFileV1(evidenceBytes);
-    const firstReceipt = decoded._tag === "Valid" && decoded.value.schema === "foreman.release-evidence-bundle.v1" ? decoded.value.receipts[0] : void 0;
-    if (decoded._tag !== "Valid" || decoded.value.schema !== "foreman.release-evidence-bundle.v1" || firstReceipt?.schema !== "foreman.design-approval.v1") {
+    if (decoded._tag !== "Valid") {
+      return emit(
+        io2,
+        refused2(
+          decoded.reason === "wrong_program" ? "wrong_program" : "invalid_evidence"
+        )
+      );
+    }
+    const firstReceipt = decoded.value.schema === "foreman.release-evidence-bundle.v1" ? decoded.value.receipts[0] : void 0;
+    if (decoded.value.schema !== "foreman.release-evidence-bundle.v1" || firstReceipt?.schema !== "foreman.design-approval.v1") {
       return emit(io2, refused2("invalid_evidence"));
     }
     const bundle = decoded.value;
@@ -40285,7 +41201,8 @@ function runReleasePolicyCli(argv, io2, services) {
       approvedOpenSpecBytes: git.approvedOpenSpecBytes,
       taskPlanBytes: git.taskPlanBytes,
       evidenceBytes,
-      registered
+      registered,
+      program: block.program
     });
     return emit(io2, result);
   });
@@ -40300,7 +41217,7 @@ function coverageArgv(block) {
     return [
       "check",
       "--program",
-      "v040",
+      block.program,
       "--phase",
       "bootstrap",
       "--owner",
@@ -40313,7 +41230,7 @@ function coverageArgv(block) {
     return [
       "check",
       "--program",
-      "v040",
+      block.program,
       "--phase",
       "lane",
       "--owner",
@@ -40335,7 +41252,7 @@ function coverageArgv(block) {
   return [
     "check",
     "--program",
-    "v040",
+    block.program,
     "--phase",
     "release",
     "--repo",

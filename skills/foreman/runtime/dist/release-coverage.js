@@ -30594,6 +30594,7 @@ import {
   fstatSync as fstatSync4,
   lstatSync as lstatSync3,
   openSync as openSync5,
+  readdirSync as readdirSync2,
   readSync as readSync4,
   realpathSync as realpathSync2
 } from "node:fs";
@@ -31219,12 +31220,62 @@ var liveInstallFs = Layer_exports.succeed(InstallFs, {
   })
 });
 
+// packages/policy/src/release-program.ts
+var RELEASE_PROGRAMS = ["v040", "v050"];
+function isReleaseProgram(value) {
+  return value === "v040" || value === "v050";
+}
+var TABLES = {
+  v040: {
+    program: "v040",
+    registerPath: "openspec/changes/v040-release-program/coverage.toml",
+    dispositions: [
+      "v040_owner",
+      "v040_dependency",
+      "released_reference",
+      "superseded",
+      "v050"
+    ],
+    bootstrapOwner: "openspec-superpowers-convergence",
+    childIdPrefix: "v040-t",
+    evaluationChild: "v040-t8-evaluation",
+    trancheRange: [2, 9],
+    familyId: "v040-release-20260822-f1",
+    schemaVersion: 1
+  },
+  v050: {
+    program: "v050",
+    registerPath: "openspec/changes/v050-release-program/coverage.toml",
+    dispositions: [
+      "v050_owner",
+      "v050_dependency",
+      "released_reference",
+      "superseded",
+      "v060"
+    ],
+    bootstrapOwner: "v050-release-program",
+    childIdPrefix: "v050-",
+    evaluationChild: null,
+    trancheRange: [2, 8],
+    familyId: null,
+    schemaVersion: 2
+  }
+};
+function releaseProgramTable(program) {
+  return TABLES[program];
+}
+
 // packages/policy/src/release-coverage.ts
 var SCHEMA_VERSION = 1;
 var ONE_MIB = 1024 * 1024;
-var IMMUTABLE_BASELINE_COMMIT = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195";
-var TRACK1_PACKAGE = "openspec-superpowers-convergence";
-var TRACK1_KEY = `change:${TRACK1_PACKAGE}`;
+var V040_BASELINE_COMMIT = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195";
+var V050_BASELINE_COMMIT = "387dcd7521a45e91b2a58b309e20ffcc72902ec0";
+var IRON_RULE_EXTENSIONS = /\.(?:sh|py|ps1|cmd|mjs|cjs)$/;
+var IRON_RULE_PREFIXES = /^(?:packages|skills|env|tools|scripts)\//;
+var IRON_RULE_CREATE = /(?:new|create|Create) `([^`]+)`/g;
+var MODEL_FACING_VERDICTS = /* @__PURE__ */ new Set(["APPROVED", "WARNING", "BLOCKED"]);
+var MEASUREMENT_RESULTS = /* @__PURE__ */ new Set(["PASS", "FAILED", "UNCOMPUTABLE"]);
+var MD_VOCABULARY_LINE = /^\s*(verdict|measurement_result)\s*[:=]\s*(\S+)\s*$/i;
 var ROADMAP_PATH = "ROADMAP.md";
 var OPENSPEC_PREFIX = "openspec/changes/";
 var CHANGE_PREFIX = "change:";
@@ -31234,17 +31285,8 @@ var ALLOWED_WORKFLOWS = /* @__PURE__ */ new Set([
   "foreman-architectural"
 ]);
 var SOURCE_KINDS = /* @__PURE__ */ new Set(["openspec_change", "roadmap"]);
-var DISPOSITIONS = /* @__PURE__ */ new Set([
-  "v040_owner",
-  "v040_dependency",
-  "released_reference",
-  "superseded",
-  "v050"
-]);
 var RECONCILES = /* @__PURE__ */ new Set(["complete", "required", "not_required"]);
-var TARGET_RELEASES = /* @__PURE__ */ new Set(["v0.4", "v0.5", "released"]);
-var ROADMAP_RELEASES = /* @__PURE__ */ new Set(["v0.4", "v0.5"]);
-var FUTURE_RELEASES = /* @__PURE__ */ new Set(["v0.4", "v0.5"]);
+var SHARED_TARGET_RELEASES = ["v0.4", "v0.5", "released"];
 var BRIEF_SCHEMA = "foreman.release-package-brief.v1";
 var BRIEF_KEYS = [
   "acceptance",
@@ -31273,6 +31315,62 @@ var ENTRY_FIELDS = /* @__PURE__ */ new Set([
   "reason"
 ]);
 var encoder = new TextEncoder();
+function defaultReleaseProgram() {
+  return RELEASE_PROGRAMS[0];
+}
+function resolveCoverageProgram(value) {
+  if (value === void 0) return defaultReleaseProgram();
+  return isReleaseProgram(value) ? value : null;
+}
+function programCurrentRelease(program) {
+  return program === RELEASE_PROGRAMS[0] ? "v0.4" : "v0.5";
+}
+function programFutureRelease(program) {
+  return program === RELEASE_PROGRAMS[0] ? "v0.5" : "v0.6";
+}
+function dispositionsFor(program) {
+  return new Set(releaseProgramTable(program).dispositions);
+}
+function programBaselineCommit(program) {
+  return program === RELEASE_PROGRAMS[0] ? V040_BASELINE_COMMIT : V050_BASELINE_COMMIT;
+}
+function programSchemaVersion(program) {
+  return releaseProgramTable(program).schemaVersion;
+}
+function isV050(program) {
+  return program !== RELEASE_PROGRAMS[0];
+}
+function targetReleasesFor(program) {
+  const releases = new Set(SHARED_TARGET_RELEASES);
+  if (isV050(program)) {
+    releases.add("v0.6");
+    releases.add("v0.2.9");
+  }
+  return releases;
+}
+function roadmapReleasesFor(program) {
+  const releases = /* @__PURE__ */ new Set(["v0.4", "v0.5"]);
+  if (program !== RELEASE_PROGRAMS[0]) releases.add("v0.6");
+  return releases;
+}
+function futureReleasesFor(program) {
+  return roadmapReleasesFor(program);
+}
+function ownerDisposition(program) {
+  return releaseProgramTable(program).dispositions[0];
+}
+function dependencyDisposition(program) {
+  return releaseProgramTable(program).dispositions[1];
+}
+function futureDisposition(program) {
+  return releaseProgramTable(program).dispositions[4];
+}
+function bootstrapOwner(program) {
+  return releaseProgramTable(program).bootstrapOwner;
+}
+function bootstrapKey(program) {
+  return `${CHANGE_PREFIX}${bootstrapOwner(program)}`;
+}
 function invalid(reason) {
   return { schemaVersion: SCHEMA_VERSION, _tag: "Invalid", reason };
 }
@@ -31480,18 +31578,21 @@ function parseAssignmentLine(line) {
 function isNonemptyReason(value) {
   return value.length > 0 && !hasAnyControl(value) && utf8ByteLength(value) <= 16384;
 }
-function validateDispositionCrossField(entry) {
+function validateDispositionCrossField(entry, program) {
   const { disposition, targetRelease, reconcile, sourceKind, key, owner } = entry;
-  if (disposition === "v040_owner" || disposition === "v040_dependency") {
-    if (targetRelease !== "v0.4") return false;
+  if (disposition === ownerDisposition(program) || disposition === dependencyDisposition(program)) {
+    if (targetRelease !== programCurrentRelease(program)) return false;
     if (reconcile !== "required" && reconcile !== "complete") return false;
     return true;
   }
-  if (disposition === "v050") {
-    return targetRelease === "v0.5" && reconcile === "not_required";
+  if (disposition === futureDisposition(program)) {
+    return targetRelease === programFutureRelease(program) && reconcile === "not_required";
   }
   if (disposition === "released_reference") {
-    return targetRelease === "released" && reconcile === "complete";
+    if (!isV050(program)) {
+      return targetRelease === "released" && reconcile === "complete";
+    }
+    return (targetRelease === "released" || targetRelease === "v0.4" || targetRelease === "v0.2.9") && RECONCILES.has(reconcile);
   }
   if (disposition === "superseded") {
     if (reconcile !== "complete") return false;
@@ -31504,20 +31605,19 @@ function validateDispositionCrossField(entry) {
   }
   return false;
 }
-function parseRegister(text) {
+function parseRegister(text, program = defaultReleaseProgram(), options = {}) {
   if (typeof text !== "string") return "invalid_register";
   if (utf8ByteLength(text) > ONE_MIB) return "invalid_register";
   if (hasControlExcludingLf(text)) return "invalid_register";
   const lines = text.split("\n");
-  if (lines.length > 0 && lines[lines.length - 1] === "") {
-    lines.pop();
-  }
   const top = {};
   const futureOwners = [];
   const entries2 = [];
   let mode = "top";
   let current = null;
   let sawTable = false;
+  let entryStartLine = -1;
+  let pendingEndLine = lines.length;
   const flushCurrent = () => {
     if (mode === "top" || current === null) return true;
     if (mode === "future_owner") {
@@ -31533,7 +31633,7 @@ function parseRegister(text) {
       if (typeof name !== "string" || typeof targetRelease2 !== "string" || typeof reason2 !== "string") {
         return false;
       }
-      if (!isRunId(name) || !FUTURE_RELEASES.has(targetRelease2) || !isNonemptyReason(reason2)) {
+      if (!isRunId(name) || !futureReleasesFor(program).has(targetRelease2) || !isNonemptyReason(reason2)) {
         return false;
       }
       futureOwners.push({ name, targetRelease: targetRelease2, reason: reason2 });
@@ -31564,19 +31664,22 @@ function parseRegister(text) {
     if (sourcePath.length === 0 || hasAnyControl(sourcePath) || utf8ByteLength(sourcePath) > 4096) {
       return false;
     }
-    if (!DISPOSITIONS.has(disposition)) return false;
+    if (!dispositionsFor(program).has(disposition)) return false;
     if (!isRunId(owner)) return false;
-    if (!TARGET_RELEASES.has(targetRelease)) return false;
+    if (!targetReleasesFor(program).has(targetRelease)) return false;
     if (!RECONCILES.has(reconcile)) return false;
     if (!isNonemptyReason(reason)) return false;
-    if (!validateDispositionCrossField({
-      sourceKind,
-      disposition,
-      owner,
-      targetRelease,
-      reconcile,
-      key
-    })) {
+    if (!validateDispositionCrossField(
+      {
+        sourceKind,
+        disposition,
+        owner,
+        targetRelease,
+        reconcile,
+        key
+      },
+      program
+    )) {
       return false;
     }
     entries2.push({
@@ -31587,15 +31690,20 @@ function parseRegister(text) {
       owner,
       targetRelease,
       reconcile,
-      reason
+      reason,
+      startLine: entryStartLine,
+      endLine: pendingEndLine
     });
     current = null;
     return true;
   };
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     if (line.length === 0) continue;
     if (line.startsWith("[[") && line.endsWith("]]")) {
+      pendingEndLine = i;
       if (!flushCurrent()) return "invalid_register";
+      pendingEndLine = lines.length;
       const name = line.slice(2, -2);
       if (name === "future_owner") {
         mode = "future_owner";
@@ -31607,6 +31715,7 @@ function parseRegister(text) {
         mode = "entry";
         current = {};
         sawTable = true;
+        entryStartLine = i;
         continue;
       }
       return "invalid_register";
@@ -31620,7 +31729,7 @@ function parseRegister(text) {
       if (!TOP_LEVEL_FIELDS.has(assignment.key)) return "invalid_register";
       if (assignment.key in top) return "invalid_register";
       if (assignment.key === "schema_version") {
-        if (assignment.kind !== "integer" || assignment.value !== 1) {
+        if (assignment.kind !== "integer" || assignment.value !== programSchemaVersion(program)) {
           return "invalid_register";
         }
         top[assignment.key] = assignment.value;
@@ -31629,7 +31738,8 @@ function parseRegister(text) {
       if (assignment.kind !== "string") return "invalid_register";
       const value = assignment.value;
       if (assignment.key === "baseline_commit") {
-        if (!isCommitSha40(value) || value !== IMMUTABLE_BASELINE_COMMIT) {
+        if (!isCommitSha40(value)) return "invalid_register";
+        if (options.matchProgramBaseline !== false && value !== programBaselineCommit(program)) {
           return "invalid_register";
         }
       } else if (assignment.key === "active_inventory_sha256" || assignment.key === "roadmap_sha256") {
@@ -31672,7 +31782,7 @@ function validateKeyPathCoherence(entry) {
   }
   return false;
 }
-function validateRoadmapRows(rows) {
+function validateRoadmapRows(rows, program) {
   const seen = /* @__PURE__ */ new Set();
   for (const row of rows) {
     if (!isPlainObject(row)) return false;
@@ -31690,7 +31800,7 @@ function validateRoadmapRows(rows) {
     const scopeBytes = utf8ByteLength(scope5);
     if (scopeBytes < 1 || scopeBytes > 4096) return false;
     if (hasAnyControl(scope5)) return false;
-    if (!ROADMAP_RELEASES.has(release)) return false;
+    if (!roadmapReleasesFor(program).has(release)) return false;
     if (!isRunId(owner)) return false;
     if (seen.has(key)) return false;
     seen.add(key);
@@ -31789,7 +31899,15 @@ function canonicalBriefFileBytes(brief) {
     return null;
   }
 }
-function validateCollectionShapes(input) {
+function validateOptionalStringRecord(value) {
+  if (value === void 0) return true;
+  if (!isPlainObject(value)) return false;
+  for (const item of Object.values(value)) {
+    if (typeof item !== "string") return false;
+  }
+  return true;
+}
+function validateCollectionShapes(input, program) {
   if (typeof input.registerText !== "string") return false;
   if (!(input.roadmapBytes instanceof Uint8Array)) return false;
   if (!isReadonlyStringArray(input.activeChangeNames)) return false;
@@ -31809,7 +31927,7 @@ function validateCollectionShapes(input) {
   const tag = phase["_tag"];
   if (tag === "Bootstrap") {
     if (!hasExactOwnKeys(phase, ["_tag", "owner"])) return false;
-    if (phase["owner"] !== TRACK1_PACKAGE) return false;
+    if (phase["owner"] !== bootstrapOwner(program)) return false;
   } else if (tag === "Lane") {
     if (!hasExactOwnKeys(phase, ["_tag", "owner"])) return false;
     if (typeof phase["owner"] !== "string") return false;
@@ -31817,6 +31935,27 @@ function validateCollectionShapes(input) {
     if (!hasExactOwnKeys(phase, ["_tag"])) return false;
   } else {
     return false;
+  }
+  if (!validateOptionalStringRecord(input.tasksMarkdownByOwner)) return false;
+  if (input.baselineRegisterText !== void 0 && typeof input.baselineRegisterText !== "string") {
+    return false;
+  }
+  if (input.baselineRegisterAbsent !== void 0 && typeof input.baselineRegisterAbsent !== "boolean") {
+    return false;
+  }
+  if (input.evidenceTexts !== void 0 && !isReadonlyStringArray(input.evidenceTexts)) {
+    return false;
+  }
+  if (input.evidenceArtifacts !== void 0) {
+    if (!Array.isArray(input.evidenceArtifacts)) return false;
+    for (const item of input.evidenceArtifacts) {
+      if (!isPlainObject(item)) {
+        return false;
+      }
+      if (typeof item.path !== "string" || typeof item.text !== "string") {
+        return false;
+      }
+    }
   }
   return true;
 }
@@ -31830,10 +31969,159 @@ function uniqueOwnersFromEntries(entries2) {
   }
   return names;
 }
-function selectPhaseCoverage(phase, entries2, futureOwners) {
+function packageNameFromChangeKey(key) {
+  if (!key.startsWith(CHANGE_PREFIX)) return null;
+  const name = key.slice(CHANGE_PREFIX.length);
+  return name.length > 0 ? name : null;
+}
+function entryOriginalSpan(registerText, startLine, endLine) {
+  return registerText.split("\n").slice(startLine, endLine).join("\n");
+}
+function pathIsUnderPackageDirectory(path, packageName) {
+  const prefix = `${OPENSPEC_PREFIX}${packageName}`;
+  return path === prefix || path.startsWith(`${prefix}/`);
+}
+function ironRuleViolation(markdown) {
+  const lines = markdown.split("\n");
+  for (const line of lines) {
+    if (!/^\s*- \[ \] /.test(line)) continue;
+    if (line.includes("thin adapter")) continue;
+    const matcher = new RegExp(IRON_RULE_CREATE.source, "g");
+    let match12 = matcher.exec(line);
+    while (match12 !== null) {
+      const target = match12[1];
+      if (IRON_RULE_PREFIXES.test(target) && IRON_RULE_EXTENSIONS.test(target)) {
+        return true;
+      }
+      match12 = matcher.exec(line);
+    }
+  }
+  return false;
+}
+function hasAllowedFileScope(markdown) {
+  const lines = markdown.split("\n");
+  let headingIndex = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^##[ \t]+Allowed file scope[ \t]*$/.test(lines[i])) {
+      headingIndex = i;
+      break;
+    }
+  }
+  if (headingIndex < 0) return false;
+  for (let i = headingIndex + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^#{1,6}\s/.test(line)) break;
+    if (line.trim().length > 0) return true;
+  }
+  return false;
+}
+function jsonVocabularyMixed(value) {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (jsonVocabularyMixed(item)) return true;
+    }
+    return false;
+  }
+  if (value === null || typeof value !== "object") return false;
+  for (const [key, child] of Object.entries(value)) {
+    if (key === "verdict") {
+      if (typeof child !== "string" || !MODEL_FACING_VERDICTS.has(child)) {
+        return true;
+      }
+      continue;
+    }
+    if (key === "measurement_result") {
+      if (typeof child !== "string" || !MEASUREMENT_RESULTS.has(child)) {
+        return true;
+      }
+      continue;
+    }
+    if (jsonVocabularyMixed(child)) return true;
+  }
+  return false;
+}
+function markdownVocabularyMixed(text) {
+  for (const line of text.split("\n")) {
+    const match12 = MD_VOCABULARY_LINE.exec(line);
+    if (match12 === null) continue;
+    const field = match12[1].toLowerCase();
+    const captured = match12[2];
+    if (field === "verdict") {
+      if (!MODEL_FACING_VERDICTS.has(captured)) return true;
+    } else if (!MEASUREMENT_RESULTS.has(captured)) {
+      return true;
+    }
+  }
+  return false;
+}
+function evidencePathKind(path) {
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".json")) return "json";
+  return "md";
+}
+function inspectEvidenceArtifact(path, text) {
+  if (evidencePathKind(path) === "json") {
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return "dependency_failure";
+    }
+    return jsonVocabularyMixed(parsed) ? "vocabulary_mixed" : "ok";
+  }
+  return markdownVocabularyMixed(text) ? "vocabulary_mixed" : "ok";
+}
+function inspectEvidenceText(text) {
+  try {
+    const parsed = JSON.parse(text);
+    return jsonVocabularyMixed(parsed) ? "vocabulary_mixed" : "ok";
+  } catch {
+    return markdownVocabularyMixed(text) ? "vocabulary_mixed" : "ok";
+  }
+}
+function registerCrossFieldViolation(entries2, program) {
+  const ownDisposition = /* @__PURE__ */ new Map();
+  for (const entry of entries2) {
+    if (entry.sourceKind !== "openspec_change") continue;
+    const name = packageNameFromChangeKey(entry.key);
+    if (name === null) continue;
+    ownDisposition.set(name, entry.disposition);
+  }
+  const ownerDisp = ownerDisposition(program);
+  const dependencyDisp = dependencyDisposition(program);
+  const futureDisp = futureDisposition(program);
+  const governor = bootstrapOwner(program);
+  for (const entry of entries2) {
+    if (entry.sourceKind !== "openspec_change") continue;
+    if (entry.disposition === ownerDisp || entry.disposition === dependencyDisp) {
+      if (ownDisposition.get(entry.owner) !== ownerDisp) return true;
+    }
+    if (entry.disposition === futureDisp && entry.owner !== governor) {
+      return true;
+    }
+  }
+  return false;
+}
+function collectV050OwnerPackageNames(entries2, program) {
+  const ownerDisp = ownerDisposition(program);
+  const names = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const entry of entries2) {
+    if (entry.sourceKind !== "openspec_change") continue;
+    if (entry.disposition !== ownerDisp) continue;
+    const name = packageNameFromChangeKey(entry.key);
+    if (name === null || seen.has(name)) continue;
+    seen.add(name);
+    names.push(name);
+  }
+  return names;
+}
+function selectPhaseCoverage(phase, entries2, futureOwners, program) {
+  const currentRelease = programCurrentRelease(program);
   if (phase._tag === "Bootstrap") {
+    const key = bootstrapKey(program);
     for (const entry of entries2) {
-      if (entry.key === TRACK1_KEY) {
+      if (entry.key === key) {
         return { entries: [entry], owners: uniqueOwnersFromEntries([entry]) };
       }
     }
@@ -31841,11 +32129,11 @@ function selectPhaseCoverage(phase, entries2, futureOwners) {
   }
   if (phase._tag === "Lane") {
     const selected2 = entries2.filter(
-      (entry) => entry.targetRelease === "v0.4" && entry.owner === phase.owner
+      (entry) => entry.targetRelease === currentRelease && entry.owner === phase.owner
     );
     return { entries: selected2, owners: uniqueOwnersFromEntries(selected2) };
   }
-  const selected = entries2.filter((entry) => entry.targetRelease === "v0.4");
+  const selected = entries2.filter((entry) => entry.targetRelease === currentRelease);
   const owners = [];
   const seen = /* @__PURE__ */ new Set();
   for (const entry of selected) {
@@ -31854,7 +32142,7 @@ function selectPhaseCoverage(phase, entries2, futureOwners) {
     owners.push(entry.owner);
   }
   for (const future of futureOwners) {
-    if (future.targetRelease !== "v0.4") continue;
+    if (future.targetRelease !== currentRelease) continue;
     if (seen.has(future.name)) continue;
     seen.add(future.name);
     owners.push(future.name);
@@ -31862,24 +32150,34 @@ function selectPhaseCoverage(phase, entries2, futureOwners) {
   return { entries: selected, owners };
 }
 function inspectReleaseCoverageRegisterV1(input) {
-  const parsed = parseRegister(input.registerText);
+  const program = resolveCoverageProgram(input.program);
+  if (program === null) {
+    return { _tag: "Invalid", reason: "invalid_register" };
+  }
+  const parsed = parseRegister(input.registerText, program);
   if (parsed === "invalid_register") {
     return { _tag: "Invalid", reason: "invalid_register" };
   }
   const selection = selectPhaseCoverage(
     input.phase,
     parsed.entries,
-    parsed.futureOwners
+    parsed.futureOwners,
+    program
   );
   return {
     _tag: "Valid",
     baselineCommit: parsed.baselineCommit,
-    selectedOwners: [...selection.owners].sort(compareUtf8Bytes)
+    selectedOwners: [...selection.owners].sort(compareUtf8Bytes),
+    v050OwnerPackageNames: isV050(program) ? collectV050OwnerPackageNames(parsed.entries, program) : []
   };
 }
 function validateReleaseCoverageV1(input) {
   try {
-    if (!validateCollectionShapes(input)) {
+    const program = resolveCoverageProgram(input.program);
+    if (program === null) {
+      return invalid("wrong_program");
+    }
+    if (!validateCollectionShapes(input, program)) {
       return invalid("dependency_failure");
     }
     if (input.roadmapBytes.byteLength > ONE_MIB) {
@@ -31888,7 +32186,7 @@ function validateReleaseCoverageV1(input) {
     if (decodeUtf8Unbounded(input.roadmapBytes) === null) {
       return invalid("invalid_roadmap");
     }
-    const parsed = parseRegister(input.registerText);
+    const parsed = parseRegister(input.registerText, program);
     if (parsed === "invalid_register") {
       return invalid("invalid_register");
     }
@@ -31915,7 +32213,7 @@ function validateReleaseCoverageV1(input) {
         return invalid("invalid_register");
       }
     }
-    if (!validateRoadmapRows(input.roadmapRows)) {
+    if (!validateRoadmapRows(input.roadmapRows, program)) {
       return invalid("invalid_roadmap");
     }
     const activeNames = input.activeChangeNames;
@@ -31960,6 +32258,9 @@ function validateReleaseCoverageV1(input) {
       if (row.owner !== entry.owner) return invalid("roadmap_mismatch");
       if (row.release !== entry.targetRelease) return invalid("roadmap_mismatch");
     }
+    if (isV050(program) && registerCrossFieldViolation(parsed.entries, program)) {
+      return invalid("register_cross_field");
+    }
     for (const entry of parsed.entries) {
       if (!uniqueActive.has(entry.owner) && !futureNames.has(entry.owner)) {
         return invalid("unknown_owner");
@@ -31968,10 +32269,57 @@ function validateReleaseCoverageV1(input) {
     for (const path of input.changedSuperpowersPaths) {
       if (pathIsCompetingPlan(path)) return invalid("competing_plan");
     }
+    if (isV050(program) && (input.phase._tag === "Bootstrap" || input.phase._tag === "Release")) {
+      const futureDisp = futureDisposition(program);
+      const baselineText = input.baselineRegisterText;
+      const baselineAbsent = input.baselineRegisterAbsent === true;
+      let baselineByKey = null;
+      if (typeof baselineText === "string") {
+        const baselineParsed = parseRegister(baselineText, program, {
+          matchProgramBaseline: false
+        });
+        if (baselineParsed === "invalid_register") {
+          return invalid("dependency_failure");
+        }
+        baselineByKey = new Map(
+          baselineParsed.entries.map((item) => [item.key, item])
+        );
+      }
+      for (const entry of parsed.entries) {
+        if (entry.sourceKind !== "openspec_change") continue;
+        if (entry.disposition !== futureDisp) continue;
+        const name = packageNameFromChangeKey(entry.key);
+        if (name === null) continue;
+        const directoryChanged = input.changedSuperpowersPaths.some(
+          (path) => pathIsUnderPackageDirectory(path, name)
+        );
+        if (!directoryChanged) continue;
+        if (baselineAbsent) {
+          return invalid("deferred_package_changed");
+        }
+        if (baselineByKey === null) continue;
+        const baselineEntry = baselineByKey.get(entry.key);
+        if (baselineEntry === void 0) continue;
+        const currentSpan3 = entryOriginalSpan(
+          input.registerText,
+          entry.startLine,
+          entry.endLine
+        );
+        const baselineSpan = entryOriginalSpan(
+          baselineText,
+          baselineEntry.startLine,
+          baselineEntry.endLine
+        );
+        if (currentSpan3 === baselineSpan) {
+          return invalid("deferred_package_changed");
+        }
+      }
+    }
     const selection = selectPhaseCoverage(
       input.phase,
       parsed.entries,
-      parsed.futureOwners
+      parsed.futureOwners,
+      program
     );
     const selected = selection.entries;
     if (input.phase._tag === "Lane") {
@@ -31983,20 +32331,63 @@ function validateReleaseCoverageV1(input) {
       }
     }
     if (input.phase._tag === "Bootstrap") {
-      const track1 = parsed.entries.find((entry) => entry.key === TRACK1_KEY);
-      const track1ReleaseStateIsValid = track1 !== void 0 && (track1.targetRelease === "v0.4" && track1.disposition === "v040_owner" || track1.targetRelease === "released" && track1.disposition === "released_reference");
-      if (track1 === void 0 || track1.owner !== TRACK1_PACKAGE || track1.reconcile !== "complete" || track1.sourceKind !== "openspec_change" || !track1ReleaseStateIsValid) {
+      const expectedOwner = bootstrapOwner(program);
+      const track1 = parsed.entries.find(
+        (entry) => entry.key === bootstrapKey(program)
+      );
+      const track1ReleaseStateIsValid = track1 !== void 0 && (track1.targetRelease === programCurrentRelease(program) && track1.disposition === ownerDisposition(program) || track1.targetRelease === "released" && track1.disposition === "released_reference");
+      if (track1 === void 0 || track1.owner !== expectedOwner || track1.reconcile !== "complete" || track1.sourceKind !== "openspec_change" || !track1ReleaseStateIsValid) {
         return invalid("unreconciled");
       }
     }
     for (const entry of selected) {
       if (entry.reconcile === "required") return invalid("unreconciled");
     }
+    if (isV050(program) && input.phase._tag === "Lane") {
+      const ownerKey = `${CHANGE_PREFIX}${input.phase.owner}`;
+      for (const entry of parsed.entries) {
+        if (entry.reconcile !== "required") continue;
+        if (entry.key === ownerKey || entry.owner === input.phase.owner) {
+          return invalid("unreconciled");
+        }
+      }
+      const markdown = input.tasksMarkdownByOwner?.[input.phase.owner];
+      if (typeof markdown === "string") {
+        if (ironRuleViolation(markdown)) {
+          return invalid("iron_rule_violation");
+        }
+        if (!hasAllowedFileScope(markdown)) {
+          return invalid("workflow_mismatch");
+        }
+      }
+    }
     const owners = selection.owners;
     for (const owner of owners) {
       const workflow = input.workflowByChange[owner];
       if (typeof workflow !== "string" || !ALLOWED_WORKFLOWS.has(workflow)) {
         return invalid("workflow_mismatch");
+      }
+    }
+    if (isV050(program) && input.phase._tag === "Bootstrap") {
+      for (const name of collectV050OwnerPackageNames(parsed.entries, program)) {
+        const workflow = input.workflowByChange[name];
+        if (typeof workflow !== "string" || !ALLOWED_WORKFLOWS.has(workflow)) {
+          return invalid("workflow_mismatch");
+        }
+      }
+    }
+    if (isV050(program) && input.phase._tag === "Release") {
+      if (input.evidenceArtifacts !== void 0) {
+        for (const artifact of input.evidenceArtifacts) {
+          const inspected = inspectEvidenceArtifact(artifact.path, artifact.text);
+          if (inspected !== "ok") return invalid(inspected);
+        }
+      } else {
+        for (const text of input.evidenceTexts ?? []) {
+          if (inspectEvidenceText(text) === "vocabulary_mixed") {
+            return invalid("vocabulary_mixed");
+          }
+        }
       }
     }
     const expectedKeys = Object.keys(input.expectedBriefByOwner);
@@ -34124,7 +34515,7 @@ var evaluationChildLimits = {
   wallTimeMs: 3888e6,
   noProgressMs: 36e5
 };
-var expectedFamilyChildren = [
+var v040FamilyChildren = [
   {
     tranche: 2,
     childId: "v040-t2-project-registry",
@@ -34186,6 +34577,110 @@ var expectedFamilyChildren = [
     ]
   }
 ];
+var v050FamilyChildren = [
+  {
+    tranche: 2,
+    childId: "v050-lane-runtime-typescript",
+    packageId: "lane-runtime-typescript",
+    dependencyChildIds: []
+  },
+  {
+    tranche: 3,
+    childId: "v050-launcher-node-port",
+    packageId: "launcher-node-port",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 4,
+    childId: "v050-three-outcome-verdicts",
+    packageId: "three-outcome-verdicts",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 4,
+    childId: "v050-audit-groundedness-gate",
+    packageId: "audit-groundedness-gate",
+    dependencyChildIds: ["v050-three-outcome-verdicts"]
+  },
+  {
+    tranche: 4,
+    childId: "v050-evidence-contracts",
+    packageId: "evidence-contracts",
+    dependencyChildIds: ["v050-audit-groundedness-gate"]
+  },
+  {
+    tranche: 5,
+    childId: "v050-spec-triage-gate",
+    packageId: "spec-triage-gate",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 5,
+    childId: "v050-foreman-discover-lane",
+    packageId: "foreman-discover-lane",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 6,
+    childId: "v050-build-determinism",
+    packageId: "build-determinism",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 6,
+    childId: "v050-wsl-preflight",
+    packageId: "wsl-preflight",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 7,
+    childId: "v050-doctrine-reality-drift",
+    packageId: "doctrine-reality-drift",
+    dependencyChildIds: ["v050-evidence-contracts"]
+  },
+  {
+    tranche: 7,
+    childId: "v050-workflow-weight-reduction",
+    packageId: "workflow-weight-reduction",
+    dependencyChildIds: ["v050-doctrine-reality-drift"]
+  },
+  {
+    tranche: 8,
+    childId: "v050-release",
+    packageId: "v050-release-program",
+    dependencyChildIds: [
+      "v050-lane-runtime-typescript",
+      "v050-launcher-node-port",
+      "v050-three-outcome-verdicts",
+      "v050-audit-groundedness-gate",
+      "v050-evidence-contracts",
+      "v050-spec-triage-gate",
+      "v050-foreman-discover-lane",
+      "v050-build-determinism",
+      "v050-wsl-preflight",
+      "v050-doctrine-reality-drift",
+      "v050-workflow-weight-reduction"
+    ]
+  }
+];
+function expectedChildrenFor(program) {
+  return program === "v040" ? v040FamilyChildren : v050FamilyChildren;
+}
+function childViolatesProgram(value, program) {
+  if (!isPlainRecordV2(value)) return false;
+  const table = releaseProgramTable(program);
+  const [trancheMin, trancheMax] = table.trancheRange;
+  if (typeof value.tranche === "number" && (value.tranche < trancheMin || value.tranche > trancheMax)) {
+    return true;
+  }
+  if (typeof value.childId === "string") {
+    if (!value.childId.startsWith(table.childIdPrefix)) return true;
+    if (table.evaluationChild === null && value.childId === releaseProgramTable("v040").evaluationChild) {
+      return true;
+    }
+  }
+  return false;
+}
 var familySourceKeys = /* @__PURE__ */ new Set(["schema", "program", "familyId", "children"]);
 var childBriefKeys = /* @__PURE__ */ new Set([
   "schema",
@@ -34240,6 +34735,22 @@ function hasExactKeysV2(value, keys5) {
   const own = Object.keys(value);
   return own.length === keys5.size && own.every((key) => keys5.has(key));
 }
+function hasFamilyManifestKeys(value) {
+  const own = Object.keys(value);
+  for (const key of own) {
+    if (!familyManifestKeys.has(key) && key !== "program") return false;
+  }
+  for (const key of familyManifestKeys) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) return false;
+  }
+  return true;
+}
+function resolveFamilyProgram(value) {
+  if (!Object.prototype.hasOwnProperty.call(value, "program")) {
+    return RELEASE_PROGRAMS[0];
+  }
+  return isReleaseProgram(value.program) ? value.program : null;
+}
 function validUnicodeText(value) {
   const decoded = decodeUtf8Fatal(textEncoder.encode(value));
   return !isCoreFailure(decoded) && decoded === value;
@@ -34274,11 +34785,13 @@ function validAllowedPath(value) {
 function sameStrings(value, expected) {
   return Array.isArray(value) && value.length === expected.length && value.every((item, index) => item === expected[index]);
 }
-function decodeChildBriefV1(value, expected) {
+function decodeChildBriefV1(value, expected, program) {
   if (!isPlainRecordV2(value) || !hasExactKeysV2(value, childBriefKeys)) {
     return familyFailure("invalid_children");
   }
-  if (value.schema !== "foreman.execution-child-brief.v1" || value.childId !== expected.childId || value.tranche !== expected.tranche || value.packageId !== expected.packageId || !sameStrings(value.dependencyChildIds, expected.dependencyChildIds)) {
+  const table = releaseProgramTable(program);
+  const [trancheMin, trancheMax] = table.trancheRange;
+  if (value.schema !== "foreman.execution-child-brief.v1" || typeof value.childId !== "string" || value.childId !== expected.childId || !value.childId.startsWith(table.childIdPrefix) || value.tranche !== expected.tranche || expected.tranche < trancheMin || expected.tranche > trancheMax || table.evaluationChild === null && value.childId === releaseProgramTable("v040").evaluationChild || table.evaluationChild !== null && expected.childId === table.evaluationChild && value.childId !== table.evaluationChild || value.packageId !== expected.packageId || !sameStrings(value.dependencyChildIds, expected.dependencyChildIds)) {
     return familyFailure("invalid_children");
   }
   if (!validBoundedText(value.objective, 16384, true)) {
@@ -34310,18 +34823,28 @@ function decodeExecutionFamilySourceV1(value) {
   if (!isPlainRecordV2(value) || !hasExactKeysV2(value, familySourceKeys)) {
     return familyFailure("invalid_source");
   }
-  if (value.schema !== "foreman.execution-family-source.v1" || value.program !== "v040" || value.familyId !== FAMILY_ID || !Array.isArray(value.children) || value.children.length !== expectedFamilyChildren.length) {
+  if (value.schema !== "foreman.execution-family-source.v1" || !isReleaseProgram(value.program) || value.familyId !== FAMILY_ID || !Array.isArray(value.children)) {
+    return familyFailure("invalid_source");
+  }
+  for (const raw of value.children) {
+    if (childViolatesProgram(raw, value.program)) {
+      return familyFailure("invalid_source");
+    }
+  }
+  const expectedChildren = expectedChildrenFor(value.program);
+  if (value.children.length !== expectedChildren.length) {
     return familyFailure("invalid_source");
   }
   const children = [];
-  for (const [index, expected] of expectedFamilyChildren.entries()) {
-    const child = decodeChildBriefV1(value.children[index], expected);
+  for (const [index, expected] of expectedChildren.entries()) {
+    const raw = value.children[index];
+    const child = decodeChildBriefV1(raw, expected, value.program);
     if (isExecutionFamilyFailure(child)) return child;
     children.push(child);
   }
   return {
     schema: "foreman.execution-family-source.v1",
-    program: "v040",
+    program: value.program,
     familyId: FAMILY_ID,
     children
   };
@@ -34345,8 +34868,8 @@ function decodeExecutionFamilySourceFileV1(bytes) {
     return familyFailure("invalid_source");
   }
 }
-function expectedChildLimits(tranche) {
-  return tranche === 8 ? evaluationChildLimits : standardChildLimits;
+function expectedChildLimits(program, childId) {
+  return releaseProgramTable(program).evaluationChild === childId ? evaluationChildLimits : standardChildLimits;
 }
 function expectedChildMilestones(tranche) {
   return tranche === 9 ? ["checks", "audit", "integrated", "published"] : ["checks", "audit", "integrated"];
@@ -34359,7 +34882,11 @@ function samePlainValue(left3, right3) {
   }
 }
 function decodeExecutionContractFamilyV2(value) {
-  if (!isPlainRecordV2(value) || !hasExactKeysV2(value, familyManifestKeys)) {
+  if (!isPlainRecordV2(value) || !hasFamilyManifestKeys(value)) {
+    return familyFailure("invalid_manifest");
+  }
+  const program = resolveFamilyProgram(value);
+  if (program === null) {
     return familyFailure("invalid_manifest");
   }
   if (value.schemaVersion !== 2 || value.familyId !== FAMILY_ID || value.wallTimeMs !== FAMILY_WALL_TIME_MS || value.totalActions !== FAMILY_TOTAL_ACTIONS) {
@@ -34380,11 +34907,20 @@ function decodeExecutionContractFamilyV2(value) {
   if (Date.parse(value.deadlineAt) - Date.parse(value.createdAt) !== FAMILY_WALL_TIME_MS) {
     return familyFailure("invalid_deadline");
   }
-  if (!Array.isArray(value.children) || value.children.length !== 8) {
+  if (!Array.isArray(value.children)) {
+    return familyFailure("invalid_children");
+  }
+  for (const raw of value.children) {
+    if (childViolatesProgram(raw, program)) {
+      return familyFailure("invalid_manifest");
+    }
+  }
+  const expectedChildren = expectedChildrenFor(program);
+  if (value.children.length !== expectedChildren.length) {
     return familyFailure("invalid_children");
   }
   const children = [];
-  for (const [index, expected] of expectedFamilyChildren.entries()) {
+  for (const [index, expected] of expectedChildren.entries()) {
     const raw = value.children[index];
     if (!isPlainRecordV2(raw) || !hasExactKeysV2(raw, childContractKeys)) {
       return familyFailure("invalid_children");
@@ -34395,7 +34931,7 @@ function decodeExecutionContractFamilyV2(value) {
     if (typeof raw.objectiveSha256 !== "string" || typeof raw.acceptanceSha256 !== "string" || typeof raw.allowedPathsSha256 !== "string" || !isSha256Hex(raw.objectiveSha256) || !isSha256Hex(raw.acceptanceSha256) || !isSha256Hex(raw.allowedPathsSha256)) {
       return familyFailure("invalid_digest");
     }
-    const limits = expectedChildLimits(expected.tranche);
+    const limits = expectedChildLimits(program, expected.childId);
     if (!samePlainValue(raw.limits, limits)) {
       return familyFailure("invalid_limits");
     }
@@ -34414,6 +34950,7 @@ function decodeExecutionContractFamilyV2(value) {
   }
   return {
     schemaVersion: 2,
+    ...Object.prototype.hasOwnProperty.call(value, "program") ? { program } : {},
     familyId: FAMILY_ID,
     rootContractId: value.rootContractId,
     rootContractSha256: value.rootContractSha256,
@@ -35344,7 +35881,7 @@ function evaluationVerdictFromUnknown(value) {
     "evaluationAuthorityReceiptSha256",
     "verdictSha256",
     "registeredAt"
-  ]) || typeof value.rootContractId !== "string" || typeof decodeRunId(value.rootContractId) !== "string" || typeof value.rootContractSha256 !== "string" || !isSha256Hex(value.rootContractSha256) || typeof value.familySha256 !== "string" || !isSha256Hex(value.familySha256) || value.childId !== "v040-t8-evaluation" || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || ![
+  ]) || typeof value.rootContractId !== "string" || typeof decodeRunId(value.rootContractId) !== "string" || typeof value.rootContractSha256 !== "string" || !isSha256Hex(value.rootContractSha256) || typeof value.familySha256 !== "string" || !isSha256Hex(value.familySha256) || typeof value.childId !== "string" || typeof decodeRunId(value.childId) !== "string" || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || ![
     "PROMOTE",
     "GRAPH_OFF_FAILED",
     "GRAPH_OFF_INCONCLUSIVE",
@@ -35679,8 +36216,15 @@ function outcomeMatchesReservation(outcome, family) {
 function operationOutcome(operation) {
   return operation._tag === "RecordMilestone" || operation._tag === "RecordBlockingOutcome" || operation._tag === "RecordExternalFailure" ? operation : null;
 }
+function familyProgram(manifest) {
+  return isReleaseProgram(manifest.program) ? manifest.program : RELEASE_PROGRAMS[0];
+}
 function evaluationRunSetSha256(family) {
-  const child = family.children["v040-t8-evaluation"];
+  const evaluationChild = releaseProgramTable(
+    familyProgram(family.manifest)
+  ).evaluationChild;
+  if (evaluationChild === null) return null;
+  const child = family.children[evaluationChild];
   if (child === void 0) return null;
   const encoder6 = new TextEncoder();
   const rows = Object.entries(child.evaluationPassOrigins).map(([originReservationId, outcomeSha256]) => ({
@@ -36764,12 +37308,11 @@ var EXIT_OK = 0;
 var EXIT_EVALUATED = 1;
 var EXIT_USAGE = 64;
 var USAGE_DIAGNOSTIC = "release-coverage: invalid invocation\n";
-var TRACK1_OWNER = "openspec-superpowers-convergence";
-var PROGRAM = "v040";
 var FAMILY_SCHEMA = "foreman.execution-family-source.v1";
 var CHILD_SCHEMA = "foreman.execution-child-brief.v1";
-var FAMILY_ID2 = "v040-release-20260822-f1";
 var BRIEF_SCHEMA2 = "foreman.release-package-brief.v1";
+var OPENSPEC_CHANGES_PREFIX = "openspec/changes";
+var EVIDENCE_FILE_LIMIT = 512;
 var ROADMAP_HEADER = "| Coverage key | Scope | Release | Owner |";
 var ROADMAP_SEPARATOR = "|---|---|---|---|";
 var OPENSPEC_LIST_ARGV = ["list", "--json"];
@@ -36777,7 +37320,6 @@ var SUPERPOWERS_SPECS = "docs/superpowers/specs";
 var SUPERPOWERS_PLANS = "docs/superpowers/plans";
 var GIT_TIMEOUT_MS2 = 3e4;
 var OPENSPEC_TIMEOUT_MS = 3e4;
-var TRANCHES = [2, 3, 4, 5, 6, 7, 8, 9];
 var encoder5 = new TextEncoder();
 function buildTrustedGitEnvironment(physicalGit, platform, nullDevice) {
   const pathApi = platform === "win32" ? win32 : posix;
@@ -36962,6 +37504,14 @@ function makeLiveReleaseCoverageCliServices(dependencies) {
           input.containmentRoot
         ),
         catch: (error) => error
+      }),
+      classifyPath: (input) => Effect_exports.try({
+        try: () => classifyPathLive(input.path, input.containmentRoot),
+        catch: (error) => error
+      }),
+      listDirectory: (input) => Effect_exports.try({
+        try: () => listDirectoryLive(input.path, input.containmentRoot),
+        catch: (error) => error
       })
     },
     openspecList: {
@@ -37038,6 +37588,10 @@ function makeLiveReleaseCoverageCliServices(dependencies) {
           dependencies.platform,
           dependencies.nullDevice
         );
+        const prefixes = input.pathPrefixes ?? [
+          SUPERPOWERS_SPECS,
+          SUPERPOWERS_PLANS
+        ];
         const tracked = yield* dependencies.runCaptured({
           command: trusted.physicalGit,
           args: gitArguments(trusted.physicalRepository, [
@@ -37048,8 +37602,7 @@ function makeLiveReleaseCoverageCliServices(dependencies) {
             "--no-textconv",
             input.baselineCommit,
             "--",
-            SUPERPOWERS_SPECS,
-            SUPERPOWERS_PLANS
+            ...prefixes
           ]),
           env,
           maxOutputBytes: ONE_MIB2,
@@ -37067,8 +37620,7 @@ function makeLiveReleaseCoverageCliServices(dependencies) {
             "--others",
             "-z",
             "--",
-            SUPERPOWERS_SPECS,
-            SUPERPOWERS_PLANS
+            ...prefixes
           ]),
           env,
           maxOutputBytes: ONE_MIB2,
@@ -37080,6 +37632,78 @@ function makeLiveReleaseCoverageCliServices(dependencies) {
           return yield* Effect_exports.fail({ _tag: "GitPathsInvalid" });
         }
         return dedupeUtf8ByteOrder([...trackedPaths, ...untrackedPaths]);
+      }),
+      readAtCommit: (input) => Effect_exports.gen(function* () {
+        const trusted = yield* resolveTrustedGitContext(
+          input.repository,
+          "explicit"
+        );
+        const env = buildTrustedGitEnvironment(
+          trusted.physicalGit,
+          dependencies.platform,
+          dependencies.nullDevice
+        );
+        if (typeof input.path !== "string" || input.path.length === 0 || input.path.includes("\0") || input.path.includes("\\") || input.path.startsWith("/") || input.path.includes(":")) {
+          return yield* Effect_exports.fail({ _tag: "GitPathsInvalid" });
+        }
+        const captured = yield* dependencies.runCaptured({
+          command: trusted.physicalGit,
+          args: gitArguments(trusted.physicalRepository, [
+            "show",
+            `${input.commit}:${input.path}`
+          ]),
+          env,
+          maxOutputBytes: ONE_MIB2,
+          timeoutMs: GIT_TIMEOUT_MS2
+        });
+        return yield* requireCapturedStdoutBytes(captured);
+      }),
+      existsAtCommit: (input) => Effect_exports.gen(function* () {
+        const trusted = yield* resolveTrustedGitContext(
+          input.repository,
+          "explicit"
+        );
+        const env = buildTrustedGitEnvironment(
+          trusted.physicalGit,
+          dependencies.platform,
+          dependencies.nullDevice
+        );
+        if (typeof input.path !== "string" || input.path.length === 0 || input.path.includes("\0") || input.path.includes("\\") || input.path.startsWith("/") || input.path.includes(":")) {
+          return yield* Effect_exports.fail({ _tag: "GitPathsInvalid" });
+        }
+        const tree = yield* dependencies.runCaptured({
+          command: trusted.physicalGit,
+          args: gitArguments(trusted.physicalRepository, [
+            "cat-file",
+            "-e",
+            `${input.commit}^{tree}`
+          ]),
+          env,
+          maxOutputBytes: ONE_MIB2,
+          timeoutMs: GIT_TIMEOUT_MS2
+        });
+        if (tree.exitCode !== 0) {
+          return yield* Effect_exports.fail({ _tag: "GitError" });
+        }
+        const listing = yield* dependencies.runCaptured({
+          command: trusted.physicalGit,
+          args: gitArguments(trusted.physicalRepository, [
+            "ls-tree",
+            "--name-only",
+            input.commit,
+            "--",
+            input.path
+          ]),
+          env,
+          maxOutputBytes: ONE_MIB2,
+          timeoutMs: GIT_TIMEOUT_MS2
+        });
+        const stderrText = capturedStderrText(listing);
+        if (listing.exitCode !== 0 || stderrText.includes("fatal:")) {
+          return yield* Effect_exports.fail({ _tag: "GitError" });
+        }
+        const stdoutBytes = listing.stdoutBytes ?? encoder5.encode(listing.stdout);
+        return stdoutBytes.byteLength > 0;
       })
     },
     familySource: {
@@ -37228,19 +37852,22 @@ function parseArgv(argv) {
   const program = raw["--program"];
   const phase = raw["--phase"];
   const register = raw["--register"];
-  if (program !== PROGRAM) return { _tag: "Invalid" };
+  if (typeof program !== "string") return { _tag: "Invalid" };
+  if (!isReleaseProgram(program)) return { _tag: "WrongProgram" };
   if (phase !== "bootstrap" && phase !== "lane" && phase !== "release") {
     return { _tag: "Invalid" };
   }
   if (typeof register !== "string" || !isNativeAbsolutePath(register)) {
     return { _tag: "Invalid" };
   }
+  const table = releaseProgramTable(program);
   const owner = raw["--owner"];
   const repo = raw["--repo"];
   const stateRoot = raw["--state-root"];
   const contractId = raw["--contract-id"];
   const contractSha = raw["--contract-sha"];
   const familySha = raw["--family-sha"];
+  const evidence = raw["--evidence"];
   const flags = {
     phase,
     owner,
@@ -37249,7 +37876,8 @@ function parseArgv(argv) {
     stateRoot,
     contractId,
     contractSha,
-    familySha
+    familySha,
+    evidence
   };
   if (phase === "bootstrap") {
     const allowed2 = /* @__PURE__ */ new Set([
@@ -37261,19 +37889,21 @@ function parseArgv(argv) {
     for (const key of Object.keys(raw)) {
       if (!allowed2.has(key)) return { _tag: "Invalid" };
     }
-    if (owner !== TRACK1_OWNER) return { _tag: "Invalid" };
+    if (owner !== table.bootstrapOwner) return { _tag: "Invalid" };
     if (repo !== void 0 || stateRoot !== void 0 || contractId !== void 0 || contractSha !== void 0 || familySha !== void 0) {
       return { _tag: "Invalid" };
     }
     return {
       _tag: "Ok",
-      phase: { _tag: "Bootstrap", owner: TRACK1_OWNER },
+      program,
+      phase: { _tag: "Bootstrap", owner: table.bootstrapOwner },
       register,
       repo: void 0,
       stateRoot: void 0,
       contractId: void 0,
       contractSha: void 0,
-      familySha: void 0
+      familySha: void 0,
+      evidence: void 0
     };
   }
   if (phase === "lane") {
@@ -37309,15 +37939,18 @@ function parseArgv(argv) {
     }
     return {
       _tag: "Ok",
+      program,
       phase: { _tag: "Lane", owner },
       register: flags.register,
       repo,
       stateRoot,
       contractId,
       contractSha,
-      familySha
+      familySha,
+      evidence: void 0
     };
   }
+  const isV0502 = program !== RELEASE_PROGRAMS[0];
   const allowed = /* @__PURE__ */ new Set([
     "--program",
     "--phase",
@@ -37326,7 +37959,8 @@ function parseArgv(argv) {
     "--contract-id",
     "--contract-sha",
     "--family-sha",
-    "--register"
+    "--register",
+    ...isV0502 ? ["--evidence"] : []
   ]);
   for (const key of Object.keys(raw)) {
     if (!allowed.has(key)) return { _tag: "Invalid" };
@@ -37347,15 +37981,24 @@ function parseArgv(argv) {
   if (typeof familySha !== "string" || !isSha256Hex(familySha)) {
     return { _tag: "Invalid" };
   }
+  if (isV0502) {
+    if (typeof evidence !== "string" || !isNativeAbsolutePath(evidence)) {
+      return { _tag: "Invalid" };
+    }
+  } else if (evidence !== void 0) {
+    return { _tag: "Invalid" };
+  }
   return {
     _tag: "Ok",
+    program,
     phase: { _tag: "Release" },
     register: flags.register,
     repo,
     stateRoot,
     contractId,
     contractSha,
-    familySha
+    familySha,
+    evidence: isV0502 ? evidence : void 0
   };
 }
 function readBoundedPort(fileRead, path, containmentRoot) {
@@ -37422,7 +38065,7 @@ function parseRoadmapRows(text) {
   for (let i = headerIndex + 2; i < lines.length; i++) {
     const line = lines[i];
     if (line.length === 0) break;
-    const match12 = /^\| `([^`]+)` \| ([^|]+) \| `(v0\.[45])` \| `([^`]+)` \|$/.exec(line);
+    const match12 = /^\| `([^`]+)` \| ([^|]+) \| `(v0\.[456])` \| `([^`]+)` \|$/.exec(line);
     if (match12 === null) return null;
     rows.push({
       key: match12[1],
@@ -37446,6 +38089,18 @@ function extractWorkflowSchema(text) {
   }
   return found;
 }
+function repositoryRelativePosixPath(repository, absoluteFile) {
+  const rel = relative(repository, absoluteFile);
+  if (rel.length === 0) return null;
+  if (isAbsolute(rel)) return null;
+  if (rel === "..") return null;
+  if (rel.startsWith(`..${sep}`)) return null;
+  return rel.split(sep).join("/");
+}
+function evidenceFileNameIsIncluded(name) {
+  const lower = name.toLowerCase();
+  return lower.endsWith(".json") || lower.endsWith(".md");
+}
 function resolveContainedPath(repository, segments) {
   for (const segment of segments) {
     if (segment.includes("\\") || segment.includes("\0")) return null;
@@ -37460,16 +38115,26 @@ function resolveContainedPath(repository, segments) {
   if (rel.startsWith(`..${sep}`)) return null;
   return absolute;
 }
-function validateFamilySource(source) {
+function trancheSequence(program) {
+  const [min3, max5] = releaseProgramTable(program).trancheRange;
+  const values3 = [];
+  for (let value = min3; value <= max5; value += 1) values3.push(value);
+  return values3;
+}
+function validateFamilySource(source, program) {
   if (!isPlainObject2(source)) return false;
   if (!hasExactOwnKeys2(source, ["schema", "program", "familyId", "children"])) {
     return false;
   }
   if (source["schema"] !== FAMILY_SCHEMA) return false;
-  if (source["program"] !== PROGRAM) return false;
-  if (source["familyId"] !== FAMILY_ID2) return false;
+  if (source["program"] !== program) return false;
+  if (source["familyId"] !== releaseProgramTable(program).familyId) return false;
   const children = source["children"];
-  if (!Array.isArray(children) || children.length !== 8) return false;
+  const expectedTranches = trancheSequence(program);
+  const isDefaultProgram = program === RELEASE_PROGRAMS[0];
+  if (!Array.isArray(children)) return false;
+  if (isDefaultProgram && children.length !== expectedTranches.length) return false;
+  if (!isDefaultProgram && children.length < 1) return false;
   const childIds = /* @__PURE__ */ new Set();
   const packageIds = /* @__PURE__ */ new Set();
   for (let i = 0; i < children.length; i++) {
@@ -37496,7 +38161,14 @@ function validateFamilySource(source) {
     const acceptance = child["acceptance"];
     const allowedPaths = child["allowedPaths"];
     if (typeof childId !== "string" || !isRunId2(childId)) return false;
-    if (tranche !== TRANCHES[i]) return false;
+    if (isDefaultProgram) {
+      if (tranche !== expectedTranches[i]) return false;
+    } else {
+      const [min3, max5] = releaseProgramTable(program).trancheRange;
+      if (typeof tranche !== "number" || tranche < min3 || tranche > max5) {
+        return false;
+      }
+    }
     if (typeof packageId !== "string" || !isRunId2(packageId)) return false;
     if (childIds.has(childId) || packageIds.has(packageId)) return false;
     childIds.add(childId);
@@ -37551,7 +38223,8 @@ function evaluateReleaseCoverage(parsed, services) {
     if (registerText === null) return dependencyFailure();
     const inspection = inspectReleaseCoverageRegisterV1({
       registerText,
-      phase: parsed.phase
+      phase: parsed.phase,
+      program: parsed.program
     });
     if (inspection._tag === "Invalid") {
       return invalidResult("invalid_register");
@@ -37598,12 +38271,20 @@ function evaluateReleaseCoverage(parsed, services) {
     const changed = yield* callPort(
       () => services.gitChangedPaths.discover({
         repository,
-        baselineCommit: inspection.baselineCommit
+        baselineCommit: inspection.baselineCommit,
+        ...parsed.program !== RELEASE_PROGRAMS[0] ? {
+          pathPrefixes: [
+            SUPERPOWERS_SPECS,
+            SUPERPOWERS_PLANS,
+            OPENSPEC_CHANGES_PREFIX
+          ]
+        } : {}
       })
     ).pipe(Effect_exports.either);
     if (changed._tag === "Left") return dependencyFailure();
+    const workflowOwners = parsed.program !== RELEASE_PROGRAMS[0] && parsed.phase._tag === "Bootstrap" ? inspection.v050OwnerPackageNames : inspection.selectedOwners;
     const workflowByChange = {};
-    for (const owner of inspection.selectedOwners) {
+    for (const owner of workflowOwners) {
       const workflowPath = resolveContainedPath(repository, [
         "openspec",
         "changes",
@@ -37650,7 +38331,7 @@ function evaluateReleaseCoverage(parsed, services) {
       if (resolved.stateRoot !== parsed.stateRoot || resolved.contractId !== parsed.contractId || resolved.contractSha256 !== parsed.contractSha || resolved.familySha256 !== parsed.familySha) {
         return dependencyFailure();
       }
-      if (!validateFamilySource(resolved.source)) {
+      if (!validateFamilySource(resolved.source, parsed.program)) {
         return dependencyFailure();
       }
       const children = resolved.source.children;
@@ -37685,6 +38366,136 @@ function evaluateReleaseCoverage(parsed, services) {
         packageBriefBytesByOwner[owner] = briefRead.bytes;
       }
     }
+    const tasksMarkdownByOwner = {};
+    if (parsed.program !== RELEASE_PROGRAMS[0] && parsed.phase._tag === "Lane") {
+      for (const owner of inspection.selectedOwners) {
+        const tasksPath = resolveContainedPath(repository, [
+          "openspec",
+          "changes",
+          owner,
+          "tasks.md"
+        ]);
+        if (tasksPath === null) continue;
+        const tasksRead = yield* readBoundedPort(
+          services.fileRead,
+          tasksPath,
+          repository
+        );
+        if (tasksRead._tag === "Fail") return dependencyFailure();
+        if (tasksRead._tag === "NotFound") continue;
+        const tasksText = decodeUtf8Fatal2(tasksRead.bytes);
+        if (tasksText === null) continue;
+        tasksMarkdownByOwner[owner] = tasksText;
+      }
+    }
+    let baselineRegisterText;
+    let baselineRegisterAbsent = false;
+    if (parsed.program !== RELEASE_PROGRAMS[0] && (parsed.phase._tag === "Bootstrap" || parsed.phase._tag === "Release")) {
+      const relativeRegister = repositoryRelativePosixPath(
+        repository,
+        parsed.register
+      );
+      if (relativeRegister === null) return dependencyFailure();
+      const baselineBytes = yield* callPort(
+        () => services.gitChangedPaths.readAtCommit({
+          repository,
+          commit: inspection.baselineCommit,
+          path: relativeRegister
+        })
+      ).pipe(Effect_exports.either);
+      if (baselineBytes._tag === "Right") {
+        const baselineText = decodeUtf8Fatal2(baselineBytes.right);
+        if (baselineText === null) return dependencyFailure();
+        baselineRegisterText = baselineText;
+      } else {
+        const present = yield* callPort(
+          () => services.gitChangedPaths.existsAtCommit({
+            repository,
+            commit: inspection.baselineCommit,
+            path: relativeRegister
+          })
+        ).pipe(Effect_exports.either);
+        if (present._tag === "Left" || present.right) {
+          return dependencyFailure();
+        }
+        baselineRegisterAbsent = true;
+      }
+    }
+    const evidenceArtifacts = [];
+    if (parsed.program !== RELEASE_PROGRAMS[0] && parsed.phase._tag === "Release") {
+      const evidencePath = parsed.evidence;
+      if (typeof evidencePath !== "string" || !isNativeAbsolutePath(evidencePath)) {
+        return dependencyFailure();
+      }
+      const classified = yield* callPort(
+        () => services.fileRead.classifyPath({
+          path: evidencePath
+        })
+      ).pipe(Effect_exports.either);
+      if (classified._tag === "Left") return dependencyFailure();
+      const kind = classified.right;
+      if (kind._tag === "NotFound" || kind._tag === "Other") {
+        return dependencyFailure();
+      }
+      const collected = [];
+      let evidenceBound;
+      if (kind._tag === "File") {
+        const parent = dirname3(evidencePath);
+        if (!isNativeAbsolutePath(parent)) return dependencyFailure();
+        evidenceBound = parent;
+        collected.push(evidencePath);
+      } else {
+        evidenceBound = evidencePath;
+        const pending3 = [evidencePath];
+        while (pending3.length > 0) {
+          const directory = pending3.pop();
+          const listed = yield* callPort(
+            () => services.fileRead.listDirectory({
+              path: directory,
+              containmentRoot: evidenceBound
+            })
+          ).pipe(Effect_exports.either);
+          if (listed._tag === "Left") return dependencyFailure();
+          const names = [...listed.right].sort(compareUtf8Bytes2);
+          for (const name of names) {
+            if (name.includes("/") || name.includes("\\") || name.includes("\0")) {
+              return dependencyFailure();
+            }
+            if (name === "." || name === "..") continue;
+            const child = join6(directory, name);
+            const childKind = yield* callPort(
+              () => services.fileRead.classifyPath({
+                path: child,
+                containmentRoot: evidenceBound
+              })
+            ).pipe(Effect_exports.either);
+            if (childKind._tag === "Left") return dependencyFailure();
+            if (childKind.right._tag === "Directory") {
+              pending3.push(child);
+              continue;
+            }
+            if (childKind.right._tag !== "File") continue;
+            if (!evidenceFileNameIsIncluded(name)) continue;
+            collected.push(child);
+            if (collected.length > EVIDENCE_FILE_LIMIT) {
+              return dependencyFailure();
+            }
+          }
+        }
+        collected.sort(compareUtf8Bytes2);
+      }
+      for (const filePath of collected) {
+        const evidenceRead = yield* readBoundedPort(
+          services.fileRead,
+          filePath,
+          evidenceBound
+        );
+        if (evidenceRead._tag !== "Ok") return dependencyFailure();
+        const evidenceText = decodeUtf8Fatal2(evidenceRead.bytes);
+        if (evidenceText === null) return dependencyFailure();
+        evidenceArtifacts.push({ path: filePath, text: evidenceText });
+      }
+    }
     return validateReleaseCoverageV1({
       phase: parsed.phase,
       registerText,
@@ -37694,7 +38505,12 @@ function evaluateReleaseCoverage(parsed, services) {
       workflowByChange,
       changedSuperpowersPaths: changed.right,
       expectedBriefByOwner,
-      packageBriefBytesByOwner
+      packageBriefBytesByOwner,
+      program: parsed.program,
+      ...Object.keys(tasksMarkdownByOwner).length > 0 ? { tasksMarkdownByOwner } : {},
+      ...baselineRegisterText !== void 0 ? { baselineRegisterText } : {},
+      ...baselineRegisterAbsent ? { baselineRegisterAbsent: true } : {},
+      ...evidenceArtifacts.length > 0 ? { evidenceArtifacts } : {}
     });
   }).pipe(
     Effect_exports.catchAll(
@@ -37711,6 +38527,9 @@ function runReleaseCoverageCli(argv, io2, services) {
     if (parsed._tag === "Invalid") {
       io2.writeStderr(USAGE_DIAGNOSTIC);
       return EXIT_USAGE;
+    }
+    if (parsed._tag === "WrongProgram") {
+      return emitEvaluated(io2, invalidResult("wrong_program"));
     }
     const result = yield* evaluateReleaseCoverage(parsed, services);
     return emitEvaluated(io2, result);
@@ -37862,6 +38681,49 @@ function readBoundedBytesLive(path, maxBytes, containmentRoot) {
     }
   }
 }
+function classifyPathLive(path, containmentRoot) {
+  if (containmentRoot !== void 0) {
+    try {
+      validateContainmentLive(path, containmentRoot);
+    } catch (error) {
+      if (isNotFoundError2(error)) return { _tag: "NotFound" };
+      throw error;
+    }
+  }
+  let stats;
+  try {
+    stats = lstatSync3(path);
+  } catch (error) {
+    if (isEnoentLive(error)) return { _tag: "NotFound" };
+    throw error;
+  }
+  if (stats.isSymbolicLink()) return { _tag: "Other" };
+  if (stats.isFile()) return { _tag: "File" };
+  if (stats.isDirectory()) return { _tag: "Directory" };
+  return { _tag: "Other" };
+}
+function listDirectoryLive(path, containmentRoot) {
+  if (containmentRoot !== void 0) {
+    validateContainmentLive(path, containmentRoot);
+  }
+  let stats;
+  try {
+    stats = lstatSync3(path);
+  } catch (error) {
+    if (isEnoentLive(error)) readFailureLive("NotFound", "directory not found");
+    throw error;
+  }
+  if (stats.isSymbolicLink()) readFailureLive("Symlink", "directory is a symlink");
+  if (!stats.isDirectory()) {
+    readFailureLive("NotFile", "path is not a directory");
+  }
+  const names = [];
+  for (const entry of readdirSync2(path, { withFileTypes: true })) {
+    if (entry.isSymbolicLink()) continue;
+    names.push(entry.name);
+  }
+  return names;
+}
 function isWindowsSafeAbsolutePath(value, expectedBasename) {
   if (typeof value !== "string" || value.length === 0) return false;
   if (!win32.isAbsolute(value)) return false;
@@ -37966,6 +38828,11 @@ function parseGitTopLevel(bytes, platform = process.platform) {
 }
 function gitArgv2(args2) {
   return ["--no-replace-objects", ...args2];
+}
+function capturedStderrText(result) {
+  if (result.stderrBytes === void 0) return result.stderr;
+  const decoded = decodeUtf8Fatal2(result.stderrBytes);
+  return decoded === null ? "fatal:" : decoded;
 }
 function requireCapturedStdoutBytes(result) {
   if (result.exitCode !== 0) {

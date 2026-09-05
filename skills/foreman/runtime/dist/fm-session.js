@@ -21290,6 +21290,177 @@ function sidecarRebuildRemedy(dbPath2, asideSuffix) {
   }
   return `The tracked sidecar cannot be used to rebuild this store. Clear the sidecar fault, then: ${move}`;
 }
+function compactUtcTimestamp(date) {
+  const pad = (n, width) => n.toString().padStart(width, "0");
+  return `${pad(date.getUTCFullYear(), 4)}${pad(date.getUTCMonth() + 1, 2)}${pad(date.getUTCDate(), 2)}T${pad(date.getUTCHours(), 2)}${pad(date.getUTCMinutes(), 2)}${pad(date.getUTCSeconds(), 2)}Z`;
+}
+var BACKUP_SIDECARS = ["-wal", "-shm"];
+var MAX_BACKUP_MOVE_ATTEMPTS = 100;
+function fsErrorCode(e) {
+  if (typeof e === "object" && e !== null && "code" in e) {
+    const code = e.code;
+    return typeof code === "string" ? code : void 0;
+  }
+  return void 0;
+}
+function pathOccupied(path) {
+  try {
+    fs2.lstatSync(path);
+    return true;
+  } catch (e) {
+    if (fsErrorCode(e) === "ENOENT") return false;
+    throw e;
+  }
+}
+function sourceStatForValidation(path, statSource) {
+  if (statSource !== void 0) {
+    return statSource(path);
+  }
+  try {
+    return fs2.lstatSync(path);
+  } catch (e) {
+    if (fsErrorCode(e) === "ENOENT") return null;
+    throw e;
+  }
+}
+function backupTripletOccupied(dest, occupied = pathOccupied) {
+  if (occupied(dest)) return true;
+  for (const suffix of BACKUP_SIDECARS) {
+    if (occupied(dest + suffix)) return true;
+  }
+  return false;
+}
+function allocateCorruptBackupPath(dbPath2, stamp, startSuffix = 0, occupied = pathOccupied) {
+  const base = `${dbPath2}.corrupt-${stamp}`;
+  let n = startSuffix;
+  for (; ; ) {
+    const candidate = n === 0 ? base : `${base}-${n}`;
+    if (!backupTripletOccupied(candidate, occupied)) {
+      return { path: candidate, suffix: n };
+    }
+    n += 1;
+  }
+}
+function unlinkCreated(paths) {
+  for (const p of paths) {
+    try {
+      fs2.unlinkSync(p);
+    } catch {
+    }
+  }
+}
+var BACKUP_TRIPLET_SUFFIXES = ["", ...BACKUP_SIDECARS];
+function sameFileIdentity(a, b) {
+  try {
+    const sa = fs2.lstatSync(a);
+    const sb = fs2.lstatSync(b);
+    return sa.dev === sb.dev && sa.ino === sb.ino;
+  } catch {
+    return false;
+  }
+}
+function renameStoreAside(dbPath2, dest, opts = {}) {
+  const created = [];
+  const reservations = [];
+  const linkedSources = [];
+  try {
+    for (const suffix of BACKUP_TRIPLET_SUFFIXES) {
+      const src = dbPath2 + suffix;
+      const dst = dest + suffix;
+      if (pathOccupied(src)) {
+        fs2.linkSync(src, dst);
+        created.push(dst);
+        linkedSources.push(src);
+      } else {
+        const fd = fs2.openSync(dst, "wx");
+        created.push(dst);
+        reservations.push(dst);
+        fs2.closeSync(fd);
+      }
+    }
+  } catch (e) {
+    unlinkCreated(created);
+    throw e;
+  }
+  opts.beforeUnlink?.();
+  try {
+    for (const suffix of BACKUP_TRIPLET_SUFFIXES) {
+      const src = dbPath2 + suffix;
+      const dst = dest + suffix;
+      const wasLinked = linkedSources.includes(src);
+      const srcStat = sourceStatForValidation(src, opts.statSource);
+      if (srcStat !== null !== wasLinked) {
+        throw new Error("source store changed during move");
+      }
+      if (wasLinked && !sameFileIdentity(src, dst)) {
+        throw new Error("source store changed during move");
+      }
+    }
+  } catch {
+    unlinkCreated(created);
+    throw new Error("source store changed during move");
+  }
+  for (const src of linkedSources) {
+    fs2.unlinkSync(src);
+  }
+  opts.beforeCleanup?.(reservations);
+  for (const reservation of reservations) {
+    try {
+      fs2.unlinkSync(reservation);
+    } catch (e) {
+      throw new Error(
+        `backup cleanup failed at ${reservation}: ${fsErrorCode(e) ?? "unknown"}`
+      );
+    }
+  }
+}
+function repairStore(dbPath2, opts = {}) {
+  const shape = classifySqliteStore(dbPath2);
+  if (shape !== "corrupt") {
+    return { status: "healthy" };
+  }
+  const stamp = compactUtcTimestamp((opts.now ?? (() => /* @__PURE__ */ new Date()))());
+  let renamedPath;
+  let lastSuffix = -1;
+  for (let attempt = 0; attempt < MAX_BACKUP_MOVE_ATTEMPTS; attempt++) {
+    const allocated = allocateCorruptBackupPath(dbPath2, stamp, lastSuffix + 1);
+    lastSuffix = allocated.suffix;
+    const dest = allocated.path;
+    try {
+      opts.beforeMove?.(dest);
+      renameStoreAside(dbPath2, dest, opts);
+      renamedPath = dest;
+      break;
+    } catch (e) {
+      const detail = errorMessage(e);
+      if (detail === "source store changed during move") {
+        return { status: "failed", renamedPath: dbPath2, detail };
+      }
+      if (detail.startsWith("backup cleanup failed at ")) {
+        return { status: "failed", renamedPath: dest, detail };
+      }
+      if (fsErrorCode(e) !== "EEXIST") throw e;
+    }
+  }
+  if (renamedPath === void 0) {
+    return {
+      status: "failed",
+      renamedPath: dbPath2,
+      detail: "could not allocate a free backup path without replacing an existing file"
+    };
+  }
+  const sidecar = sidecarPathFor(dbPath2);
+  try {
+    const res = rebuildSqliteFromSidecar({
+      sidecarPath: sidecar,
+      dbPath: dbPath2,
+      force: true
+    });
+    return { status: "repaired", renamedPath, rowsWritten: res.rowsWritten };
+  } catch (e) {
+    return { status: "failed", renamedPath, detail: errorMessage(e) };
+  }
+}
 function rehydrateFromSidecarIfEmpty(p) {
   const sidecar = sidecarPathFor(p);
   if (pathsAlias(sidecar, p) || !fs2.existsSync(sidecar)) return;
@@ -21316,7 +21487,7 @@ function bootstrapStore(p, opts) {
   const shape = classifySqliteStore(p);
   if (shape === "corrupt") {
     process.stderr.write(
-      `refusing: the session store at ${p} carries both the legacy and port schemas, or identity counters behind its own rows. It is the half-migrated state a pre-fix open produced. ${sidecarRebuildRemedy(p, "corrupt")}
+      `refusing: the session store at ${p} is corrupt: it carries both the legacy and port schemas, or identity counters behind its own rows. It is the half-migrated state a pre-fix open produced. run: node skills/foreman/runtime/dist/fm-session.js repair. ${sidecarRebuildRemedy(p, "corrupt")}
 `
     );
     process.exit(2);
@@ -21361,6 +21532,16 @@ function bootstrapStore(p, opts) {
     return true;
   }
   if (shape === "absent") {
+    if (opts.requireSessionSource === true) {
+      const sidecar = sidecarPathFor(p);
+      if (!fs2.existsSync(sidecar)) {
+        process.stderr.write(
+          `refusing: no_session_source (neither ${p} nor ${sidecar} exists)
+`
+        );
+        throw new LegacyMigrationRefusal("no_session_source");
+      }
+    }
     if (fs2.existsSync(p)) {
       process.stderr.write(
         `refusing: the session store at ${p} exists but is not a Foreman session database. This tool will not write into a file it does not recognise. ${sidecarRebuildRemedy(p, "unrecognised")}
@@ -21765,10 +21946,11 @@ function registerProjectFileV1(registryPath, input) {
 
 // packages/orchestration/src/fm-session-main.ts
 var READ_ONLY_CMDS = /* @__PURE__ */ new Set(["recover", "freshness", "sidecar"]);
-var NO_SIDECAR_REFRESH_CMDS = /* @__PURE__ */ new Set(["sync", "project"]);
+var NO_SIDECAR_REFRESH_CMDS = /* @__PURE__ */ new Set(["sync", "project", "repair"]);
 var STORE_CMDS = /* @__PURE__ */ new Set([
   "begin",
   "recover",
+  "repair",
   "freshness",
   "end",
   "fact",
@@ -21924,7 +22106,11 @@ function openCliStore(opts = {}) {
       },
       prepareSqlite: (path, access) => {
         mkdirSync3(dirname3(path), { recursive: true });
-        migrated = bootstrapStore(path, access);
+        migrated = bootstrapStore(path, {
+          allowMigration: access.allowMigration,
+          readOnly: access.readOnly,
+          requireSessionSource: opts.requireSessionSource === true
+        });
       }
     });
   } catch (e) {
@@ -22711,8 +22897,26 @@ function main() {
     }
     return 0;
   }
+  if (cmd === "repair") {
+    const result = repairStore(dbPath());
+    if (result.status === "healthy") {
+      process.stdout.write("repair: store is healthy, nothing to do\n");
+      return 0;
+    }
+    if (result.status === "failed") {
+      process.stderr.write(`repair_failed ${result.renamedPath}: ${result.detail}
+`);
+      return 1;
+    }
+    process.stdout.write(`repair: moved aside ${result.renamedPath}
+`);
+    return 0;
+  }
   if (cmd === "recover") {
-    const { store, selection } = openCliStore({ readOnly: true });
+    const { store, selection } = openCliStore({
+      readOnly: true,
+      requireSessionSource: true
+    });
     try {
       const rec = buildRecoveryFromStore(store, recoveryGitCwd(selection));
       if (parsed.options.json) {
