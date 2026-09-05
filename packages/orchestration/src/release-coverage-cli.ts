@@ -4,6 +4,7 @@ import {
   fstatSync,
   lstatSync,
   openSync,
+  readdirSync,
   readSync,
   realpathSync,
   type Stats,
@@ -23,12 +24,16 @@ import { Effect } from "effect";
 import { canonicalize, isSha256Hex, sha256Hex } from "@foreman/core";
 import {
   inspectReleaseCoverageRegisterV1,
+  isReleaseProgram,
+  RELEASE_PROGRAMS,
+  releaseProgramTable,
   sanitizedGitEnv,
   validateReleaseCoverageV1,
   type ReleaseCoverageFailureReason,
   type ReleaseCoveragePhaseV1,
   type ReleaseCoverageResultV1,
   type ReleasePackageBriefV1,
+  type ReleaseProgram,
   type RoadmapAssignmentV1,
 } from "@foreman/policy";
 import {
@@ -47,12 +52,11 @@ const EXIT_OK = 0;
 const EXIT_EVALUATED = 1;
 const EXIT_USAGE = 64;
 const USAGE_DIAGNOSTIC = "release-coverage: invalid invocation\n";
-const TRACK1_OWNER = "openspec-superpowers-convergence" as const;
-const PROGRAM = "v040" as const;
 const FAMILY_SCHEMA = "foreman.execution-family-source.v1" as const;
 const CHILD_SCHEMA = "foreman.execution-child-brief.v1" as const;
-const FAMILY_ID = "v040-release-20260822-f1" as const;
 const BRIEF_SCHEMA = "foreman.release-package-brief.v1" as const;
+const OPENSPEC_CHANGES_PREFIX = "openspec/changes";
+const EVIDENCE_FILE_LIMIT = 512;
 const ROADMAP_HEADER = "| Coverage key | Scope | Release | Owner |";
 const ROADMAP_SEPARATOR = "|---|---|---|---|";
 const OPENSPEC_LIST_ARGV = ["list", "--json"] as const;
@@ -60,7 +64,6 @@ const SUPERPOWERS_SPECS = "docs/superpowers/specs";
 const SUPERPOWERS_PLANS = "docs/superpowers/plans";
 const GIT_TIMEOUT_MS = 30_000;
 const OPENSPEC_TIMEOUT_MS = 30_000;
-const TRANCHES = [2, 3, 4, 5, 6, 7, 8, 9] as const;
 
 const encoder = new TextEncoder();
 
@@ -68,6 +71,12 @@ export type ReleaseCoverageCliIo = {
   readonly writeStdout: (text: string) => void;
   readonly writeStderr: (text: string) => void;
 };
+
+export type ReleaseCoveragePathClass =
+  | { readonly _tag: "File" }
+  | { readonly _tag: "Directory" }
+  | { readonly _tag: "NotFound" }
+  | { readonly _tag: "Other" };
 
 export type ReleaseCoverageFileReadService = {
   readonly resolveRepositoryRoot: (
@@ -78,6 +87,14 @@ export type ReleaseCoverageFileReadService = {
     readonly maxBytes: number;
     readonly containmentRoot?: string;
   }) => Effect.Effect<Uint8Array, unknown>;
+  readonly classifyPath: (input: {
+    readonly path: string;
+    readonly containmentRoot?: string;
+  }) => Effect.Effect<ReleaseCoveragePathClass, unknown>;
+  readonly listDirectory: (input: {
+    readonly path: string;
+    readonly containmentRoot?: string;
+  }) => Effect.Effect<readonly string[], unknown>;
 };
 
 export type ReleaseCoverageOpenSpecListService = {
@@ -88,11 +105,24 @@ export type ReleaseCoverageOpenSpecListService = {
   }) => Effect.Effect<Uint8Array, unknown>;
 };
 
+export type ReleaseCoverageGitError = unknown;
+
 export type ReleaseCoverageGitChangedPathsService = {
   readonly discover: (input: {
     readonly repository: string;
     readonly baselineCommit: string;
+    readonly pathPrefixes?: readonly string[];
   }) => Effect.Effect<readonly string[], unknown>;
+  readonly readAtCommit: (input: {
+    readonly repository: string;
+    readonly commit: string;
+    readonly path: string;
+  }) => Effect.Effect<Uint8Array, unknown>;
+  readonly existsAtCommit: (input: {
+    readonly repository: string;
+    readonly commit: string;
+    readonly path: string;
+  }) => Effect.Effect<boolean, ReleaseCoverageGitError>;
 };
 
 export type ReleaseCoverageChildBriefV1 = {
@@ -108,8 +138,8 @@ export type ReleaseCoverageChildBriefV1 = {
 
 export type ReleaseCoverageFamilySourceV1 = {
   readonly schema: "foreman.execution-family-source.v1";
-  readonly program: "v040";
-  readonly familyId: "v040-release-20260822-f1";
+  readonly program: ReleaseProgram;
+  readonly familyId: string | null;
   readonly children: readonly ReleaseCoverageChildBriefV1[];
 };
 
@@ -404,6 +434,16 @@ export function makeLiveReleaseCoverageCliServices(
             ),
           catch: (error) => error,
         }),
+      classifyPath: (input) =>
+        Effect.try({
+          try: () => classifyPathLive(input.path, input.containmentRoot),
+          catch: (error) => error,
+        }),
+      listDirectory: (input) =>
+        Effect.try({
+          try: () => listDirectoryLive(input.path, input.containmentRoot),
+          catch: (error) => error,
+        }),
     },
     openspecList: {
       listJson: (input) =>
@@ -496,6 +536,10 @@ export function makeLiveReleaseCoverageCliServices(
             dependencies.platform,
             dependencies.nullDevice,
           );
+          const prefixes = input.pathPrefixes ?? [
+            SUPERPOWERS_SPECS,
+            SUPERPOWERS_PLANS,
+          ];
           const tracked = yield* dependencies.runCaptured({
             command: trusted.physicalGit,
             args: gitArguments(trusted.physicalRepository, [
@@ -506,8 +550,7 @@ export function makeLiveReleaseCoverageCliServices(
               "--no-textconv",
               input.baselineCommit,
               "--",
-              SUPERPOWERS_SPECS,
-              SUPERPOWERS_PLANS,
+              ...prefixes,
             ]),
             env,
             maxOutputBytes: ONE_MIB,
@@ -526,8 +569,7 @@ export function makeLiveReleaseCoverageCliServices(
               "--others",
               "-z",
               "--",
-              SUPERPOWERS_SPECS,
-              SUPERPOWERS_PLANS,
+              ...prefixes,
             ]),
             env,
             maxOutputBytes: ONE_MIB,
@@ -539,6 +581,95 @@ export function makeLiveReleaseCoverageCliServices(
             return yield* Effect.fail({ _tag: "GitPathsInvalid" as const });
           }
           return dedupeUtf8ByteOrder([...trackedPaths, ...untrackedPaths]);
+        }),
+      readAtCommit: (input) =>
+        Effect.gen(function* () {
+          const trusted = yield* resolveTrustedGitContext(
+            input.repository,
+            "explicit",
+          );
+          const env = buildTrustedGitEnvironment(
+            trusted.physicalGit,
+            dependencies.platform,
+            dependencies.nullDevice,
+          );
+          if (
+            typeof input.path !== "string" ||
+            input.path.length === 0 ||
+            input.path.includes("\0") ||
+            input.path.includes("\\") ||
+            input.path.startsWith("/") ||
+            input.path.includes(":")
+          ) {
+            return yield* Effect.fail({ _tag: "GitPathsInvalid" as const });
+          }
+          const captured = yield* dependencies.runCaptured({
+            command: trusted.physicalGit,
+            args: gitArguments(trusted.physicalRepository, [
+              "show",
+              `${input.commit}:${input.path}`,
+            ]),
+            env,
+            maxOutputBytes: ONE_MIB,
+            timeoutMs: GIT_TIMEOUT_MS,
+          });
+          return yield* requireCapturedStdoutBytes(captured);
+        }),
+      existsAtCommit: (input) =>
+        Effect.gen(function* () {
+          const trusted = yield* resolveTrustedGitContext(
+            input.repository,
+            "explicit",
+          );
+          const env = buildTrustedGitEnvironment(
+            trusted.physicalGit,
+            dependencies.platform,
+            dependencies.nullDevice,
+          );
+          if (
+            typeof input.path !== "string" ||
+            input.path.length === 0 ||
+            input.path.includes("\0") ||
+            input.path.includes("\\") ||
+            input.path.startsWith("/") ||
+            input.path.includes(":")
+          ) {
+            return yield* Effect.fail({ _tag: "GitPathsInvalid" as const });
+          }
+          const tree = yield* dependencies.runCaptured({
+            command: trusted.physicalGit,
+            args: gitArguments(trusted.physicalRepository, [
+              "cat-file",
+              "-e",
+              `${input.commit}^{tree}`,
+            ]),
+            env,
+            maxOutputBytes: ONE_MIB,
+            timeoutMs: GIT_TIMEOUT_MS,
+          });
+          if (tree.exitCode !== 0) {
+            return yield* Effect.fail({ _tag: "GitError" as const });
+          }
+          const listing = yield* dependencies.runCaptured({
+            command: trusted.physicalGit,
+            args: gitArguments(trusted.physicalRepository, [
+              "ls-tree",
+              "--name-only",
+              input.commit,
+              "--",
+              input.path,
+            ]),
+            env,
+            maxOutputBytes: ONE_MIB,
+            timeoutMs: GIT_TIMEOUT_MS,
+          });
+          const stderrText = capturedStderrText(listing);
+          if (listing.exitCode !== 0 || stderrText.includes("fatal:")) {
+            return yield* Effect.fail({ _tag: "GitError" as const });
+          }
+          const stdoutBytes =
+            listing.stdoutBytes ?? encoder.encode(listing.stdout);
+          return stdoutBytes.byteLength > 0;
         }),
     },
     familySource: {
@@ -559,11 +690,13 @@ type ParsedFlags = {
   readonly contractId: string | undefined;
   readonly contractSha: string | undefined;
   readonly familySha: string | undefined;
+  readonly evidence: string | undefined;
 };
 
 type ParsedCli =
   | {
       readonly _tag: "Ok";
+      readonly program: ReleaseProgram;
       readonly phase: ReleaseCoveragePhaseV1;
       readonly register: string;
       readonly repo: string | undefined;
@@ -571,7 +704,9 @@ type ParsedCli =
       readonly contractId: string | undefined;
       readonly contractSha: string | undefined;
       readonly familySha: string | undefined;
+      readonly evidence: string | undefined;
     }
+  | { readonly _tag: "WrongProgram" }
   | { readonly _tag: "Invalid" };
 
 function invalidResult(
@@ -745,13 +880,15 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
   const program = raw["--program"];
   const phase = raw["--phase"];
   const register = raw["--register"];
-  if (program !== PROGRAM) return { _tag: "Invalid" };
+  if (typeof program !== "string") return { _tag: "Invalid" };
+  if (!isReleaseProgram(program)) return { _tag: "WrongProgram" };
   if (phase !== "bootstrap" && phase !== "lane" && phase !== "release") {
     return { _tag: "Invalid" };
   }
   if (typeof register !== "string" || !isNativeAbsolutePath(register)) {
     return { _tag: "Invalid" };
   }
+  const table = releaseProgramTable(program);
 
   const owner = raw["--owner"];
   const repo = raw["--repo"];
@@ -759,6 +896,7 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
   const contractId = raw["--contract-id"];
   const contractSha = raw["--contract-sha"];
   const familySha = raw["--family-sha"];
+  const evidence = raw["--evidence"];
 
   const flags: ParsedFlags = {
     phase,
@@ -769,6 +907,7 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
     contractId,
     contractSha,
     familySha,
+    evidence,
   };
 
   if (phase === "bootstrap") {
@@ -781,7 +920,7 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
     for (const key of Object.keys(raw)) {
       if (!allowed.has(key)) return { _tag: "Invalid" };
     }
-    if (owner !== TRACK1_OWNER) return { _tag: "Invalid" };
+    if (owner !== table.bootstrapOwner) return { _tag: "Invalid" };
     if (
       repo !== undefined ||
       stateRoot !== undefined ||
@@ -793,13 +932,15 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
     }
     return {
       _tag: "Ok",
-      phase: { _tag: "Bootstrap", owner: TRACK1_OWNER },
+      program,
+      phase: { _tag: "Bootstrap", owner: table.bootstrapOwner },
       register,
       repo: undefined,
       stateRoot: undefined,
       contractId: undefined,
       contractSha: undefined,
       familySha: undefined,
+      evidence: undefined,
     };
   }
 
@@ -836,6 +977,7 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
     }
     return {
       _tag: "Ok",
+      program,
       phase: { _tag: "Lane", owner },
       register: flags.register,
       repo,
@@ -843,9 +985,11 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
       contractId,
       contractSha,
       familySha,
+      evidence: undefined,
     };
   }
 
+  const isV050 = program !== RELEASE_PROGRAMS[0];
   const allowed = new Set([
     "--program",
     "--phase",
@@ -855,6 +999,7 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
     "--contract-sha",
     "--family-sha",
     "--register",
+    ...(isV050 ? ["--evidence"] : []),
   ]);
   for (const key of Object.keys(raw)) {
     if (!allowed.has(key)) return { _tag: "Invalid" };
@@ -875,8 +1020,16 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
   if (typeof familySha !== "string" || !isSha256Hex(familySha)) {
     return { _tag: "Invalid" };
   }
+  if (isV050) {
+    if (typeof evidence !== "string" || !isNativeAbsolutePath(evidence)) {
+      return { _tag: "Invalid" };
+    }
+  } else if (evidence !== undefined) {
+    return { _tag: "Invalid" };
+  }
   return {
     _tag: "Ok",
+    program,
     phase: { _tag: "Release" },
     register: flags.register,
     repo,
@@ -884,6 +1037,7 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
     contractId,
     contractSha,
     familySha,
+    evidence: isV050 ? evidence : undefined,
   };
 }
 
@@ -969,12 +1123,12 @@ function parseRoadmapRows(
     const line = lines[i]!;
     if (line.length === 0) break;
     const match =
-      /^\| `([^`]+)` \| ([^|]+) \| `(v0\.[45])` \| `([^`]+)` \|$/.exec(line);
+      /^\| `([^`]+)` \| ([^|]+) \| `(v0\.[456])` \| `([^`]+)` \|$/.exec(line);
     if (match === null) return null;
     rows.push({
       key: match[1]!,
       scope: match[2]!,
-      release: match[3] as "v0.4" | "v0.5",
+      release: match[3] as "v0.4" | "v0.5" | "v0.6",
       owner: match[4]!,
     });
   }
@@ -995,6 +1149,23 @@ function extractWorkflowSchema(text: string): string | null {
   return found;
 }
 
+function repositoryRelativePosixPath(
+  repository: string,
+  absoluteFile: string,
+): string | null {
+  const rel = relative(repository, absoluteFile);
+  if (rel.length === 0) return null;
+  if (isAbsolute(rel)) return null;
+  if (rel === "..") return null;
+  if (rel.startsWith(`..${sep}`)) return null;
+  return rel.split(sep).join("/");
+}
+
+function evidenceFileNameIsIncluded(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.endsWith(".json") || lower.endsWith(".md");
+}
+
 function resolveContainedPath(
   repository: string,
   segments: readonly string[],
@@ -1013,8 +1184,16 @@ function resolveContainedPath(
   return absolute;
 }
 
+function trancheSequence(program: ReleaseProgram): readonly number[] {
+  const [min, max] = releaseProgramTable(program).trancheRange;
+  const values: number[] = [];
+  for (let value = min; value <= max; value += 1) values.push(value);
+  return values;
+}
+
 function validateFamilySource(
   source: unknown,
+  program: ReleaseProgram,
 ): source is ReleaseCoverageFamilySourceV1 {
   if (!isPlainObject(source)) return false;
   if (
@@ -1023,10 +1202,14 @@ function validateFamilySource(
     return false;
   }
   if (source["schema"] !== FAMILY_SCHEMA) return false;
-  if (source["program"] !== PROGRAM) return false;
-  if (source["familyId"] !== FAMILY_ID) return false;
+  if (source["program"] !== program) return false;
+  if (source["familyId"] !== releaseProgramTable(program).familyId) return false;
   const children = source["children"];
-  if (!Array.isArray(children) || children.length !== 8) return false;
+  const expectedTranches = trancheSequence(program);
+  const isDefaultProgram = program === RELEASE_PROGRAMS[0];
+  if (!Array.isArray(children)) return false;
+  if (isDefaultProgram && children.length !== expectedTranches.length) return false;
+  if (!isDefaultProgram && children.length < 1) return false;
 
   const childIds = new Set<string>();
   const packageIds = new Set<string>();
@@ -1057,7 +1240,14 @@ function validateFamilySource(
     const acceptance = child["acceptance"];
     const allowedPaths = child["allowedPaths"];
     if (typeof childId !== "string" || !isRunId(childId)) return false;
-    if (tranche !== TRANCHES[i]) return false;
+    if (isDefaultProgram) {
+      if (tranche !== expectedTranches[i]) return false;
+    } else {
+      const [min, max] = releaseProgramTable(program).trancheRange;
+      if (typeof tranche !== "number" || tranche < min || tranche > max) {
+        return false;
+      }
+    }
     if (typeof packageId !== "string" || !isRunId(packageId)) return false;
     if (childIds.has(childId) || packageIds.has(packageId)) return false;
     childIds.add(childId);
@@ -1130,6 +1320,7 @@ function evaluateReleaseCoverage(
     const inspection = inspectReleaseCoverageRegisterV1({
       registerText,
       phase: parsed.phase,
+      program: parsed.program,
     });
     if (inspection._tag === "Invalid") {
       return invalidResult("invalid_register");
@@ -1181,12 +1372,25 @@ function evaluateReleaseCoverage(
       services.gitChangedPaths.discover({
         repository,
         baselineCommit: inspection.baselineCommit,
+        ...(parsed.program !== RELEASE_PROGRAMS[0]
+          ? {
+              pathPrefixes: [
+                SUPERPOWERS_SPECS,
+                SUPERPOWERS_PLANS,
+                OPENSPEC_CHANGES_PREFIX,
+              ],
+            }
+          : {}),
       }),
     ).pipe(Effect.either);
     if (changed._tag === "Left") return dependencyFailure();
 
+    const workflowOwners =
+      parsed.program !== RELEASE_PROGRAMS[0] && parsed.phase._tag === "Bootstrap"
+        ? inspection.v050OwnerPackageNames
+        : inspection.selectedOwners;
     const workflowByChange: Record<string, string | null> = {};
-    for (const owner of inspection.selectedOwners) {
+    for (const owner of workflowOwners) {
       const workflowPath = resolveContainedPath(repository, [
         "openspec",
         "changes",
@@ -1240,7 +1444,7 @@ function evaluateReleaseCoverage(
       ) {
         return dependencyFailure();
       }
-      if (!validateFamilySource(resolved.source)) {
+      if (!validateFamilySource(resolved.source, parsed.program)) {
         return dependencyFailure();
       }
 
@@ -1278,6 +1482,142 @@ function evaluateReleaseCoverage(
       }
     }
 
+    const tasksMarkdownByOwner: Record<string, string> = {};
+    if (parsed.program !== RELEASE_PROGRAMS[0] && parsed.phase._tag === "Lane") {
+      for (const owner of inspection.selectedOwners) {
+        const tasksPath = resolveContainedPath(repository, [
+          "openspec",
+          "changes",
+          owner,
+          "tasks.md",
+        ]);
+        if (tasksPath === null) continue;
+        const tasksRead = yield* readBoundedPort(
+          services.fileRead,
+          tasksPath,
+          repository,
+        );
+        if (tasksRead._tag === "Fail") return dependencyFailure();
+        if (tasksRead._tag === "NotFound") continue;
+        const tasksText = decodeUtf8Fatal(tasksRead.bytes);
+        if (tasksText === null) continue;
+        tasksMarkdownByOwner[owner] = tasksText;
+      }
+    }
+
+    let baselineRegisterText: string | undefined;
+    let baselineRegisterAbsent = false;
+    if (
+      parsed.program !== RELEASE_PROGRAMS[0] &&
+      (parsed.phase._tag === "Bootstrap" || parsed.phase._tag === "Release")
+    ) {
+      const relativeRegister = repositoryRelativePosixPath(
+        repository,
+        parsed.register,
+      );
+      if (relativeRegister === null) return dependencyFailure();
+      const baselineBytes = yield* callPort(() =>
+        services.gitChangedPaths.readAtCommit({
+          repository,
+          commit: inspection.baselineCommit,
+          path: relativeRegister,
+        }),
+      ).pipe(Effect.either);
+      if (baselineBytes._tag === "Right") {
+        const baselineText = decodeUtf8Fatal(baselineBytes.right);
+        if (baselineText === null) return dependencyFailure();
+        baselineRegisterText = baselineText;
+      } else {
+        const present = yield* callPort(() =>
+          services.gitChangedPaths.existsAtCommit({
+            repository,
+            commit: inspection.baselineCommit,
+            path: relativeRegister,
+          }),
+        ).pipe(Effect.either);
+        if (present._tag === "Left" || present.right) {
+          return dependencyFailure();
+        }
+        baselineRegisterAbsent = true;
+      }
+    }
+
+    const evidenceArtifacts: Array<{ path: string; text: string }> = [];
+    if (parsed.program !== RELEASE_PROGRAMS[0] && parsed.phase._tag === "Release") {
+      const evidencePath = parsed.evidence;
+      if (typeof evidencePath !== "string" || !isNativeAbsolutePath(evidencePath)) {
+        return dependencyFailure();
+      }
+      const classified = yield* callPort(() =>
+        services.fileRead.classifyPath({
+          path: evidencePath,
+        }),
+      ).pipe(Effect.either);
+      if (classified._tag === "Left") return dependencyFailure();
+      const kind = classified.right;
+      if (kind._tag === "NotFound" || kind._tag === "Other") {
+        return dependencyFailure();
+      }
+      const collected: string[] = [];
+      let evidenceBound: string;
+      if (kind._tag === "File") {
+        const parent = dirname(evidencePath);
+        if (!isNativeAbsolutePath(parent)) return dependencyFailure();
+        evidenceBound = parent;
+        collected.push(evidencePath);
+      } else {
+        evidenceBound = evidencePath;
+        const pending: string[] = [evidencePath];
+        while (pending.length > 0) {
+          const directory = pending.pop()!;
+          const listed = yield* callPort(() =>
+            services.fileRead.listDirectory({
+              path: directory,
+              containmentRoot: evidenceBound,
+            }),
+          ).pipe(Effect.either);
+          if (listed._tag === "Left") return dependencyFailure();
+          const names = [...listed.right].sort(compareUtf8Bytes);
+          for (const name of names) {
+            if (name.includes("/") || name.includes("\\") || name.includes("\0")) {
+              return dependencyFailure();
+            }
+            if (name === "." || name === "..") continue;
+            const child = join(directory, name);
+            const childKind = yield* callPort(() =>
+              services.fileRead.classifyPath({
+                path: child,
+                containmentRoot: evidenceBound,
+              }),
+            ).pipe(Effect.either);
+            if (childKind._tag === "Left") return dependencyFailure();
+            if (childKind.right._tag === "Directory") {
+              pending.push(child);
+              continue;
+            }
+            if (childKind.right._tag !== "File") continue;
+            if (!evidenceFileNameIsIncluded(name)) continue;
+            collected.push(child);
+            if (collected.length > EVIDENCE_FILE_LIMIT) {
+              return dependencyFailure();
+            }
+          }
+        }
+        collected.sort(compareUtf8Bytes);
+      }
+      for (const filePath of collected) {
+        const evidenceRead = yield* readBoundedPort(
+          services.fileRead,
+          filePath,
+          evidenceBound,
+        );
+        if (evidenceRead._tag !== "Ok") return dependencyFailure();
+        const evidenceText = decodeUtf8Fatal(evidenceRead.bytes);
+        if (evidenceText === null) return dependencyFailure();
+        evidenceArtifacts.push({ path: filePath, text: evidenceText });
+      }
+    }
+
     return validateReleaseCoverageV1({
       phase: parsed.phase,
       registerText,
@@ -1288,6 +1628,13 @@ function evaluateReleaseCoverage(
       changedSuperpowersPaths: changed.right,
       expectedBriefByOwner,
       packageBriefBytesByOwner,
+      program: parsed.program,
+      ...(Object.keys(tasksMarkdownByOwner).length > 0
+        ? { tasksMarkdownByOwner }
+        : {}),
+      ...(baselineRegisterText !== undefined ? { baselineRegisterText } : {}),
+      ...(baselineRegisterAbsent ? { baselineRegisterAbsent: true } : {}),
+      ...(evidenceArtifacts.length > 0 ? { evidenceArtifacts } : {}),
     });
   }).pipe(
     Effect.catchAll((): Effect.Effect<ReleaseCoverageResultV1, never> =>
@@ -1309,6 +1656,9 @@ export function runReleaseCoverageCli(
     if (parsed._tag === "Invalid") {
       io.writeStderr(USAGE_DIAGNOSTIC);
       return EXIT_USAGE;
+    }
+    if (parsed._tag === "WrongProgram") {
+      return emitEvaluated(io, invalidResult("wrong_program"));
     }
     const result = yield* evaluateReleaseCoverage(parsed, services);
     return emitEvaluated(io, result);
@@ -1500,6 +1850,57 @@ function readBoundedBytesLive(
   }
 }
 
+function classifyPathLive(
+  path: string,
+  containmentRoot?: string,
+): ReleaseCoveragePathClass {
+  if (containmentRoot !== undefined) {
+    try {
+      validateContainmentLive(path, containmentRoot);
+    } catch (error) {
+      if (isNotFoundError(error)) return { _tag: "NotFound" };
+      throw error;
+    }
+  }
+  let stats: Stats;
+  try {
+    stats = lstatSync(path);
+  } catch (error) {
+    if (isEnoentLive(error)) return { _tag: "NotFound" };
+    throw error;
+  }
+  if (stats.isSymbolicLink()) return { _tag: "Other" };
+  if (stats.isFile()) return { _tag: "File" };
+  if (stats.isDirectory()) return { _tag: "Directory" };
+  return { _tag: "Other" };
+}
+
+function listDirectoryLive(
+  path: string,
+  containmentRoot?: string,
+): readonly string[] {
+  if (containmentRoot !== undefined) {
+    validateContainmentLive(path, containmentRoot);
+  }
+  let stats: Stats;
+  try {
+    stats = lstatSync(path);
+  } catch (error) {
+    if (isEnoentLive(error)) readFailureLive("NotFound", "directory not found");
+    throw error;
+  }
+  if (stats.isSymbolicLink()) readFailureLive("Symlink", "directory is a symlink");
+  if (!stats.isDirectory()) {
+    readFailureLive("NotFile", "path is not a directory");
+  }
+  const names: string[] = [];
+  for (const entry of readdirSync(path, { withFileTypes: true })) {
+    if (entry.isSymbolicLink()) continue;
+    names.push(entry.name);
+  }
+  return names;
+}
+
 function isWindowsSafeAbsolutePath(
   value: string,
   expectedBasename?: string,
@@ -1639,6 +2040,12 @@ function parseGitTopLevel(
 
 function gitArgv(args: readonly string[]): string[] {
   return ["--no-replace-objects", ...args];
+}
+
+function capturedStderrText(result: CapturedProcessResult): string {
+  if (result.stderrBytes === undefined) return result.stderr;
+  const decoded = decodeUtf8Fatal(result.stderrBytes);
+  return decoded === null ? "fatal:" : decoded;
 }
 
 function requireCapturedStdoutBytes(

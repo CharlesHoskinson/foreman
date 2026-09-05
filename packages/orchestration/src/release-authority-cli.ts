@@ -2,6 +2,8 @@ import { canonicalize, isSha256Hex, sha256Hex } from "@foreman/core";
 import { decodeRunId, isUtcSecondTimestamp } from "@foreman/event-log";
 import {
   decodeReleaseAuthorityFileV1,
+  RELEASE_PROGRAMS,
+  releaseProgramTable,
   type RegisteredReleaseAuthorityV1,
   type ReleaseActionV1,
   type ReleaseAuthorityReceiptV1,
@@ -64,6 +66,12 @@ type CommonRegistrationArgs = {
   readonly familySha256: string;
   readonly childId: string;
 };
+
+function isEvaluationChildId(childId: string): boolean {
+  return RELEASE_PROGRAMS.some(
+    (program) => releaseProgramTable(program).evaluationChild === childId,
+  );
+}
 
 export type ParsedReleaseAuthorityArgv =
   | ({
@@ -175,14 +183,14 @@ export function parseReleaseAuthorityArgv(
     args[0] === "register-evaluation-verdict"
   ) {
     const common = commonArgs(args, "--verdict");
-    if (common !== null && common.childId === "v040-t8-evaluation") {
+    if (common !== null && isEvaluationChildId(common.childId)) {
       return {
         _tag: "RegisterEvaluationVerdict",
         stateRoot: common.stateRoot,
         contractId: common.contractId,
         contractSha256: common.contractSha256,
         familySha256: common.familySha256,
-        childId: "v040-t8-evaluation",
+        childId: common.childId,
         verdictFile: common.file,
       };
     }

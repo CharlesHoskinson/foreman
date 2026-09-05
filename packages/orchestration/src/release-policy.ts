@@ -10,7 +10,9 @@ import { decodeRunId } from "@foreman/event-log";
 import {
   decodeReleaseAuthorityFileV1,
   evaluateReleaseAdmissionV1,
+  isReleaseProgram,
   liveReleaseAdmissionCliServices,
+  releaseProgramTable,
   type RegisteredReleaseAuthorityV1,
   type ReleaseActionV1,
   type ReleaseAdmissionCliServices,
@@ -18,6 +20,7 @@ import {
   type ReleaseCandidateIdentityV1,
   type ReleaseCoveragePhaseV1,
   type ReleaseCoverageResultV1,
+  type ReleaseProgram,
 } from "@foreman/policy";
 import { isAbsolute } from "node:path";
 import { Effect } from "effect";
@@ -52,7 +55,7 @@ export type ReleasePolicyBlockV1 = {
   readonly childId: string;
   readonly action: ReleaseActionV1;
   readonly candidateSha256: string;
-  readonly program: "v040";
+  readonly program: ReleaseProgram;
   readonly phase: "bootstrap" | "lane" | "release";
   readonly owner: string;
   readonly repository: string;
@@ -63,6 +66,7 @@ export type ReleasePolicyBlockV1 = {
 
 export type ParsedReleasePolicyArgv =
   | { readonly _tag: "Check"; readonly block: ReleasePolicyBlockV1 }
+  | { readonly _tag: "WrongProgram" }
   | { readonly _tag: "Invalid" };
 
 export type ReleasePolicyFamilyViewV1 = {
@@ -151,7 +155,7 @@ export function parseReleasePolicyArgv(
     !validId(childId) ||
     typeof action !== "string" || !ACTIONS.includes(action as ReleaseActionV1) ||
     typeof candidateSha256 !== "string" || !isSha256Hex(candidateSha256) ||
-    program !== "v040" ||
+    typeof program !== "string" ||
     (phase !== "bootstrap" && phase !== "lane" && phase !== "release") ||
     !validId(owner) ||
     typeof repository !== "string" || !isAbsolute(repository) ||
@@ -161,6 +165,9 @@ export function parseReleasePolicyArgv(
     candidateSha256 !== sha256Hex(candidateCommit)
   ) {
     return { _tag: "Invalid" };
+  }
+  if (!isReleaseProgram(program)) {
+    return { _tag: "WrongProgram" };
   }
   return {
     _tag: "Check",
@@ -207,7 +214,10 @@ export function releasePolicyBlockArgv(
 function phaseForCoverage(block: ReleasePolicyBlockV1): ReleaseCoveragePhaseV1 {
   if (block.phase === "release") return { _tag: "Release" };
   if (block.phase === "bootstrap") {
-    return { _tag: "Bootstrap", owner: "openspec-superpowers-convergence" };
+    return {
+      _tag: "Bootstrap",
+      owner: releaseProgramTable(block.program).bootstrapOwner,
+    };
   }
   return { _tag: "Lane", owner: block.owner };
 }
@@ -253,6 +263,9 @@ export function runReleasePolicyCli(
       safeWrite(io.writeStderr, RELEASE_POLICY_USAGE);
       return 64;
     }
+    if (parsed._tag === "WrongProgram") {
+      return emit(io, refused("wrong_program"));
+    }
     const block = parsed.block;
     void phaseForCoverage(block);
     const coverage = yield* services.checkCoverage(block);
@@ -263,12 +276,19 @@ export function runReleasePolicyCli(
       maxBytes: ONE_MIB,
     });
     const decoded = decodeReleaseAuthorityFileV1(evidenceBytes);
-    const firstReceipt = decoded._tag === "Valid" &&
-        decoded.value.schema === "foreman.release-evidence-bundle.v1"
-      ? decoded.value.receipts[0]
-      : undefined;
+    if (decoded._tag !== "Valid") {
+      return emit(
+        io,
+        refused(
+          decoded.reason === "wrong_program" ? "wrong_program" : "invalid_evidence",
+        ),
+      );
+    }
+    const firstReceipt =
+      decoded.value.schema === "foreman.release-evidence-bundle.v1"
+        ? decoded.value.receipts[0]
+        : undefined;
     if (
-      decoded._tag !== "Valid" ||
       decoded.value.schema !== "foreman.release-evidence-bundle.v1" ||
       firstReceipt?.schema !== "foreman.design-approval.v1"
     ) {
@@ -337,6 +357,7 @@ export function runReleasePolicyCli(
       taskPlanBytes: git.taskPlanBytes,
       evidenceBytes,
       registered,
+      program: block.program,
     });
     return emit(io, result);
   });
@@ -350,13 +371,13 @@ export function runReleasePolicyCli(
 function coverageArgv(block: ReleasePolicyBlockV1): readonly string[] {
   if (block.phase === "bootstrap") {
     return [
-      "check", "--program", "v040", "--phase", "bootstrap",
+      "check", "--program", block.program, "--phase", "bootstrap",
       "--owner", block.owner, "--register", block.register,
     ];
   }
   if (block.phase === "lane") {
     return [
-      "check", "--program", "v040", "--phase", "lane",
+      "check", "--program", block.program, "--phase", "lane",
       "--owner", block.owner, "--repo", block.repository,
       "--state-root", block.stateRoot, "--contract-id", block.contractId,
       "--contract-sha", block.contractSha256, "--family-sha", block.familySha256,
@@ -364,7 +385,7 @@ function coverageArgv(block: ReleasePolicyBlockV1): readonly string[] {
     ];
   }
   return [
-    "check", "--program", "v040", "--phase", "release",
+    "check", "--program", block.program, "--phase", "release",
     "--repo", block.repository, "--state-root", block.stateRoot,
     "--contract-id", block.contractId, "--contract-sha", block.contractSha256,
     "--family-sha", block.familySha256, "--register", block.register,

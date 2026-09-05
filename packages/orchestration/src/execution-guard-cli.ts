@@ -27,10 +27,13 @@ import { decodeRunId, isUtcSecondTimestamp } from "@foreman/event-log";
 import {
   decodeReleaseAuthorityFileV1,
   gitArgv,
+  isReleaseProgram,
+  RELEASE_PROGRAMS,
   sanitizedGitEnv,
   type ReleaseActionOutcomeV1,
   type ReleaseCandidateIdentityV1,
   type ReleaseCouncilOutcomeV1,
+  type ReleaseProgram,
 } from "@foreman/policy";
 import { Effect } from "effect";
 import {
@@ -111,6 +114,12 @@ function readCanonicalFile(path: string): CanonicalFile | null {
   return { value: JSON.parse(body) as unknown, bytes: textEncoder.encode(text) };
 }
 
+function familyProgram(manifest: ExecutionContractFamilyV2): ReleaseProgram {
+  return isReleaseProgram(manifest.program)
+    ? manifest.program
+    : RELEASE_PROGRAMS[0]!;
+}
+
 function validFamilyAuditReceipt(
   value: unknown,
   manifest: ExecutionContractFamilyV2,
@@ -131,7 +140,7 @@ function validFamilyAuditReceipt(
       "issuedAt",
     ]) &&
     value.schema === "foreman.execution-family-audit.v1" &&
-    value.program === "v040" &&
+    value.program === familyProgram(manifest) &&
     value.familyId === manifest.familyId &&
     value.manifestSha256 === familySha256 &&
     value.track1Commit === manifest.track1Commit &&
@@ -164,7 +173,7 @@ function validFamilyUserReceipt(
       "issuedAt",
     ]) &&
     value.schema === "foreman.execution-family-user-approval.v1" &&
-    value.program === "v040" &&
+    value.program === familyProgram(manifest) &&
     value.familyId === manifest.familyId &&
     value.manifestSha256 === familySha256 &&
     value.track1Commit === manifest.track1Commit &&

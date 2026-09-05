@@ -134,7 +134,8 @@ The program SHALL keep one register at
 directory under `openspec/changes/` outside `archive/` and one entry for
 every row of the `ROADMAP.md` assignment table. IF a package or roadmap row
 has no entry, THEN the bootstrap check SHALL fail with
-`unreconciled_package`.
+`inventory_mismatch` (the checker's existing name for a register that does
+not match the active inventory).
 
 #### Scenario: Register is complete
 
@@ -145,7 +146,7 @@ has no entry, THEN the bootstrap check SHALL fail with
 #### Scenario: A package has no entry
 
 - **WHEN** a new directory appears under `openspec/changes/`
-- **THEN** the bootstrap check fails with `unreconciled_package`
+- **THEN** the bootstrap check fails with `inventory_mismatch`
 
 ### Requirement: Coverage register dispositions
 
@@ -170,7 +171,7 @@ entry SHALL name the owner and release that its `ROADMAP.md` row names.
 ### Requirement: Reconciliation gates dispatch
 
 WHILE an owner's entry has `reconcile = "required"`, the lane check SHALL
-refuse that owner with `reconciliation_required`. WHEN an owner's
+refuse that owner with `unreconciled` (the checker's existing name). WHEN an owner's
 `tasks.md` names a new `.sh`, `.py`, `.ps1`, `.mjs`, or `.cjs` product file
 as a creation target, the lane check SHALL refuse with
 `iron_rule_violation`.
@@ -178,7 +179,7 @@ as a creation target, the lane check SHALL refuse with
 #### Scenario: Owner still needs reconciliation
 
 - **WHEN** a lane check runs for an owner with `reconcile = "required"`
-- **THEN** the check fails with `reconciliation_required`
+- **THEN** the check fails with `unreconciled`
 - **AND** no lane starts
 
 #### Scenario: Bash-targeted task is dispatched

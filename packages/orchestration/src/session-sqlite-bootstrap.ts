@@ -27,7 +27,35 @@ export class LegacyMigrationRefusal extends Error {
 export type BootstrapOpts = {
   readonly allowMigration: boolean;
   readonly readOnly: boolean;
+  /** When true, `absent` with no sidecar is `no_session_source` rather than an empty store. */
+  readonly requireSessionSource?: boolean;
 };
+
+export type RepairStoreOpts = {
+  /** Test seam. Production callers omit it and use wall-clock UTC. */
+  readonly now?: () => Date;
+  /** Test seam. Called after backup allocation and before the first dest link. */
+  readonly beforeMove?: (dest: string) => void;
+  /** Test seam. Called after dest reservation and before the source-triplet re-check. */
+  readonly beforeUnlink?: () => void;
+  /** Test seam. Called after source unlink and before reservation cleanup. */
+  readonly beforeCleanup?: (reservations: readonly string[]) => void;
+  /** Test seam. Pre-unlink source stat. `null` means absent. Production uses lstatSync. */
+  readonly statSource?: (path: string) => fs.Stats | null;
+};
+
+export type RepairStoreResult =
+  | { readonly status: "healthy" }
+  | {
+      readonly status: "repaired";
+      readonly renamedPath: string;
+      readonly rowsWritten: number;
+    }
+  | {
+      readonly status: "failed";
+      readonly renamedPath: string;
+      readonly detail: string;
+    };
 
 function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
@@ -57,6 +85,230 @@ function sidecarRebuildRemedy(dbPath: string, asideSuffix: string): string {
     return `Move it aside and rebuild from the tracked sidecar: ${move}`;
   }
   return `The tracked sidecar cannot be used to rebuild this store. Clear the sidecar fault, then: ${move}`;
+}
+
+/** UTC compact stamp `YYYYMMDDTHHMMSSZ` used in `.corrupt-<stamp>` backup names. */
+export function compactUtcTimestamp(date: Date): string {
+  const pad = (n: number, width: number): string => n.toString().padStart(width, "0");
+  return (
+    `${pad(date.getUTCFullYear(), 4)}${pad(date.getUTCMonth() + 1, 2)}${pad(date.getUTCDate(), 2)}` +
+    `T${pad(date.getUTCHours(), 2)}${pad(date.getUTCMinutes(), 2)}${pad(date.getUTCSeconds(), 2)}Z`
+  );
+}
+
+const BACKUP_SIDECARS = ["-wal", "-shm"] as const;
+const MAX_BACKUP_MOVE_ATTEMPTS = 100;
+
+function fsErrorCode(e: unknown): string | undefined {
+  if (typeof e === "object" && e !== null && "code" in e) {
+    const code = (e as { code?: unknown }).code;
+    return typeof code === "string" ? code : undefined;
+  }
+  return undefined;
+}
+
+function pathOccupied(path: string): boolean {
+  try {
+    fs.lstatSync(path);
+    return true;
+  } catch (e) {
+    if (fsErrorCode(e) === "ENOENT") return false;
+    throw e;
+  }
+}
+
+/** Pre-unlink source stat. `statSource` is the test seam. `null` means absent. */
+function sourceStatForValidation(
+  path: string,
+  statSource?: (path: string) => fs.Stats | null,
+): fs.Stats | null {
+  if (statSource !== undefined) {
+    return statSource(path);
+  }
+  try {
+    return fs.lstatSync(path);
+  } catch (e) {
+    if (fsErrorCode(e) === "ENOENT") return null;
+    throw e;
+  }
+}
+
+function backupTripletOccupied(
+  dest: string,
+  occupied: (path: string) => boolean = pathOccupied,
+): boolean {
+  if (occupied(dest)) return true;
+  for (const suffix of BACKUP_SIDECARS) {
+    if (occupied(dest + suffix)) return true;
+  }
+  return false;
+}
+
+/**
+ * First free `.corrupt-<stamp>` path from `startSuffix` onward.
+ * Suffix 0 is the unsuffixed base. Collision suffixes are `-1`, `-2`, ...
+ * A candidate is free only when none of `<base>`, `<base>-wal`, and
+ * `<base>-shm` exist by `lstat` (a dangling symlink counts as occupied).
+ * The `occupied` seam is for tests; production uses `fs.lstatSync`.
+ */
+export function allocateCorruptBackupPath(
+  dbPath: string,
+  stamp: string,
+  startSuffix = 0,
+  occupied: (path: string) => boolean = pathOccupied,
+): { path: string; suffix: number } {
+  const base = `${dbPath}.corrupt-${stamp}`;
+  let n = startSuffix;
+  for (;;) {
+    const candidate = n === 0 ? base : `${base}-${n}`;
+    if (!backupTripletOccupied(candidate, occupied)) {
+      return { path: candidate, suffix: n };
+    }
+    n += 1;
+  }
+}
+
+function unlinkCreated(paths: readonly string[]): void {
+  for (const p of paths) {
+    try {
+      fs.unlinkSync(p);
+    } catch {
+      // best-effort rollback of links and reservations this attempt created
+    }
+  }
+}
+
+const BACKUP_TRIPLET_SUFFIXES = ["", ...BACKUP_SIDECARS] as const;
+
+function sameFileIdentity(a: string, b: string): boolean {
+  try {
+    const sa = fs.lstatSync(a);
+    const sb = fs.lstatSync(b);
+    return sa.dev === sb.dev && sa.ino === sb.ino;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Move the database and any existing `-wal`/`-shm` files without replacing
+ * an occupied destination. Reserve all three destination names for the whole
+ * move: `link` when the source exists, `openSync(wx)` when it does not.
+ * `wx` and `link` fail with `EEXIST` when the destination is taken.
+ * After reservation, abort if occupancy changed or a linked source no longer
+ * shares `dev`/`ino` with its destination. Unlink only the sources that were
+ * linked. Reservation cleanup uses checked `unlinkSync`.
+ */
+function renameStoreAside(dbPath: string, dest: string, opts: RepairStoreOpts = {}): void {
+  const created: string[] = [];
+  const reservations: string[] = [];
+  const linkedSources: string[] = [];
+  try {
+    for (const suffix of BACKUP_TRIPLET_SUFFIXES) {
+      const src = dbPath + suffix;
+      const dst = dest + suffix;
+      if (pathOccupied(src)) {
+        fs.linkSync(src, dst);
+        created.push(dst);
+        linkedSources.push(src);
+      } else {
+        const fd = fs.openSync(dst, "wx");
+        created.push(dst);
+        reservations.push(dst);
+        fs.closeSync(fd);
+      }
+    }
+  } catch (e) {
+    unlinkCreated(created);
+    throw e;
+  }
+  opts.beforeUnlink?.();
+  try {
+    for (const suffix of BACKUP_TRIPLET_SUFFIXES) {
+      const src = dbPath + suffix;
+      const dst = dest + suffix;
+      const wasLinked = linkedSources.includes(src);
+      const srcStat = sourceStatForValidation(src, opts.statSource);
+      if ((srcStat !== null) !== wasLinked) {
+        throw new Error("source store changed during move");
+      }
+      if (wasLinked && !sameFileIdentity(src, dst)) {
+        throw new Error("source store changed during move");
+      }
+    }
+  } catch {
+    unlinkCreated(created);
+    throw new Error("source store changed during move");
+  }
+  for (const src of linkedSources) {
+    fs.unlinkSync(src);
+  }
+  opts.beforeCleanup?.(reservations);
+  for (const reservation of reservations) {
+    try {
+      fs.unlinkSync(reservation);
+    } catch (e) {
+      throw new Error(
+        `backup cleanup failed at ${reservation}: ${fsErrorCode(e) ?? "unknown"}`,
+      );
+    }
+  }
+}
+
+/**
+ * Move a half-migrated store aside and rebuild from the tracked sidecar.
+ *
+ * Healthy (`port` or any non-`corrupt` shape) is a no-op. After a rename,
+ * a rebuild failure leaves the renamed file in place. If a destination
+ * appears between allocation and move, allocation retries with the next
+ * suffix, at most 100 times, then fails with the store left untouched.
+ */
+export function repairStore(dbPath: string, opts: RepairStoreOpts = {}): RepairStoreResult {
+  const shape = classifySqliteStore(dbPath);
+  if (shape !== "corrupt") {
+    return { status: "healthy" };
+  }
+  const stamp = compactUtcTimestamp((opts.now ?? (() => new Date()))());
+  let renamedPath: string | undefined;
+  let lastSuffix = -1;
+  for (let attempt = 0; attempt < MAX_BACKUP_MOVE_ATTEMPTS; attempt++) {
+    const allocated = allocateCorruptBackupPath(dbPath, stamp, lastSuffix + 1);
+    lastSuffix = allocated.suffix;
+    const dest = allocated.path;
+    try {
+      opts.beforeMove?.(dest);
+      renameStoreAside(dbPath, dest, opts);
+      renamedPath = dest;
+      break;
+    } catch (e) {
+      const detail = errorMessage(e);
+      if (detail === "source store changed during move") {
+        return { status: "failed", renamedPath: dbPath, detail };
+      }
+      if (detail.startsWith("backup cleanup failed at ")) {
+        return { status: "failed", renamedPath: dest, detail };
+      }
+      if (fsErrorCode(e) !== "EEXIST") throw e;
+    }
+  }
+  if (renamedPath === undefined) {
+    return {
+      status: "failed",
+      renamedPath: dbPath,
+      detail: "could not allocate a free backup path without replacing an existing file",
+    };
+  }
+  const sidecar = sidecarPathFor(dbPath);
+  try {
+    const res = rebuildSqliteFromSidecar({
+      sidecarPath: sidecar,
+      dbPath,
+      force: true,
+    });
+    return { status: "repaired", renamedPath, rowsWritten: res.rowsWritten };
+  } catch (e) {
+    return { status: "failed", renamedPath, detail: errorMessage(e) };
+  }
 }
 
 function rehydrateFromSidecarIfEmpty(p: string): void {
@@ -104,8 +356,9 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
   const shape = classifySqliteStore(p);
   if (shape === "corrupt") {
     process.stderr.write(
-      `refusing: the session store at ${p} carries both the legacy and port schemas, or identity counters behind its own rows. ` +
+      `refusing: the session store at ${p} is corrupt: it carries both the legacy and port schemas, or identity counters behind its own rows. ` +
         `It is the half-migrated state a pre-fix open produced. ` +
+        `run: node skills/foreman/runtime/dist/fm-session.js repair. ` +
         `${sidecarRebuildRemedy(p, "corrupt")}\n`,
     );
     process.exit(2);
@@ -157,6 +410,18 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
     // cache, not writing to a store that already exists. Legitimate
     // regardless of whether the command itself is read-only -- the goldens
     // depend on exactly this path.
+    //
+    // recover is the exception: with neither store nor sidecar there is
+    // nothing to recover, so refuse rather than mint an empty cache.
+    if (opts.requireSessionSource === true) {
+      const sidecar = sidecarPathFor(p);
+      if (!fs.existsSync(sidecar)) {
+        process.stderr.write(
+          `refusing: no_session_source (neither ${p} nor ${sidecar} exists)\n`,
+        );
+        throw new LegacyMigrationRefusal("no_session_source");
+      }
+    }
     //
     // "absent" now means the path has no file. If a file appeared between
     // classify and here, refuse rather than write into it.

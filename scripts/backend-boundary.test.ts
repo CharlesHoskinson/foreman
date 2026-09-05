@@ -30,6 +30,8 @@ const TEST_ALLOWLIST: Readonly<Record<string, string>> = {
     "Constructs legacy, hybrid, corrupt-watermark, foreign-schema, lock, and injected-failure states the port refuses to create.",
   "scripts/backend-boundary.test.ts":
     "Owns the production/test boundary scan and its synthetic negative controls.",
+  "packages/orchestration/src/session-sqlite-bootstrap.test.ts":
+    "Constructs healthy, half-migrated, and corrupt SQLite stores directly to exercise repair, backup moves, and sidecar rebuilds the port refuses to create.",
 };
 
 type BoundaryHit = {

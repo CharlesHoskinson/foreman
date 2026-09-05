@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { canonicalize, sha256Hex } from "@foreman/core";
+import { releaseProgramTable } from "@foreman/policy";
 import { Effect, Exit } from "effect";
 import {
   EndstopLedger,
@@ -66,6 +67,11 @@ const EVALUATION_LIMITS: EvaluationChildLimitsV2 = {
   wallTimeMs: 3_888_000_000,
   noProgressMs: 3_600_000,
 };
+const EVALUATION_CHILD = releaseProgramTable("v040").evaluationChild;
+if (EVALUATION_CHILD === null) {
+  throw new Error("v040 evaluation child is required");
+}
+
 const FAMILY_ROWS = [
   [2, "v040-t2-project-registry", "project-registry", []],
   [3, "v040-t3-memory-index", "external-memory-index", ["v040-t2-project-registry"]],
@@ -75,7 +81,7 @@ const FAMILY_ROWS = [
   [7, "v040-t7-context", "graph-context-builder", ["v040-t6-work-dag"]],
   [
     8,
-    "v040-t8-evaluation",
+    EVALUATION_CHILD,
     "graph-eval-falsification",
     ["v040-t3-memory-index", "v040-t4-appliance", "v040-t7-context"],
   ],
@@ -90,7 +96,7 @@ const FAMILY_ROWS = [
       "v040-t5-graphify",
       "v040-t6-work-dag",
       "v040-t7-context",
-      "v040-t8-evaluation",
+      EVALUATION_CHILD,
     ],
   ],
 ] as const;
@@ -793,7 +799,7 @@ describe("EndstopLedger", () => {
             rootContractId: value.contractId,
             rootContractSha256,
             familySha256,
-            childId: "v040-t8-evaluation",
+            childId: EVALUATION_CHILD,
             action: "evaluate",
             effectiveAction: "evaluate",
             priorReservationId: null,
@@ -810,7 +816,7 @@ describe("EndstopLedger", () => {
             rootContractId: value.contractId,
             rootContractSha256,
             familySha256,
-            childId: "v040-t8-evaluation",
+            childId: EVALUATION_CHILD,
             operation: {
               _tag: "ReserveAction",
               reservationId: "evaluation-run-1",
@@ -827,7 +833,7 @@ describe("EndstopLedger", () => {
             rootContractId: value.contractId,
             rootContractSha256,
             familySha256,
-            childId: "v040-t8-evaluation",
+            childId: EVALUATION_CHILD,
             candidateSha256: CANDIDATE.candidateSha256,
             result: "GRAPH_OFF_UNCOMPUTABLE",
             completedRuns: 0,
@@ -853,7 +859,7 @@ describe("EndstopLedger", () => {
       );
       assert.equal(recovered.evaluationVerdicts.length, 1);
       assert.equal(
-        recovered.family.children["v040-t8-evaluation"]?.graphContextEnabled,
+        recovered.family.children[EVALUATION_CHILD]?.graphContextEnabled,
         false,
       );
     });

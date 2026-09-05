@@ -17,11 +17,15 @@ import {
   isSha256Hex,
   sha256Hex,
 } from "@foreman/core";
-import type {
-  RegisteredReleaseAuthorityV1,
-  ReleaseActionV1,
-  ReleaseAuthorityReceiptV1,
-  ReleaseCandidateIdentityV1,
+import {
+  isReleaseProgram,
+  RELEASE_PROGRAMS,
+  releaseProgramTable,
+  type RegisteredReleaseAuthorityV1,
+  type ReleaseActionV1,
+  type ReleaseAuthorityReceiptV1,
+  type ReleaseCandidateIdentityV1,
+  type ReleaseProgram,
 } from "@foreman/policy";
 import {
   decodeRunId,
@@ -178,7 +182,7 @@ export type RegisteredEvaluationVerdictV1 = {
   readonly rootContractId: string;
   readonly rootContractSha256: string;
   readonly familySha256: string;
-  readonly childId: "v040-t8-evaluation";
+  readonly childId: string;
   readonly candidateSha256: string;
   readonly result:
     | "PROMOTE"
@@ -510,7 +514,8 @@ function evaluationVerdictFromUnknown(
     !isSha256Hex(value.rootContractSha256) ||
     typeof value.familySha256 !== "string" ||
     !isSha256Hex(value.familySha256) ||
-    value.childId !== "v040-t8-evaluation" ||
+    typeof value.childId !== "string" ||
+    typeof decodeRunId(value.childId) !== "string" ||
     typeof value.candidateSha256 !== "string" ||
     !isSha256Hex(value.candidateSha256) ||
     ![
@@ -1093,8 +1098,18 @@ function operationOutcome(
     : null;
 }
 
+function familyProgram(manifest: ExecutionContractFamilyV2): ReleaseProgram {
+  return isReleaseProgram(manifest.program)
+    ? manifest.program
+    : RELEASE_PROGRAMS[0]!;
+}
+
 function evaluationRunSetSha256(family: ExecutionFamilyStateV2): string | null {
-  const child = family.children["v040-t8-evaluation"];
+  const evaluationChild = releaseProgramTable(
+    familyProgram(family.manifest),
+  ).evaluationChild;
+  if (evaluationChild === null) return null;
+  const child = family.children[evaluationChild];
   if (child === undefined) return null;
   const encoder = new TextEncoder();
   const rows = Object.entries(child.evaluationPassOrigins)

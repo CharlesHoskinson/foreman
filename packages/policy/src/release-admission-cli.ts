@@ -34,6 +34,7 @@ import {
   type ReleaseAdmissionFailureReason,
   type ReleaseEvidenceCheckResultV1,
 } from "./release-admission.js";
+import { isReleaseProgram, type ReleaseProgram } from "./release-program.js";
 import {
   decodeReleaseAuthorityFileV1,
   type ReleaseActionV1,
@@ -90,13 +91,17 @@ export type ReleaseAdmissionCliServices = {
   }) => Effect.Effect<ReleaseAdmissionGitAuthorityV1, unknown>;
 };
 
-type ParsedArgs = {
-  readonly action: ReleaseActionV1;
-  readonly packageId: string;
-  readonly repository: string;
-  readonly candidateCommit: string;
-  readonly evidencePath: string;
-};
+type ParsedArgs =
+  | {
+      readonly _tag: "Check";
+      readonly program: ReleaseProgram;
+      readonly action: ReleaseActionV1;
+      readonly packageId: string;
+      readonly repository: string;
+      readonly candidateCommit: string;
+      readonly evidencePath: string;
+    }
+  | { readonly _tag: "WrongProgram" };
 
 function isRunId(value: string): boolean {
   return (
@@ -132,7 +137,6 @@ function parseArgs(argv: readonly string[]): ParsedArgs | null {
   if (
     args[0] !== "check" ||
     args[1] !== "--program" ||
-    args[2] !== "v040" ||
     args[3] !== "--action" ||
     args[5] !== "--package" ||
     args[7] !== "--repo" ||
@@ -140,6 +144,10 @@ function parseArgs(argv: readonly string[]): ParsedArgs | null {
     args[11] !== "--evidence"
   ) {
     return null;
+  }
+  const programArg = args[2];
+  if (typeof programArg !== "string" || !isReleaseProgram(programArg)) {
+    return { _tag: "WrongProgram" };
   }
   const action = args[4];
   const packageId = args[6];
@@ -160,6 +168,8 @@ function parseArgs(argv: readonly string[]): ParsedArgs | null {
     return null;
   }
   return {
+    _tag: "Check",
+    program: programArg,
     action: action as ReleaseActionV1,
     packageId,
     repository,
@@ -201,6 +211,9 @@ export function runReleaseAdmissionCli(
       safeWrite(io.writeStderr, RELEASE_ADMISSION_USAGE);
       return 64;
     }
+    if (parsed._tag === "WrongProgram") {
+      return writeResult(io, invalid("wrong_program"));
+    }
 
     const evidence = yield* Effect.either(
       Effect.suspend(() =>
@@ -215,8 +228,15 @@ export function runReleaseAdmissionCli(
     }
 
     const decoded = decodeReleaseAuthorityFileV1(evidence.right);
+    if (decoded._tag !== "Valid") {
+      return writeResult(
+        io,
+        invalid(
+          decoded.reason === "wrong_program" ? "wrong_program" : "invalid_evidence",
+        ),
+      );
+    }
     if (
-      decoded._tag !== "Valid" ||
       decoded.value.schema !== "foreman.release-evidence-bundle.v1" ||
       decoded.value.receipts[0]?.schema !== "foreman.design-approval.v1"
     ) {
@@ -263,6 +283,7 @@ export function runReleaseAdmissionCli(
       approvedOpenSpecBytes: authority.right.approvedOpenSpecBytes,
       taskPlanBytes: authority.right.taskPlanBytes,
       evidenceBytes: evidence.right,
+      program: parsed.program,
     });
     return writeResult(io, result);
   });

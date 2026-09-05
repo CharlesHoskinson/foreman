@@ -1562,8 +1562,9 @@ test("W3.1/W3.5: a parent-directory chmod 500 is not reported as sqlite3.Operati
   const parent = join(dir, "locked");
   mkdirSync(parent);
   try {
-    chmodSync(parent, 0o500);
     const p = join(parent, "session.db");
+    writeFileSync(sidecarPathFor(p), threeLineSidecarText());
+    chmodSync(parent, 0o500);
     const res = spawnSession(dir, p, ["recover"]);
     chmodSync(parent, 0o700);
     assert.equal(res.status, 1, `parent chmod 500 exited ${res.status}; expected 1`);

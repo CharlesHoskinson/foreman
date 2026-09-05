@@ -32692,17 +32692,58 @@ var liveInstallFs = Layer_exports.succeed(InstallFs, {
   })
 });
 
+// packages/policy/src/release-program.ts
+var RELEASE_PROGRAMS = ["v040", "v050"];
+function isReleaseProgram(value) {
+  return value === "v040" || value === "v050";
+}
+var TABLES = {
+  v040: {
+    program: "v040",
+    registerPath: "openspec/changes/v040-release-program/coverage.toml",
+    dispositions: [
+      "v040_owner",
+      "v040_dependency",
+      "released_reference",
+      "superseded",
+      "v050"
+    ],
+    bootstrapOwner: "openspec-superpowers-convergence",
+    childIdPrefix: "v040-t",
+    evaluationChild: "v040-t8-evaluation",
+    trancheRange: [2, 9],
+    familyId: "v040-release-20260822-f1",
+    schemaVersion: 1
+  },
+  v050: {
+    program: "v050",
+    registerPath: "openspec/changes/v050-release-program/coverage.toml",
+    dispositions: [
+      "v050_owner",
+      "v050_dependency",
+      "released_reference",
+      "superseded",
+      "v060"
+    ],
+    bootstrapOwner: "v050-release-program",
+    childIdPrefix: "v050-",
+    evaluationChild: null,
+    trancheRange: [2, 8],
+    familyId: null,
+    schemaVersion: 2
+  }
+};
+function releaseProgramTable(program2) {
+  return TABLES[program2];
+}
+
 // packages/policy/src/release-coverage.ts
 var ONE_MIB = 1024 * 1024;
-var TRACK1_PACKAGE = "openspec-superpowers-convergence";
-var TRACK1_KEY = `change:${TRACK1_PACKAGE}`;
 var encoder = new TextEncoder();
 
 // packages/policy/src/release-authority.ts
 var ONE_MIB2 = 1048576;
-var PROGRAM = "v040";
 var EVAL_PACKAGE = "graph-eval-falsification";
-var EVAL_CHILD = "v040-t8-evaluation";
 var encoder2 = new TextEncoder();
 var RELEASE_ACTIONS = [
   "implement",
@@ -32761,8 +32802,22 @@ var EVAL_RESULTS = [
   "GRAPH_OFF_UNCOMPUTABLE"
 ];
 var UTC_SECOND2 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/;
-function invalidFile() {
-  return { _tag: "Invalid" };
+function invalidFile(reason) {
+  return reason === void 0 ? { _tag: "Invalid" } : { _tag: "Invalid", reason };
+}
+function presentedUnknownProgram(value) {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value;
+  if (typeof record.program === "string" && !isReleaseProgram(record.program)) {
+    return true;
+  }
+  if (!Array.isArray(record.receipts)) return false;
+  for (const receipt of record.receipts) {
+    if (typeof receipt !== "object" || receipt === null) continue;
+    const program2 = receipt.program;
+    if (typeof program2 === "string" && !isReleaseProgram(program2)) return true;
+  }
+  return false;
 }
 function utf8Bytes(text) {
   return encoder2.encode(text);
@@ -32940,7 +32995,7 @@ function parseDesignApproval(value) {
     return null;
   }
   if (value["schema"] !== "foreman.design-approval.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["packageId"])) return null;
   if (typeof value["designCommit"] !== "string" || !isCommitSha40(value["designCommit"])) {
     return null;
@@ -32961,7 +33016,7 @@ function parseDesignApproval(value) {
   if (issuedAt === null) return null;
   return {
     schema: "foreman.design-approval.v1",
-    program: PROGRAM,
+    program: value["program"],
     packageId: value["packageId"],
     designCommit: value["designCommit"],
     designTree: value["designTree"],
@@ -32984,7 +33039,7 @@ function parseChecksEvidence(value) {
     return null;
   }
   if (value["schema"] !== "foreman.checks-evidence.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["packageId"])) return null;
   const candidate = parseCandidate(value["candidate"]);
   if (candidate === null) return null;
@@ -32996,7 +33051,7 @@ function parseChecksEvidence(value) {
   if (issuedAt === null) return null;
   return {
     schema: "foreman.checks-evidence.v1",
-    program: PROGRAM,
+    program: value["program"],
     packageId: value["packageId"],
     candidate,
     status: value["status"],
@@ -33018,7 +33073,7 @@ function parseReleaseAudit(value) {
     return null;
   }
   if (value["schema"] !== "foreman.release-audit.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["packageId"])) return null;
   const candidate = parseCandidate(value["candidate"]);
   if (candidate === null) return null;
@@ -33032,7 +33087,7 @@ function parseReleaseAudit(value) {
   if (issuedAt === null) return null;
   return {
     schema: "foreman.release-audit.v1",
-    program: PROGRAM,
+    program: value["program"],
     packageId: value["packageId"],
     candidate,
     verdict: value["verdict"],
@@ -33055,7 +33110,7 @@ function parseCouncilRequest(value) {
     return null;
   }
   if (value["schema"] !== "foreman.council-request.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["packageId"])) return null;
   if (typeof value["candidateSha256"] !== "string" || !isSha256Hex(value["candidateSha256"])) {
     return null;
@@ -33073,7 +33128,7 @@ function parseCouncilRequest(value) {
   if (issuedAt === null) return null;
   return {
     schema: "foreman.council-request.v1",
-    program: PROGRAM,
+    program: value["program"],
     packageId: value["packageId"],
     candidateSha256: value["candidateSha256"],
     questionSha256: value["questionSha256"],
@@ -33093,7 +33148,8 @@ function parseEvaluationAuthority(value) {
     return null;
   }
   if (value["schema"] !== "foreman.evaluation-authority.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
+  if (releaseProgramTable(value["program"]).evaluationChild === null) return null;
   if (value["packageId"] !== EVAL_PACKAGE) return null;
   if (typeof value["manifestSha256"] !== "string" || !isSha256Hex(value["manifestSha256"])) {
     return null;
@@ -33102,7 +33158,7 @@ function parseEvaluationAuthority(value) {
   if (issuedAt === null) return null;
   return {
     schema: "foreman.evaluation-authority.v1",
-    program: PROGRAM,
+    program: value["program"],
     packageId: EVAL_PACKAGE,
     manifestSha256: value["manifestSha256"],
     issuedAt
@@ -33149,7 +33205,7 @@ function parseActionOutcome(value) {
     return null;
   }
   if (value["schema"] !== "foreman.release-action-outcome.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["rootContractId"])) return null;
   if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
     return null;
@@ -33193,7 +33249,7 @@ function parseActionOutcome(value) {
   if (issuedAt === null) return null;
   return {
     schema: "foreman.release-action-outcome.v1",
-    program: PROGRAM,
+    program: value["program"],
     rootContractId: value["rootContractId"],
     rootContractSha256: value["rootContractSha256"],
     familySha256: value["familySha256"],
@@ -33230,7 +33286,7 @@ function parseCouncilOutcome(value) {
     return null;
   }
   if (value["schema"] !== "foreman.council-outcome.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["rootContractId"])) return null;
   if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
     return null;
@@ -33266,7 +33322,7 @@ function parseCouncilOutcome(value) {
   if (issuedAt === null) return null;
   return {
     schema: "foreman.council-outcome.v1",
-    program: PROGRAM,
+    program: value["program"],
     rootContractId: value["rootContractId"],
     rootContractSha256: value["rootContractSha256"],
     familySha256: value["familySha256"],
@@ -33306,7 +33362,7 @@ function parseEvaluationVerdict(value) {
     return null;
   }
   if (value["schema"] !== "foreman.evaluation-verdict.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["rootContractId"])) return null;
   if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
     return null;
@@ -33314,7 +33370,8 @@ function parseEvaluationVerdict(value) {
   if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
     return null;
   }
-  if (value["childId"] !== EVAL_CHILD) return null;
+  const evaluationChild = releaseProgramTable(value["program"]).evaluationChild;
+  if (evaluationChild === null || value["childId"] !== evaluationChild) return null;
   if (value["packageId"] !== EVAL_PACKAGE) return null;
   if (typeof value["candidateSha256"] !== "string" || !isSha256Hex(value["candidateSha256"])) {
     return null;
@@ -33343,11 +33400,11 @@ function parseEvaluationVerdict(value) {
   if (issuedAt === null) return null;
   return {
     schema: "foreman.evaluation-verdict.v1",
-    program: PROGRAM,
+    program: value["program"],
     rootContractId: value["rootContractId"],
     rootContractSha256: value["rootContractSha256"],
     familySha256: value["familySha256"],
-    childId: EVAL_CHILD,
+    childId: evaluationChild,
     packageId: EVAL_PACKAGE,
     candidateSha256: value["candidateSha256"],
     authorityManifestSha256: value["authorityManifestSha256"],
@@ -33376,7 +33433,7 @@ function parseCancelApproval(value) {
     return null;
   }
   if (value["schema"] !== "foreman.execution-child-cancel.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["rootContractId"])) return null;
   if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
     return null;
@@ -33392,7 +33449,7 @@ function parseCancelApproval(value) {
   if (issuedAt === null) return null;
   return {
     schema: "foreman.execution-child-cancel.v1",
-    program: PROGRAM,
+    program: value["program"],
     rootContractId: value["rootContractId"],
     rootContractSha256: value["rootContractSha256"],
     familySha256: value["familySha256"],
@@ -33416,7 +33473,7 @@ function parseInvalidateApproval(value) {
     return null;
   }
   if (value["schema"] !== "foreman.execution-child-invalidate.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["rootContractId"])) return null;
   if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
     return null;
@@ -33435,7 +33492,7 @@ function parseInvalidateApproval(value) {
   if (issuedAt === null) return null;
   return {
     schema: "foreman.execution-child-invalidate.v1",
-    program: PROGRAM,
+    program: value["program"],
     rootContractId: value["rootContractId"],
     rootContractSha256: value["rootContractSha256"],
     familySha256: value["familySha256"],
@@ -33537,7 +33594,7 @@ function parseEvidenceBundle(value) {
   const expectedKeys = hasPrior ? [...baseKeys, "priorReservation"] : baseKeys;
   if (!hasExactOwnKeys(value, expectedKeys)) return null;
   if (value["schema"] !== "foreman.release-evidence-bundle.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
+  if (!isReleaseProgram(value["program"])) return null;
   if (!isIdentifier(value["rootContractId"])) return null;
   if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
     return null;
@@ -33573,7 +33630,7 @@ function parseEvidenceBundle(value) {
     }
     return {
       schema: "foreman.release-evidence-bundle.v1",
-      program: PROGRAM,
+      program: value["program"],
       rootContractId: value["rootContractId"],
       rootContractSha256: value["rootContractSha256"],
       familySha256: value["familySha256"],
@@ -33591,7 +33648,7 @@ function parseEvidenceBundle(value) {
   if (!receiptsMatchOrdinaryAction(action, receipts)) return null;
   return {
     schema: "foreman.release-evidence-bundle.v1",
-    program: PROGRAM,
+    program: value["program"],
     rootContractId: value["rootContractId"],
     rootContractSha256: value["rootContractSha256"],
     familySha256: value["familySha256"],
@@ -33665,7 +33722,9 @@ function decodeReleaseAuthorityFileV1(bytes) {
     const decoded = decodeCanonicalObjectFile(bytes);
     if (decoded === null) return invalidFile();
     const parsed = parseAuthorityObject(decoded.value);
-    if (parsed === null) return invalidFile();
+    if (parsed === null) {
+      return presentedUnknownProgram(decoded.value) ? invalidFile("wrong_program") : invalidFile();
+    }
     return {
       _tag: "Valid",
       value: parsed,
@@ -33885,7 +33944,7 @@ var evaluationChildLimits = {
   wallTimeMs: 3888e6,
   noProgressMs: 36e5
 };
-var expectedFamilyChildren = [
+var v040FamilyChildren = [
   {
     tranche: 2,
     childId: "v040-t2-project-registry",
@@ -33947,6 +34006,110 @@ var expectedFamilyChildren = [
     ]
   }
 ];
+var v050FamilyChildren = [
+  {
+    tranche: 2,
+    childId: "v050-lane-runtime-typescript",
+    packageId: "lane-runtime-typescript",
+    dependencyChildIds: []
+  },
+  {
+    tranche: 3,
+    childId: "v050-launcher-node-port",
+    packageId: "launcher-node-port",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 4,
+    childId: "v050-three-outcome-verdicts",
+    packageId: "three-outcome-verdicts",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 4,
+    childId: "v050-audit-groundedness-gate",
+    packageId: "audit-groundedness-gate",
+    dependencyChildIds: ["v050-three-outcome-verdicts"]
+  },
+  {
+    tranche: 4,
+    childId: "v050-evidence-contracts",
+    packageId: "evidence-contracts",
+    dependencyChildIds: ["v050-audit-groundedness-gate"]
+  },
+  {
+    tranche: 5,
+    childId: "v050-spec-triage-gate",
+    packageId: "spec-triage-gate",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 5,
+    childId: "v050-foreman-discover-lane",
+    packageId: "foreman-discover-lane",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 6,
+    childId: "v050-build-determinism",
+    packageId: "build-determinism",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 6,
+    childId: "v050-wsl-preflight",
+    packageId: "wsl-preflight",
+    dependencyChildIds: ["v050-lane-runtime-typescript"]
+  },
+  {
+    tranche: 7,
+    childId: "v050-doctrine-reality-drift",
+    packageId: "doctrine-reality-drift",
+    dependencyChildIds: ["v050-evidence-contracts"]
+  },
+  {
+    tranche: 7,
+    childId: "v050-workflow-weight-reduction",
+    packageId: "workflow-weight-reduction",
+    dependencyChildIds: ["v050-doctrine-reality-drift"]
+  },
+  {
+    tranche: 8,
+    childId: "v050-release",
+    packageId: "v050-release-program",
+    dependencyChildIds: [
+      "v050-lane-runtime-typescript",
+      "v050-launcher-node-port",
+      "v050-three-outcome-verdicts",
+      "v050-audit-groundedness-gate",
+      "v050-evidence-contracts",
+      "v050-spec-triage-gate",
+      "v050-foreman-discover-lane",
+      "v050-build-determinism",
+      "v050-wsl-preflight",
+      "v050-doctrine-reality-drift",
+      "v050-workflow-weight-reduction"
+    ]
+  }
+];
+function expectedChildrenFor(program2) {
+  return program2 === "v040" ? v040FamilyChildren : v050FamilyChildren;
+}
+function childViolatesProgram(value, program2) {
+  if (!isPlainRecordV2(value)) return false;
+  const table = releaseProgramTable(program2);
+  const [trancheMin, trancheMax] = table.trancheRange;
+  if (typeof value.tranche === "number" && (value.tranche < trancheMin || value.tranche > trancheMax)) {
+    return true;
+  }
+  if (typeof value.childId === "string") {
+    if (!value.childId.startsWith(table.childIdPrefix)) return true;
+    if (table.evaluationChild === null && value.childId === releaseProgramTable("v040").evaluationChild) {
+      return true;
+    }
+  }
+  return false;
+}
 var familySourceKeys = /* @__PURE__ */ new Set(["schema", "program", "familyId", "children"]);
 var childBriefKeys = /* @__PURE__ */ new Set([
   "schema",
@@ -34001,6 +34164,22 @@ function hasExactKeysV2(value, keys5) {
   const own = Object.keys(value);
   return own.length === keys5.size && own.every((key) => keys5.has(key));
 }
+function hasFamilyManifestKeys(value) {
+  const own = Object.keys(value);
+  for (const key of own) {
+    if (!familyManifestKeys.has(key) && key !== "program") return false;
+  }
+  for (const key of familyManifestKeys) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) return false;
+  }
+  return true;
+}
+function resolveFamilyProgram(value) {
+  if (!Object.prototype.hasOwnProperty.call(value, "program")) {
+    return RELEASE_PROGRAMS[0];
+  }
+  return isReleaseProgram(value.program) ? value.program : null;
+}
 function validUnicodeText(value) {
   const decoded = decodeUtf8Fatal(textEncoder.encode(value));
   return !isCoreFailure(decoded) && decoded === value;
@@ -34043,11 +34222,13 @@ function executionChildPathMatchesV1(allowedPath, changedPath) {
 function sameStrings(value, expected) {
   return Array.isArray(value) && value.length === expected.length && value.every((item, index) => item === expected[index]);
 }
-function decodeChildBriefV1(value, expected) {
+function decodeChildBriefV1(value, expected, program2) {
   if (!isPlainRecordV2(value) || !hasExactKeysV2(value, childBriefKeys)) {
     return familyFailure("invalid_children");
   }
-  if (value.schema !== "foreman.execution-child-brief.v1" || value.childId !== expected.childId || value.tranche !== expected.tranche || value.packageId !== expected.packageId || !sameStrings(value.dependencyChildIds, expected.dependencyChildIds)) {
+  const table = releaseProgramTable(program2);
+  const [trancheMin, trancheMax] = table.trancheRange;
+  if (value.schema !== "foreman.execution-child-brief.v1" || typeof value.childId !== "string" || value.childId !== expected.childId || !value.childId.startsWith(table.childIdPrefix) || value.tranche !== expected.tranche || expected.tranche < trancheMin || expected.tranche > trancheMax || table.evaluationChild === null && value.childId === releaseProgramTable("v040").evaluationChild || table.evaluationChild !== null && expected.childId === table.evaluationChild && value.childId !== table.evaluationChild || value.packageId !== expected.packageId || !sameStrings(value.dependencyChildIds, expected.dependencyChildIds)) {
     return familyFailure("invalid_children");
   }
   if (!validBoundedText(value.objective, 16384, true)) {
@@ -34079,18 +34260,28 @@ function decodeExecutionFamilySourceV1(value) {
   if (!isPlainRecordV2(value) || !hasExactKeysV2(value, familySourceKeys)) {
     return familyFailure("invalid_source");
   }
-  if (value.schema !== "foreman.execution-family-source.v1" || value.program !== "v040" || value.familyId !== FAMILY_ID || !Array.isArray(value.children) || value.children.length !== expectedFamilyChildren.length) {
+  if (value.schema !== "foreman.execution-family-source.v1" || !isReleaseProgram(value.program) || value.familyId !== FAMILY_ID || !Array.isArray(value.children)) {
+    return familyFailure("invalid_source");
+  }
+  for (const raw of value.children) {
+    if (childViolatesProgram(raw, value.program)) {
+      return familyFailure("invalid_source");
+    }
+  }
+  const expectedChildren = expectedChildrenFor(value.program);
+  if (value.children.length !== expectedChildren.length) {
     return familyFailure("invalid_source");
   }
   const children = [];
-  for (const [index, expected] of expectedFamilyChildren.entries()) {
-    const child = decodeChildBriefV1(value.children[index], expected);
+  for (const [index, expected] of expectedChildren.entries()) {
+    const raw = value.children[index];
+    const child = decodeChildBriefV1(raw, expected, value.program);
     if (isExecutionFamilyFailure(child)) return child;
     children.push(child);
   }
   return {
     schema: "foreman.execution-family-source.v1",
-    program: "v040",
+    program: value.program,
     familyId: FAMILY_ID,
     children
   };
@@ -34114,8 +34305,8 @@ function decodeExecutionFamilySourceFileV1(bytes) {
     return familyFailure("invalid_source");
   }
 }
-function expectedChildLimits(tranche) {
-  return tranche === 8 ? evaluationChildLimits : standardChildLimits;
+function expectedChildLimits(program2, childId) {
+  return releaseProgramTable(program2).evaluationChild === childId ? evaluationChildLimits : standardChildLimits;
 }
 function expectedChildMilestones(tranche) {
   return tranche === 9 ? ["checks", "audit", "integrated", "published"] : ["checks", "audit", "integrated"];
@@ -34128,7 +34319,11 @@ function samePlainValue(left3, right3) {
   }
 }
 function decodeExecutionContractFamilyV2(value) {
-  if (!isPlainRecordV2(value) || !hasExactKeysV2(value, familyManifestKeys)) {
+  if (!isPlainRecordV2(value) || !hasFamilyManifestKeys(value)) {
+    return familyFailure("invalid_manifest");
+  }
+  const program2 = resolveFamilyProgram(value);
+  if (program2 === null) {
     return familyFailure("invalid_manifest");
   }
   if (value.schemaVersion !== 2 || value.familyId !== FAMILY_ID || value.wallTimeMs !== FAMILY_WALL_TIME_MS || value.totalActions !== FAMILY_TOTAL_ACTIONS) {
@@ -34149,11 +34344,20 @@ function decodeExecutionContractFamilyV2(value) {
   if (Date.parse(value.deadlineAt) - Date.parse(value.createdAt) !== FAMILY_WALL_TIME_MS) {
     return familyFailure("invalid_deadline");
   }
-  if (!Array.isArray(value.children) || value.children.length !== 8) {
+  if (!Array.isArray(value.children)) {
+    return familyFailure("invalid_children");
+  }
+  for (const raw of value.children) {
+    if (childViolatesProgram(raw, program2)) {
+      return familyFailure("invalid_manifest");
+    }
+  }
+  const expectedChildren = expectedChildrenFor(program2);
+  if (value.children.length !== expectedChildren.length) {
     return familyFailure("invalid_children");
   }
   const children = [];
-  for (const [index, expected] of expectedFamilyChildren.entries()) {
+  for (const [index, expected] of expectedChildren.entries()) {
     const raw = value.children[index];
     if (!isPlainRecordV2(raw) || !hasExactKeysV2(raw, childContractKeys)) {
       return familyFailure("invalid_children");
@@ -34164,7 +34368,7 @@ function decodeExecutionContractFamilyV2(value) {
     if (typeof raw.objectiveSha256 !== "string" || typeof raw.acceptanceSha256 !== "string" || typeof raw.allowedPathsSha256 !== "string" || !isSha256Hex(raw.objectiveSha256) || !isSha256Hex(raw.acceptanceSha256) || !isSha256Hex(raw.allowedPathsSha256)) {
       return familyFailure("invalid_digest");
     }
-    const limits = expectedChildLimits(expected.tranche);
+    const limits = expectedChildLimits(program2, expected.childId);
     if (!samePlainValue(raw.limits, limits)) {
       return familyFailure("invalid_limits");
     }
@@ -34183,6 +34387,7 @@ function decodeExecutionContractFamilyV2(value) {
   }
   return {
     schemaVersion: 2,
+    ...Object.prototype.hasOwnProperty.call(value, "program") ? { program: program2 } : {},
     familyId: FAMILY_ID,
     rootContractId: value.rootContractId,
     rootContractSha256: value.rootContractSha256,
@@ -34250,11 +34455,12 @@ function deriveExecutionContractFamilyV2(input) {
       }),
       dependencyChildIds: [...child.dependencyChildIds],
       deadlineAt,
-      limits: expectedChildLimits(child.tranche),
+      limits: expectedChildLimits(source.program, child.childId),
       requiredMilestones: expectedChildMilestones(child.tranche)
     }));
     const manifest = {
       schemaVersion: 2,
+      ...source.program === RELEASE_PROGRAMS[0] ? {} : { program: source.program },
       familyId: FAMILY_ID,
       rootContractId: input.rootContractId,
       rootContractSha256: input.rootContractSha256,
@@ -35212,7 +35418,7 @@ function evaluationVerdictFromUnknown(value) {
     "evaluationAuthorityReceiptSha256",
     "verdictSha256",
     "registeredAt"
-  ]) || typeof value.rootContractId !== "string" || typeof decodeRunId(value.rootContractId) !== "string" || typeof value.rootContractSha256 !== "string" || !isSha256Hex(value.rootContractSha256) || typeof value.familySha256 !== "string" || !isSha256Hex(value.familySha256) || value.childId !== "v040-t8-evaluation" || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || ![
+  ]) || typeof value.rootContractId !== "string" || typeof decodeRunId(value.rootContractId) !== "string" || typeof value.rootContractSha256 !== "string" || !isSha256Hex(value.rootContractSha256) || typeof value.familySha256 !== "string" || !isSha256Hex(value.familySha256) || typeof value.childId !== "string" || typeof decodeRunId(value.childId) !== "string" || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || ![
     "PROMOTE",
     "GRAPH_OFF_FAILED",
     "GRAPH_OFF_INCONCLUSIVE",
@@ -35547,8 +35753,15 @@ function outcomeMatchesReservation(outcome, family) {
 function operationOutcome(operation) {
   return operation._tag === "RecordMilestone" || operation._tag === "RecordBlockingOutcome" || operation._tag === "RecordExternalFailure" ? operation : null;
 }
+function familyProgram(manifest) {
+  return isReleaseProgram(manifest.program) ? manifest.program : RELEASE_PROGRAMS[0];
+}
 function evaluationRunSetSha256(family) {
-  const child = family.children["v040-t8-evaluation"];
+  const evaluationChild = releaseProgramTable(
+    familyProgram(family.manifest)
+  ).evaluationChild;
+  if (evaluationChild === null) return null;
+  const child = family.children[evaluationChild];
   if (child === void 0) return null;
   const encoder5 = new TextEncoder();
   const rows = Object.entries(child.evaluationPassOrigins).map(([originReservationId, outcomeSha256]) => ({
@@ -37048,6 +37261,9 @@ function readCanonicalFile(path) {
   if (isCoreFailure(parsed) || canonicalize(parsed) !== body) return null;
   return { value: JSON.parse(body), bytes: textEncoder2.encode(text) };
 }
+function familyProgram2(manifest) {
+  return isReleaseProgram(manifest.program) ? manifest.program : RELEASE_PROGRAMS[0];
+}
 function validFamilyAuditReceipt(value, manifest, familySha256) {
   return isRecord3(value) && hasExactKeys(value, [
     "schema",
@@ -37060,7 +37276,7 @@ function validFamilyAuditReceipt(value, manifest, familySha256) {
     "findings",
     "evidenceSha256",
     "issuedAt"
-  ]) && value.schema === "foreman.execution-family-audit.v1" && value.program === "v040" && value.familyId === manifest.familyId && value.manifestSha256 === familySha256 && value.track1Commit === manifest.track1Commit && value.track1Tree === manifest.track1Tree && value.verdict === "APPROVED" && Array.isArray(value.findings) && value.findings.length === 0 && typeof value.evidenceSha256 === "string" && isSha256Hex(value.evidenceSha256) && typeof value.issuedAt === "string" && isUtcSecondTimestamp(value.issuedAt);
+  ]) && value.schema === "foreman.execution-family-audit.v1" && value.program === familyProgram2(manifest) && value.familyId === manifest.familyId && value.manifestSha256 === familySha256 && value.track1Commit === manifest.track1Commit && value.track1Tree === manifest.track1Tree && value.verdict === "APPROVED" && Array.isArray(value.findings) && value.findings.length === 0 && typeof value.evidenceSha256 === "string" && isSha256Hex(value.evidenceSha256) && typeof value.issuedAt === "string" && isUtcSecondTimestamp(value.issuedAt);
 }
 function validFamilyUserReceipt(value, manifest, familySha256) {
   return isRecord3(value) && hasExactKeys(value, [
@@ -37072,7 +37288,7 @@ function validFamilyUserReceipt(value, manifest, familySha256) {
     "track1Tree",
     "approvalStatementSha256",
     "issuedAt"
-  ]) && value.schema === "foreman.execution-family-user-approval.v1" && value.program === "v040" && value.familyId === manifest.familyId && value.manifestSha256 === familySha256 && value.track1Commit === manifest.track1Commit && value.track1Tree === manifest.track1Tree && typeof value.approvalStatementSha256 === "string" && isSha256Hex(value.approvalStatementSha256) && typeof value.issuedAt === "string" && isUtcSecondTimestamp(value.issuedAt);
+  ]) && value.schema === "foreman.execution-family-user-approval.v1" && value.program === familyProgram2(manifest) && value.familyId === manifest.familyId && value.manifestSha256 === familySha256 && value.track1Commit === manifest.track1Commit && value.track1Tree === manifest.track1Tree && typeof value.approvalStatementSha256 === "string" && isSha256Hex(value.approvalStatementSha256) && typeof value.issuedAt === "string" && isUtcSecondTimestamp(value.issuedAt);
 }
 function stripNodeArgv(argv) {
   let args2 = [...argv];

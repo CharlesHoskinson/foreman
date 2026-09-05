@@ -74,6 +74,20 @@ const _releaseCoverageLiveDependenciesContract: _ReleaseCoverageLiveDependencies
   true;
 void _releaseCoverageLiveDependenciesContract;
 
+type _GitChangedPathsRequireExistsAtCommit =
+  ReleaseCoverageGitChangedPathsService extends {
+    readonly existsAtCommit: (input: {
+      readonly repository: string;
+      readonly commit: string;
+      readonly path: string;
+    }) => Effect.Effect<boolean, unknown>;
+  }
+    ? true
+    : never;
+const _gitChangedPathsExistsAtCommitContract: _GitChangedPathsRequireExistsAtCommit =
+  true;
+void _gitChangedPathsExistsAtCommitContract;
+
 const ONE_MIB = 1_048_576;
 const EXIT_OK = 0;
 const EXIT_EVALUATED = 1;
@@ -109,6 +123,11 @@ const CONTRACT_SHA =
 const FAMILY_SHA =
   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const BASELINE = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195";
+const V050_BASELINE = "387dcd7521a45e91b2a58b309e20ffcc72902ec0";
+const V050_OWNER = "v050-release-program";
+const V050_ROADMAP_KEY = "roadmap:v050-publication";
+const V050_DEFERRED = "graph-store-port";
+const V050_DEP = "captured-facts-convergence";
 
 const ROADMAP_ABS = join(REPO, "ROADMAP.md");
 const TRACK1_WORKFLOW_ABS = join(
@@ -157,8 +176,12 @@ const BRIEF_REL = `openspec/changes/${PACKAGE}/release-brief.json`;
 
 const SECRET = join(FIXTURE_ROOT, "secret", "private", "path");
 
-const SOURCE_REPO = resolve(
+const WORKTREE_ROOT = resolve(
   fileURLToPath(new URL("../../..", import.meta.url)),
+);
+const FROZEN_V040_COMMIT = "00c342bd449948ab2ea5ca0b9d0c890614dd81d6";
+const LIVE_COVERAGE_MAIN = fileURLToPath(
+  new URL("./release-coverage-main.ts", import.meta.url),
 );
 const TSX_LOADER = pathToFileURL(
   createRequire(import.meta.url).resolve("tsx"),
@@ -472,6 +495,147 @@ function sealRegister(input: {
   return text;
 }
 
+function v050RoadmapBytes(): Uint8Array {
+  return utf8(
+    [
+      "| Coverage key | Scope | Release | Owner |",
+      "|---|---|---|---|",
+      `| \`${V050_ROADMAP_KEY}\` | Exact-candidate release and publication | \`v0.5\` | \`${V050_OWNER}\` |`,
+      "",
+    ].join("\n"),
+  );
+}
+
+function sealV050Register(input: {
+  readonly activeNames: readonly string[];
+  readonly roadmapBytes: Uint8Array;
+  readonly extraEntry?: string;
+}): string {
+  const inv = inventorySha(input.activeNames);
+  const road = sha256Hex(input.roadmapBytes);
+  let text = [
+    `schema_version = 2`,
+    `baseline_commit = "${V050_BASELINE}"`,
+    `active_inventory_sha256 = "${inv}"`,
+    `roadmap_sha256 = "${road}"`,
+    ``,
+    `[[entry]]`,
+    `key = "change:${V050_OWNER}"`,
+    `source_kind = "openspec_change"`,
+    `source_path = "openspec/changes/${V050_OWNER}"`,
+    `disposition = "v050_owner"`,
+    `owner = "${V050_OWNER}"`,
+    `target_release = "v0.5"`,
+    `reconcile = "complete"`,
+    `reason = "governor"`,
+    ``,
+    `[[entry]]`,
+    `key = "${V050_ROADMAP_KEY}"`,
+    `source_kind = "roadmap"`,
+    `source_path = "ROADMAP.md"`,
+    `disposition = "v050_owner"`,
+    `owner = "${V050_OWNER}"`,
+    `target_release = "v0.5"`,
+    `reconcile = "complete"`,
+    `reason = "publication"`,
+  ].join("\n");
+  if (input.extraEntry) text += `\n${input.extraEntry}`;
+  return `${text}\n`;
+}
+
+const V050_REGISTER = join(
+  REPO,
+  "openspec",
+  "changes",
+  V050_OWNER,
+  "coverage.toml",
+);
+const EVIDENCE_ABS = join(STATE_ROOT, "evidence.json");
+
+const V050_BOOTSTRAP_ARGV = processArgv([
+  "check",
+  "--program",
+  "v050",
+  "--phase",
+  "bootstrap",
+  "--owner",
+  V050_OWNER,
+  "--register",
+  V050_REGISTER,
+]);
+
+const V050_LANE_ARGV = processArgv([
+  "check",
+  "--program",
+  "v050",
+  "--phase",
+  "lane",
+  "--owner",
+  V050_OWNER,
+  "--repo",
+  REPO,
+  "--state-root",
+  STATE_ROOT,
+  "--contract-id",
+  CONTRACT_ID,
+  "--contract-sha",
+  CONTRACT_SHA,
+  "--family-sha",
+  FAMILY_SHA,
+  "--register",
+  V050_REGISTER,
+]);
+
+const V050_RELEASE_ARGV = processArgv([
+  "check",
+  "--program",
+  "v050",
+  "--phase",
+  "release",
+  "--repo",
+  REPO,
+  "--state-root",
+  STATE_ROOT,
+  "--contract-id",
+  CONTRACT_ID,
+  "--contract-sha",
+  CONTRACT_SHA,
+  "--family-sha",
+  FAMILY_SHA,
+  "--register",
+  V050_REGISTER,
+  "--evidence",
+  EVIDENCE_ABS,
+]);
+
+const V050_CHILD = {
+  schema: "foreman.execution-child-brief.v1" as const,
+  childId: "v050-release",
+  tranche: 8 as const,
+  packageId: V050_OWNER,
+  dependencyChildIds: [] as const,
+  objective: "Ship the v0.5 release program.",
+  acceptance: ["Bootstrap coverage passes."],
+  allowedPaths: ["packages/policy/**"],
+};
+
+const V050_FAMILY_RESULT: FamilyResult = {
+  stateRoot: STATE_ROOT,
+  contractId: CONTRACT_ID,
+  contractSha256: CONTRACT_SHA,
+  familySha256: FAMILY_SHA,
+  source: {
+    schema: "foreman.execution-family-source.v1",
+    program: "v050",
+    familyId: null,
+    children: [V050_CHILD],
+  },
+};
+
+function v050GovernorBriefAbs(): string {
+  return join(REPO, "openspec", "changes", V050_OWNER, "release-brief.json");
+}
+
 type CallLog = {
   readonly openspec: Array<{
     repository: string;
@@ -489,6 +653,16 @@ type CallLog = {
     path: string;
     maxBytes: number;
     containmentRoot?: string | undefined;
+  }>;
+  readonly gitShows: Array<{
+    repository: string;
+    commit: string;
+    path: string;
+  }>;
+  readonly gitExists: Array<{
+    repository: string;
+    commit: string;
+    path: string;
   }>;
   repositoryRootResolves: number;
 };
@@ -517,8 +691,8 @@ type FamilyChild = {
 
 type FamilySource = {
   readonly schema: "foreman.execution-family-source.v1";
-  readonly program: "v040";
-  readonly familyId: "v040-release-20260822-f1";
+  readonly program: "v040" | "v050";
+  readonly familyId: string | null;
   readonly children: readonly FamilyChild[];
 };
 
@@ -553,6 +727,16 @@ type HarnessOptions = {
   readonly repositoryRootThrow?: boolean;
   readonly packageReconcile?: "complete" | "required";
   readonly releaseTrack1Settled?: boolean;
+  readonly tasksMarkdownByOwner?: Readonly<Record<string, string>>;
+  readonly evidenceText?: string;
+  readonly evidenceFiles?: Readonly<Record<string, string>>;
+  readonly baselineRegisterText?: string;
+  readonly baselineError?: Error;
+  readonly baselineThrow?: boolean;
+  readonly baselineCommitMissing?: boolean;
+  readonly liveEvidenceRoot?: string;
+  readonly registerAbs?: string;
+  readonly fileNotFoundPaths?: ReadonlySet<string>;
 };
 
 function cloneBytes(map: Map<string, Uint8Array>): ByteSnapshot {
@@ -561,6 +745,12 @@ function cloneBytes(map: Map<string, Uint8Array>): ByteSnapshot {
     out.set(key, Uint8Array.from(value));
   }
   return out;
+}
+
+function isUnderLiveEvidenceRoot(path: string, root: string): boolean {
+  if (path === root) return true;
+  const prefix = root.endsWith(sep) ? root : `${root}${sep}`;
+  return path.startsWith(prefix);
 }
 
 function snapshotsEqual(a: ByteSnapshot, b: ByteSnapshot): boolean {
@@ -613,12 +803,72 @@ function snapshotPhysicalTree(root: string): ReadonlyMap<string, string> {
   return snapshot;
 }
 
+function extractFrozenV040Repository(destination: string): void {
+  mkdirSync(destination, { recursive: true });
+  const archived = spawnSync(
+    "sh",
+    [
+      "-c",
+      'git archive "$1" | tar -x -C "$2"',
+      "extract-frozen-v040",
+      FROZEN_V040_COMMIT,
+      destination,
+    ],
+    {
+      cwd: WORKTREE_ROOT,
+      encoding: "utf8",
+      timeout: 60_000,
+      maxBuffer: ONE_MIB,
+    },
+  );
+  assert.equal(archived.error, undefined);
+  assert.equal(archived.status, 0, archived.stderr);
+  const initialized = spawnSync(
+    "git",
+    ["init", "--quiet", "--object-format=sha1"],
+    {
+      cwd: destination,
+      encoding: "utf8",
+      timeout: 30_000,
+    },
+  );
+  assert.equal(initialized.error, undefined);
+  assert.equal(initialized.status, 0, initialized.stderr);
+  const fetched = spawnSync(
+    "git",
+    [
+      "fetch",
+      "--quiet",
+      "--no-tags",
+      WORKTREE_ROOT,
+      FROZEN_V040_COMMIT,
+      BASELINE,
+    ],
+    {
+      cwd: destination,
+      encoding: "utf8",
+      timeout: 60_000,
+    },
+  );
+  assert.equal(fetched.error, undefined);
+  assert.equal(fetched.status, 0, fetched.stderr);
+  const staged = spawnSync("git", ["add", "-A"], {
+    cwd: destination,
+    encoding: "utf8",
+    timeout: 30_000,
+  });
+  assert.equal(staged.error, undefined);
+  assert.equal(staged.status, 0, staged.stderr);
+}
+
 function emptyLog(): CallLog {
   return {
     openspec: [],
     git: [],
     family: [],
     fileReads: [],
+    gitShows: [],
+    gitExists: [],
     repositoryRootResolves: 0,
   };
 }
@@ -669,18 +919,43 @@ function makeServices(
     source: FAMILY_SOURCE,
   };
 
+  const v050RegisterAbs = join(
+    REPO,
+    "openspec",
+    "changes",
+    V050_OWNER,
+    "coverage.toml",
+  );
   const files = new Map<string, Uint8Array>([
     [REGISTER, utf8(registerText)],
+    [v050RegisterAbs, utf8(registerText)],
     [ROADMAP_ABS, roadmapBytes],
     [TRACK1_WORKFLOW_ABS, utf8(`schema: ${workflowByOwner[TRACK1]}\n`)],
     [PACKAGE_WORKFLOW_ABS, utf8(`schema: ${workflowByOwner[PACKAGE]}\n`)],
     ...briefBytesByAbsPath.entries(),
   ]);
+  if (options.registerAbs !== undefined) {
+    files.set(options.registerAbs, utf8(registerText));
+  }
   for (const [owner, schema] of Object.entries(workflowByOwner)) {
     files.set(
       join(REPO, "openspec", "changes", owner, ".openspec.yaml"),
       utf8(`schema: ${schema}\n`),
     );
+  }
+  for (const [owner, markdown] of Object.entries(
+    options.tasksMarkdownByOwner ?? {},
+  )) {
+    files.set(
+      join(REPO, "openspec", "changes", owner, "tasks.md"),
+      utf8(markdown),
+    );
+  }
+  if (options.evidenceText !== undefined) {
+    files.set(EVIDENCE_ABS, utf8(options.evidenceText));
+  }
+  for (const [path, text] of Object.entries(options.evidenceFiles ?? {})) {
+    files.set(path, utf8(text));
   }
 
   // Durable byte image of repository + state material the CLI may touch.
@@ -691,6 +966,22 @@ function makeServices(
   capture.snapshotBefore = cloneBytes(capture.repoStateBytes);
 
   const fileErrors = options.fileErrorByPath ?? new Map<string, Error>();
+  const notFoundPaths = options.fileNotFoundPaths ?? new Set<string>();
+
+  const isNotFoundPath = (path: string): boolean =>
+    options.fileNotFoundPath === path || notFoundPaths.has(path);
+
+  const classifyMockPath = (
+    path: string,
+  ): { readonly _tag: "File" | "Directory" | "NotFound" | "Other" } => {
+    if (isNotFoundPath(path)) return { _tag: "NotFound" };
+    if (capture.repoStateBytes.has(path)) return { _tag: "File" };
+    const prefix = path.endsWith(sep) ? path : `${path}${sep}`;
+    for (const key of capture.repoStateBytes.keys()) {
+      if (key.startsWith(prefix)) return { _tag: "Directory" };
+    }
+    return { _tag: "NotFound" };
+  };
 
   const fileRead: ReleaseCoverageFileReadService = {
     resolveRepositoryRoot: () => {
@@ -710,10 +1001,16 @@ function makeServices(
         containmentRoot: input.containmentRoot,
       });
       assert.equal(input.maxBytes, ONE_MIB);
+      if (
+        options.liveEvidenceRoot !== undefined &&
+        isUnderLiveEvidenceRoot(input.path, options.liveEvidenceRoot)
+      ) {
+        return liveReleaseCoverageCliServices.fileRead.readBounded(input);
+      }
       if (options.fileThrowPath === input.path) {
         throw new Error(`ENOENT: ${SECRET}/${input.path}`);
       }
-      if (options.fileNotFoundPath === input.path) {
+      if (isNotFoundPath(input.path)) {
         return Effect.fail({ _tag: "NotFound" as const });
       }
       const mapped = fileErrors.get(input.path);
@@ -726,6 +1023,32 @@ function makeServices(
         return Effect.fail(new Error("oversize"));
       }
       return Effect.succeed(Uint8Array.from(bytes));
+    },
+    classifyPath: (input) => {
+      if (
+        options.liveEvidenceRoot !== undefined &&
+        isUnderLiveEvidenceRoot(input.path, options.liveEvidenceRoot)
+      ) {
+        return liveReleaseCoverageCliServices.fileRead.classifyPath(input);
+      }
+      return Effect.succeed(classifyMockPath(input.path));
+    },
+    listDirectory: (input) => {
+      if (
+        options.liveEvidenceRoot !== undefined &&
+        isUnderLiveEvidenceRoot(input.path, options.liveEvidenceRoot)
+      ) {
+        return liveReleaseCoverageCliServices.fileRead.listDirectory(input);
+      }
+      const prefix = input.path.endsWith(sep) ? input.path : `${input.path}${sep}`;
+      const names = new Set<string>();
+      for (const key of capture.repoStateBytes.keys()) {
+        if (!key.startsWith(prefix)) continue;
+        const rest = key.slice(prefix.length);
+        const name = rest.split(sep)[0];
+        if (name !== undefined && name.length > 0) names.add(name);
+      }
+      return Effect.succeed([...names]);
     },
   };
 
@@ -759,6 +1082,42 @@ function makeServices(
       }
       if (options.gitError) return Effect.fail(options.gitError);
       return Effect.succeed(options.changedPaths ?? []);
+    },
+    readAtCommit: (input) => {
+      capture.log.gitShows.push({
+        repository: input.repository,
+        commit: input.commit,
+        path: input.path,
+      });
+      if (options.baselineThrow) {
+        throw new Error(`git show boom at ${SECRET}/show`);
+      }
+      if (options.baselineError) return Effect.fail(options.baselineError);
+      if (options.baselineCommitMissing) {
+        return Effect.fail({ _tag: "GitError" as const });
+      }
+      if (options.baselineRegisterText !== undefined) {
+        return Effect.succeed(utf8(options.baselineRegisterText));
+      }
+      return Effect.fail({ _tag: "GitError" as const });
+    },
+    existsAtCommit: (input) => {
+      capture.log.gitExists.push({
+        repository: input.repository,
+        commit: input.commit,
+        path: input.path,
+      });
+      if (options.baselineThrow) {
+        throw new Error(`git exists boom at ${SECRET}/exists`);
+      }
+      if (options.baselineError) return Effect.fail(options.baselineError);
+      if (options.baselineCommitMissing) {
+        return Effect.fail({ _tag: "GitError" as const });
+      }
+      if (options.baselineRegisterText !== undefined) {
+        return Effect.succeed(true);
+      }
+      return Effect.succeed(false);
     },
   };
 
@@ -819,6 +1178,8 @@ function assertUsageFailure(capture: Capture, log: CallLog): void {
   assert.equal(capture.stderr, USAGE_DIAGNOSTIC);
   assert.deepEqual(log.openspec, []);
   assert.deepEqual(log.git, []);
+  assert.deepEqual(log.gitShows, []);
+  assert.deepEqual(log.gitExists, []);
   assert.deepEqual(log.family, []);
   assert.deepEqual(log.fileReads, []);
   assert.equal(log.repositoryRootResolves, 0);
@@ -1210,20 +1571,6 @@ const USAGE_CASES: ReadonlyArray<{
     ]),
   },
   {
-    name: "wrong-program",
-    argv: processArgv([
-      "check",
-      "--program",
-      "v039",
-      "--phase",
-      "bootstrap",
-      "--owner",
-      TRACK1,
-      "--register",
-      REGISTER,
-    ]),
-  },
-  {
     name: "bootstrap-wrong-owner",
     argv: processArgv([
       "check",
@@ -1242,6 +1589,42 @@ const USAGE_CASES: ReadonlyArray<{
     argv: processArgv([...BOOTSTRAP_TAIL, "extra-positional"]),
   },
 ];
+
+test("unknown programs refuse with wrong_program", async () => {
+  const { exitCode, capture } = await runCli(
+    processArgv([
+      "check",
+      "--program",
+      "v041",
+      "--phase",
+      "bootstrap",
+      "--owner",
+      TRACK1,
+      "--register",
+      REGISTER,
+    ]),
+  );
+  assert.equal(exitCode, EXIT_EVALUATED);
+  assertCanonicalResult(capture, invalidResult("wrong_program"));
+});
+
+test("v050 bootstrap owner is accepted at parse time", async () => {
+  const { exitCode, capture } = await runCli(
+    processArgv([
+      "check",
+      "--program",
+      "v050",
+      "--phase",
+      "bootstrap",
+      "--owner",
+      "v050-release-program",
+      "--register",
+      REGISTER,
+    ]),
+  );
+  assert.notEqual(exitCode, EXIT_USAGE);
+  assert.equal(capture.stderr, "");
+});
 
 test("invalid invocations exit 64 with fixed diagnostic and zero service calls", async (t) => {
   for (const { name, argv } of USAGE_CASES) {
@@ -1981,7 +2364,7 @@ test("lane and release authority bind the real family child and absolute brief p
 // 4. Result and dependency tables
 // ---------------------------------------------------------------------------
 
-test("eleven ReleaseCoverageFailureReason values print one canonical JSON line", async (t) => {
+test("every ReleaseCoverageFailureReason value prints one canonical JSON line", async (t) => {
   const harness = {
     invalid_register: {
       argv: BOOTSTRAP_ARGV,
@@ -2098,6 +2481,147 @@ test("eleven ReleaseCoverageFailureReason values print one canonical JSON line",
       }),
       expectOpenspec: true,
     },
+    wrong_program: {
+      argv: processArgv([
+        "check",
+        "--program",
+        "v041",
+        "--phase",
+        "bootstrap",
+        "--owner",
+        TRACK1,
+        "--register",
+        REGISTER,
+      ]),
+      options: sharedBootstrapOptions(),
+      expectOpenspec: false,
+    },
+    register_cross_field: {
+      argv: V050_BOOTSTRAP_ARGV,
+      options: (() => {
+        const roadmapBytes = v050RoadmapBytes();
+        const extraEntry = [
+          ``,
+          `[[entry]]`,
+          `key = "change:${V050_DEFERRED}"`,
+          `source_kind = "openspec_change"`,
+          `source_path = "openspec/changes/${V050_DEFERRED}"`,
+          `disposition = "v060"`,
+          `owner = "${V050_OWNER}"`,
+          `target_release = "v0.6"`,
+          `reconcile = "not_required"`,
+          `reason = "deferred"`,
+          ``,
+          `[[entry]]`,
+          `key = "change:${V050_DEP}"`,
+          `source_kind = "openspec_change"`,
+          `source_path = "openspec/changes/${V050_DEP}"`,
+          `disposition = "v050_dependency"`,
+          `owner = "${V050_DEFERRED}"`,
+          `target_release = "v0.5"`,
+          `reconcile = "required"`,
+          `reason = "owner is deferred"`,
+        ].join("\n");
+        return {
+          roadmapBytes,
+          activeNames: [V050_OWNER, V050_DEFERRED, V050_DEP],
+          workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+          registerText: sealV050Register({
+            activeNames: [V050_OWNER, V050_DEFERRED, V050_DEP],
+            roadmapBytes,
+            extraEntry,
+          }),
+        };
+      })(),
+      expectOpenspec: true,
+    },
+    iron_rule_violation: {
+      argv: V050_LANE_ARGV,
+      options: (() => {
+        const roadmapBytes = v050RoadmapBytes();
+        const registerText = sealV050Register({
+          activeNames: [V050_OWNER],
+          roadmapBytes,
+        });
+        const brief = deriveBrief(V050_CHILD);
+        return {
+          roadmapBytes,
+          activeNames: [V050_OWNER],
+          workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+          registerText,
+          familyResult: V050_FAMILY_RESULT,
+          briefBytesByAbsPath: new Map([
+            [v050GovernorBriefAbs(), briefFileBytes(brief)],
+          ]),
+          tasksMarkdownByOwner: {
+            [V050_OWNER]: [
+              "## Allowed file scope",
+              "",
+              "- `packages/policy/**`",
+              "",
+              "- [ ] Create `skills/foreman/scripts/spec-triage.sh`",
+              "",
+            ].join("\n"),
+          },
+        };
+      })(),
+      expectOpenspec: true,
+    },
+    deferred_package_changed: {
+      argv: V050_BOOTSTRAP_ARGV,
+      options: (() => {
+        const roadmapBytes = v050RoadmapBytes();
+        const extraEntry = [
+          ``,
+          `[[entry]]`,
+          `key = "change:${V050_DEFERRED}"`,
+          `source_kind = "openspec_change"`,
+          `source_path = "openspec/changes/${V050_DEFERRED}"`,
+          `disposition = "v060"`,
+          `owner = "${V050_OWNER}"`,
+          `target_release = "v0.6"`,
+          `reconcile = "not_required"`,
+          `reason = "deferred"`,
+        ].join("\n");
+        const registerText = sealV050Register({
+          activeNames: [V050_OWNER, V050_DEFERRED],
+          roadmapBytes,
+          extraEntry,
+        });
+        return {
+          roadmapBytes,
+          activeNames: [V050_OWNER, V050_DEFERRED],
+          workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+          registerText,
+          baselineRegisterText: registerText,
+          changedPaths: [`openspec/changes/${V050_DEFERRED}/tasks.md`],
+        };
+      })(),
+      expectOpenspec: true,
+    },
+    vocabulary_mixed: {
+      argv: V050_RELEASE_ARGV,
+      options: (() => {
+        const roadmapBytes = v050RoadmapBytes();
+        const registerText = sealV050Register({
+          activeNames: [V050_OWNER],
+          roadmapBytes,
+        });
+        const brief = deriveBrief(V050_CHILD);
+        return {
+          roadmapBytes,
+          activeNames: [V050_OWNER],
+          workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+          registerText,
+          familyResult: V050_FAMILY_RESULT,
+          briefBytesByAbsPath: new Map([
+            [v050GovernorBriefAbs(), briefFileBytes(brief)],
+          ]),
+          evidenceText: '{"verdict":"UNVERIFIED"}\n',
+        };
+      })(),
+      expectOpenspec: true,
+    },
   } as const satisfies Record<
     ReleaseCoverageFailureReason,
     {
@@ -2122,6 +2646,609 @@ test("eleven ReleaseCoverageFailureReason values print one canonical JSON line",
       }
     });
   }
+});
+
+test("v050 bootstrap loads every v050_owner workflow file", async () => {
+  const second = "lane-runtime-typescript";
+  const secondWorkflow = join(
+    REPO,
+    "openspec",
+    "changes",
+    second,
+    ".openspec.yaml",
+  );
+  const roadmapBytes = v050RoadmapBytes();
+  const extraEntry = [
+    ``,
+    `[[entry]]`,
+    `key = "change:${second}"`,
+    `source_kind = "openspec_change"`,
+    `source_path = "openspec/changes/${second}"`,
+    `disposition = "v050_owner"`,
+    `owner = "${second}"`,
+    `target_release = "v0.5"`,
+    `reconcile = "complete"`,
+    `reason = "runtime"`,
+  ].join("\n");
+  const registerText = sealV050Register({
+    activeNames: [V050_OWNER, second],
+    roadmapBytes,
+    extraEntry,
+  });
+  const missing = await runCli(V050_BOOTSTRAP_ARGV, {
+    roadmapBytes,
+    activeNames: [V050_OWNER, second],
+    registerText,
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    fileNotFoundPath: secondWorkflow,
+  });
+  assert.equal(missing.exitCode, EXIT_EVALUATED);
+  assertCanonicalResult(missing.capture, invalidResult("workflow_mismatch"));
+
+  const present = await runCli(V050_BOOTSTRAP_ARGV, {
+    roadmapBytes,
+    activeNames: [V050_OWNER, second],
+    registerText,
+    workflowByOwner: {
+      [V050_OWNER]: "foreman-architectural",
+      [second]: "foreman-architectural",
+    },
+  });
+  assert.equal(present.exitCode, EXIT_OK);
+  assertCanonicalResult(
+    present.capture,
+    validResult([V050_OWNER, second], roadmapBytes, 3),
+  );
+});
+
+test("v050 deferred_package_changed locates compact key spelling", async () => {
+  const roadmapBytes = v050RoadmapBytes();
+  const extraEntry = [
+    ``,
+    `[[entry]]`,
+    `key="change:${V050_DEFERRED}"`,
+    `source_kind = "openspec_change"`,
+    `source_path = "openspec/changes/${V050_DEFERRED}"`,
+    `disposition = "v060"`,
+    `owner = "${V050_OWNER}"`,
+    `target_release = "v0.6"`,
+    `reconcile = "not_required"`,
+    `reason = "deferred"`,
+  ].join("\n");
+  const registerText = sealV050Register({
+    activeNames: [V050_OWNER, V050_DEFERRED],
+    roadmapBytes,
+    extraEntry,
+  });
+  const { exitCode, capture } = await runCli(V050_BOOTSTRAP_ARGV, {
+    roadmapBytes,
+    activeNames: [V050_OWNER, V050_DEFERRED],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText,
+    baselineRegisterText: registerText,
+    changedPaths: [`openspec/changes/${V050_DEFERRED}/tasks.md`],
+  });
+  assert.equal(exitCode, EXIT_EVALUATED);
+  assertCanonicalResult(capture, invalidResult("deferred_package_changed"));
+});
+
+test("v050 baseline read failure is dependency_failure", async () => {
+  const { exitCode, capture } = await runCli(V050_BOOTSTRAP_ARGV, {
+    roadmapBytes: v050RoadmapBytes(),
+    activeNames: [V050_OWNER],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText: sealV050Register({
+      activeNames: [V050_OWNER],
+      roadmapBytes: v050RoadmapBytes(),
+    }),
+    baselineError: new Error(`git show fail ${SECRET}/baseline`),
+  });
+  assert.equal(exitCode, EXIT_EVALUATED);
+  assertCanonicalResult(capture, invalidResult("dependency_failure"));
+  assertSanitized(capture);
+});
+
+test("v050 absent baseline register is Valid when deferred directories are unchanged", async () => {
+  const roadmapBytes = v050RoadmapBytes();
+  const extraEntry = [
+    ``,
+    `[[entry]]`,
+    `key = "change:${V050_DEFERRED}"`,
+    `source_kind = "openspec_change"`,
+    `source_path = "openspec/changes/${V050_DEFERRED}"`,
+    `disposition = "v060"`,
+    `owner = "${V050_OWNER}"`,
+    `target_release = "v0.6"`,
+    `reconcile = "not_required"`,
+    `reason = "deferred"`,
+  ].join("\n");
+  const registerText = sealV050Register({
+    activeNames: [V050_OWNER, V050_DEFERRED],
+    roadmapBytes,
+    extraEntry,
+  });
+  const { exitCode, capture } = await runCli(V050_BOOTSTRAP_ARGV, {
+    roadmapBytes,
+    activeNames: [V050_OWNER, V050_DEFERRED],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText,
+  });
+  assert.equal(exitCode, EXIT_OK);
+  assertCanonicalResult(
+    capture,
+    validResult([V050_OWNER, V050_DEFERRED], roadmapBytes, 3),
+  );
+});
+
+test("v050 absent baseline register is deferred_package_changed when a deferred directory changes", async () => {
+  const roadmapBytes = v050RoadmapBytes();
+  const extraEntry = [
+    ``,
+    `[[entry]]`,
+    `key = "change:${V050_DEFERRED}"`,
+    `source_kind = "openspec_change"`,
+    `source_path = "openspec/changes/${V050_DEFERRED}"`,
+    `disposition = "v060"`,
+    `owner = "${V050_OWNER}"`,
+    `target_release = "v0.6"`,
+    `reconcile = "not_required"`,
+    `reason = "deferred"`,
+  ].join("\n");
+  const registerText = sealV050Register({
+    activeNames: [V050_OWNER, V050_DEFERRED],
+    roadmapBytes,
+    extraEntry,
+  });
+  const { exitCode, capture } = await runCli(V050_BOOTSTRAP_ARGV, {
+    roadmapBytes,
+    activeNames: [V050_OWNER, V050_DEFERRED],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText,
+    changedPaths: [`openspec/changes/${V050_DEFERRED}/tasks.md`],
+  });
+  assert.equal(exitCode, EXIT_EVALUATED);
+  assertCanonicalResult(capture, invalidResult("deferred_package_changed"));
+});
+
+test("v050 missing baseline commit is dependency_failure", async () => {
+  const { exitCode, capture } = await runCli(V050_BOOTSTRAP_ARGV, {
+    roadmapBytes: v050RoadmapBytes(),
+    activeNames: [V050_OWNER],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText: sealV050Register({
+      activeNames: [V050_OWNER],
+      roadmapBytes: v050RoadmapBytes(),
+    }),
+    baselineCommitMissing: true,
+  });
+  assert.equal(exitCode, EXIT_EVALUATED);
+  assertCanonicalResult(capture, invalidResult("dependency_failure"));
+  assertSanitized(capture);
+});
+
+test("existsAtCommit proves absence with empty ls-tree and presence with named output", async () => {
+  const physicalGit = posix.join("/", "usr", "bin", "git");
+  const repository = posix.join("/", "work", "repository");
+  const relativeRegister =
+    "openspec/changes/v050-release-program/coverage.toml";
+  const runListing = async (listing: CapturedProcessResult) => {
+    const services = makeLiveReleaseCoverageCliServices({
+      runCaptured: (input) => {
+        if (
+          input.args.includes("cat-file") &&
+          input.args.some((argument) => argument.endsWith("^{tree}"))
+        ) {
+          return Effect.succeed(emptyCaptured());
+        }
+        if (input.args.includes("ls-tree")) {
+          return Effect.succeed(listing);
+        }
+        return Effect.fail({ _tag: "GitError" as const });
+      },
+      which: (name) =>
+        name === "git" ? Effect.succeed(physicalGit) : Effect.succeed(null),
+      realpath: (path) => Effect.succeed(path),
+      findWorktreeRoot: (path) => Effect.succeed(path),
+      nodeExecutable: process.execPath,
+      platform: "linux",
+      comSpec: undefined,
+      cwd: () => repository,
+      nullDevice: "/dev/null",
+      baseEnvironment: { PATH: "/usr/bin" },
+    });
+    return Effect.runPromise(
+      services.gitChangedPaths.existsAtCommit({
+        repository,
+        commit: V050_BASELINE,
+        path: relativeRegister,
+      }),
+    );
+  };
+  assert.equal(await runListing(emptyCaptured()), false);
+  const named = utf8(`${relativeRegister}\n`);
+  assert.equal(
+    await runListing({
+      exitCode: 0,
+      stdout: `${relativeRegister}\n`,
+      stderr: "",
+      stdoutBytes: named,
+      stderrBytes: new Uint8Array(),
+    }),
+    true,
+  );
+});
+
+test("v050 fatal path lookup after successful tree lookup is dependency_failure", async () => {
+  const physicalGit = posix.join("/", "usr", "bin", "git");
+  const fatalStderr = "fatal: unable to read tree object\n";
+  const live = makeLiveReleaseCoverageCliServices({
+    runCaptured: (input) => {
+      if (
+        input.args.includes("cat-file") &&
+        input.args.some((argument) => argument.endsWith("^{tree}"))
+      ) {
+        return Effect.succeed(emptyCaptured());
+      }
+      if (input.args.includes("ls-tree")) {
+        return Effect.succeed({
+          exitCode: 128,
+          stdout: "",
+          stderr: fatalStderr,
+          stdoutBytes: new Uint8Array(),
+          stderrBytes: utf8(fatalStderr),
+        });
+      }
+      return Effect.fail({ _tag: "GitError" as const });
+    },
+    which: (name) =>
+      name === "git" ? Effect.succeed(physicalGit) : Effect.succeed(null),
+    realpath: (path) => Effect.succeed(path),
+    findWorktreeRoot: (path) => Effect.succeed(path),
+    nodeExecutable: process.execPath,
+    platform: "linux",
+    comSpec: undefined,
+    cwd: () => REPO,
+    nullDevice: "/dev/null",
+    baseEnvironment: { PATH: "/usr/bin" },
+  });
+  const capture: Capture = {
+    stdout: "",
+    stderr: "",
+    log: emptyLog(),
+    snapshotBefore: new Map(),
+    snapshotAfter: new Map(),
+    repoStateBytes: new Map(),
+  };
+  const harness = makeServices(capture, {
+    roadmapBytes: v050RoadmapBytes(),
+    activeNames: [V050_OWNER],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText: sealV050Register({
+      activeNames: [V050_OWNER],
+      roadmapBytes: v050RoadmapBytes(),
+    }),
+  });
+  const services: ReleaseCoverageCliServices = {
+    ...harness,
+    gitChangedPaths: {
+      ...harness.gitChangedPaths,
+      existsAtCommit: live.gitChangedPaths.existsAtCommit,
+    },
+  };
+  const exitCode = await Effect.runPromise(
+    runReleaseCoverageCli(V050_BOOTSTRAP_ARGV, makeIo(capture), services),
+  );
+  assert.equal(exitCode, EXIT_EVALUATED);
+  assertCanonicalResult(capture, invalidResult("dependency_failure"));
+});
+
+test(
+  "accepts the live v0.5 register at bootstrap through the CLI",
+  {
+    timeout: 60_000,
+    skip: !gitCommandAvailable() ? "git is unavailable" : false,
+  },
+  async () => {
+    const relativeRegister =
+      "openspec/changes/v050-release-program/coverage.toml";
+    const present = await Effect.runPromise(
+      liveReleaseCoverageCliServices.gitChangedPaths.existsAtCommit({
+        repository: WORKTREE_ROOT,
+        commit: V050_BASELINE,
+        path: relativeRegister,
+      }),
+    );
+    assert.equal(present, true);
+
+    const register = join(WORKTREE_ROOT, relativeRegister);
+    const bootstrapArgv = [
+      "--import",
+      TSX_LOADER,
+      LIVE_COVERAGE_MAIN,
+      "check",
+      "--program",
+      "v050",
+      "--phase",
+      "bootstrap",
+      "--owner",
+      V050_OWNER,
+      "--register",
+      register,
+    ] as const;
+    const childEnv = { ...process.env };
+    delete childEnv.FORCE_COLOR;
+    childEnv.NO_COLOR = "1";
+    const invoked = spawnSync(process.execPath, [...bootstrapArgv], {
+      cwd: WORKTREE_ROOT,
+      encoding: "utf8",
+      timeout: 60_000,
+      maxBuffer: ONE_MIB,
+      env: childEnv,
+    });
+    assert.equal(invoked.error, undefined);
+    assert.equal(invoked.status, EXIT_OK, invoked.stderr || invoked.stdout);
+    assert.equal(invoked.stderr, "");
+    const output = JSON.parse(invoked.stdout.trim()) as ReleaseCoverageResultV1;
+    assert.equal(output._tag, "Valid");
+    assert.equal(invoked.stdout, `${canonicalize(output)}\n`);
+  },
+);
+
+test("v050 baseline read uses the selected register relative path", async () => {
+  const customRegister = join(
+    REPO,
+    "openspec",
+    "changes",
+    "custom-coverage",
+    "coverage.toml",
+  );
+  const roadmapBytes = v050RoadmapBytes();
+  const registerText = sealV050Register({
+    activeNames: [V050_OWNER],
+    roadmapBytes,
+  });
+  const argv = processArgv([
+    "check",
+    "--program",
+    "v050",
+    "--phase",
+    "bootstrap",
+    "--owner",
+    V050_OWNER,
+    "--register",
+    customRegister,
+  ]);
+  const { exitCode, capture } = await runCli(argv, {
+    roadmapBytes,
+    activeNames: [V050_OWNER],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText,
+    registerAbs: customRegister,
+  });
+  assert.equal(exitCode, EXIT_OK);
+  assert.equal(capture.log.gitShows.length, 1);
+  assert.equal(
+    capture.log.gitShows[0]!.path,
+    "openspec/changes/custom-coverage/coverage.toml",
+  );
+});
+
+test("v050 release evidence directory vocabulary cases", async (t) => {
+  const evidenceDir = join(STATE_ROOT, "evidence-tree");
+  const releaseArgv = processArgv([
+    "check",
+    "--program",
+    "v050",
+    "--phase",
+    "release",
+    "--repo",
+    REPO,
+    "--state-root",
+    STATE_ROOT,
+    "--contract-id",
+    CONTRACT_ID,
+    "--contract-sha",
+    CONTRACT_SHA,
+    "--family-sha",
+    FAMILY_SHA,
+    "--register",
+    V050_REGISTER,
+    "--evidence",
+    evidenceDir,
+  ]);
+  const roadmapBytes = v050RoadmapBytes();
+  const registerText = sealV050Register({
+    activeNames: [V050_OWNER],
+    roadmapBytes,
+  });
+  const brief = deriveBrief(V050_CHILD);
+  const base = {
+    roadmapBytes,
+    activeNames: [V050_OWNER],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText,
+    familyResult: V050_FAMILY_RESULT,
+    briefBytesByAbsPath: new Map([
+      [v050GovernorBriefAbs(), briefFileBytes(brief)],
+    ]),
+  };
+
+  const cases: ReadonlyArray<{
+    name: string;
+    files: Readonly<Record<string, string>>;
+    reason: ReleaseCoverageFailureReason | "Valid";
+  }> = [
+    {
+      name: "nested-unverified",
+      files: {
+        [join(evidenceDir, "nested", "report.json")]:
+          '{"outer":{"verdict":"UNVERIFIED"}}\n',
+      },
+      reason: "vocabulary_mixed",
+    },
+    {
+      name: "approved123",
+      files: {
+        [join(evidenceDir, "nested", "report.json")]:
+          '{"verdict":"APPROVED123"}\n',
+      },
+      reason: "vocabulary_mixed",
+    },
+    {
+      name: "empty-verdict",
+      files: {
+        [join(evidenceDir, "nested", "report.json")]: '{"verdict":""}\n',
+      },
+      reason: "vocabulary_mixed",
+    },
+    {
+      name: "numeric-verdict",
+      files: {
+        [join(evidenceDir, "nested", "report.json")]: '{"verdict":1}\n',
+      },
+      reason: "vocabulary_mixed",
+    },
+    {
+      name: "lowercase-failed",
+      files: {
+        [join(evidenceDir, "nested", "report.json")]:
+          '{"measurement_result":"failed"}\n',
+      },
+      reason: "vocabulary_mixed",
+    },
+    {
+      name: "pass123",
+      files: {
+        [join(evidenceDir, "nested", "report.json")]:
+          '{"measurement_result":"PASS123"}\n',
+      },
+      reason: "vocabulary_mixed",
+    },
+    {
+      name: "both-valid",
+      files: {
+        [join(evidenceDir, "nested", "verdict.json")]: '{"verdict":"APPROVED"}\n',
+        [join(evidenceDir, "nested", "measure.md")]: "measurement_result: PASS\n",
+      },
+      reason: "Valid",
+    },
+  ];
+
+  for (const item of cases) {
+    await t.test(item.name, async () => {
+      const { exitCode, capture } = await runCli(releaseArgv, {
+        ...base,
+        evidenceFiles: item.files,
+      });
+      if (item.reason === "Valid") {
+        assert.equal(exitCode, EXIT_OK);
+        assertCanonicalResult(
+          capture,
+          validResult([V050_OWNER], roadmapBytes, 2),
+        );
+      } else {
+        assert.equal(exitCode, EXIT_EVALUATED);
+        assertCanonicalResult(capture, invalidResult(item.reason));
+      }
+    });
+  }
+});
+
+test("v050 release evidence directory outside state-root uses live classification", async (t) => {
+  const temporary = mkdtempSync(join(tmpdir(), "release-coverage-evidence-"));
+  try {
+    const evidenceDir = join(temporary, "evidence");
+    mkdirSync(join(evidenceDir, "nested"), { recursive: true });
+    const releaseArgv = processArgv([
+      "check",
+      "--program",
+      "v050",
+      "--phase",
+      "release",
+      "--repo",
+      REPO,
+      "--state-root",
+      STATE_ROOT,
+      "--contract-id",
+      CONTRACT_ID,
+      "--contract-sha",
+      CONTRACT_SHA,
+      "--family-sha",
+      FAMILY_SHA,
+      "--register",
+      V050_REGISTER,
+      "--evidence",
+      evidenceDir,
+    ]);
+    const roadmapBytes = v050RoadmapBytes();
+    const registerText = sealV050Register({
+      activeNames: [V050_OWNER],
+      roadmapBytes,
+    });
+    const brief = deriveBrief(V050_CHILD);
+    const base = {
+      roadmapBytes,
+      activeNames: [V050_OWNER],
+      workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+      registerText,
+      familyResult: V050_FAMILY_RESULT,
+      briefBytesByAbsPath: new Map([
+        [v050GovernorBriefAbs(), briefFileBytes(brief)],
+      ]),
+      liveEvidenceRoot: evidenceDir,
+    };
+
+    await t.test("Valid vocabularies", async () => {
+      writeFileSync(
+        join(evidenceDir, "nested", "verdict.json"),
+        '{"verdict":"APPROVED"}\n',
+      );
+      writeFileSync(
+        join(evidenceDir, "nested", "measure.md"),
+        "measurement_result: PASS\n",
+      );
+      const { exitCode, capture } = await runCli(releaseArgv, base);
+      assert.equal(exitCode, EXIT_OK);
+      assertCanonicalResult(
+        capture,
+        validResult([V050_OWNER], roadmapBytes, 2),
+      );
+    });
+
+    await t.test("vocabulary_mixed", async () => {
+      writeFileSync(
+        join(evidenceDir, "nested", "verdict.json"),
+        '{"verdict":"UNVERIFIED"}\n',
+      );
+      writeFileSync(
+        join(evidenceDir, "nested", "measure.md"),
+        "measurement_result: PASS\n",
+      );
+      const { exitCode, capture } = await runCli(releaseArgv, base);
+      assert.equal(exitCode, EXIT_EVALUATED);
+      assertCanonicalResult(capture, invalidResult("vocabulary_mixed"));
+    });
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("v050 release missing evidence is dependency_failure", async () => {
+  const { exitCode, capture } = await runCli(V050_RELEASE_ARGV, {
+    roadmapBytes: v050RoadmapBytes(),
+    activeNames: [V050_OWNER],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText: sealV050Register({
+      activeNames: [V050_OWNER],
+      roadmapBytes: v050RoadmapBytes(),
+    }),
+    familyResult: V050_FAMILY_RESULT,
+    briefBytesByAbsPath: new Map([
+      [v050GovernorBriefAbs(), briefFileBytes(deriveBrief(V050_CHILD))],
+    ]),
+  });
+  assert.equal(exitCode, EXIT_EVALUATED);
+  assertCanonicalResult(capture, invalidResult("dependency_failure"));
 });
 
 test("opaque Effect failures and synchronous throws become dependency_failure", async (t) => {
@@ -2272,20 +3399,7 @@ test("services expose exactly four read-only ports and leave repo/state bytes un
     const temporary = mkdtempSync(join(tmpdir(), "release-coverage-main-"));
     const repository = join(temporary, "repo");
     try {
-      const cloned = spawnSync(
-        "git",
-        ["clone", "--quiet", "--no-hardlinks", SOURCE_REPO, repository],
-        { encoding: "utf8", timeout: 60_000, maxBuffer: ONE_MIB },
-      );
-      assert.equal(cloned.error, undefined);
-      assert.equal(cloned.status, 0, cloned.stderr);
-      const main = join(
-        SOURCE_REPO,
-        "packages",
-        "orchestration",
-        "src",
-        "release-coverage-main.ts",
-      );
+      extractFrozenV040Repository(repository);
       const register = join(
         repository,
         "openspec",
@@ -2296,7 +3410,7 @@ test("services expose exactly four read-only ports and leave repo/state bytes un
       const bootstrapArgv = [
         "--import",
         TSX_LOADER,
-        main,
+        LIVE_COVERAGE_MAIN,
         "check",
         "--program",
         "v040",
@@ -2307,12 +3421,16 @@ test("services expose exactly four read-only ports and leave repo/state bytes un
         "--register",
         register,
       ] as const;
+      const childEnv = { ...process.env };
+      delete childEnv.FORCE_COLOR;
+      childEnv.NO_COLOR = "1";
       const invoke = (cwd: string) =>
         spawnSync(process.execPath, [...bootstrapArgv], {
           cwd,
           encoding: "utf8",
           timeout: 60_000,
           maxBuffer: ONE_MIB,
+          env: childEnv,
         });
 
       const beforeRoot = snapshotPhysicalTree(repository);
@@ -2422,6 +3540,14 @@ test("services expose exactly four read-only ports and leave repo/state bytes un
 // ---------------------------------------------------------------------------
 
 const GIT_TEST_TIMEOUT_MS = 30_000;
+
+function gitCommandAvailable(): boolean {
+  const probed = spawnSync("git", ["--version"], {
+    encoding: "utf8",
+    timeout: 5_000,
+  });
+  return probed.error === undefined && probed.status === 0;
+}
 
 function gitIn(
   repository: string,

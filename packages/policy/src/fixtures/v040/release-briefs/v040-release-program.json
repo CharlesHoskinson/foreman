@@ -1,0 +1,1 @@
+{"acceptance":["Publication uses the exact admitted candidate."],"allowedPaths":["docs/releases/**"],"childId":"v040-t9-release","familySha256":"46f714ad9a1fa634fa7632806145c5d883654335014a6fc657fabf7ecb1c97f9","objective":"Ship the v0.4 release program.","packageId":"v040-release-program","schema":"foreman.release-package-brief.v1"}
