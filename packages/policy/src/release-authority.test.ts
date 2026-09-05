@@ -465,8 +465,35 @@ test("v050 authority objects parse and v041 is refused", () => {
   });
   assert.deepEqual(
     parseReleaseAuthorityObjectV1({ ...DESIGN, program: "v041" }),
-    { _tag: "Invalid" },
+    { _tag: "Invalid", reason: "wrong_program" },
   );
+});
+
+test("bundle program v041 decodes as wrong_program", () => {
+  const bundle = { ...BUNDLE, program: "v041" };
+  assert.deepEqual(parseReleaseAuthorityObjectV1(bundle), {
+    _tag: "Invalid",
+    reason: "wrong_program",
+  });
+  assert.deepEqual(decodeReleaseAuthorityFileV1(canonicalFile(bundle)), {
+    _tag: "Invalid",
+    reason: "wrong_program",
+  });
+});
+
+test("nested receipt program v041 decodes as wrong_program", () => {
+  const bundle = {
+    ...BUNDLE,
+    receipts: [{ ...DESIGN, program: "v041" }],
+  };
+  assert.deepEqual(parseReleaseAuthorityObjectV1(bundle), {
+    _tag: "Invalid",
+    reason: "wrong_program",
+  });
+  assert.deepEqual(decodeReleaseAuthorityFileV1(canonicalFile(bundle)), {
+    _tag: "Invalid",
+    reason: "wrong_program",
+  });
 });
 
 test("approved OpenSpec manifests bind sorted raw bytes", () => {

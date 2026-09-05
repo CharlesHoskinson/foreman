@@ -526,6 +526,81 @@ const expectedFamilyChildren = [
   "tranche" | "childId" | "packageId" | "dependencyChildIds"
 >[];
 
+type ExpectedFamilyChild = {
+  readonly tranche: ExecutionChildTranche;
+  readonly childId: string;
+  readonly packageId: string;
+  readonly dependencyChildIds: readonly string[];
+};
+
+function remapTemplateChildId(
+  templateId: string,
+  program: ReleaseProgram,
+): string {
+  const table = releaseProgramTable(program);
+  const v040 = releaseProgramTable("v040");
+  if (table.evaluationChild !== null && templateId === v040.evaluationChild) {
+    return table.evaluationChild;
+  }
+  if (!templateId.startsWith(v040.childIdPrefix)) return templateId;
+  return `${table.childIdPrefix}${templateId.slice(v040.childIdPrefix.length)}`;
+}
+
+function expectedChildrenFor(program: ReleaseProgram): readonly ExpectedFamilyChild[] {
+  const table = releaseProgramTable(program);
+  const [trancheMin, trancheMax] = table.trancheRange;
+  const v040Eval = releaseProgramTable("v040").evaluationChild;
+  return expectedFamilyChildren
+    .filter((child) => {
+      if (child.tranche < trancheMin || child.tranche > trancheMax) return false;
+      if (table.evaluationChild === null && child.childId === v040Eval) {
+        return false;
+      }
+      return true;
+    })
+    .map((child) => ({
+      tranche: child.tranche,
+      childId: remapTemplateChildId(child.childId, program),
+      packageId: child.packageId,
+      dependencyChildIds: child.dependencyChildIds
+        .filter((dep) => {
+          const depChild = expectedFamilyChildren.find((row) => row.childId === dep);
+          if (depChild === undefined) return false;
+          if (depChild.tranche < trancheMin || depChild.tranche > trancheMax) {
+            return false;
+          }
+          if (table.evaluationChild === null && dep === v040Eval) return false;
+          return true;
+        })
+        .map((dep) => remapTemplateChildId(dep, program)),
+    }));
+}
+
+function childViolatesProgram(
+  value: unknown,
+  program: ReleaseProgram,
+): boolean {
+  if (!isPlainRecordV2(value)) return false;
+  const table = releaseProgramTable(program);
+  const [trancheMin, trancheMax] = table.trancheRange;
+  if (
+    typeof value.tranche === "number" &&
+    (value.tranche < trancheMin || value.tranche > trancheMax)
+  ) {
+    return true;
+  }
+  if (typeof value.childId === "string") {
+    if (!value.childId.startsWith(table.childIdPrefix)) return true;
+    if (
+      table.evaluationChild === null &&
+      value.childId === releaseProgramTable("v040").evaluationChild
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 const familySourceKeys = new Set(["schema", "program", "familyId", "children"]);
 const childBriefKeys = new Set([
   "schema",
@@ -690,18 +765,27 @@ function sameStrings(
 
 function decodeChildBriefV1(
   value: unknown,
-  expected: (typeof expectedFamilyChildren)[number],
+  expected: ExpectedFamilyChild,
+  program: ReleaseProgram,
 ): ExecutionChildBriefV1 | ExecutionFamilyFailure {
   if (!isPlainRecordV2(value) || !hasExactKeysV2(value, childBriefKeys)) {
     return familyFailure("invalid_children");
   }
-  const [trancheMin, trancheMax] = releaseProgramTable(RELEASE_PROGRAMS[0]!).trancheRange;
+  const table = releaseProgramTable(program);
+  const [trancheMin, trancheMax] = table.trancheRange;
   if (
     value.schema !== "foreman.execution-child-brief.v1" ||
+    typeof value.childId !== "string" ||
     value.childId !== expected.childId ||
+    !value.childId.startsWith(table.childIdPrefix) ||
     value.tranche !== expected.tranche ||
     expected.tranche < trancheMin ||
     expected.tranche > trancheMax ||
+    (table.evaluationChild === null &&
+      value.childId === releaseProgramTable("v040").evaluationChild) ||
+    (table.evaluationChild !== null &&
+      expected.childId === table.evaluationChild &&
+      value.childId !== table.evaluationChild) ||
     value.packageId !== expected.packageId ||
     !sameStrings(value.dependencyChildIds, expected.dependencyChildIds)
   ) {
@@ -753,14 +837,21 @@ export function decodeExecutionFamilySourceV1(
     value.schema !== "foreman.execution-family-source.v1" ||
     !isReleaseProgram(value.program) ||
     value.familyId !== FAMILY_ID ||
-    !Array.isArray(value.children) ||
-    value.children.length !== expectedFamilyChildren.length
+    !Array.isArray(value.children)
   ) {
     return familyFailure("invalid_source");
   }
+  const expectedChildren = expectedChildrenFor(value.program);
+  if (value.children.length !== expectedChildren.length) {
+    return familyFailure("invalid_source");
+  }
   const children: ExecutionChildBriefV1[] = [];
-  for (const [index, expected] of expectedFamilyChildren.entries()) {
-    const child = decodeChildBriefV1(value.children[index], expected);
+  for (const [index, expected] of expectedChildren.entries()) {
+    const raw = value.children[index];
+    if (childViolatesProgram(raw, value.program)) {
+      return familyFailure("invalid_source");
+    }
+    const child = decodeChildBriefV1(raw, expected, value.program);
     if (isExecutionFamilyFailure(child)) return child;
     children.push(child);
   }
@@ -795,9 +886,12 @@ export function decodeExecutionFamilySourceFileV1(
 }
 
 function expectedChildLimits(
-  tranche: ExecutionChildBriefV1["tranche"],
+  program: ReleaseProgram,
+  childId: string,
 ): ExecutionChildLimitsV2 {
-  return tranche === 8 ? evaluationChildLimits : standardChildLimits;
+  return releaseProgramTable(program).evaluationChild === childId
+    ? evaluationChildLimits
+    : standardChildLimits;
 }
 
 function expectedChildMilestones(
@@ -870,13 +964,17 @@ export function decodeExecutionContractFamilyV2(
   ) {
     return familyFailure("invalid_deadline");
   }
-  if (!Array.isArray(value.children) || value.children.length !== 8) {
+  const expectedChildren = expectedChildrenFor(program);
+  if (!Array.isArray(value.children) || value.children.length !== expectedChildren.length) {
     return familyFailure("invalid_children");
   }
 
   const children: ExecutionChildContractV2[] = [];
-  for (const [index, expected] of expectedFamilyChildren.entries()) {
+  for (const [index, expected] of expectedChildren.entries()) {
     const raw = value.children[index];
+    if (childViolatesProgram(raw, program)) {
+      return familyFailure("invalid_manifest");
+    }
     if (!isPlainRecordV2(raw) || !hasExactKeysV2(raw, childContractKeys)) {
       return familyFailure("invalid_children");
     }
@@ -900,7 +998,7 @@ export function decodeExecutionContractFamilyV2(
     ) {
       return familyFailure("invalid_digest");
     }
-    const limits = expectedChildLimits(expected.tranche);
+    const limits = expectedChildLimits(program, expected.childId);
     if (!samePlainValue(raw.limits, limits)) {
       return familyFailure("invalid_limits");
     }
@@ -1007,7 +1105,7 @@ export function deriveExecutionContractFamilyV2(input: {
       }),
       dependencyChildIds: [...child.dependencyChildIds],
       deadlineAt,
-      limits: expectedChildLimits(child.tranche),
+      limits: expectedChildLimits(source.program, child.childId),
       requiredMilestones: expectedChildMilestones(child.tranche),
     }));
     const manifest: ExecutionContractFamilyV2 = {

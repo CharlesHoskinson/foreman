@@ -3,7 +3,6 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   cpSync,
-  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -2418,17 +2417,28 @@ describe("release coverage policy", () => {
   });
 
   it("accepts the authored coverage.toml with independent authority inputs", () => {
+    const coverageReadPaths: string[] = [];
+    const readCoverageUtf8 = (url: URL): string => {
+      const path = fileURLToPath(url);
+      coverageReadPaths.push(path);
+      return readFileSync(url, "utf8");
+    };
+    const readCoverageBytes = (url: URL): Buffer => {
+      const path = fileURLToPath(url);
+      coverageReadPaths.push(path);
+      return readFileSync(url);
+    };
+
     const authoredPath = new URL(
       "./fixtures/v040/coverage.toml",
       import.meta.url,
     );
-    const registerText = readFileSync(authoredPath, "utf8");
+    const registerText = readCoverageUtf8(authoredPath);
     assert.match(registerText, /^schema_version\s*=\s*1\b/m);
     const entryCount = [...registerText.matchAll(/^\[\[entry\]\]$/gm)].length;
 
-    const inventoryText = readFileSync(
+    const inventoryText = readCoverageUtf8(
       new URL("./fixtures/v040/active-inventory.txt", import.meta.url),
-      "utf8",
     );
     const activePackageNames = inventoryText.split("\n").filter((name) => name.length > 0);
     assert.equal(
@@ -2436,9 +2446,8 @@ describe("release coverage policy", () => {
       "d16bd7a29580b6b642e24e301ffbd8600844b1a0436bfdaab5d1a241e4572c7a",
     );
 
-    const roadmapText = readFileSync(
+    const roadmapText = readCoverageUtf8(
       new URL("./fixtures/v040/ROADMAP.md", import.meta.url),
-      "utf8",
     );
     const roadmapAssignments: RoadmapAssignmentV1[] = [];
     for (const match of roadmapText.matchAll(
@@ -2456,23 +2465,11 @@ describe("release coverage policy", () => {
       "ROADMAP.md must declare roadmap assignment rows",
     );
 
-    const packageWorkflowByName: Record<string, string | null> = {};
-    for (const name of activePackageNames) {
-      const metaPath = join(
-        repoRoot,
-        "openspec",
-        "changes",
-        name,
-        ".openspec.yaml",
-      );
-      if (!existsSync(metaPath)) {
-        packageWorkflowByName[name] = null;
-        continue;
-      }
-      const raw = readFileSync(metaPath, "utf8");
-      const schemaMatch = /^schema:\s*(\S+)\s*$/m.exec(raw);
-      packageWorkflowByName[name] = schemaMatch ? schemaMatch[1]! : null;
-    }
+    const packageWorkflowByName = JSON.parse(
+      readCoverageUtf8(
+        new URL("./fixtures/v040/package-workflows.json", import.meta.url),
+      ),
+    ) as Record<string, string | null>;
 
     const input = validBaseline({
       registerText,
@@ -2512,20 +2509,18 @@ describe("release coverage policy", () => {
         null,
         `${owner} must declare an OpenSpec workflow`,
       );
-      const briefPath = join(
-        repoRoot,
-        "openspec",
-        "changes",
-        owner,
-        "release-brief.json",
+      const briefBytes = readCoverageBytes(
+        new URL(`./fixtures/v040/release-briefs/${owner}.json`, import.meta.url),
       );
-      assert.equal(existsSync(briefPath), true, `${owner} must have a release brief`);
-      const briefBytes = readFileSync(briefPath);
       expectedPackageBriefByName[owner] = JSON.parse(
         briefBytes.toString("utf8"),
       ) as ReleasePackageBriefV1;
       packageBriefBytesByName[owner] = briefBytes;
     }
+    assert.equal(
+      coverageReadPaths.some((path) => path.startsWith(join(repoRoot, "openspec"))),
+      false,
+    );
     for (const owner of releaseInspection.selectedOwners) {
       expectValid(
         validBaseline({

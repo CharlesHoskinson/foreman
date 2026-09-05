@@ -944,7 +944,25 @@ describe("execution-guard CLI", () => {
       mkdirSync(briefs, { recursive: true });
       const value = contract();
       const rootContractSha256 = executionContractSha256(value);
-      const source = { ...familySource(), program: "v050" as const };
+      const v040Source = familySource();
+      const source = {
+        ...v040Source,
+        program: "v050" as const,
+        children: v040Source.children
+          .filter(
+            (child) =>
+              child.tranche >= 2 &&
+              child.tranche <= 8 &&
+              child.childId !== "v040-t8-evaluation",
+          )
+          .map((child) => ({
+            ...child,
+            childId: child.childId.replace(/^v040-t/, "v050-"),
+            dependencyChildIds: child.dependencyChildIds
+              .filter((dep) => dep !== "v040-t8-evaluation")
+              .map((dep) => dep.replace(/^v040-t/, "v050-")),
+          })),
+      };
       const sourceBytes = new TextEncoder().encode(`${canonicalize(source)}\n`);
       const derived = deriveExecutionContractFamilyV2({
         rootContractId: value.contractId,

@@ -276,12 +276,19 @@ export function runReleasePolicyCli(
       maxBytes: ONE_MIB,
     });
     const decoded = decodeReleaseAuthorityFileV1(evidenceBytes);
-    const firstReceipt = decoded._tag === "Valid" &&
-        decoded.value.schema === "foreman.release-evidence-bundle.v1"
-      ? decoded.value.receipts[0]
-      : undefined;
+    if (decoded._tag !== "Valid") {
+      return emit(
+        io,
+        refused(
+          decoded.reason === "wrong_program" ? "wrong_program" : "invalid_evidence",
+        ),
+      );
+    }
+    const firstReceipt =
+      decoded.value.schema === "foreman.release-evidence-bundle.v1"
+        ? decoded.value.receipts[0]
+        : undefined;
     if (
-      decoded._tag !== "Valid" ||
       decoded.value.schema !== "foreman.release-evidence-bundle.v1" ||
       firstReceipt?.schema !== "foreman.design-approval.v1"
     ) {

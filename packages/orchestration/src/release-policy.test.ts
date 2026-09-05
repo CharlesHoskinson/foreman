@@ -233,4 +233,138 @@ describe("release-policy", () => {
     assert.equal(code, 1);
     assert.equal(stdout.includes("wrong_program"), true);
   });
+
+  it("bundle program v041 decodes as wrong_program", async () => {
+    const data = fixture();
+    const evidenceBytes = new TextEncoder().encode(
+      `${canonicalize({
+        schema: "foreman.release-evidence-bundle.v1",
+        program: "v041",
+        rootContractId: "root-contract",
+        rootContractSha256: A,
+        familySha256: B,
+        childId: "v040-t2-project-registry",
+        packageId: "project-registry",
+        action: "verify",
+        candidate: CANDIDATE,
+        taskPlanSha256: sha256Hex(data.taskPlanBytes),
+        receipts: [
+          {
+            schema: "foreman.design-approval.v1",
+            program: "v040",
+            packageId: "project-registry",
+            designCommit: COMMIT,
+            designTree: TREE,
+            approvedOpenSpecSha256: A,
+            taskPlanSha256: sha256Hex(data.taskPlanBytes),
+            approvalStatementSha256: A,
+            issuedAt: "2026-08-24T12:00:00Z",
+          },
+        ],
+        issuedAt: "2026-08-24T12:01:00Z",
+      })}\n`,
+    );
+    let laterCalls = 0;
+    let stdout = "";
+    const code = await Effect.runPromise(
+      runReleasePolicyCli(
+        block(),
+        {
+          writeStdout: (text) => {
+            stdout += text;
+          },
+          writeStderr: () => undefined,
+        },
+        {
+          checkCoverage: () =>
+            Effect.succeed({
+              schemaVersion: 1,
+              _tag: "Valid",
+              activeInventorySha256: A,
+              roadmapSha256: B,
+              entryCount: 1,
+            }),
+          readEvidence: () => Effect.succeed(evidenceBytes),
+          loadGitAuthority: () => {
+            laterCalls += 1;
+            return Effect.die("late");
+          },
+          resolveFamily: () => {
+            laterCalls += 1;
+            return Effect.die("late");
+          },
+        },
+      ),
+    );
+    assert.equal(code, 1);
+    assert.equal(laterCalls, 0);
+    assert.equal(stdout.includes("wrong_program"), true);
+  });
+
+  it("nested receipt program v041 decodes as wrong_program", async () => {
+    const data = fixture();
+    const evidenceBytes = new TextEncoder().encode(
+      `${canonicalize({
+        schema: "foreman.release-evidence-bundle.v1",
+        program: "v040",
+        rootContractId: "root-contract",
+        rootContractSha256: A,
+        familySha256: B,
+        childId: "v040-t2-project-registry",
+        packageId: "project-registry",
+        action: "verify",
+        candidate: CANDIDATE,
+        taskPlanSha256: sha256Hex(data.taskPlanBytes),
+        receipts: [
+          {
+            schema: "foreman.design-approval.v1",
+            program: "v041",
+            packageId: "project-registry",
+            designCommit: COMMIT,
+            designTree: TREE,
+            approvedOpenSpecSha256: A,
+            taskPlanSha256: sha256Hex(data.taskPlanBytes),
+            approvalStatementSha256: A,
+            issuedAt: "2026-08-24T12:00:00Z",
+          },
+        ],
+        issuedAt: "2026-08-24T12:01:00Z",
+      })}\n`,
+    );
+    let laterCalls = 0;
+    let stdout = "";
+    const code = await Effect.runPromise(
+      runReleasePolicyCli(
+        block(),
+        {
+          writeStdout: (text) => {
+            stdout += text;
+          },
+          writeStderr: () => undefined,
+        },
+        {
+          checkCoverage: () =>
+            Effect.succeed({
+              schemaVersion: 1,
+              _tag: "Valid",
+              activeInventorySha256: A,
+              roadmapSha256: B,
+              entryCount: 1,
+            }),
+          readEvidence: () => Effect.succeed(evidenceBytes),
+          loadGitAuthority: () => {
+            laterCalls += 1;
+            return Effect.die("late");
+          },
+          resolveFamily: () => {
+            laterCalls += 1;
+            return Effect.die("late");
+          },
+        },
+      ),
+    );
+    assert.equal(code, 1);
+    assert.equal(laterCalls, 0);
+    assert.equal(stdout.includes("wrong_program"), true);
+  });
 });

@@ -228,8 +228,15 @@ export function runReleaseAdmissionCli(
     }
 
     const decoded = decodeReleaseAuthorityFileV1(evidence.right);
+    if (decoded._tag !== "Valid") {
+      return writeResult(
+        io,
+        invalid(
+          decoded.reason === "wrong_program" ? "wrong_program" : "invalid_evidence",
+        ),
+      );
+    }
     if (
-      decoded._tag !== "Valid" ||
       decoded.value.schema !== "foreman.release-evidence-bundle.v1" ||
       decoded.value.receipts[0]?.schema !== "foreman.design-approval.v1"
     ) {

@@ -12,7 +12,6 @@ import {
   isReleaseProgram,
   releaseProgramTable,
   RELEASE_PROGRAMS,
-  type ReleaseProgram,
 } from "./release-program.js";
 
 export type RegisteredReleaseAuthorityV1 = {
@@ -70,7 +69,7 @@ export type ReleaseEvidenceInputV1 = {
   readonly approvedOpenSpecBytes: Readonly<Record<string, Uint8Array>>;
   readonly taskPlanBytes: Uint8Array;
   readonly evidenceBytes: Uint8Array;
-  readonly program?: ReleaseProgram;
+  readonly program?: string;
 };
 
 type CheckedEvidence = {
@@ -89,20 +88,6 @@ type EvidenceDecision =
   | { readonly _tag: "Invalid"; readonly reason: ReleaseAdmissionFailureReason };
 
 const encoder = new TextEncoder();
-
-function presentedEvidenceProgram(bytes: Uint8Array): unknown {
-  try {
-    const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
-      bytes,
-    );
-    if (!text.endsWith("\n") || text.endsWith("\r\n")) return undefined;
-    const parsed = JSON.parse(text.slice(0, -1)) as unknown;
-    if (typeof parsed !== "object" || parsed === null) return undefined;
-    return (parsed as { readonly program?: unknown }).program;
-  } catch {
-    return undefined;
-  }
-}
 
 function invalidEvidence(
   reason: ReleaseAdmissionFailureReason,
@@ -162,8 +147,14 @@ function designReceipt(
 
 function receiptBindingFailure(
   bundle: ReleaseEvidenceBundleV1,
-): "wrong_package" | "wrong_candidate" | null {
+): "wrong_package" | "wrong_candidate" | "wrong_program" | null {
   for (const receipt of bundle.receipts) {
+    if (
+      Object.prototype.hasOwnProperty.call(receipt, "program") &&
+      receipt.program !== bundle.program
+    ) {
+      return "wrong_program";
+    }
     if (receipt.packageId !== bundle.packageId) return "wrong_package";
     switch (receipt.schema) {
       case "foreman.checks-evidence.v1":
@@ -209,10 +200,12 @@ function checkEvidence(
   ) {
     return invalidEvidence("invalid_evidence");
   }
+  if (input.program !== undefined && !isReleaseProgram(input.program)) {
+    return invalidEvidence("wrong_program");
+  }
   const decoded = decodeReleaseAuthorityFileV1(input.evidenceBytes);
   if (decoded._tag !== "Valid") {
-    const presented = presentedEvidenceProgram(input.evidenceBytes);
-    if (presented !== undefined && !isReleaseProgram(presented)) {
+    if (decoded.reason === "wrong_program") {
       return invalidEvidence("wrong_program");
     }
     return invalidEvidence("invalid_evidence");
@@ -221,9 +214,8 @@ function checkEvidence(
     return invalidEvidence("invalid_evidence");
   }
   const bundle = decoded.value;
-  const requestedProgram = isReleaseProgram(input.program)
-    ? input.program
-    : RELEASE_PROGRAMS[0]!;
+  const requestedProgram =
+    input.program === undefined ? RELEASE_PROGRAMS[0]! : input.program;
   if (!isReleaseProgram(bundle.program) || bundle.program !== requestedProgram) {
     return invalidEvidence("wrong_program");
   }

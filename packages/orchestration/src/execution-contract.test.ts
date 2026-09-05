@@ -122,6 +122,23 @@ const CHILDREN = [
   },
 ] as const satisfies readonly ExecutionChildBriefV1[];
 
+function remapV050ChildId(childId: string): string {
+  return childId.replace(/^v040-t/, "v050-");
+}
+
+const V050_CHILDREN: readonly ExecutionChildBriefV1[] = CHILDREN.filter(
+  (child) =>
+    child.tranche >= 2 &&
+    child.tranche <= 8 &&
+    child.childId !== "v040-t8-evaluation",
+).map((child) => ({
+  ...child,
+  childId: remapV050ChildId(child.childId),
+  dependencyChildIds: child.dependencyChildIds
+    .filter((dep) => dep !== "v040-t8-evaluation")
+    .map(remapV050ChildId),
+}));
+
 const SOURCE: ExecutionFamilySourceV1 = {
   schema: "foreman.execution-family-source.v1",
   program: "v040",
@@ -440,7 +457,11 @@ test("family content and path limits use exact UTF-8 boundaries", () => {
 });
 
 test("v050 family sources derive and v041 is refused", () => {
-  const v050Source: ExecutionFamilySourceV1 = { ...SOURCE, program: "v050" };
+  const v050Source: ExecutionFamilySourceV1 = {
+    ...SOURCE,
+    program: "v050",
+    children: V050_CHILDREN,
+  };
   const derived = deriveExecutionContractFamilyV2({
     ...INPUT,
     sourceBytes: canonicalFile(v050Source),
@@ -449,8 +470,42 @@ test("v050 family sources derive and v041 is refused", () => {
   if (derived._tag !== "Valid") return;
   assert.equal(derived.source.program, "v050");
   assert.equal(derived.manifest.program, "v050");
+  assert.equal(derived.manifest.children.length, V050_CHILDREN.length);
+  for (const [index, child] of V050_CHILDREN.entries()) {
+    assert.equal(derived.manifest.children[index]?.childId, child.childId);
+    assert.equal(derived.manifest.children[index]?.tranche, child.tranche);
+    assert.equal(derived.manifest.children[index]?.packageId, child.packageId);
+    assert.equal(derived.manifest.children[index]?.limits.kind, "standard");
+    assert.equal(child.childId.startsWith("v050-"), true);
+  }
   assert.deepEqual(
     decodeExecutionFamilySourceFileV1(canonicalFile({ ...SOURCE, program: "v041" })),
+    { _tag: "ExecutionFamilyFailure", reason: "invalid_source" },
+  );
+});
+
+test("v050 family with a tranche 9 child is refused", () => {
+  const children = V050_CHILDREN.map((child, index) =>
+    index === 0
+      ? { ...child, tranche: 9 as const, childId: "v050-9-release" }
+      : child,
+  );
+  assert.deepEqual(
+    decodeExecutionFamilySourceFileV1(
+      canonicalFile({ ...SOURCE, program: "v050", children }),
+    ),
+    { _tag: "ExecutionFamilyFailure", reason: "invalid_source" },
+  );
+});
+
+test("v050 family containing v040-t8-evaluation is refused", () => {
+  const children = V050_CHILDREN.map((child, index) =>
+    index === 0 ? CHILDREN[6]! : child,
+  );
+  assert.deepEqual(
+    decodeExecutionFamilySourceFileV1(
+      canonicalFile({ ...SOURCE, program: "v050", children }),
+    ),
     { _tag: "ExecutionFamilyFailure", reason: "invalid_source" },
   );
 });

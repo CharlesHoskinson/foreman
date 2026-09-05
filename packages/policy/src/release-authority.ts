@@ -262,7 +262,7 @@ export type ApprovedOpenSpecManifestV1 = {
 
 export type ReleaseAuthorityObjectParseResultV1 =
   | { readonly _tag: "Valid"; readonly value: ReleaseAuthorityObjectV1 }
-  | { readonly _tag: "Invalid" };
+  | { readonly _tag: "Invalid"; readonly reason?: "wrong_program" };
 
 export type ReleaseAuthorityFileDecodeResultV1 =
   | {
@@ -270,7 +270,7 @@ export type ReleaseAuthorityFileDecodeResultV1 =
       readonly value: ReleaseAuthorityObjectV1;
       readonly sha256: string;
     }
-  | { readonly _tag: "Invalid" };
+  | { readonly _tag: "Invalid"; readonly reason?: "wrong_program" };
 
 export type ReleaseProducerSourceDecodeResultV1 =
   | {
@@ -360,12 +360,31 @@ const EVAL_RESULTS = [
 const UTC_SECOND =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/;
 
-function invalidObject(): ReleaseAuthorityObjectParseResultV1 {
-  return { _tag: "Invalid" };
+function invalidObject(
+  reason?: "wrong_program",
+): ReleaseAuthorityObjectParseResultV1 {
+  return reason === undefined ? { _tag: "Invalid" } : { _tag: "Invalid", reason };
 }
 
-function invalidFile(): ReleaseAuthorityFileDecodeResultV1 {
-  return { _tag: "Invalid" };
+function invalidFile(
+  reason?: "wrong_program",
+): ReleaseAuthorityFileDecodeResultV1 {
+  return reason === undefined ? { _tag: "Invalid" } : { _tag: "Invalid", reason };
+}
+
+function presentedUnknownProgram(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  if (typeof record.program === "string" && !isReleaseProgram(record.program)) {
+    return true;
+  }
+  if (!Array.isArray(record.receipts)) return false;
+  for (const receipt of record.receipts) {
+    if (typeof receipt !== "object" || receipt === null) continue;
+    const program = (receipt as { readonly program?: unknown }).program;
+    if (typeof program === "string" && !isReleaseProgram(program)) return true;
+  }
+  return false;
 }
 
 function invalidSource(): ReleaseProducerSourceDecodeResultV1 {
@@ -1881,7 +1900,11 @@ export function parseReleaseAuthorityObjectV1(
 ): ReleaseAuthorityObjectParseResultV1 {
   try {
     const parsed = parseAuthorityObject(value);
-    if (parsed === null) return invalidObject();
+    if (parsed === null) {
+      return presentedUnknownProgram(value)
+        ? invalidObject("wrong_program")
+        : invalidObject();
+    }
     return { _tag: "Valid", value: parsed };
   } catch {
     return invalidObject();
@@ -1896,7 +1919,11 @@ export function decodeReleaseAuthorityFileV1(
     const decoded = decodeCanonicalObjectFile(bytes);
     if (decoded === null) return invalidFile();
     const parsed = parseAuthorityObject(decoded.value);
-    if (parsed === null) return invalidFile();
+    if (parsed === null) {
+      return presentedUnknownProgram(decoded.value)
+        ? invalidFile("wrong_program")
+        : invalidFile();
+    }
     return {
       _tag: "Valid",
       value: parsed,

@@ -246,6 +246,77 @@ test("v050 is accepted at the CLI and v041 is wrong_program", async () => {
   ]);
 });
 
+test("bundle program v041 decodes as wrong_program", async () => {
+  const capture: Capture = { stdout: [], stderr: [], calls: [] };
+  const code = await Effect.runPromise(
+    runReleaseAdmissionCli(
+      VALID_ARGV,
+      {
+        writeStdout: (line) => capture.stdout.push(line),
+        writeStderr: (line) => capture.stderr.push(line),
+      },
+      {
+        readEvidence: (input) => {
+          capture.calls.push(`read:${input.path}:${input.maxBytes}`);
+          return Effect.succeed(canonicalFile({ ...BUNDLE, program: "v041" }));
+        },
+        loadGitAuthority: () => {
+          capture.calls.push("git");
+          return Effect.die("late");
+        },
+      },
+    ),
+  );
+  assert.equal(code, 1);
+  assert.deepEqual(capture.calls, [`read:${EVIDENCE}:1048576`]);
+  assert.deepEqual(capture.stderr, []);
+  assert.deepEqual(capture.stdout, [
+    `${canonicalize({
+      schemaVersion: 1,
+      _tag: "EvidenceInvalid",
+      reason: "wrong_program",
+    })}\n`,
+  ]);
+});
+
+test("nested receipt program v041 decodes as wrong_program", async () => {
+  const capture: Capture = { stdout: [], stderr: [], calls: [] };
+  const code = await Effect.runPromise(
+    runReleaseAdmissionCli(
+      VALID_ARGV,
+      {
+        writeStdout: (line) => capture.stdout.push(line),
+        writeStderr: (line) => capture.stderr.push(line),
+      },
+      {
+        readEvidence: (input) => {
+          capture.calls.push(`read:${input.path}:${input.maxBytes}`);
+          return Effect.succeed(
+            canonicalFile({
+              ...BUNDLE,
+              receipts: [{ ...DESIGN, program: "v041" }],
+            }),
+          );
+        },
+        loadGitAuthority: () => {
+          capture.calls.push("git");
+          return Effect.die("late");
+        },
+      },
+    ),
+  );
+  assert.equal(code, 1);
+  assert.deepEqual(capture.calls, [`read:${EVIDENCE}:1048576`]);
+  assert.deepEqual(capture.stderr, []);
+  assert.deepEqual(capture.stdout, [
+    `${canonicalize({
+      schemaVersion: 1,
+      _tag: "EvidenceInvalid",
+      reason: "wrong_program",
+    })}\n`,
+  ]);
+});
+
 test("invalid invocation is exit 64 with no service call", async () => {
   const { code, capture } = await run(VALID_ARGV.slice(0, -2));
   assert.equal(code, 64);
