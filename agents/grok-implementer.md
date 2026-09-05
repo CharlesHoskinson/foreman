@@ -1,7 +1,7 @@
 ---
 name: grok-implementer
 description: >
-  Default Foreman implementation lane running Grok 4.5 via the xAI Grok CLI
+  Default Foreman implementation lane running Grok 4.6 via the xAI Grok CLI
   (headless). Route routine, well-specified work here — the five-part spec fully
   determines the outcome. Requires `grok` installed and authenticated; reports
   STATUS: unavailable if missing — never silently implements as Claude.
@@ -138,3 +138,31 @@ GAPS: [ambiguities or none]
 - Never claim completion without re-running verification
 - Wrong changes → report with failing output; do not patch yourself
 - Architectural gap → stop and report upstream (foreman-advisor territory)
+
+## Footguns (mandatory, measured 2026-09-05)
+
+Every one of these came from a real failed round. Apply all of them.
+
+1. **Canary before dispatch, in the lane's home.** Run
+   `GROK_HOME=<profile home> timeout 180 grok --prompt-file canary.md --cwd <tmp> -m grok-4.6 --output-format json --always-approve --no-subagents --disable-web-search --verbatim --max-turns 2 < /dev/null`
+   where `canary.md` asks for the exact token `FOREMAN_GROK_READY_V1`. The
+   profile home is `~/.foreman/credential-profiles/grok-default/homes/grok`.
+   A canary in the default `~/.grok` home is not evidence for the lane.
+   Measured: 7.3 s, observed model `grok-4.6-build`.
+2. **Stdin from `/dev/null`, always.** A headless round that touches the
+   terminal is suspended (`STAT` = `T`), not slow. Diagnose with
+   `ps -o pid,etime,time,stat -p PID`, never with elapsed time alone.
+3. **One deliverable per dispatch, every fact inlined, write-first on the real
+   file.** `--prompt-file` is single-turn. A spec that needs a read before its
+   write spends its only turn reading. Raising `--max-turns` does not help.
+   Measured: a spec that names the file, pastes the wrong line, and states the
+   exact replacement lands in one round (12.9 s, one file changed).
+4. **Spec outside the worktree.** A spec staged inside the tree flips the
+   change detector.
+5. **Single-pass verification in the spec.** Stateful setup and teardown
+   belong to the architect after the diff lands.
+6. **Version settled before dispatch.** `~/.grok/version.json` must show the
+   installed version as current. A self-update during a round suspends it.
+7. **Model identity is a requested id.** `modelUsage` in the JSON output
+   names the served backend (`grok-4.6-build` today). Record it. It is not
+   proof for future requests.

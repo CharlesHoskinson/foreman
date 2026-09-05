@@ -19,8 +19,9 @@ Grok 4.6 implements  →  architect re-runs checks  →  Codex Sol audits  →  
 If Codex implemented, **do not** call `codex-auditor`. Use architect review or a
 non-OpenAI auditor and say so explicitly.
 
-The current agent and adapter defaults still name `grok-4.5`. Set
-`WC_GROK_MODEL=grok-4.6` in the lane process before
+Since 2026-09-05 the agent and adapter defaults name `grok-4.6` and the
+verified CLI is 1.0.13. Setting `WC_GROK_MODEL=grok-4.6` remains the
+explicit form. Set it in the lane process before
 `adapter_implement_argv`. Without this override, report a route mismatch and
 do not claim Grok 4.6 identity. This skill update does not migrate runtime
 defaults or installed user configuration.

@@ -30895,9 +30895,11 @@ var LEGACY_MIGRATION_BODY_SHA256 = /* @__PURE__ */ new Map([
     "skills/foreman/scripts/gate-eval.sh",
     "bd0a5e404cb97dfe356084764f797a2852b8a6d84862e038aaecad085f70b546"
   ],
+  // Re-pinned 2026-09-05: default model grok-4.6 and verified CLI 1.0.13.
+  // Data-only change, no new logic.
   [
     "skills/foreman/scripts/adapters/grok.sh",
-    "5661b8005c54be4f66d11d7bf3db7e71f7886fd06baf69b9b2c4f4bf85cba1ca"
+    "6dcf82398b49681f66129e38f52e7b8c5a70257044028ee1ed7b6381ff3a4232"
   ],
   [
     "skills/foreman/scripts/lib/release-policy.sh",
