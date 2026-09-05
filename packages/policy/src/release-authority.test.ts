@@ -457,6 +457,18 @@ test("all producer sources are closed and bind complete canonical file digests",
   );
 });
 
+test("v050 authority objects parse and v041 is refused", () => {
+  const v050 = { ...DESIGN, program: "v050" as const };
+  assert.deepEqual(parseReleaseAuthorityObjectV1(v050), {
+    _tag: "Valid",
+    value: v050,
+  });
+  assert.deepEqual(
+    parseReleaseAuthorityObjectV1({ ...DESIGN, program: "v041" }),
+    { _tag: "Invalid" },
+  );
+});
+
 test("approved OpenSpec manifests bind sorted raw bytes", () => {
   const files = [
     { path: "design.md", bytes: utf8("design\n") },

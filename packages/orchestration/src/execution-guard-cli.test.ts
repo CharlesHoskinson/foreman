@@ -841,6 +841,214 @@ describe("execution-guard CLI", () => {
     }
   });
 
+  it("refuses v041 family receipts with invalid_family_authority", async () => {
+    const root = mkdtempSync(join(tmpdir(), "endstop-v041-family-"));
+    try {
+      const inputs = join(root, "inputs");
+      const briefs = join(inputs, "briefs");
+      mkdirSync(briefs, { recursive: true });
+      const value = contract();
+      const rootContractSha256 = executionContractSha256(value);
+      const source = familySource();
+      const sourceBytes = new TextEncoder().encode(`${canonicalize(source)}\n`);
+      const derived = deriveExecutionContractFamilyV2({
+        rootContractId: value.contractId,
+        rootContractSha256,
+        track1Commit: "6".repeat(40),
+        track1Tree: "7".repeat(40),
+        sourceBytes,
+        createdAt: "2026-08-24T12:00:00Z",
+      });
+      assert.equal(derived._tag, "Valid");
+      if (derived._tag !== "Valid") return;
+      const manifestFile = join(inputs, "manifest.json");
+      const sourceFile = join(inputs, "source.json");
+      const auditFile = join(inputs, "audit.json");
+      const userFile = join(inputs, "user.json");
+      writeCanonical(manifestFile, derived.manifest);
+      writeFileSync(sourceFile, sourceBytes);
+      for (const [packageId, brief] of Object.entries(derived.briefs)) {
+        writeCanonical(join(briefs, `${packageId}.json`), brief);
+      }
+      writeCanonical(auditFile, {
+        schema: "foreman.execution-family-audit.v1",
+        program: "v041",
+        familyId: derived.manifest.familyId,
+        manifestSha256: derived.familySha256,
+        track1Commit: derived.manifest.track1Commit,
+        track1Tree: derived.manifest.track1Tree,
+        verdict: "APPROVED",
+        findings: [],
+        evidenceSha256: A,
+        issuedAt: "2026-08-24T12:00:00Z",
+      });
+      writeCanonical(userFile, {
+        schema: "foreman.execution-family-user-approval.v1",
+        program: "v041",
+        familyId: derived.manifest.familyId,
+        manifestSha256: derived.familySha256,
+        track1Commit: derived.manifest.track1Commit,
+        track1Tree: derived.manifest.track1Tree,
+        approvalStatementSha256: B,
+        issuedAt: "2026-08-24T12:00:00Z",
+      });
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const ledger = yield* EndstopLedger;
+          return yield* ledger.create(value);
+        }).pipe(Effect.provide(makeLiveEndstopLedgerLayer(root))),
+      );
+      let stderr = "";
+      const code = await Effect.runPromise(
+        runEndstopCli(
+          [
+            "register-family-authority",
+            "--state-root",
+            root,
+            "--contract-id",
+            value.contractId,
+            "--contract-sha",
+            rootContractSha256,
+            "--manifest",
+            manifestFile,
+            "--source",
+            sourceFile,
+            "--briefs",
+            briefs,
+            "--audit-receipt",
+            auditFile,
+            "--user-receipt",
+            userFile,
+          ],
+          {
+            writeStdout: () => undefined,
+            writeStderr: (text) => {
+              stderr += text;
+            },
+          },
+          { now: () => "2026-08-24T12:01:00Z" },
+        ),
+      );
+      assert.equal(code, 1);
+      assert.match(stderr, /invalid_family_authority/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("registers a v050 family and refuses a cross-program receipt", async () => {
+    const root = mkdtempSync(join(tmpdir(), "endstop-v050-family-"));
+    try {
+      const inputs = join(root, "inputs");
+      const briefs = join(inputs, "briefs");
+      mkdirSync(briefs, { recursive: true });
+      const value = contract();
+      const rootContractSha256 = executionContractSha256(value);
+      const source = { ...familySource(), program: "v050" as const };
+      const sourceBytes = new TextEncoder().encode(`${canonicalize(source)}\n`);
+      const derived = deriveExecutionContractFamilyV2({
+        rootContractId: value.contractId,
+        rootContractSha256,
+        track1Commit: "6".repeat(40),
+        track1Tree: "7".repeat(40),
+        sourceBytes,
+        createdAt: "2026-08-24T12:00:00Z",
+      });
+      assert.equal(derived._tag, "Valid");
+      if (derived._tag !== "Valid") return;
+      assert.equal(derived.manifest.program, "v050");
+      const manifestFile = join(inputs, "manifest.json");
+      const sourceFile = join(inputs, "source.json");
+      const auditFile = join(inputs, "audit.json");
+      const userFile = join(inputs, "user.json");
+      writeCanonical(manifestFile, derived.manifest);
+      writeFileSync(sourceFile, sourceBytes);
+      for (const [packageId, brief] of Object.entries(derived.briefs)) {
+        writeCanonical(join(briefs, `${packageId}.json`), brief);
+      }
+      const receiptBase = {
+        familyId: derived.manifest.familyId,
+        manifestSha256: derived.familySha256,
+        track1Commit: derived.manifest.track1Commit,
+        track1Tree: derived.manifest.track1Tree,
+        issuedAt: "2026-08-24T12:00:00Z",
+      } as const;
+      writeCanonical(auditFile, {
+        schema: "foreman.execution-family-audit.v1",
+        program: "v050",
+        ...receiptBase,
+        verdict: "APPROVED",
+        findings: [],
+        evidenceSha256: A,
+      });
+      writeCanonical(userFile, {
+        schema: "foreman.execution-family-user-approval.v1",
+        program: "v050",
+        ...receiptBase,
+        approvalStatementSha256: B,
+      });
+
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const ledger = yield* EndstopLedger;
+          return yield* ledger.create(value);
+        }).pipe(Effect.provide(makeLiveEndstopLedgerLayer(root))),
+      );
+      let stdout = "";
+      let stderr = "";
+      const io = {
+        writeStdout: (text: string) => {
+          stdout += text;
+        },
+        writeStderr: (text: string) => {
+          stderr += text;
+        },
+      };
+      const argv = [
+        "register-family-authority",
+        "--state-root",
+        root,
+        "--contract-id",
+        value.contractId,
+        "--contract-sha",
+        rootContractSha256,
+        "--manifest",
+        manifestFile,
+        "--source",
+        sourceFile,
+        "--briefs",
+        briefs,
+        "--audit-receipt",
+        auditFile,
+        "--user-receipt",
+        userFile,
+      ];
+      const registerCode = await Effect.runPromise(
+        runEndstopCli(argv, io, { now: () => "2026-08-24T12:01:00Z" }),
+      );
+      assert.equal(registerCode, 0, stderr);
+      assert.match(stdout, /"familySha256"/);
+
+      writeCanonical(auditFile, {
+        schema: "foreman.execution-family-audit.v1",
+        program: "v040",
+        ...receiptBase,
+        verdict: "APPROVED",
+        findings: [],
+        evidenceSha256: A,
+      });
+      stdout = "";
+      stderr = "";
+      const crossCode = await Effect.runPromise(
+        runEndstopCli(argv, io, { now: () => "2026-08-24T12:01:00Z" }),
+      );
+      assert.equal(crossCode, 1);
+      assert.match(stderr, /invalid_family_authority/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("returns a generic failure without paths for a missing contract", async () => {
     const root = mkdtempSync(join(tmpdir(), "endstop-cli-"));
     try {

@@ -662,3 +662,38 @@ test("the refusal reason vocabulary remains closed", () => {
   ] as const satisfies readonly ReleaseAdmissionFailureReason[];
   assert.equal(new Set(reasons).size, 12);
 });
+
+test("v050 evidence is admitted and v041 is wrong_program", () => {
+  const v050Design = { ...DESIGN_RECEIPT, program: "v050" as const };
+  const v050Bundle = { ...BUNDLE, program: "v050" as const, receipts: [v050Design] };
+  assert.deepEqual(
+    evaluateReleaseEvidenceV1({
+      ...INPUT,
+      evidenceBytes: canonicalFile(v050Bundle),
+      program: "v050",
+    }),
+    { schemaVersion: 1, _tag: "EvidenceValid" },
+  );
+  assert.deepEqual(
+    evaluateReleaseEvidenceV1({
+      ...INPUT,
+      evidenceBytes: canonicalFile({ ...BUNDLE, program: "v041" }),
+    }),
+    {
+      schemaVersion: 1,
+      _tag: "EvidenceInvalid",
+      reason: "wrong_program",
+    },
+  );
+  assert.deepEqual(
+    evaluateReleaseEvidenceV1({
+      ...INPUT,
+      evidenceBytes: canonicalFile(v050Bundle),
+    }),
+    {
+      schemaVersion: 1,
+      _tag: "EvidenceInvalid",
+      reason: "wrong_program",
+    },
+  );
+});

@@ -1210,20 +1210,6 @@ const USAGE_CASES: ReadonlyArray<{
     ]),
   },
   {
-    name: "wrong-program",
-    argv: processArgv([
-      "check",
-      "--program",
-      "v039",
-      "--phase",
-      "bootstrap",
-      "--owner",
-      TRACK1,
-      "--register",
-      REGISTER,
-    ]),
-  },
-  {
     name: "bootstrap-wrong-owner",
     argv: processArgv([
       "check",
@@ -1242,6 +1228,42 @@ const USAGE_CASES: ReadonlyArray<{
     argv: processArgv([...BOOTSTRAP_TAIL, "extra-positional"]),
   },
 ];
+
+test("unknown programs refuse with wrong_program", async () => {
+  const { exitCode, capture } = await runCli(
+    processArgv([
+      "check",
+      "--program",
+      "v041",
+      "--phase",
+      "bootstrap",
+      "--owner",
+      TRACK1,
+      "--register",
+      REGISTER,
+    ]),
+  );
+  assert.equal(exitCode, EXIT_EVALUATED);
+  assertCanonicalResult(capture, invalidResult("wrong_program"));
+});
+
+test("v050 bootstrap owner is accepted at parse time", async () => {
+  const { exitCode, capture } = await runCli(
+    processArgv([
+      "check",
+      "--program",
+      "v050",
+      "--phase",
+      "bootstrap",
+      "--owner",
+      "v050-release-program",
+      "--register",
+      REGISTER,
+    ]),
+  );
+  assert.notEqual(exitCode, EXIT_USAGE);
+  assert.equal(capture.stderr, "");
+});
 
 test("invalid invocations exit 64 with fixed diagnostic and zero service calls", async (t) => {
   for (const { name, argv } of USAGE_CASES) {

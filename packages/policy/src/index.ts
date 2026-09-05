@@ -122,6 +122,13 @@ export {
   type InstallCliIo,
 } from "./install-verify-exports.js";
 export {
+  RELEASE_PROGRAMS,
+  isReleaseProgram,
+  releaseProgramTable,
+  type ReleaseProgram,
+  type ReleaseProgramTable,
+} from "./release-program.js";
+export {
   validateReleaseCoverageV1,
   inspectReleaseCoverageRegisterV1,
   type ReleaseCoverageFailureReason,

@@ -22,6 +22,11 @@ import {
   type ReleasePackageBriefV1,
   type RoadmapAssignmentV1,
 } from "./release-coverage.js";
+import {
+  isReleaseProgram,
+  RELEASE_PROGRAMS,
+  releaseProgramTable,
+} from "./release-program.js";
 
 const repoRoot = resolve(fileURLToPath(new URL(".", import.meta.url)), "../../..");
 const isWin32 = process.platform === "win32";
@@ -2414,31 +2419,27 @@ describe("release coverage policy", () => {
 
   it("accepts the authored coverage.toml with independent authority inputs", () => {
     const authoredPath = new URL(
-      "../../../openspec/changes/v040-release-program/coverage.toml",
+      "./fixtures/v040/coverage.toml",
       import.meta.url,
     );
     const registerText = readFileSync(authoredPath, "utf8");
     assert.match(registerText, /^schema_version\s*=\s*1\b/m);
     const entryCount = [...registerText.matchAll(/^\[\[entry\]\]$/gm)].length;
 
-    const listed = runOpenspec(["list", "--json"]);
-    assert.equal(listed.error, undefined, `spawn error: ${listed.error}`);
-    assert.equal(
-      listed.status,
-      0,
-      `openspec list failed: ${listed.stderr || listed.stdout}`,
+    const inventoryText = readFileSync(
+      new URL("./fixtures/v040/active-inventory.txt", import.meta.url),
+      "utf8",
     );
-    const listedJson = JSON.parse(listed.stdout) as {
-      changes: { name: string }[];
-    };
-    assert.ok(Array.isArray(listedJson.changes), "list JSON must include changes");
-    const activePackageNames = listedJson.changes.map((change) => change.name);
+    const activePackageNames = inventoryText.split("\n").filter((name) => name.length > 0);
     assert.equal(
       activeInventorySha256(activePackageNames),
       "d16bd7a29580b6b642e24e301ffbd8600844b1a0436bfdaab5d1a241e4572c7a",
     );
 
-    const roadmapText = readFileSync(join(repoRoot, "ROADMAP.md"), "utf8");
+    const roadmapText = readFileSync(
+      new URL("./fixtures/v040/ROADMAP.md", import.meta.url),
+      "utf8",
+    );
     const roadmapAssignments: RoadmapAssignmentV1[] = [];
     for (const match of roadmapText.matchAll(
       /^\| `([^`]+)` \| ([^|]+) \| `([^`]+)` \| `([^`]+)` \|$/gm,
@@ -2560,5 +2561,88 @@ describe("release coverage policy", () => {
       }),
       entryCount,
     );
+  });
+
+  it("accepts v050 owner dispositions and refuses v041", () => {
+    const owner = "v050-release-program";
+    const roadmapAssignments = [
+      roadmapRow("roadmap:v050-item", owner, "v0.5", "v0.5 scope"),
+    ];
+    const roadmapText = renderRoadmapText(roadmapAssignments);
+    const registerText = sealRegister([owner], roadmapText, {
+      futureOwners: [],
+      entries: [
+        {
+          key: "change:v050-release-program",
+          sourceKind: "openspec_change",
+          sourcePath: "openspec/changes/v050-release-program",
+          disposition: "v050_owner",
+          owner,
+          targetRelease: "v0.5",
+          reconcile: "complete",
+          reason: "governor",
+        },
+        {
+          key: "roadmap:v050-item",
+          sourceKind: "roadmap",
+          sourcePath: "ROADMAP.md",
+          disposition: "v050_owner",
+          owner,
+          targetRelease: "v0.5",
+          reconcile: "complete",
+          reason: "governor roadmap",
+        },
+      ],
+    });
+    const phase: ReleaseCoveragePhaseV1 = {
+      _tag: "Bootstrap",
+      owner,
+    };
+    const common = {
+      registerText,
+      roadmapBytes: utf8(roadmapText),
+      activeChangeNames: [owner],
+      roadmapRows: roadmapAssignments,
+      workflowByChange: { [owner]: ACTIVE_WF },
+      changedSuperpowersPaths: [] as const,
+      expectedBriefByOwner: {},
+      packageBriefBytesByOwner: {},
+    };
+    assert.deepEqual(
+      validateReleaseCoverageV1({
+        ...common,
+        phase,
+        program: "v050",
+      }),
+      {
+        schemaVersion: SCHEMA,
+        _tag: "Valid",
+        activeInventorySha256: activeInventorySha256([owner]),
+        roadmapSha256: sha256Hex(utf8(roadmapText)),
+        entryCount: 2,
+      },
+    );
+    assert.deepEqual(
+      validateReleaseCoverageV1({
+        ...common,
+        phase: { _tag: "Bootstrap", owner: ACTIVE_PKG },
+        program: "v041" as never,
+      }),
+      {
+        schemaVersion: SCHEMA,
+        _tag: "Invalid",
+        reason: "wrong_program",
+      },
+    );
+    assert.equal(isReleaseProgram("v050"), true);
+    assert.equal(isReleaseProgram("v041"), false);
+    assert.deepEqual(releaseProgramTable("v050").dispositions, [
+      "v050_owner",
+      "v050_dependency",
+      "released_reference",
+      "superseded",
+      "v060",
+    ]);
+    assert.equal(RELEASE_PROGRAMS.length, 2);
   });
 });

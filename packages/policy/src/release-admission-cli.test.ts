@@ -186,6 +186,66 @@ test("release-admission CLI verifies one bounded historical authority", async ()
   ]);
 });
 
+test("v050 is accepted at the CLI and v041 is wrong_program", async () => {
+  const v041 = [
+    ...VALID_ARGV.slice(0, 4),
+    "v041",
+    ...VALID_ARGV.slice(5),
+  ];
+  const unknown = await run(v041);
+  assert.equal(unknown.code, 1);
+  assert.deepEqual(unknown.capture.calls, []);
+  assert.deepEqual(unknown.capture.stderr, []);
+  assert.deepEqual(unknown.capture.stdout, [
+    `${canonicalize({
+      schemaVersion: 1,
+      _tag: "EvidenceInvalid",
+      reason: "wrong_program",
+    })}\n`,
+  ]);
+
+  const v050Argv = [
+    ...VALID_ARGV.slice(0, 4),
+    "v050",
+    ...VALID_ARGV.slice(5),
+  ];
+  const v050Design = { ...DESIGN, program: "v050" as const };
+  const v050Bundle = { ...BUNDLE, program: "v050" as const, receipts: [v050Design] };
+  const capture: Capture = { stdout: [], stderr: [], calls: [] };
+  const code = await Effect.runPromise(
+    runReleaseAdmissionCli(
+      v050Argv,
+      {
+        writeStdout: (line) => capture.stdout.push(line),
+        writeStderr: (line) => capture.stderr.push(line),
+      },
+      {
+        readEvidence: (input) => {
+          capture.calls.push(`read:${input.path}:${input.maxBytes}`);
+          return Effect.succeed(canonicalFile(v050Bundle));
+        },
+        loadGitAuthority: (input) => {
+          capture.calls.push(
+            `git:${input.repository}:${input.candidateCommit}:${input.designCommit}:${input.packageId}`,
+          );
+          return Effect.succeed({
+            candidate: CANDIDATE,
+            designTree: TREE,
+            designLineageValid: true,
+            approvedOpenSpecBytes: OPEN_SPEC_BYTES,
+            taskPlanBytes: TASK_BYTES,
+          });
+        },
+      },
+    ),
+  );
+  assert.equal(code, 0);
+  assert.deepEqual(capture.stderr, []);
+  assert.deepEqual(capture.stdout, [
+    `${canonicalize({ schemaVersion: 1, _tag: "EvidenceValid" })}\n`,
+  ]);
+});
+
 test("invalid invocation is exit 64 with no service call", async () => {
   const { code, capture } = await run(VALID_ARGV.slice(0, -2));
   assert.equal(code, 64);

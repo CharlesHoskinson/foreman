@@ -439,6 +439,22 @@ test("family content and path limits use exact UTF-8 boundaries", () => {
   assert.equal(executionChildPathMatchesV1("../escape/**", "escape/a"), false);
 });
 
+test("v050 family sources derive and v041 is refused", () => {
+  const v050Source: ExecutionFamilySourceV1 = { ...SOURCE, program: "v050" };
+  const derived = deriveExecutionContractFamilyV2({
+    ...INPUT,
+    sourceBytes: canonicalFile(v050Source),
+  });
+  assert.equal(derived._tag, "Valid");
+  if (derived._tag !== "Valid") return;
+  assert.equal(derived.source.program, "v050");
+  assert.equal(derived.manifest.program, "v050");
+  assert.deepEqual(
+    decodeExecutionFamilySourceFileV1(canonicalFile({ ...SOURCE, program: "v041" })),
+    { _tag: "ExecutionFamilyFailure", reason: "invalid_source" },
+  );
+});
+
 test("V1 action and event grammar still excludes evaluate", () => {
   assert.equal(executionActionKinds.includes("evaluate" as never), false);
   const v2EvaluationEvent: ExecutionV2Event = {

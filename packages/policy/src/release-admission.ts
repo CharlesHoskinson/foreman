@@ -8,6 +8,12 @@ import {
   type ReleaseCandidateIdentityV1,
   type ReleaseEvidenceBundleV1,
 } from "./release-authority.js";
+import {
+  isReleaseProgram,
+  releaseProgramTable,
+  RELEASE_PROGRAMS,
+  type ReleaseProgram,
+} from "./release-program.js";
 
 export type RegisteredReleaseAuthorityV1 = {
   readonly rootContractId: string;
@@ -64,6 +70,7 @@ export type ReleaseEvidenceInputV1 = {
   readonly approvedOpenSpecBytes: Readonly<Record<string, Uint8Array>>;
   readonly taskPlanBytes: Uint8Array;
   readonly evidenceBytes: Uint8Array;
+  readonly program?: ReleaseProgram;
 };
 
 type CheckedEvidence = {
@@ -82,6 +89,20 @@ type EvidenceDecision =
   | { readonly _tag: "Invalid"; readonly reason: ReleaseAdmissionFailureReason };
 
 const encoder = new TextEncoder();
+
+function presentedEvidenceProgram(bytes: Uint8Array): unknown {
+  try {
+    const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      bytes,
+    );
+    if (!text.endsWith("\n") || text.endsWith("\r\n")) return undefined;
+    const parsed = JSON.parse(text.slice(0, -1)) as unknown;
+    if (typeof parsed !== "object" || parsed === null) return undefined;
+    return (parsed as { readonly program?: unknown }).program;
+  } catch {
+    return undefined;
+  }
+}
 
 function invalidEvidence(
   reason: ReleaseAdmissionFailureReason,
@@ -156,14 +177,19 @@ function receiptBindingFailure(
           return "wrong_candidate";
         }
         break;
-      case "foreman.evaluation-authority.v1":
+      case "foreman.evaluation-authority.v1": {
+        const evaluationChild = isReleaseProgram(bundle.program)
+          ? releaseProgramTable(bundle.program).evaluationChild
+          : null;
         if (
+          evaluationChild === null ||
           bundle.packageId !== "graph-eval-falsification" ||
-          bundle.childId !== "v040-t8-evaluation"
+          bundle.childId !== evaluationChild
         ) {
           return "wrong_package";
         }
         break;
+      }
       case "foreman.design-approval.v1":
         break;
     }
@@ -184,12 +210,23 @@ function checkEvidence(
     return invalidEvidence("invalid_evidence");
   }
   const decoded = decodeReleaseAuthorityFileV1(input.evidenceBytes);
-  if (decoded._tag !== "Valid") return invalidEvidence("invalid_evidence");
+  if (decoded._tag !== "Valid") {
+    const presented = presentedEvidenceProgram(input.evidenceBytes);
+    if (presented !== undefined && !isReleaseProgram(presented)) {
+      return invalidEvidence("wrong_program");
+    }
+    return invalidEvidence("invalid_evidence");
+  }
   if (decoded.value.schema !== "foreman.release-evidence-bundle.v1") {
     return invalidEvidence("invalid_evidence");
   }
   const bundle = decoded.value;
-  if (bundle.program !== "v040") return invalidEvidence("wrong_program");
+  const requestedProgram = isReleaseProgram(input.program)
+    ? input.program
+    : RELEASE_PROGRAMS[0]!;
+  if (!isReleaseProgram(bundle.program) || bundle.program !== requestedProgram) {
+    return invalidEvidence("wrong_program");
+  }
   if (bundle.action !== input.action) return invalidEvidence("wrong_action");
   if (bundle.packageId !== input.packageId) {
     return invalidEvidence("wrong_package");

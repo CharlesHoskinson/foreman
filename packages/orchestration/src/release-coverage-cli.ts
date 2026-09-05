@@ -23,12 +23,16 @@ import { Effect } from "effect";
 import { canonicalize, isSha256Hex, sha256Hex } from "@foreman/core";
 import {
   inspectReleaseCoverageRegisterV1,
+  isReleaseProgram,
+  RELEASE_PROGRAMS,
+  releaseProgramTable,
   sanitizedGitEnv,
   validateReleaseCoverageV1,
   type ReleaseCoverageFailureReason,
   type ReleaseCoveragePhaseV1,
   type ReleaseCoverageResultV1,
   type ReleasePackageBriefV1,
+  type ReleaseProgram,
   type RoadmapAssignmentV1,
 } from "@foreman/policy";
 import {
@@ -47,8 +51,6 @@ const EXIT_OK = 0;
 const EXIT_EVALUATED = 1;
 const EXIT_USAGE = 64;
 const USAGE_DIAGNOSTIC = "release-coverage: invalid invocation\n";
-const TRACK1_OWNER = "openspec-superpowers-convergence" as const;
-const PROGRAM = "v040" as const;
 const FAMILY_SCHEMA = "foreman.execution-family-source.v1" as const;
 const CHILD_SCHEMA = "foreman.execution-child-brief.v1" as const;
 const FAMILY_ID = "v040-release-20260822-f1" as const;
@@ -60,7 +62,6 @@ const SUPERPOWERS_SPECS = "docs/superpowers/specs";
 const SUPERPOWERS_PLANS = "docs/superpowers/plans";
 const GIT_TIMEOUT_MS = 30_000;
 const OPENSPEC_TIMEOUT_MS = 30_000;
-const TRANCHES = [2, 3, 4, 5, 6, 7, 8, 9] as const;
 
 const encoder = new TextEncoder();
 
@@ -108,7 +109,7 @@ export type ReleaseCoverageChildBriefV1 = {
 
 export type ReleaseCoverageFamilySourceV1 = {
   readonly schema: "foreman.execution-family-source.v1";
-  readonly program: "v040";
+  readonly program: ReleaseProgram;
   readonly familyId: "v040-release-20260822-f1";
   readonly children: readonly ReleaseCoverageChildBriefV1[];
 };
@@ -564,6 +565,7 @@ type ParsedFlags = {
 type ParsedCli =
   | {
       readonly _tag: "Ok";
+      readonly program: ReleaseProgram;
       readonly phase: ReleaseCoveragePhaseV1;
       readonly register: string;
       readonly repo: string | undefined;
@@ -572,6 +574,7 @@ type ParsedCli =
       readonly contractSha: string | undefined;
       readonly familySha: string | undefined;
     }
+  | { readonly _tag: "WrongProgram" }
   | { readonly _tag: "Invalid" };
 
 function invalidResult(
@@ -745,13 +748,15 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
   const program = raw["--program"];
   const phase = raw["--phase"];
   const register = raw["--register"];
-  if (program !== PROGRAM) return { _tag: "Invalid" };
+  if (typeof program !== "string") return { _tag: "Invalid" };
+  if (!isReleaseProgram(program)) return { _tag: "WrongProgram" };
   if (phase !== "bootstrap" && phase !== "lane" && phase !== "release") {
     return { _tag: "Invalid" };
   }
   if (typeof register !== "string" || !isNativeAbsolutePath(register)) {
     return { _tag: "Invalid" };
   }
+  const table = releaseProgramTable(program);
 
   const owner = raw["--owner"];
   const repo = raw["--repo"];
@@ -781,7 +786,7 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
     for (const key of Object.keys(raw)) {
       if (!allowed.has(key)) return { _tag: "Invalid" };
     }
-    if (owner !== TRACK1_OWNER) return { _tag: "Invalid" };
+    if (owner !== table.bootstrapOwner) return { _tag: "Invalid" };
     if (
       repo !== undefined ||
       stateRoot !== undefined ||
@@ -793,7 +798,8 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
     }
     return {
       _tag: "Ok",
-      phase: { _tag: "Bootstrap", owner: TRACK1_OWNER },
+      program,
+      phase: { _tag: "Bootstrap", owner: table.bootstrapOwner },
       register,
       repo: undefined,
       stateRoot: undefined,
@@ -836,6 +842,7 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
     }
     return {
       _tag: "Ok",
+      program,
       phase: { _tag: "Lane", owner },
       register: flags.register,
       repo,
@@ -877,6 +884,7 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
   }
   return {
     _tag: "Ok",
+    program,
     phase: { _tag: "Release" },
     register: flags.register,
     repo,
@@ -969,12 +977,12 @@ function parseRoadmapRows(
     const line = lines[i]!;
     if (line.length === 0) break;
     const match =
-      /^\| `([^`]+)` \| ([^|]+) \| `(v0\.[45])` \| `([^`]+)` \|$/.exec(line);
+      /^\| `([^`]+)` \| ([^|]+) \| `(v0\.[456])` \| `([^`]+)` \|$/.exec(line);
     if (match === null) return null;
     rows.push({
       key: match[1]!,
       scope: match[2]!,
-      release: match[3] as "v0.4" | "v0.5",
+      release: match[3] as "v0.4" | "v0.5" | "v0.6",
       owner: match[4]!,
     });
   }
@@ -1013,8 +1021,16 @@ function resolveContainedPath(
   return absolute;
 }
 
+function trancheSequence(program: ReleaseProgram): readonly number[] {
+  const [min, max] = releaseProgramTable(program).trancheRange;
+  const values: number[] = [];
+  for (let value = min; value <= max; value += 1) values.push(value);
+  return values;
+}
+
 function validateFamilySource(
   source: unknown,
+  program: ReleaseProgram,
 ): source is ReleaseCoverageFamilySourceV1 {
   if (!isPlainObject(source)) return false;
   if (
@@ -1023,10 +1039,14 @@ function validateFamilySource(
     return false;
   }
   if (source["schema"] !== FAMILY_SCHEMA) return false;
-  if (source["program"] !== PROGRAM) return false;
+  if (source["program"] !== program) return false;
   if (source["familyId"] !== FAMILY_ID) return false;
   const children = source["children"];
-  if (!Array.isArray(children) || children.length !== 8) return false;
+  const expectedTranches = trancheSequence(program);
+  const isDefaultProgram = program === RELEASE_PROGRAMS[0];
+  if (!Array.isArray(children)) return false;
+  if (isDefaultProgram && children.length !== expectedTranches.length) return false;
+  if (!isDefaultProgram && children.length < 1) return false;
 
   const childIds = new Set<string>();
   const packageIds = new Set<string>();
@@ -1057,7 +1077,14 @@ function validateFamilySource(
     const acceptance = child["acceptance"];
     const allowedPaths = child["allowedPaths"];
     if (typeof childId !== "string" || !isRunId(childId)) return false;
-    if (tranche !== TRANCHES[i]) return false;
+    if (isDefaultProgram) {
+      if (tranche !== expectedTranches[i]) return false;
+    } else {
+      const [min, max] = releaseProgramTable(program).trancheRange;
+      if (typeof tranche !== "number" || tranche < min || tranche > max) {
+        return false;
+      }
+    }
     if (typeof packageId !== "string" || !isRunId(packageId)) return false;
     if (childIds.has(childId) || packageIds.has(packageId)) return false;
     childIds.add(childId);
@@ -1130,6 +1157,7 @@ function evaluateReleaseCoverage(
     const inspection = inspectReleaseCoverageRegisterV1({
       registerText,
       phase: parsed.phase,
+      program: parsed.program,
     });
     if (inspection._tag === "Invalid") {
       return invalidResult("invalid_register");
@@ -1240,7 +1268,7 @@ function evaluateReleaseCoverage(
       ) {
         return dependencyFailure();
       }
-      if (!validateFamilySource(resolved.source)) {
+      if (!validateFamilySource(resolved.source, parsed.program)) {
         return dependencyFailure();
       }
 
@@ -1288,6 +1316,7 @@ function evaluateReleaseCoverage(
       changedSuperpowersPaths: changed.right,
       expectedBriefByOwner,
       packageBriefBytesByOwner,
+      program: parsed.program,
     });
   }).pipe(
     Effect.catchAll((): Effect.Effect<ReleaseCoverageResultV1, never> =>
@@ -1309,6 +1338,9 @@ export function runReleaseCoverageCli(
     if (parsed._tag === "Invalid") {
       io.writeStderr(USAGE_DIAGNOSTIC);
       return EXIT_USAGE;
+    }
+    if (parsed._tag === "WrongProgram") {
+      return emitEvaluated(io, invalidResult("wrong_program"));
     }
     const result = yield* evaluateReleaseCoverage(parsed, services);
     return emitEvaluated(io, result);

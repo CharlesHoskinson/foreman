@@ -8,7 +8,13 @@ import {
   sha256Hex,
 } from "@foreman/core";
 import { decodeRunId, isUtcSecondTimestamp } from "@foreman/event-log";
-import type { ReleasePackageBriefV1 } from "@foreman/policy";
+import {
+  isReleaseProgram,
+  RELEASE_PROGRAMS,
+  releaseProgramTable,
+  type ReleasePackageBriefV1,
+  type ReleaseProgram,
+} from "@foreman/policy";
 
 export const executionMilestones = [
   "checks",
@@ -309,10 +315,12 @@ export function executionContractSha256(contract: ExecutionContractV1): string {
   return sha256Hex(canonicalize(contract));
 }
 
+export type ExecutionChildTranche = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+
 export type ExecutionChildBriefV1 = {
   readonly schema: "foreman.execution-child-brief.v1";
   readonly childId: string;
-  readonly tranche: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  readonly tranche: ExecutionChildTranche;
   readonly packageId: string;
   readonly dependencyChildIds: readonly string[];
   readonly objective: string;
@@ -322,7 +330,7 @@ export type ExecutionChildBriefV1 = {
 
 export type ExecutionFamilySourceV1 = {
   readonly schema: "foreman.execution-family-source.v1";
-  readonly program: "v040";
+  readonly program: ReleaseProgram;
   readonly familyId: "v040-release-20260822-f1";
   readonly children: readonly ExecutionChildBriefV1[];
 };
@@ -362,7 +370,7 @@ export type ExecutionChildLimitsV2 =
 
 export type ExecutionChildContractV2 = {
   readonly childId: string;
-  readonly tranche: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  readonly tranche: ExecutionChildTranche;
   readonly packageId: string;
   readonly objectiveSha256: string;
   readonly acceptanceSha256: string;
@@ -375,6 +383,7 @@ export type ExecutionChildContractV2 = {
 
 export type ExecutionContractFamilyV2 = {
   readonly schemaVersion: 2;
+  readonly program?: ReleaseProgram;
   readonly familyId: "v040-release-20260822-f1";
   readonly rootContractId: string;
   readonly rootContractSha256: string;
@@ -587,6 +596,24 @@ function hasExactKeysV2(
   return own.length === keys.size && own.every((key) => keys.has(key));
 }
 
+function hasFamilyManifestKeys(value: Record<string, unknown>): boolean {
+  const own = Object.keys(value);
+  for (const key of own) {
+    if (!familyManifestKeys.has(key) && key !== "program") return false;
+  }
+  for (const key of familyManifestKeys) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) return false;
+  }
+  return true;
+}
+
+function resolveFamilyProgram(value: Record<string, unknown>): ReleaseProgram | null {
+  if (!Object.prototype.hasOwnProperty.call(value, "program")) {
+    return RELEASE_PROGRAMS[0]!;
+  }
+  return isReleaseProgram(value.program) ? value.program : null;
+}
+
 function validUnicodeText(value: string): boolean {
   const decoded = decodeUtf8Fatal(textEncoder.encode(value));
   return !isCoreFailure(decoded) && decoded === value;
@@ -668,10 +695,13 @@ function decodeChildBriefV1(
   if (!isPlainRecordV2(value) || !hasExactKeysV2(value, childBriefKeys)) {
     return familyFailure("invalid_children");
   }
+  const [trancheMin, trancheMax] = releaseProgramTable(RELEASE_PROGRAMS[0]!).trancheRange;
   if (
     value.schema !== "foreman.execution-child-brief.v1" ||
     value.childId !== expected.childId ||
     value.tranche !== expected.tranche ||
+    expected.tranche < trancheMin ||
+    expected.tranche > trancheMax ||
     value.packageId !== expected.packageId ||
     !sameStrings(value.dependencyChildIds, expected.dependencyChildIds)
   ) {
@@ -721,7 +751,7 @@ export function decodeExecutionFamilySourceV1(
   }
   if (
     value.schema !== "foreman.execution-family-source.v1" ||
-    value.program !== "v040" ||
+    !isReleaseProgram(value.program) ||
     value.familyId !== FAMILY_ID ||
     !Array.isArray(value.children) ||
     value.children.length !== expectedFamilyChildren.length
@@ -736,7 +766,7 @@ export function decodeExecutionFamilySourceV1(
   }
   return {
     schema: "foreman.execution-family-source.v1",
-    program: "v040",
+    program: value.program,
     familyId: FAMILY_ID,
     children,
   };
@@ -789,7 +819,11 @@ function samePlainValue(left: unknown, right: unknown): boolean {
 export function decodeExecutionContractFamilyV2(
   value: unknown,
 ): ExecutionContractFamilyV2 | ExecutionFamilyFailure {
-  if (!isPlainRecordV2(value) || !hasExactKeysV2(value, familyManifestKeys)) {
+  if (!isPlainRecordV2(value) || !hasFamilyManifestKeys(value)) {
+    return familyFailure("invalid_manifest");
+  }
+  const program = resolveFamilyProgram(value);
+  if (program === null) {
     return familyFailure("invalid_manifest");
   }
   if (
@@ -885,6 +919,9 @@ export function decodeExecutionContractFamilyV2(
   }
   return {
     schemaVersion: 2,
+    ...(Object.prototype.hasOwnProperty.call(value, "program")
+      ? { program }
+      : {}),
     familyId: FAMILY_ID,
     rootContractId: value.rootContractId,
     rootContractSha256: value.rootContractSha256,
@@ -975,6 +1012,9 @@ export function deriveExecutionContractFamilyV2(input: {
     }));
     const manifest: ExecutionContractFamilyV2 = {
       schemaVersion: 2,
+      ...(source.program === RELEASE_PROGRAMS[0]
+        ? {}
+        : { program: source.program }),
       familyId: FAMILY_ID,
       rootContractId: input.rootContractId,
       rootContractSha256: input.rootContractSha256,

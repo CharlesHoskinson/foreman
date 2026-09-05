@@ -199,4 +199,38 @@ describe("release-policy", () => {
     assert.equal(laterCalls, 0);
     assert.equal(stdout.includes("brief_mismatch"), true);
   });
+
+  it("accepts v050 and refuses v041 with wrong_program", async () => {
+    const v050Args = [...block()];
+    v050Args[v050Args.indexOf("v040")] = "v050";
+    const parsed = parseReleasePolicyArgv(v050Args);
+    assert.equal(parsed._tag, "Check");
+    if (parsed._tag === "Check") {
+      assert.equal(parsed.block.program, "v050");
+    }
+
+    const v041Args = [...block()];
+    v041Args[v041Args.indexOf("v040")] = "v041";
+    assert.equal(parseReleasePolicyArgv(v041Args)._tag, "WrongProgram");
+    let stdout = "";
+    const code = await Effect.runPromise(
+      runReleasePolicyCli(
+        v041Args,
+        {
+          writeStdout: (text) => {
+            stdout += text;
+          },
+          writeStderr: () => undefined,
+        },
+        {
+          checkCoverage: () => Effect.die("late"),
+          readEvidence: () => Effect.die("late"),
+          loadGitAuthority: () => Effect.die("late"),
+          resolveFamily: () => Effect.die("late"),
+        },
+      ),
+    );
+    assert.equal(code, 1);
+    assert.equal(stdout.includes("wrong_program"), true);
+  });
 });
