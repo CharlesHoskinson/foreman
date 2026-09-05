@@ -78,14 +78,11 @@ const V050_BASELINE_COMMIT =
 const IMMUTABLE_BASELINE_COMMIT = V040_BASELINE_COMMIT;
 const IRON_RULE_EXTENSIONS = /\.(?:sh|py|ps1|cmd|mjs|cjs)$/;
 const IRON_RULE_PREFIXES = /^(?:packages|skills|env|tools|scripts)\//;
-const IRON_RULE_CREATE =
-  /(?:^|[\s,;:])(?:new|create|Create) `([^`]+)`/;
+const IRON_RULE_CREATE = /(?:new|create|Create) `([^`]+)`/g;
 const MODEL_FACING_VERDICTS = new Set(["APPROVED", "WARNING", "BLOCKED"]);
 const MEASUREMENT_RESULTS = new Set(["PASS", "FAILED", "UNCOMPUTABLE"]);
-const VERDICT_FIELD =
-  /"?verdict"?\s*[:=]\s*"?([A-Za-z_]+)"?/g;
-const MEASUREMENT_FIELD =
-  /"?\b(?:result|measurement|predicate_result|measurement_result)"?\s*[:=]\s*"?([A-Z_]+)"?/g;
+const MD_VOCABULARY_LINE =
+  /^\s*(verdict|measurement_result)\s*[:=]\s*(\S+)\s*$/i;
 const ROADMAP_PATH = "ROADMAP.md";
 const OPENSPEC_PREFIX = "openspec/changes/";
 const CHANGE_PREFIX = "change:";
@@ -217,6 +214,13 @@ type RegisterEntry = {
   readonly targetRelease: "v0.4" | "v0.5" | "v0.6" | "v0.2.9" | "released";
   readonly reconcile: "complete" | "required" | "not_required";
   readonly reason: string;
+  readonly startLine: number;
+  readonly endLine: number;
+};
+
+export type ReleaseCoverageEvidenceArtifactV1 = {
+  readonly path: string;
+  readonly text: string;
 };
 
 type ParsedRegister = {
@@ -518,9 +522,6 @@ function parseRegister(
   if (hasControlExcludingLf(text)) return "invalid_register";
 
   const lines = text.split("\n");
-  if (lines.length > 0 && lines[lines.length - 1] === "") {
-    lines.pop();
-  }
 
   const top: Record<string, string | number> = {};
   const futureOwners: FutureOwner[] = [];
@@ -528,6 +529,8 @@ function parseRegister(
   let mode: "top" | "future_owner" | "entry" = "top";
   let current: Record<string, string | number> | null = null;
   let sawTable = false;
+  let entryStartLine = -1;
+  let pendingEndLine = lines.length;
 
   const flushCurrent = (): boolean => {
     if (mode === "top" || current === null) return true;
@@ -613,15 +616,20 @@ function parseRegister(
       targetRelease: targetRelease as RegisterEntry["targetRelease"],
       reconcile: reconcile as RegisterEntry["reconcile"],
       reason,
+      startLine: entryStartLine,
+      endLine: pendingEndLine,
     });
     current = null;
     return true;
   };
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
     if (line.length === 0) continue;
     if (line.startsWith("[[") && line.endsWith("]]")) {
+      pendingEndLine = i;
       if (!flushCurrent()) return "invalid_register";
+      pendingEndLine = lines.length;
       const name = line.slice(2, -2);
       if (name === "future_owner") {
         mode = "future_owner";
@@ -633,6 +641,7 @@ function parseRegister(
         mode = "entry";
         current = {};
         sawTable = true;
+        entryStartLine = i;
         continue;
       }
       return "invalid_register";
@@ -873,6 +882,7 @@ function validateCollectionShapes(
     readonly tasksMarkdownByOwner?: Readonly<Record<string, string>>;
     readonly baselineRegisterText?: string;
     readonly evidenceTexts?: readonly string[];
+    readonly evidenceArtifacts?: readonly ReleaseCoverageEvidenceArtifactV1[];
   },
   program: ReleaseProgram,
 ): boolean {
@@ -917,6 +927,17 @@ function validateCollectionShapes(
   ) {
     return false;
   }
+  if (input.evidenceArtifacts !== undefined) {
+    if (!Array.isArray(input.evidenceArtifacts)) return false;
+    for (const item of input.evidenceArtifacts) {
+      if (!isPlainObject(item as unknown as Record<string, unknown>)) {
+        return false;
+      }
+      if (typeof item.path !== "string" || typeof item.text !== "string") {
+        return false;
+      }
+    }
+  }
   return true;
 }
 
@@ -937,31 +958,12 @@ function packageNameFromChangeKey(key: string): string | null {
   return name.length > 0 ? name : null;
 }
 
-function extractEntryBlock(registerText: string, key: string): string | null {
-  const lines = registerText.split("\n");
-  let blockStart = -1;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!;
-    if (line === "[[entry]]") {
-      blockStart = i;
-      continue;
-    }
-    if (blockStart < 0) continue;
-    if (line.startsWith("[[")) {
-      blockStart = -1;
-      continue;
-    }
-    if (line !== `key = "${key}"`) continue;
-    let end = lines.length;
-    for (let j = i + 1; j < lines.length; j++) {
-      if (lines[j]!.startsWith("[[")) {
-        end = j;
-        break;
-      }
-    }
-    return lines.slice(blockStart, end).join("\n");
-  }
-  return null;
+function entryOriginalSpan(
+  registerText: string,
+  startLine: number,
+  endLine: number,
+): string {
+  return registerText.split("\n").slice(startLine, endLine).join("\n");
 }
 
 function pathIsUnderPackageDirectory(path: string, packageName: string): boolean {
@@ -974,34 +976,107 @@ function ironRuleViolation(markdown: string): boolean {
   for (const line of lines) {
     if (!/^\s*- \[ \] /.test(line)) continue;
     if (line.includes("thin adapter")) continue;
-    const match = IRON_RULE_CREATE.exec(line);
-    if (match === null) continue;
-    const target = match[1]!;
-    if (IRON_RULE_PREFIXES.test(target) && IRON_RULE_EXTENSIONS.test(target)) {
-      return true;
+    const matcher = new RegExp(IRON_RULE_CREATE.source, "g");
+    let match = matcher.exec(line);
+    while (match !== null) {
+      const target = match[1]!;
+      if (IRON_RULE_PREFIXES.test(target) && IRON_RULE_EXTENSIONS.test(target)) {
+        return true;
+      }
+      match = matcher.exec(line);
     }
   }
   return false;
 }
 
 function hasAllowedFileScope(markdown: string): boolean {
-  return /^##[ \t]+Allowed file scope[ \t]*$/m.test(markdown);
-}
-
-function vocabularyMixed(text: string): boolean {
-  VERDICT_FIELD.lastIndex = 0;
-  let match = VERDICT_FIELD.exec(text);
-  while (match !== null) {
-    if (!MODEL_FACING_VERDICTS.has(match[1]!)) return true;
-    match = VERDICT_FIELD.exec(text);
+  const lines = markdown.split("\n");
+  let headingIndex = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^##[ \t]+Allowed file scope[ \t]*$/.test(lines[i]!)) {
+      headingIndex = i;
+      break;
+    }
   }
-  MEASUREMENT_FIELD.lastIndex = 0;
-  match = MEASUREMENT_FIELD.exec(text);
-  while (match !== null) {
-    if (!MEASUREMENT_RESULTS.has(match[1]!)) return true;
-    match = MEASUREMENT_FIELD.exec(text);
+  if (headingIndex < 0) return false;
+  for (let i = headingIndex + 1; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (/^##[ \t]+/.test(line)) break;
+    if (line.trim().length > 0) return true;
   }
   return false;
+}
+
+function jsonVocabularyMixed(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (jsonVocabularyMixed(item)) return true;
+    }
+    return false;
+  }
+  if (value === null || typeof value !== "object") return false;
+  for (const [key, child] of Object.entries(value)) {
+    if (key === "verdict") {
+      if (typeof child !== "string" || !MODEL_FACING_VERDICTS.has(child)) {
+        return true;
+      }
+      continue;
+    }
+    if (key === "measurement_result") {
+      if (typeof child !== "string" || !MEASUREMENT_RESULTS.has(child)) {
+        return true;
+      }
+      continue;
+    }
+    if (jsonVocabularyMixed(child)) return true;
+  }
+  return false;
+}
+
+function markdownVocabularyMixed(text: string): boolean {
+  for (const line of text.split("\n")) {
+    const match = MD_VOCABULARY_LINE.exec(line);
+    if (match === null) continue;
+    const field = match[1]!.toLowerCase();
+    const captured = match[2]!;
+    if (field === "verdict") {
+      if (!MODEL_FACING_VERDICTS.has(captured)) return true;
+    } else if (!MEASUREMENT_RESULTS.has(captured)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function evidencePathKind(path: string): "json" | "md" {
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".json")) return "json";
+  return "md";
+}
+
+function inspectEvidenceArtifact(
+  path: string,
+  text: string,
+): "ok" | "vocabulary_mixed" | "dependency_failure" {
+  if (evidencePathKind(path) === "json") {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text) as unknown;
+    } catch {
+      return "dependency_failure";
+    }
+    return jsonVocabularyMixed(parsed) ? "vocabulary_mixed" : "ok";
+  }
+  return markdownVocabularyMixed(text) ? "vocabulary_mixed" : "ok";
+}
+
+function inspectEvidenceText(text: string): "ok" | "vocabulary_mixed" {
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    return jsonVocabularyMixed(parsed) ? "vocabulary_mixed" : "ok";
+  } catch {
+    return markdownVocabularyMixed(text) ? "vocabulary_mixed" : "ok";
+  }
 }
 
 function registerCrossFieldViolation(
@@ -1031,7 +1106,10 @@ function registerCrossFieldViolation(
   return false;
 }
 
-function v050OwnerPackageNames(entries: readonly RegisterEntry[], program: ReleaseProgram): string[] {
+function collectV050OwnerPackageNames(
+  entries: readonly RegisterEntry[],
+  program: ReleaseProgram,
+): string[] {
   const ownerDisp = ownerDisposition(program);
   const names: string[] = [];
   const seen = new Set<string>();
@@ -1044,6 +1122,15 @@ function v050OwnerPackageNames(entries: readonly RegisterEntry[], program: Relea
     names.push(name);
   }
   return names;
+}
+
+export function v050OwnerPackageNames(
+  registerText: string,
+  program: ReleaseProgram,
+): readonly string[] {
+  const parsed = parseRegister(registerText, program);
+  if (parsed === "invalid_register") return [];
+  return collectV050OwnerPackageNames(parsed.entries, program);
 }
 
 /**
@@ -1098,6 +1185,7 @@ export type ReleaseCoverageRegisterInspectionV1 =
       readonly _tag: "Valid";
       readonly baselineCommit: string;
       readonly selectedOwners: readonly string[];
+      readonly v050OwnerPackageNames: readonly string[];
     }
   | {
       readonly _tag: "Invalid";
@@ -1127,6 +1215,9 @@ export function inspectReleaseCoverageRegisterV1(input: {
     _tag: "Valid",
     baselineCommit: parsed.baselineCommit,
     selectedOwners: [...selection.owners].sort(compareUtf8Bytes),
+    v050OwnerPackageNames: isV050(program)
+      ? collectV050OwnerPackageNames(parsed.entries, program)
+      : [],
   };
 }
 
@@ -1144,6 +1235,7 @@ export function validateReleaseCoverageV1(input: {
   readonly tasksMarkdownByOwner?: Readonly<Record<string, string>>;
   readonly baselineRegisterText?: string;
   readonly evidenceTexts?: readonly string[];
+  readonly evidenceArtifacts?: readonly ReleaseCoverageEvidenceArtifactV1[];
 }): ReleaseCoverageResultV1 {
   try {
     const program = resolveCoverageProgram(input.program);
@@ -1245,14 +1337,14 @@ export function validateReleaseCoverageV1(input: {
       if (row.release !== entry.targetRelease) return invalid("roadmap_mismatch");
     }
 
+    if (isV050(program) && registerCrossFieldViolation(parsed.entries, program)) {
+      return invalid("register_cross_field");
+    }
+
     for (const entry of parsed.entries) {
       if (!uniqueActive.has(entry.owner) && !futureNames.has(entry.owner)) {
         return invalid("unknown_owner");
       }
-    }
-
-    if (isV050(program) && registerCrossFieldViolation(parsed.entries, program)) {
-      return invalid("register_cross_field");
     }
 
     for (const path of input.changedSuperpowersPaths) {
@@ -1265,6 +1357,16 @@ export function validateReleaseCoverageV1(input: {
     ) {
       const futureDisp = futureDisposition(program);
       const baselineText = input.baselineRegisterText;
+      let baselineByKey: Map<string, RegisterEntry> | null = null;
+      if (typeof baselineText === "string") {
+        const baselineParsed = parseRegister(baselineText, program);
+        if (baselineParsed === "invalid_register") {
+          return invalid("dependency_failure");
+        }
+        baselineByKey = new Map(
+          baselineParsed.entries.map((item) => [item.key, item]),
+        );
+      }
       for (const entry of parsed.entries) {
         if (entry.sourceKind !== "openspec_change") continue;
         if (entry.disposition !== futureDisp) continue;
@@ -1274,12 +1376,20 @@ export function validateReleaseCoverageV1(input: {
           pathIsUnderPackageDirectory(path, name),
         );
         if (!directoryChanged) continue;
-        const currentBlock = extractEntryBlock(input.registerText, entry.key);
-        const baselineBlock =
-          typeof baselineText === "string"
-            ? extractEntryBlock(baselineText, entry.key)
-            : null;
-        if (currentBlock !== null && currentBlock === baselineBlock) {
+        if (baselineByKey === null) continue;
+        const baselineEntry = baselineByKey.get(entry.key);
+        if (baselineEntry === undefined) continue;
+        const currentSpan = entryOriginalSpan(
+          input.registerText,
+          entry.startLine,
+          entry.endLine,
+        );
+        const baselineSpan = entryOriginalSpan(
+          baselineText!,
+          baselineEntry.startLine,
+          baselineEntry.endLine,
+        );
+        if (currentSpan === baselineSpan) {
           return invalid("deferred_package_changed");
         }
       }
@@ -1344,7 +1454,7 @@ export function validateReleaseCoverageV1(input: {
         if (ironRuleViolation(markdown)) {
           return invalid("iron_rule_violation");
         }
-        if (markdown.length > 0 && !hasAllowedFileScope(markdown)) {
+        if (!hasAllowedFileScope(markdown)) {
           return invalid("workflow_mismatch");
         }
       }
@@ -1359,12 +1469,7 @@ export function validateReleaseCoverageV1(input: {
     }
 
     if (isV050(program) && input.phase._tag === "Bootstrap") {
-      for (const name of v050OwnerPackageNames(parsed.entries, program)) {
-        if (
-          !Object.prototype.hasOwnProperty.call(input.workflowByChange, name)
-        ) {
-          continue;
-        }
+      for (const name of collectV050OwnerPackageNames(parsed.entries, program)) {
         const workflow = input.workflowByChange[name];
         if (typeof workflow !== "string" || !ALLOWED_WORKFLOWS.has(workflow)) {
           return invalid("workflow_mismatch");
@@ -1373,8 +1478,17 @@ export function validateReleaseCoverageV1(input: {
     }
 
     if (isV050(program) && input.phase._tag === "Release") {
-      for (const text of input.evidenceTexts ?? []) {
-        if (vocabularyMixed(text)) return invalid("vocabulary_mixed");
+      if (input.evidenceArtifacts !== undefined) {
+        for (const artifact of input.evidenceArtifacts) {
+          const inspected = inspectEvidenceArtifact(artifact.path, artifact.text);
+          if (inspected !== "ok") return invalid(inspected);
+        }
+      } else {
+        for (const text of input.evidenceTexts ?? []) {
+          if (inspectEvidenceText(text) === "vocabulary_mixed") {
+            return invalid("vocabulary_mixed");
+          }
+        }
       }
     }
 

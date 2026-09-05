@@ -4,6 +4,7 @@ import {
   fstatSync,
   lstatSync,
   openSync,
+  readdirSync,
   readSync,
   realpathSync,
   type Stats,
@@ -55,7 +56,7 @@ const FAMILY_SCHEMA = "foreman.execution-family-source.v1" as const;
 const CHILD_SCHEMA = "foreman.execution-child-brief.v1" as const;
 const BRIEF_SCHEMA = "foreman.release-package-brief.v1" as const;
 const OPENSPEC_CHANGES_PREFIX = "openspec/changes";
-const EVIDENCE_FILE = "evidence";
+const EVIDENCE_FILE_LIMIT = 512;
 const ROADMAP_HEADER = "| Coverage key | Scope | Release | Owner |";
 const ROADMAP_SEPARATOR = "|---|---|---|---|";
 const OPENSPEC_LIST_ARGV = ["list", "--json"] as const;
@@ -71,6 +72,12 @@ export type ReleaseCoverageCliIo = {
   readonly writeStderr: (text: string) => void;
 };
 
+export type ReleaseCoveragePathClass =
+  | { readonly _tag: "File" }
+  | { readonly _tag: "Directory" }
+  | { readonly _tag: "NotFound" }
+  | { readonly _tag: "Other" };
+
 export type ReleaseCoverageFileReadService = {
   readonly resolveRepositoryRoot: (
     path?: string,
@@ -80,6 +87,14 @@ export type ReleaseCoverageFileReadService = {
     readonly maxBytes: number;
     readonly containmentRoot?: string;
   }) => Effect.Effect<Uint8Array, unknown>;
+  readonly classifyPath: (input: {
+    readonly path: string;
+    readonly containmentRoot?: string;
+  }) => Effect.Effect<ReleaseCoveragePathClass, unknown>;
+  readonly listDirectory: (input: {
+    readonly path: string;
+    readonly containmentRoot?: string;
+  }) => Effect.Effect<readonly string[], unknown>;
 };
 
 export type ReleaseCoverageOpenSpecListService = {
@@ -412,6 +427,16 @@ export function makeLiveReleaseCoverageCliServices(
             ),
           catch: (error) => error,
         }),
+      classifyPath: (input) =>
+        Effect.try({
+          try: () => classifyPathLive(input.path, input.containmentRoot),
+          catch: (error) => error,
+        }),
+      listDirectory: (input) =>
+        Effect.try({
+          try: () => listDirectoryLive(input.path, input.containmentRoot),
+          catch: (error) => error,
+        }),
     },
     openspecList: {
       listJson: (input) =>
@@ -602,6 +627,7 @@ type ParsedFlags = {
   readonly contractId: string | undefined;
   readonly contractSha: string | undefined;
   readonly familySha: string | undefined;
+  readonly evidence: string | undefined;
 };
 
 type ParsedCli =
@@ -615,6 +641,7 @@ type ParsedCli =
       readonly contractId: string | undefined;
       readonly contractSha: string | undefined;
       readonly familySha: string | undefined;
+      readonly evidence: string | undefined;
     }
   | { readonly _tag: "WrongProgram" }
   | { readonly _tag: "Invalid" };
@@ -806,6 +833,7 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
   const contractId = raw["--contract-id"];
   const contractSha = raw["--contract-sha"];
   const familySha = raw["--family-sha"];
+  const evidence = raw["--evidence"];
 
   const flags: ParsedFlags = {
     phase,
@@ -816,6 +844,7 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
     contractId,
     contractSha,
     familySha,
+    evidence,
   };
 
   if (phase === "bootstrap") {
@@ -848,6 +877,7 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
       contractId: undefined,
       contractSha: undefined,
       familySha: undefined,
+      evidence: undefined,
     };
   }
 
@@ -892,9 +922,11 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
       contractId,
       contractSha,
       familySha,
+      evidence: undefined,
     };
   }
 
+  const isV050 = program !== RELEASE_PROGRAMS[0];
   const allowed = new Set([
     "--program",
     "--phase",
@@ -904,6 +936,7 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
     "--contract-sha",
     "--family-sha",
     "--register",
+    ...(isV050 ? ["--evidence"] : []),
   ]);
   for (const key of Object.keys(raw)) {
     if (!allowed.has(key)) return { _tag: "Invalid" };
@@ -924,6 +957,13 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
   if (typeof familySha !== "string" || !isSha256Hex(familySha)) {
     return { _tag: "Invalid" };
   }
+  if (isV050) {
+    if (typeof evidence !== "string" || !isNativeAbsolutePath(evidence)) {
+      return { _tag: "Invalid" };
+    }
+  } else if (evidence !== undefined) {
+    return { _tag: "Invalid" };
+  }
   return {
     _tag: "Ok",
     program,
@@ -934,6 +974,7 @@ function parseArgv(argv: ReadonlyArray<string>): ParsedCli {
     contractId,
     contractSha,
     familySha,
+    evidence: isV050 ? evidence : undefined,
   };
 }
 
@@ -1043,6 +1084,23 @@ function extractWorkflowSchema(text: string): string | null {
     found = match[1]!;
   }
   return found;
+}
+
+function repositoryRelativePosixPath(
+  repository: string,
+  absoluteFile: string,
+): string | null {
+  const rel = relative(repository, absoluteFile);
+  if (rel.length === 0) return null;
+  if (isAbsolute(rel)) return null;
+  if (rel === "..") return null;
+  if (rel.startsWith(`..${sep}`)) return null;
+  return rel.split(sep).join("/");
+}
+
+function evidenceFileNameIsIncluded(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.endsWith(".json") || lower.endsWith(".md");
 }
 
 function resolveContainedPath(
@@ -1264,8 +1322,12 @@ function evaluateReleaseCoverage(
     ).pipe(Effect.either);
     if (changed._tag === "Left") return dependencyFailure();
 
+    const workflowOwners =
+      parsed.program !== RELEASE_PROGRAMS[0] && parsed.phase._tag === "Bootstrap"
+        ? inspection.v050OwnerPackageNames
+        : inspection.selectedOwners;
     const workflowByChange: Record<string, string | null> = {};
-    for (const owner of inspection.selectedOwners) {
+    for (const owner of workflowOwners) {
       const workflowPath = resolveContainedPath(repository, [
         "openspec",
         "changes",
@@ -1385,33 +1447,95 @@ function evaluateReleaseCoverage(
       parsed.program !== RELEASE_PROGRAMS[0] &&
       (parsed.phase._tag === "Bootstrap" || parsed.phase._tag === "Release")
     ) {
+      const relativeRegister = repositoryRelativePosixPath(
+        repository,
+        parsed.register,
+      );
+      if (relativeRegister === null) return dependencyFailure();
       const baselineBytes = yield* callPort(() =>
         services.gitChangedPaths.readAtCommit({
           repository,
           commit: inspection.baselineCommit,
-          path: releaseProgramTable(parsed.program).registerPath,
+          path: relativeRegister,
         }),
       ).pipe(Effect.either);
-      if (baselineBytes._tag === "Right") {
-        const baselineText = decodeUtf8Fatal(baselineBytes.right);
-        if (baselineText !== null) baselineRegisterText = baselineText;
-      }
+      if (baselineBytes._tag === "Left") return dependencyFailure();
+      const baselineText = decodeUtf8Fatal(baselineBytes.right);
+      if (baselineText === null) return dependencyFailure();
+      baselineRegisterText = baselineText;
     }
 
-    const evidenceTexts: string[] = [];
+    const evidenceArtifacts: Array<{ path: string; text: string }> = [];
     if (parsed.program !== RELEASE_PROGRAMS[0] && parsed.phase._tag === "Release") {
-      const evidencePath = resolve(parsed.stateRoot!, EVIDENCE_FILE);
-      if (isNativeAbsolutePath(evidencePath)) {
+      const evidencePath = parsed.evidence;
+      const evidenceRoot = parsed.stateRoot;
+      if (typeof evidencePath !== "string" || !isNativeAbsolutePath(evidencePath)) {
+        return dependencyFailure();
+      }
+      if (typeof evidenceRoot !== "string") return dependencyFailure();
+      const classified = yield* callPort(() =>
+        services.fileRead.classifyPath({
+          path: evidencePath,
+          containmentRoot: evidenceRoot,
+        }),
+      ).pipe(Effect.either);
+      if (classified._tag === "Left") return dependencyFailure();
+      const kind = classified.right;
+      if (kind._tag === "NotFound" || kind._tag === "Other") {
+        return dependencyFailure();
+      }
+      const collected: string[] = [];
+      if (kind._tag === "File") {
+        collected.push(evidencePath);
+      } else {
+        const pending: string[] = [evidencePath];
+        while (pending.length > 0) {
+          const directory = pending.pop()!;
+          const listed = yield* callPort(() =>
+            services.fileRead.listDirectory({
+              path: directory,
+              containmentRoot: evidenceRoot,
+            }),
+          ).pipe(Effect.either);
+          if (listed._tag === "Left") return dependencyFailure();
+          const names = [...listed.right].sort(compareUtf8Bytes);
+          for (const name of names) {
+            if (name.includes("/") || name.includes("\\") || name.includes("\0")) {
+              return dependencyFailure();
+            }
+            if (name === "." || name === "..") continue;
+            const child = join(directory, name);
+            const childKind = yield* callPort(() =>
+              services.fileRead.classifyPath({
+                path: child,
+                containmentRoot: evidenceRoot,
+              }),
+            ).pipe(Effect.either);
+            if (childKind._tag === "Left") return dependencyFailure();
+            if (childKind.right._tag === "Directory") {
+              pending.push(child);
+              continue;
+            }
+            if (childKind.right._tag !== "File") continue;
+            if (!evidenceFileNameIsIncluded(name)) continue;
+            collected.push(child);
+            if (collected.length > EVIDENCE_FILE_LIMIT) {
+              return dependencyFailure();
+            }
+          }
+        }
+        collected.sort(compareUtf8Bytes);
+      }
+      for (const filePath of collected) {
         const evidenceRead = yield* readBoundedPort(
           services.fileRead,
-          evidencePath,
-          parsed.stateRoot,
+          filePath,
+          evidenceRoot,
         );
-        if (evidenceRead._tag === "Fail") return dependencyFailure();
-        if (evidenceRead._tag === "Ok") {
-          const evidenceText = decodeUtf8Fatal(evidenceRead.bytes);
-          if (evidenceText !== null) evidenceTexts.push(evidenceText);
-        }
+        if (evidenceRead._tag !== "Ok") return dependencyFailure();
+        const evidenceText = decodeUtf8Fatal(evidenceRead.bytes);
+        if (evidenceText === null) return dependencyFailure();
+        evidenceArtifacts.push({ path: filePath, text: evidenceText });
       }
     }
 
@@ -1430,7 +1554,7 @@ function evaluateReleaseCoverage(
         ? { tasksMarkdownByOwner }
         : {}),
       ...(baselineRegisterText !== undefined ? { baselineRegisterText } : {}),
-      ...(evidenceTexts.length > 0 ? { evidenceTexts } : {}),
+      ...(evidenceArtifacts.length > 0 ? { evidenceArtifacts } : {}),
     });
   }).pipe(
     Effect.catchAll((): Effect.Effect<ReleaseCoverageResultV1, never> =>
@@ -1644,6 +1768,57 @@ function readBoundedBytesLive(
       }
     }
   }
+}
+
+function classifyPathLive(
+  path: string,
+  containmentRoot?: string,
+): ReleaseCoveragePathClass {
+  if (containmentRoot !== undefined) {
+    try {
+      validateContainmentLive(path, containmentRoot);
+    } catch (error) {
+      if (isNotFoundError(error)) return { _tag: "NotFound" };
+      throw error;
+    }
+  }
+  let stats: Stats;
+  try {
+    stats = lstatSync(path);
+  } catch (error) {
+    if (isEnoentLive(error)) return { _tag: "NotFound" };
+    throw error;
+  }
+  if (stats.isSymbolicLink()) return { _tag: "Other" };
+  if (stats.isFile()) return { _tag: "File" };
+  if (stats.isDirectory()) return { _tag: "Directory" };
+  return { _tag: "Other" };
+}
+
+function listDirectoryLive(
+  path: string,
+  containmentRoot?: string,
+): readonly string[] {
+  if (containmentRoot !== undefined) {
+    validateContainmentLive(path, containmentRoot);
+  }
+  let stats: Stats;
+  try {
+    stats = lstatSync(path);
+  } catch (error) {
+    if (isEnoentLive(error)) readFailureLive("NotFound", "directory not found");
+    throw error;
+  }
+  if (stats.isSymbolicLink()) readFailureLive("Symlink", "directory is a symlink");
+  if (!stats.isDirectory()) {
+    readFailureLive("NotFile", "path is not a directory");
+  }
+  const names: string[] = [];
+  for (const entry of readdirSync(path, { withFileTypes: true })) {
+    if (entry.isSymbolicLink()) continue;
+    names.push(entry.name);
+  }
+  return names;
 }
 
 function isWindowsSafeAbsolutePath(

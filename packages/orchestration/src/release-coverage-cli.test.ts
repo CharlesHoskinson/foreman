@@ -529,6 +529,15 @@ function sealV050Register(input: {
   return `${text}\n`;
 }
 
+const V050_REGISTER = join(
+  REPO,
+  "openspec",
+  "changes",
+  V050_OWNER,
+  "coverage.toml",
+);
+const EVIDENCE_ABS = join(STATE_ROOT, "evidence.json");
+
 const V050_BOOTSTRAP_ARGV = processArgv([
   "check",
   "--program",
@@ -538,7 +547,7 @@ const V050_BOOTSTRAP_ARGV = processArgv([
   "--owner",
   V050_OWNER,
   "--register",
-  REGISTER,
+  V050_REGISTER,
 ]);
 
 const V050_LANE_ARGV = processArgv([
@@ -560,7 +569,7 @@ const V050_LANE_ARGV = processArgv([
   "--family-sha",
   FAMILY_SHA,
   "--register",
-  REGISTER,
+  V050_REGISTER,
 ]);
 
 const V050_RELEASE_ARGV = processArgv([
@@ -580,7 +589,9 @@ const V050_RELEASE_ARGV = processArgv([
   "--family-sha",
   FAMILY_SHA,
   "--register",
-  REGISTER,
+  V050_REGISTER,
+  "--evidence",
+  EVIDENCE_ABS,
 ]);
 
 const V050_CHILD = {
@@ -628,6 +639,11 @@ type CallLog = {
     path: string;
     maxBytes: number;
     containmentRoot?: string | undefined;
+  }>;
+  readonly gitShows: Array<{
+    repository: string;
+    commit: string;
+    path: string;
   }>;
   repositoryRootResolves: number;
 };
@@ -694,7 +710,12 @@ type HarnessOptions = {
   readonly releaseTrack1Settled?: boolean;
   readonly tasksMarkdownByOwner?: Readonly<Record<string, string>>;
   readonly evidenceText?: string;
+  readonly evidenceFiles?: Readonly<Record<string, string>>;
   readonly baselineRegisterText?: string;
+  readonly baselineError?: Error;
+  readonly baselineThrow?: boolean;
+  readonly registerAbs?: string;
+  readonly fileNotFoundPaths?: ReadonlySet<string>;
 };
 
 function cloneBytes(map: Map<string, Uint8Array>): ByteSnapshot {
@@ -819,6 +840,7 @@ function emptyLog(): CallLog {
     git: [],
     family: [],
     fileReads: [],
+    gitShows: [],
     repositoryRootResolves: 0,
   };
 }
@@ -869,13 +891,24 @@ function makeServices(
     source: FAMILY_SOURCE,
   };
 
+  const v050RegisterAbs = join(
+    REPO,
+    "openspec",
+    "changes",
+    V050_OWNER,
+    "coverage.toml",
+  );
   const files = new Map<string, Uint8Array>([
     [REGISTER, utf8(registerText)],
+    [v050RegisterAbs, utf8(registerText)],
     [ROADMAP_ABS, roadmapBytes],
     [TRACK1_WORKFLOW_ABS, utf8(`schema: ${workflowByOwner[TRACK1]}\n`)],
     [PACKAGE_WORKFLOW_ABS, utf8(`schema: ${workflowByOwner[PACKAGE]}\n`)],
     ...briefBytesByAbsPath.entries(),
   ]);
+  if (options.registerAbs !== undefined) {
+    files.set(options.registerAbs, utf8(registerText));
+  }
   for (const [owner, schema] of Object.entries(workflowByOwner)) {
     files.set(
       join(REPO, "openspec", "changes", owner, ".openspec.yaml"),
@@ -891,7 +924,10 @@ function makeServices(
     );
   }
   if (options.evidenceText !== undefined) {
-    files.set(join(STATE_ROOT, "evidence"), utf8(options.evidenceText));
+    files.set(EVIDENCE_ABS, utf8(options.evidenceText));
+  }
+  for (const [path, text] of Object.entries(options.evidenceFiles ?? {})) {
+    files.set(path, utf8(text));
   }
 
   // Durable byte image of repository + state material the CLI may touch.
@@ -902,6 +938,22 @@ function makeServices(
   capture.snapshotBefore = cloneBytes(capture.repoStateBytes);
 
   const fileErrors = options.fileErrorByPath ?? new Map<string, Error>();
+  const notFoundPaths = options.fileNotFoundPaths ?? new Set<string>();
+
+  const isNotFoundPath = (path: string): boolean =>
+    options.fileNotFoundPath === path || notFoundPaths.has(path);
+
+  const classifyMockPath = (
+    path: string,
+  ): { readonly _tag: "File" | "Directory" | "NotFound" | "Other" } => {
+    if (isNotFoundPath(path)) return { _tag: "NotFound" };
+    if (capture.repoStateBytes.has(path)) return { _tag: "File" };
+    const prefix = path.endsWith(sep) ? path : `${path}${sep}`;
+    for (const key of capture.repoStateBytes.keys()) {
+      if (key.startsWith(prefix)) return { _tag: "Directory" };
+    }
+    return { _tag: "NotFound" };
+  };
 
   const fileRead: ReleaseCoverageFileReadService = {
     resolveRepositoryRoot: () => {
@@ -924,7 +976,7 @@ function makeServices(
       if (options.fileThrowPath === input.path) {
         throw new Error(`ENOENT: ${SECRET}/${input.path}`);
       }
-      if (options.fileNotFoundPath === input.path) {
+      if (isNotFoundPath(input.path)) {
         return Effect.fail({ _tag: "NotFound" as const });
       }
       const mapped = fileErrors.get(input.path);
@@ -937,6 +989,18 @@ function makeServices(
         return Effect.fail(new Error("oversize"));
       }
       return Effect.succeed(Uint8Array.from(bytes));
+    },
+    classifyPath: (input) => Effect.succeed(classifyMockPath(input.path)),
+    listDirectory: (input) => {
+      const prefix = input.path.endsWith(sep) ? input.path : `${input.path}${sep}`;
+      const names = new Set<string>();
+      for (const key of capture.repoStateBytes.keys()) {
+        if (!key.startsWith(prefix)) continue;
+        const rest = key.slice(prefix.length);
+        const name = rest.split(sep)[0];
+        if (name !== undefined && name.length > 0) names.add(name);
+      }
+      return Effect.succeed([...names]);
     },
   };
 
@@ -971,11 +1035,20 @@ function makeServices(
       if (options.gitError) return Effect.fail(options.gitError);
       return Effect.succeed(options.changedPaths ?? []);
     },
-    readAtCommit: () => {
+    readAtCommit: (input) => {
+      capture.log.gitShows.push({
+        repository: input.repository,
+        commit: input.commit,
+        path: input.path,
+      });
+      if (options.baselineThrow) {
+        throw new Error(`git show boom at ${SECRET}/show`);
+      }
+      if (options.baselineError) return Effect.fail(options.baselineError);
       if (options.baselineRegisterText !== undefined) {
         return Effect.succeed(utf8(options.baselineRegisterText));
       }
-      return Effect.fail({ _tag: "GitShowUnavailable" as const });
+      return Effect.succeed(utf8(registerText));
     },
   };
 
@@ -1036,6 +1109,7 @@ function assertUsageFailure(capture: Capture, log: CallLog): void {
   assert.equal(capture.stderr, USAGE_DIAGNOSTIC);
   assert.deepEqual(log.openspec, []);
   assert.deepEqual(log.git, []);
+  assert.deepEqual(log.gitShows, []);
   assert.deepEqual(log.family, []);
   assert.deepEqual(log.fileReads, []);
   assert.equal(log.repositoryRootResolves, 0);
@@ -2504,6 +2578,284 @@ test("every ReleaseCoverageFailureReason value prints one canonical JSON line", 
   }
 });
 
+test("v050 bootstrap loads every v050_owner workflow file", async () => {
+  const second = "lane-runtime-typescript";
+  const secondWorkflow = join(
+    REPO,
+    "openspec",
+    "changes",
+    second,
+    ".openspec.yaml",
+  );
+  const roadmapBytes = v050RoadmapBytes();
+  const extraEntry = [
+    ``,
+    `[[entry]]`,
+    `key = "change:${second}"`,
+    `source_kind = "openspec_change"`,
+    `source_path = "openspec/changes/${second}"`,
+    `disposition = "v050_owner"`,
+    `owner = "${second}"`,
+    `target_release = "v0.5"`,
+    `reconcile = "complete"`,
+    `reason = "runtime"`,
+  ].join("\n");
+  const registerText = sealV050Register({
+    activeNames: [V050_OWNER, second],
+    roadmapBytes,
+    extraEntry,
+  });
+  const missing = await runCli(V050_BOOTSTRAP_ARGV, {
+    roadmapBytes,
+    activeNames: [V050_OWNER, second],
+    registerText,
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    fileNotFoundPath: secondWorkflow,
+  });
+  assert.equal(missing.exitCode, EXIT_EVALUATED);
+  assertCanonicalResult(missing.capture, invalidResult("workflow_mismatch"));
+
+  const present = await runCli(V050_BOOTSTRAP_ARGV, {
+    roadmapBytes,
+    activeNames: [V050_OWNER, second],
+    registerText,
+    workflowByOwner: {
+      [V050_OWNER]: "foreman-architectural",
+      [second]: "foreman-architectural",
+    },
+  });
+  assert.equal(present.exitCode, EXIT_OK);
+  assertCanonicalResult(
+    present.capture,
+    validResult([V050_OWNER, second], roadmapBytes, 3),
+  );
+});
+
+test("v050 deferred_package_changed locates compact key spelling", async () => {
+  const roadmapBytes = v050RoadmapBytes();
+  const extraEntry = [
+    ``,
+    `[[entry]]`,
+    `key="change:${V050_DEFERRED}"`,
+    `source_kind = "openspec_change"`,
+    `source_path = "openspec/changes/${V050_DEFERRED}"`,
+    `disposition = "v060"`,
+    `owner = "${V050_OWNER}"`,
+    `target_release = "v0.6"`,
+    `reconcile = "not_required"`,
+    `reason = "deferred"`,
+  ].join("\n");
+  const registerText = sealV050Register({
+    activeNames: [V050_OWNER, V050_DEFERRED],
+    roadmapBytes,
+    extraEntry,
+  });
+  const { exitCode, capture } = await runCli(V050_BOOTSTRAP_ARGV, {
+    roadmapBytes,
+    activeNames: [V050_OWNER, V050_DEFERRED],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText,
+    baselineRegisterText: registerText,
+    changedPaths: [`openspec/changes/${V050_DEFERRED}/tasks.md`],
+  });
+  assert.equal(exitCode, EXIT_EVALUATED);
+  assertCanonicalResult(capture, invalidResult("deferred_package_changed"));
+});
+
+test("v050 baseline read failure is dependency_failure", async () => {
+  const { exitCode, capture } = await runCli(V050_BOOTSTRAP_ARGV, {
+    roadmapBytes: v050RoadmapBytes(),
+    activeNames: [V050_OWNER],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText: sealV050Register({
+      activeNames: [V050_OWNER],
+      roadmapBytes: v050RoadmapBytes(),
+    }),
+    baselineError: new Error(`git show fail ${SECRET}/baseline`),
+  });
+  assert.equal(exitCode, EXIT_EVALUATED);
+  assertCanonicalResult(capture, invalidResult("dependency_failure"));
+  assertSanitized(capture);
+});
+
+test("v050 baseline read uses the selected register relative path", async () => {
+  const customRegister = join(
+    REPO,
+    "openspec",
+    "changes",
+    "custom-coverage",
+    "coverage.toml",
+  );
+  const roadmapBytes = v050RoadmapBytes();
+  const registerText = sealV050Register({
+    activeNames: [V050_OWNER],
+    roadmapBytes,
+  });
+  const argv = processArgv([
+    "check",
+    "--program",
+    "v050",
+    "--phase",
+    "bootstrap",
+    "--owner",
+    V050_OWNER,
+    "--register",
+    customRegister,
+  ]);
+  const { exitCode, capture } = await runCli(argv, {
+    roadmapBytes,
+    activeNames: [V050_OWNER],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText,
+    registerAbs: customRegister,
+  });
+  assert.equal(exitCode, EXIT_OK);
+  assert.equal(capture.log.gitShows.length, 1);
+  assert.equal(
+    capture.log.gitShows[0]!.path,
+    "openspec/changes/custom-coverage/coverage.toml",
+  );
+});
+
+test("v050 release evidence directory vocabulary cases", async (t) => {
+  const evidenceDir = join(STATE_ROOT, "evidence-tree");
+  const releaseArgv = processArgv([
+    "check",
+    "--program",
+    "v050",
+    "--phase",
+    "release",
+    "--repo",
+    REPO,
+    "--state-root",
+    STATE_ROOT,
+    "--contract-id",
+    CONTRACT_ID,
+    "--contract-sha",
+    CONTRACT_SHA,
+    "--family-sha",
+    FAMILY_SHA,
+    "--register",
+    V050_REGISTER,
+    "--evidence",
+    evidenceDir,
+  ]);
+  const roadmapBytes = v050RoadmapBytes();
+  const registerText = sealV050Register({
+    activeNames: [V050_OWNER],
+    roadmapBytes,
+  });
+  const brief = deriveBrief(V050_CHILD);
+  const base = {
+    roadmapBytes,
+    activeNames: [V050_OWNER],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText,
+    familyResult: V050_FAMILY_RESULT,
+    briefBytesByAbsPath: new Map([
+      [v050GovernorBriefAbs(), briefFileBytes(brief)],
+    ]),
+  };
+
+  const cases: ReadonlyArray<{
+    name: string;
+    files: Readonly<Record<string, string>>;
+    reason: ReleaseCoverageFailureReason | "Valid";
+  }> = [
+    {
+      name: "nested-unverified",
+      files: {
+        [join(evidenceDir, "nested", "report.json")]:
+          '{"outer":{"verdict":"UNVERIFIED"}}\n',
+      },
+      reason: "vocabulary_mixed",
+    },
+    {
+      name: "approved123",
+      files: {
+        [join(evidenceDir, "nested", "report.json")]:
+          '{"verdict":"APPROVED123"}\n',
+      },
+      reason: "vocabulary_mixed",
+    },
+    {
+      name: "empty-verdict",
+      files: {
+        [join(evidenceDir, "nested", "report.json")]: '{"verdict":""}\n',
+      },
+      reason: "vocabulary_mixed",
+    },
+    {
+      name: "numeric-verdict",
+      files: {
+        [join(evidenceDir, "nested", "report.json")]: '{"verdict":1}\n',
+      },
+      reason: "vocabulary_mixed",
+    },
+    {
+      name: "lowercase-failed",
+      files: {
+        [join(evidenceDir, "nested", "report.json")]:
+          '{"measurement_result":"failed"}\n',
+      },
+      reason: "vocabulary_mixed",
+    },
+    {
+      name: "pass123",
+      files: {
+        [join(evidenceDir, "nested", "report.json")]:
+          '{"measurement_result":"PASS123"}\n',
+      },
+      reason: "vocabulary_mixed",
+    },
+    {
+      name: "both-valid",
+      files: {
+        [join(evidenceDir, "nested", "verdict.json")]: '{"verdict":"APPROVED"}\n',
+        [join(evidenceDir, "nested", "measure.md")]: "measurement_result: PASS\n",
+      },
+      reason: "Valid",
+    },
+  ];
+
+  for (const item of cases) {
+    await t.test(item.name, async () => {
+      const { exitCode, capture } = await runCli(releaseArgv, {
+        ...base,
+        evidenceFiles: item.files,
+      });
+      if (item.reason === "Valid") {
+        assert.equal(exitCode, EXIT_OK);
+        assertCanonicalResult(
+          capture,
+          validResult([V050_OWNER], roadmapBytes, 2),
+        );
+      } else {
+        assert.equal(exitCode, EXIT_EVALUATED);
+        assertCanonicalResult(capture, invalidResult(item.reason));
+      }
+    });
+  }
+});
+
+test("v050 release missing evidence is dependency_failure", async () => {
+  const { exitCode, capture } = await runCli(V050_RELEASE_ARGV, {
+    roadmapBytes: v050RoadmapBytes(),
+    activeNames: [V050_OWNER],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText: sealV050Register({
+      activeNames: [V050_OWNER],
+      roadmapBytes: v050RoadmapBytes(),
+    }),
+    familyResult: V050_FAMILY_RESULT,
+    briefBytesByAbsPath: new Map([
+      [v050GovernorBriefAbs(), briefFileBytes(deriveBrief(V050_CHILD))],
+    ]),
+  });
+  assert.equal(exitCode, EXIT_EVALUATED);
+  assertCanonicalResult(capture, invalidResult("dependency_failure"));
+});
+
 test("opaque Effect failures and synchronous throws become dependency_failure", async (t) => {
   const cases: ReadonlyArray<{
     name: string;
@@ -2674,12 +3026,16 @@ test("services expose exactly four read-only ports and leave repo/state bytes un
         "--register",
         register,
       ] as const;
+      const childEnv = { ...process.env };
+      delete childEnv.FORCE_COLOR;
+      childEnv.NO_COLOR = "1";
       const invoke = (cwd: string) =>
         spawnSync(process.execPath, [...bootstrapArgv], {
           cwd,
           encoding: "utf8",
           timeout: 60_000,
           maxBuffer: ONE_MIB,
+          env: childEnv,
         });
 
       const beforeRoot = snapshotPhysicalTree(repository);

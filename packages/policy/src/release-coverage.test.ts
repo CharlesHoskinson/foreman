@@ -17,6 +17,7 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
   inspectReleaseCoverageRegisterV1,
+  v050OwnerPackageNames,
   validateReleaseCoverageV1,
   type ReleaseCoverageFailureReason,
   type ReleaseCoveragePhaseV1,
@@ -2711,6 +2712,10 @@ describe("release coverage policy", () => {
       readonly tasksMarkdownByOwner?: Readonly<Record<string, string>>;
       readonly baselineRegisterText?: string;
       readonly evidenceTexts?: readonly string[];
+      readonly evidenceArtifacts?: readonly {
+        readonly path: string;
+        readonly text: string;
+      }[];
     } = {},
   ): ValidatorResult => {
     const phase: ReleaseCoveragePhaseV1 =
@@ -2882,6 +2887,56 @@ describe("release coverage policy", () => {
     );
   });
 
+  it("rejects iron_rule_violation when the second of two Create targets is forbidden", () => {
+    const input = v050BaselineInput({
+      phase: "Lane",
+      laneOwner: V050_OWNER,
+      expectedPackageBriefByName: {
+        [V050_OWNER]: makeBrief("Ship v0.5.", V050_OWNER),
+      },
+      packageBriefBytesByName: {
+        [V050_OWNER]: canonicalBriefBytes(makeBrief("Ship v0.5.", V050_OWNER)),
+      },
+    });
+    expectV050Invalid(input, "iron_rule_violation", {
+      tasksMarkdownByOwner: {
+        [V050_OWNER]: [
+          "## Allowed file scope",
+          "",
+          "- `packages/orchestration/**`",
+          "",
+          "- [ ] Create `packages/policy/src/ok.ts` then Create `scripts/x.sh`",
+          "",
+        ].join("\n"),
+      },
+    });
+  });
+
+  it("rejects iron_rule_violation when Create is wrapped in parentheses", () => {
+    const input = v050BaselineInput({
+      phase: "Lane",
+      laneOwner: V050_OWNER,
+      expectedPackageBriefByName: {
+        [V050_OWNER]: makeBrief("Ship v0.5.", V050_OWNER),
+      },
+      packageBriefBytesByName: {
+        [V050_OWNER]: canonicalBriefBytes(makeBrief("Ship v0.5.", V050_OWNER)),
+      },
+    });
+    expectV050Invalid(input, "iron_rule_violation", {
+      tasksMarkdownByOwner: {
+        [V050_OWNER]: [
+          "## Allowed file scope",
+          "",
+          "- `packages/orchestration/**`",
+          "",
+          "- [ ] (Create `scripts/x.sh`)",
+          "",
+        ].join("\n"),
+      },
+    });
+  });
+
   it("rejects iron_rule_violation for a new shell product path", () => {
     const input = v050BaselineInput({
       phase: "Lane",
@@ -2933,6 +2988,31 @@ describe("release coverage policy", () => {
     assert.equal(result._tag, "Valid");
   });
 
+  it("rejects deferred_package_changed when compact key spelling is unchanged", () => {
+    const active = [V050_OWNER, V050_DEFERRED];
+    const assignments = v050Assignments();
+    const roadmapText = renderRoadmapText(assignments);
+    const spaced = sealV050(active, roadmapText, {
+      entries: [v050GovernorEntry, v050DeferredEntry, v050RoadmapEntry],
+    });
+    const compact = spaced.replace(
+      `key = "change:${V050_DEFERRED}"`,
+      `key="change:${V050_DEFERRED}"`,
+    );
+    expectV050Invalid(
+      v050BaselineInput({
+        registerText: compact,
+        activePackageNames: active,
+        roadmapText,
+        roadmapAssignments: assignments,
+        packageWorkflowByName: { [V050_OWNER]: ACTIVE_WF },
+        changedPaths: ["openspec/changes/graph-store-port/tasks.md"],
+      }),
+      "deferred_package_changed",
+      { baselineRegisterText: compact },
+    );
+  });
+
   it("rejects deferred_package_changed when a v060 directory changes and the entry does not", () => {
     const active = [V050_OWNER, V050_DEFERRED];
     const assignments = v050Assignments();
@@ -2951,6 +3031,40 @@ describe("release coverage policy", () => {
       }),
       "deferred_package_changed",
       { baselineRegisterText: registerText },
+    );
+  });
+
+  it("rejects workflow_mismatch when a v050_owner package is absent from workflowByChange", () => {
+    const active = [V050_OWNER, "lane-runtime-typescript"];
+    const assignments = v050Assignments();
+    const roadmapText = renderRoadmapText(assignments);
+    const registerText = sealV050(active, roadmapText, {
+      entries: [
+        v050GovernorEntry,
+        {
+          key: "change:lane-runtime-typescript",
+          sourceKind: "openspec_change",
+          sourcePath: "openspec/changes/lane-runtime-typescript",
+          disposition: "v050_owner",
+          owner: "lane-runtime-typescript",
+          targetRelease: "v0.5",
+          reconcile: "complete",
+          reason: "runtime",
+        },
+        v050RoadmapEntry,
+      ],
+    });
+    expectV050Invalid(
+      v050BaselineInput({
+        registerText,
+        activePackageNames: active,
+        roadmapText,
+        roadmapAssignments: assignments,
+        packageWorkflowByName: {
+          [V050_OWNER]: ACTIVE_WF,
+        },
+      }),
+      "workflow_mismatch",
     );
   });
 
@@ -3001,6 +3115,328 @@ describe("release coverage policy", () => {
     });
   });
 
+  const v050ReleaseLaneInput = (): ValidatorInput => {
+    const brief = makeBrief("Ship v0.5.", V050_OWNER);
+    return v050BaselineInput({
+      phase: "Release",
+      expectedPackageBriefByName: { [V050_OWNER]: brief },
+      packageBriefBytesByName: { [V050_OWNER]: canonicalBriefBytes(brief) },
+    });
+  };
+
+  it("rejects vocabulary_mixed for a nested JSON verdict in a subdirectory artifact", () => {
+    expectV050Invalid(v050ReleaseLaneInput(), "vocabulary_mixed", {
+      evidenceArtifacts: [
+        {
+          path: "nested/deep/report.json",
+          text: '{"outer":{"inner":{"verdict":"UNVERIFIED"}}}\n',
+        },
+      ],
+    });
+  });
+
+  it("rejects vocabulary_mixed for APPROVED123", () => {
+    expectV050Invalid(v050ReleaseLaneInput(), "vocabulary_mixed", {
+      evidenceArtifacts: [
+        { path: "verdict.json", text: '{"verdict":"APPROVED123"}\n' },
+      ],
+    });
+  });
+
+  it("rejects vocabulary_mixed for an empty verdict", () => {
+    expectV050Invalid(v050ReleaseLaneInput(), "vocabulary_mixed", {
+      evidenceArtifacts: [{ path: "verdict.json", text: '{"verdict":""}\n' }],
+    });
+  });
+
+  it("rejects vocabulary_mixed for a numeric verdict", () => {
+    expectV050Invalid(v050ReleaseLaneInput(), "vocabulary_mixed", {
+      evidenceArtifacts: [{ path: "verdict.json", text: '{"verdict":1}\n' }],
+    });
+  });
+
+  it("rejects vocabulary_mixed for lowercase failed", () => {
+    expectV050Invalid(v050ReleaseLaneInput(), "vocabulary_mixed", {
+      evidenceArtifacts: [
+        { path: "measure.json", text: '{"measurement_result":"failed"}\n' },
+      ],
+    });
+  });
+
+  it("rejects vocabulary_mixed for PASS123", () => {
+    expectV050Invalid(v050ReleaseLaneInput(), "vocabulary_mixed", {
+      evidenceArtifacts: [
+        { path: "measure.json", text: '{"measurement_result":"PASS123"}\n' },
+      ],
+    });
+  });
+
+  it("accepts both valid vocabularies in one evidence directory", () => {
+    const result = runV050(v050ReleaseLaneInput(), {
+      evidenceArtifacts: [
+        { path: "nested/verdict.json", text: '{"verdict":"APPROVED"}\n' },
+        { path: "nested/measure.md", text: "measurement_result: PASS\n" },
+      ],
+    });
+    assert.equal(result._tag, "Valid");
+  });
+
+  it("returns dependency_failure for unparsable JSON evidence", () => {
+    expectV050Invalid(v050ReleaseLaneInput(), "dependency_failure", {
+      evidenceArtifacts: [{ path: "broken.json", text: "{not-json\n" }],
+    });
+  });
+
+  it("rejects workflow_mismatch for an empty tasks.md", () => {
+    const input = v050BaselineInput({
+      phase: "Lane",
+      laneOwner: V050_OWNER,
+      expectedPackageBriefByName: {
+        [V050_OWNER]: makeBrief("Ship v0.5.", V050_OWNER),
+      },
+      packageBriefBytesByName: {
+        [V050_OWNER]: canonicalBriefBytes(makeBrief("Ship v0.5.", V050_OWNER)),
+      },
+    });
+    expectV050Invalid(input, "workflow_mismatch", {
+      tasksMarkdownByOwner: { [V050_OWNER]: "" },
+    });
+  });
+
+  it("rejects workflow_mismatch for a heading-only tasks.md", () => {
+    const input = v050BaselineInput({
+      phase: "Lane",
+      laneOwner: V050_OWNER,
+      expectedPackageBriefByName: {
+        [V050_OWNER]: makeBrief("Ship v0.5.", V050_OWNER),
+      },
+      packageBriefBytesByName: {
+        [V050_OWNER]: canonicalBriefBytes(makeBrief("Ship v0.5.", V050_OWNER)),
+      },
+    });
+    expectV050Invalid(input, "workflow_mismatch", {
+      tasksMarkdownByOwner: { [V050_OWNER]: "## Allowed file scope\n" },
+    });
+  });
+
+  it("keeps a missing tasks.md valid for a v050 lane", () => {
+    const input = v050BaselineInput({
+      phase: "Lane",
+      laneOwner: V050_OWNER,
+      expectedPackageBriefByName: {
+        [V050_OWNER]: makeBrief("Ship v0.5.", V050_OWNER),
+      },
+      packageBriefBytesByName: {
+        [V050_OWNER]: canonicalBriefBytes(makeBrief("Ship v0.5.", V050_OWNER)),
+      },
+    });
+    expectV050Valid(input, 2);
+  });
+
+  it("rejects register_cross_field when a v050_owner names a missing package", () => {
+    const ghost = "ghost-owner-package";
+    const assignments = v050Assignments();
+    const roadmapText = renderRoadmapText(assignments);
+    const registerText = sealV050([V050_OWNER], roadmapText, {
+      entries: [
+        { ...v050GovernorEntry, owner: ghost },
+        v050RoadmapEntry,
+      ],
+    });
+    expectV050Invalid(
+      v050BaselineInput({
+        registerText,
+        roadmapText,
+        roadmapAssignments: assignments,
+        packageWorkflowByName: { [V050_OWNER]: ACTIVE_WF },
+      }),
+      "register_cross_field",
+    );
+  });
+
+  it("rejects inventory_mismatch when a v050 active name is omitted", () => {
+    const extra = "lane-runtime-typescript";
+    const assignments = v050Assignments();
+    const roadmapText = renderRoadmapText(assignments);
+    const registerText = sealV050([V050_OWNER, extra], roadmapText, {
+      entries: [
+        v050GovernorEntry,
+        {
+          key: `change:${extra}`,
+          sourceKind: "openspec_change",
+          sourcePath: `openspec/changes/${extra}`,
+          disposition: "v050_owner",
+          owner: extra,
+          targetRelease: "v0.5",
+          reconcile: "complete",
+          reason: "runtime",
+        },
+        v050RoadmapEntry,
+      ],
+    });
+    expectV050Invalid(
+      v050BaselineInput({
+        registerText,
+        activePackageNames: [V050_OWNER],
+        roadmapText,
+        roadmapAssignments: assignments,
+        packageWorkflowByName: { [V050_OWNER]: ACTIVE_WF, [extra]: ACTIVE_WF },
+      }),
+      "inventory_mismatch",
+    );
+  });
+
+  it("rejects inventory_mismatch when a v050 inventory digest does not match", () => {
+    const assignments = v050Assignments();
+    const roadmapText = renderRoadmapText(assignments);
+    expectV050Invalid(
+      v050BaselineInput({
+        registerText: sealV050([V050_OWNER], roadmapText, {
+          activeInventorySha256: "ab".repeat(32),
+        }),
+        roadmapText,
+        roadmapAssignments: assignments,
+      }),
+      "inventory_mismatch",
+    );
+  });
+
+  it("rejects roadmap_mismatch when a v050 row has no matching entry", () => {
+    const extraRow = roadmapRow("roadmap:v050-extra", V050_OWNER, "v0.5", "extra");
+    const assignments = [...v050Assignments(), extraRow];
+    expectV050Invalid(
+      v050BaselineInput({
+        roadmapAssignments: assignments,
+        roadmapText: renderRoadmapText(assignments),
+      }),
+      "roadmap_mismatch",
+    );
+  });
+
+  it("rejects roadmap_mismatch when a v050 entry has no matching row", () => {
+    const assignments = v050Assignments();
+    const roadmapText = renderRoadmapText(assignments);
+    const registerText = sealV050([V050_OWNER], roadmapText, {
+      entries: [
+        v050GovernorEntry,
+        v050RoadmapEntry,
+        {
+          key: "roadmap:v050-extra",
+          sourceKind: "roadmap",
+          sourcePath: ROADMAP_PATH,
+          disposition: "v050_owner",
+          owner: V050_OWNER,
+          targetRelease: "v0.5",
+          reconcile: "complete",
+          reason: "extra",
+        },
+      ],
+    });
+    expectV050Invalid(
+      v050BaselineInput({
+        registerText,
+        roadmapText,
+        roadmapAssignments: assignments,
+      }),
+      "roadmap_mismatch",
+    );
+  });
+
+  it("rejects roadmap_mismatch when a v050 row owner does not match", () => {
+    const assignments = [
+      roadmapRow(V050_ROADMAP_KEY, "lane-runtime-typescript", "v0.5", "publication"),
+    ];
+    const roadmapText = renderRoadmapText(assignments);
+    expectV050Invalid(
+      v050BaselineInput({
+        registerText: sealV050([V050_OWNER], roadmapText),
+        roadmapText,
+        roadmapAssignments: assignments,
+      }),
+      "roadmap_mismatch",
+    );
+  });
+
+  it("rejects roadmap_mismatch when a v050 row release does not match", () => {
+    const assignments = [
+      roadmapRow(V050_ROADMAP_KEY, V050_OWNER, "v0.6", "publication"),
+    ];
+    const roadmapText = renderRoadmapText(assignments);
+    expectV050Invalid(
+      v050BaselineInput({
+        registerText: sealV050([V050_OWNER], roadmapText),
+        roadmapText,
+        roadmapAssignments: assignments,
+      }),
+      "roadmap_mismatch",
+    );
+  });
+
+  it("rejects unreconciled when another v050 entry names the lane owner as required", () => {
+    const extra = "captured-facts-convergence";
+    const assignments = v050Assignments();
+    const roadmapText = renderRoadmapText(assignments);
+    const registerText = sealV050([V050_OWNER, extra], roadmapText, {
+      entries: [
+        v050GovernorEntry,
+        {
+          key: `change:${extra}`,
+          sourceKind: "openspec_change",
+          sourcePath: `openspec/changes/${extra}`,
+          disposition: "v050_dependency",
+          owner: V050_OWNER,
+          targetRelease: "v0.5",
+          reconcile: "required",
+          reason: "dependency still required",
+        },
+        v050RoadmapEntry,
+      ],
+    });
+    expectV050Invalid(
+      v050BaselineInput({
+        registerText,
+        activePackageNames: [V050_OWNER, extra],
+        roadmapText,
+        roadmapAssignments: assignments,
+        phase: "Lane",
+        laneOwner: V050_OWNER,
+        packageWorkflowByName: { [V050_OWNER]: ACTIVE_WF },
+        expectedPackageBriefByName: {
+          [V050_OWNER]: makeBrief("Ship v0.5.", V050_OWNER),
+        },
+        packageBriefBytesByName: {
+          [V050_OWNER]: canonicalBriefBytes(makeBrief("Ship v0.5.", V050_OWNER)),
+        },
+      }),
+      "unreconciled",
+    );
+  });
+
+  it("skips deferred byte comparison when the baseline has no matching entry", () => {
+    const active = [V050_OWNER, V050_DEFERRED];
+    const assignments = v050Assignments();
+    const roadmapText = renderRoadmapText(assignments);
+    const current = sealV050(active, roadmapText, {
+      entries: [v050GovernorEntry, v050DeferredEntry, v050RoadmapEntry],
+    });
+    const baseline = sealV050([V050_OWNER], roadmapText, {
+      entries: [v050GovernorEntry, v050RoadmapEntry],
+    });
+    const result = runV050(
+      v050BaselineInput({
+        registerText: current,
+        activePackageNames: active,
+        roadmapText,
+        roadmapAssignments: assignments,
+        packageWorkflowByName: { [V050_OWNER]: ACTIVE_WF },
+        changedPaths: ["openspec/changes/graph-store-port/tasks.md"],
+      }),
+      { baselineRegisterText: baseline },
+    );
+    assert.equal(result._tag, "Valid");
+  });
+
+
   it("accepts the live v0.5 register at bootstrap", () => {
     const registerText = readFileSync(
       join(repoRoot, "openspec", "changes", "v050-release-program", "coverage.toml"),
@@ -3046,8 +3482,10 @@ describe("release coverage policy", () => {
     }
     assert.ok(roadmapAssignments.length > 0);
 
+    const ownerNames = v050OwnerPackageNames(registerText, "v050");
+    assert.equal(ownerNames.length, 12);
     const packageWorkflowByName: Record<string, string | null> = {};
-    for (const owner of inspection.selectedOwners) {
+    for (const owner of ownerNames) {
       const metaPath = join(changesRoot, owner, ".openspec.yaml");
       if (!existsSync(metaPath)) {
         packageWorkflowByName[owner] = null;
@@ -3057,6 +3495,11 @@ describe("release coverage policy", () => {
       const schemaMatch = /^schema:\s*(\S+)\s*$/m.exec(raw);
       packageWorkflowByName[owner] = schemaMatch ? schemaMatch[1]! : null;
     }
+    assert.equal(Object.keys(packageWorkflowByName).length, 12);
+    assert.equal(
+      Object.values(packageWorkflowByName).every((value) => value !== null),
+      true,
+    );
 
     const result = validateReleaseCoverageV1({
       phase: { _tag: "Bootstrap", owner: V050_OWNER },
