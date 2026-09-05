@@ -1,12 +1,21 @@
 ## Allowed file scope
 
-`packages/orchestration/src/lane-runtime/**`, `packages/orchestration/src/round-*.ts`,
-`packages/policy/src/architecture-adapter.ts`, `skills/foreman/scripts/lane-run.sh`,
-`skills/foreman/scripts/watch.sh`, `scripts/build-runtime.ts`, `tests/lane-run.bats`,
-`tests/watch.bats`, `tests/round-ownership.bats`, `skills/foreman/runtime/dist/**`,
-`skills/foreman/runtime/manifest.json`, `docs/research/v050/**`,
-`openspec/changes/lock-primitive-hardening/tasks.md` and
-`openspec/changes/vendor-preflight/tasks.md` (slice reassignment only).
+Exact paths or terminal `/**` prefixes.
+
+- `packages/orchestration/src/lane-runtime/**`
+- `packages/orchestration/src/round-cli.ts`, `packages/orchestration/src/round-cli.test.ts`
+- `packages/orchestration/src/round-main.ts`
+- `packages/orchestration/src/round-live-services.ts`, `packages/orchestration/src/round-live-services.test.ts`
+- `packages/orchestration/src/round-reducer.ts`, `packages/orchestration/src/round-reducer.test.ts`
+- `packages/orchestration/src/round-transaction.ts`, `packages/orchestration/src/round-transaction.test.ts`
+- `packages/orchestration/src/round-contract.ts`, `packages/orchestration/src/round-contract.test.ts`
+- `packages/policy/src/architecture-adapter.ts`, `packages/policy/src/architecture-adapter.test.ts`
+- `skills/foreman/scripts/lane-run.sh`, `skills/foreman/scripts/watch.sh`
+- `scripts/build-runtime.ts`, `scripts/verify-runtime.ts` (the exact artifact list gains `lane-watch.js`)
+- `tests/lane-run.bats`, `tests/watch.bats`, `tests/round-ownership.bats`
+- `skills/foreman/runtime/dist/**`, `skills/foreman/runtime/manifest.json`
+- `docs/research/v050/**`
+- `openspec/changes/lock-primitive-hardening/tasks.md`, `openspec/changes/vendor-preflight/tasks.md` (slice reassignment only)
 
 ## Tasks
 

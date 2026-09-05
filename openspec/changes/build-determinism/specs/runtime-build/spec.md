@@ -14,24 +14,41 @@ report drift.
 - **WHEN** `node_modules` is a symbolic link
 - **THEN** `verify-runtime` exits 1 with `node_modules_symlink`
 
-### Requirement: Installed tree matches the lockfile
+### Requirement: Expected installed set
 
-WHEN `verify-runtime` starts, it SHALL compare the set of
-`(package path, version, resolved, integrity)` tuples under `packages` in
-`node_modules/.package-lock.json` with the same tuples in
-`package-lock.json`, excluding the root entry `""`. IF any tuple differs or
-is missing, THEN `verify-runtime` SHALL exit 1 with `lockfile_mismatch` and
-SHALL name the first differing package path.
+WHEN `verify-runtime` starts, it SHALL derive the expected installed set
+from `package-lock.json` `packages`, excluding the root entry `""`, entries
+with `link: true` (workspace links), and entries marked `optional: true`
+whose `os` or `cpu` lists exclude the current platform. On the reference
+Linux x64 host this excludes the 75 platform-specific optional packages.
+
+#### Scenario: Platform optional package absent
+
+- **WHEN** an `optional: true` package lists `os: ["aix"]` and the host is Linux
+- **THEN** its absence from `node_modules` is not a mismatch
+
+### Requirement: Installed tree matches the expected set
+
+WHEN the expected set is derived, `verify-runtime` SHALL compare each
+expected entry's `(package path, version, resolved, integrity)` tuple with
+`node_modules/.package-lock.json`. IF an expected entry is missing or any
+tuple differs, THEN `verify-runtime` SHALL exit 1 with `lockfile_mismatch`
+and SHALL name the first differing package path.
 
 #### Scenario: Installed tree matches
 
 - **WHEN** `npm ci` produced `node_modules`
-- **THEN** the identity check passes
+- **THEN** the identity check passes on the reference host
 
 #### Scenario: One dependency drifted
 
-- **WHEN** one package under `node_modules` has a different version than the lockfile
+- **WHEN** one expected package under `node_modules` has a different version than the lockfile
 - **THEN** `verify-runtime` exits 1 with `lockfile_mismatch` and names that package
+
+#### Scenario: Required package missing
+
+- **WHEN** a non-optional package is absent from `node_modules`
+- **THEN** `verify-runtime` exits 1 with `lockfile_mismatch` and names it
 
 ### Requirement: Drift cause is measured before it is fixed
 
@@ -46,8 +63,9 @@ report which bundles differ and the first differing byte offset of each.
 
 ### Requirement: Path-independent bundles
 
-WHEN the measured drift cause is removed, two independent checkouts of the
-same commit SHALL produce byte-identical bundles.
+WHEN two builds run from checkouts with identical declared inputs (the
+same commit, `npm ci` from the same lockfile, the same Node version), they
+SHALL produce byte-identical bundles regardless of checkout path.
 
 #### Scenario: Two checkouts agree
 
@@ -82,8 +100,8 @@ name and the observed count.
 
 ### Requirement: The checkout scans clean
 
-WHEN `secret-scan` runs on the Foreman checkout at the candidate commit
-with default bounds, the result SHALL be `Clean`.
+WHEN `secret-scan` runs on an uncontaminated Foreman checkout at the
+candidate commit with default bounds, the result SHALL be `Clean`.
 
 #### Scenario: Reference checkout is clean
 

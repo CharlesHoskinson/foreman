@@ -4,10 +4,11 @@
 
 ### Requirement: Recover from the sidecar
 
-WHEN `fm-session recover` runs and `.foreman/session.db` is absent, the
-runtime SHALL rebuild the store from `.foreman/session.ndjson`. This is
-the baseline behavior of `session-sqlite-bootstrap.ts` and this change
-keeps it as a regression check.
+WHEN `fm-session recover` runs, `.foreman/session.db` is absent, and
+`.foreman/session.ndjson` is present and parsable, the runtime SHALL
+rebuild the store from the sidecar. This is the baseline behavior of
+`session-sqlite-bootstrap.ts` and this change keeps it as a regression
+check.
 
 #### Scenario: Fresh clone recovers
 
@@ -35,17 +36,26 @@ with `no_session_source`.
 - **WHEN** neither file exists
 - **THEN** the runtime exits 2 with `no_session_source`
 
-### Requirement: Repair a half-migrated store
+### Requirement: Repair moves the store aside
 
 WHEN `fm-session repair` runs on a store that carries both schemas, the
-runtime SHALL rename the store to `session.db.corrupt-<UTC timestamp>` and
-rebuild from the sidecar. The runtime SHALL NOT delete the renamed file.
+runtime SHALL rename the store to `session.db.corrupt-<UTC timestamp>`.
+The runtime SHALL NOT delete the renamed file.
 
-#### Scenario: Half-migrated store repaired
+#### Scenario: Half-migrated store moved aside
 
 - **WHEN** `repair` runs on the 2026-09-05 store shape
 - **THEN** the old file exists with the `.corrupt-` suffix
-- **AND** `recover` exits 0 afterward
+
+### Requirement: Repair rebuilds from the sidecar
+
+WHEN the rename has completed, `repair` SHALL rebuild the store from
+`.foreman/session.ndjson`.
+
+#### Scenario: Recover succeeds after repair
+
+- **WHEN** `repair` has rebuilt the store
+- **THEN** `recover` exits 0
 
 #### Scenario: Backup name collision
 

@@ -75,42 +75,60 @@ match can satisfy freshness.
 - **WHEN** a gate writes a report with `attempt: 2` during attempt 1 and an old modification time
 - **THEN** the round records `round_incomplete`
 
-### Requirement: Containment probe
+### Requirement: Containment probe execution
 
 WHEN a round starts and a launcher is resolved, the runtime SHALL run the
 launcher with `--probe-only --capability-file <WT>/.harness/capability.json
---require-containment any` and SHALL read `tag`, `kind`, and `reason` from
-the record. IF the record is absent or unparsable, THEN the runtime SHALL
-treat the capability as `Unknown`, `unknown`, `capability_file_missing`.
-IF no launcher is resolved, THEN the runtime SHALL emit
-`alert {kind: "degraded", reason: "launcher_absent"}` and SHALL skip the
-probe.
+--require-containment any` before CMD is spawned. IF no launcher is
+resolved, THEN the runtime SHALL emit
+`alert {kind: "degraded", reason: "launcher_absent"}`, SHALL skip the
+probe, and SHALL skip the containment decision, as the baseline did.
 
-#### Scenario: Record read
+#### Scenario: Probe runs before spawn
 
-- **WHEN** the probe writes a `Strong` record
-- **THEN** the runtime records `containment_strong = true`
+- **WHEN** a launcher is resolved
+- **THEN** the probe invocation precedes the CMD spawn in the launcher argv log
 
 #### Scenario: Launcher absent
 
 - **WHEN** `FOREMAN_LAUNCH` names a missing path
 - **THEN** the runtime emits the `launcher_absent` alert
-- **AND** runs no probe
+- **AND** runs no probe and makes no containment decision
+
+### Requirement: Capability record reading
+
+WHEN the probe has run, the runtime SHALL read `tag`, `kind`, and `reason`
+from the record. IF the record is absent or unparsable, THEN the runtime
+SHALL use `tag = Unknown`, `kind = unknown`, `reason = capability_file_missing`
+and SHALL treat the capability as not strong.
+
+#### Scenario: Record read
+
+- **WHEN** the probe writes a `Strong` record
+- **THEN** the runtime records `strong = true`
+
+#### Scenario: Record malformed
+
+- **WHEN** the record is not valid JSON
+- **THEN** the runtime records `Unknown`, `unknown`, `capability_file_missing`
+- **AND** `strong = false`
 
 ### Requirement: Containment decision table
 
-The runtime SHALL decide admission from four inputs: `strong` (the record
-tag is `Strong` or `AlreadyInner`), `require` (`FOREMAN_CONTAINMENT_REQUIRE`
-when set, otherwise `strong` when `LANE_VENDOR` is set, otherwise `any`),
-`approval` (`FOREMAN_CONTAINMENT_APPROVAL`, empty or text), and `record`
-(present or absent).
+WHEN a probe has run, the runtime SHALL decide admission from three
+inputs: `strong` (the record tag is `Strong` or `AlreadyInner`), `require`
+(`FOREMAN_CONTAINMENT_REQUIRE` when set, otherwise `strong` when
+`LANE_VENDOR` is set, otherwise `any`), and `approval`
+(`FOREMAN_CONTAINMENT_APPROVAL`, empty or text). The table is total. A dash
+means the input does not affect the row.
 
 | strong | require | approval | decision |
 |---|---|---|---|
-| true | any | any | proceed, `require_effective = strong` |
-| false | any | any | proceed degraded, one `degraded` alert |
+| true | strong | dash | proceed, `require_effective = strong` |
+| true | any | dash | proceed, `require_effective = strong` |
+| false | any | dash | proceed degraded, one `degraded` alert, `require_effective = any` |
 | false | strong | empty | refuse, `containment_refused` alert, exit 2 |
-| false | strong | text | proceed degraded, alert carries the approval |
+| false | strong | text | proceed degraded, alert carries the approval, `require_effective = any` |
 
 WHEN the decision is refuse, the runtime SHALL emit
 `alert {kind: "containment_refused", tag, capability_kind, reason, required: "strong"}`,
@@ -141,8 +159,8 @@ once per round. The ownership payload SHALL carry
 WHEN the runtime spawns CMD or the gate under a launcher that produced a
 record, it SHALL pass `--require-containment <require_effective>`, where
 `require_effective` is `strong` when `strong` is true and `any` otherwise.
-The CMD spawn SHALL also pass `--capability-file`. WHEN the launcher
-produced no record, the runtime SHALL pass neither flag.
+The CMD spawn SHALL also pass `--capability-file`. WHEN the record was
+absent or malformed, the runtime SHALL pass neither flag.
 
 #### Scenario: Strong round cannot silently degrade
 

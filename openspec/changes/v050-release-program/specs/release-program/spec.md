@@ -39,14 +39,23 @@ retries the record, and SHALL NOT continue without the fact.
 ### Requirement: Derived data yields to source
 
 IF a derived artifact conflicts with a Git object, an approved OpenSpec
-requirement, or a deterministic test result, THEN the authoritative source
-SHALL win and the host SHALL mark the derived artifact stale.
+requirement, or a deterministic test result, THEN the host SHALL use the
+authoritative source.
 
 #### Scenario: Derived data conflicts with source
 
 - **WHEN** a graph or context artifact conflicts with an authoritative source
-- **THEN** the authoritative source wins
-- **AND** the host marks the derived artifact stale
+- **THEN** the host uses the authoritative source
+
+### Requirement: Conflicting derived data is marked
+
+WHEN the host uses an authoritative source over a conflicting derived
+artifact, it SHALL mark that artifact stale.
+
+#### Scenario: Stale mark applied
+
+- **WHEN** a context pack is overridden by source
+- **THEN** the pack carries a stale mark
 
 ### Requirement: Program-parameterized release runtime
 
@@ -69,8 +78,26 @@ runtime SHALL refuse with `wrong_program`.
 
 #### Scenario: v040 behavior is unchanged
 
-- **WHEN** the complete v0.4 test suites for policy, admission, authority, and coverage run
+- **WHEN** the v0.4 behavioral cases for policy, admission, authority, and coverage run against frozen fixtures
 - **THEN** every case passes with the same result as at the baseline
+
+### Requirement: Frozen v040 fixtures
+
+WHEN bootstrap changes the runtime, it SHALL first copy the v0.4 register,
+the v0.4 active-inventory snapshot, and `ROADMAP.md` at the baseline into
+`packages/policy/src/fixtures/v040/`. The v0.4 behavioral tests SHALL read
+those fixtures instead of the live `openspec/changes/v040-release-program`
+path. Only after that change SHALL the v0.4 package move to `archive/`.
+
+#### Scenario: Fixture-backed v040 tests
+
+- **WHEN** `openspec/changes/v040-release-program` is moved to `archive/`
+- **THEN** the v0.4 register test still passes from the fixture copy
+
+#### Scenario: v050 repository integration
+
+- **WHEN** the v0.5 register test runs against the live repository
+- **THEN** it passes with the current inventory digest and roadmap digest
 
 ### Requirement: Per-program release table
 
@@ -112,14 +139,20 @@ has no entry, THEN the bootstrap check SHALL fail with
 Each entry SHALL carry one disposition from `v050_owner`,
 `v050_dependency`, `released_reference`, `superseded`, or `v060`, one
 `reconcile` value from `complete`, `required`, or `not_required`, and one
-reason. An entry with disposition `v050_owner` or `v050_dependency` SHALL
-name an owner whose own entry is `v050_owner`. An entry with disposition
-`v060` SHALL name `v050-release-program` as owner.
+reason. A package entry with disposition `v050_owner` or `v050_dependency`
+SHALL name an owner whose own entry is `v050_owner`. A package entry with
+disposition `v060` SHALL name `v050-release-program` as owner. A roadmap
+entry SHALL name the owner and release that its `ROADMAP.md` row names.
 
 #### Scenario: Cross-field rule is violated
 
-- **WHEN** a `v050_dependency` entry names an owner that is itself `v060`
+- **WHEN** a `v050_dependency` package entry names an owner that is itself `v060`
 - **THEN** the bootstrap check fails with `register_cross_field`
+
+#### Scenario: Roadmap entry mirrors its row
+
+- **WHEN** a roadmap entry's owner differs from the row's owner column
+- **THEN** the bootstrap check fails with `roadmap_mismatch`
 
 ### Requirement: Reconciliation gates dispatch
 
@@ -164,20 +197,33 @@ absent, THEN the lane check SHALL refuse with `workflow_mismatch`.
 - **WHEN** an owner package has no `.openspec.yaml`
 - **THEN** the lane check refuses with `workflow_mismatch`
 
+### Requirement: Bootstrap under the root contract
+
+WHEN the program starts, the bootstrap work (session-store recovery, the
+runtime authorities, the register checks, and the fixture freeze) SHALL run
+under the root Endstop contract before family activation, as the v0.4
+bootstrap exception did. The bootstrap SHALL NOT reserve a family child.
+
+#### Scenario: Bootstrap precedes activation
+
+- **WHEN** `activate-family` runs
+- **THEN** the bootstrap integration commit is an ancestor of the activation candidate
+
 ### Requirement: Package-level Endstop children
 
-The program SHALL run under one root-anchored Endstop contract. The family
-SHALL contain one child per `v050_owner` package plus one release child,
-each child bound to exactly one `packageId`. Child identifiers SHALL be
-immutable and SHALL follow `v050-<package-name>`. Each child brief SHALL
-declare its dependency child identifiers, its allowed paths, and its
-acceptance list. The family SHALL be registered and activated during the
-bootstrap child before any other child reserves an action.
+The family SHALL contain exactly eleven children: one per `v050_owner`
+package other than the governor, plus one release child bound to
+`v050-release-program`. Each child SHALL be bound to exactly one
+`packageId`, and no two children SHALL share a `packageId`. Child
+identifiers SHALL be immutable and SHALL follow `v050-<package-name>`, with
+the release child named `v050-release`. Each child brief SHALL declare its
+dependency child identifiers, its allowed paths as exact repository paths
+or terminal `/**` prefixes, and its acceptance list.
 
 #### Scenario: Family is activated
 
 - **WHEN** `execution-guard.js activate-family` completes
-- **THEN** `family-status` lists thirteen children with distinct package identifiers
+- **THEN** `family-status` lists eleven children with eleven distinct package identifiers
 
 #### Scenario: Wrong package for a child
 
@@ -197,15 +243,16 @@ bootstrap child before any other child reserves an action.
 
 ### Requirement: Dependency-bound tranches
 
-The program SHALL order children by dependency depth: tranche 1
-`session-store-recovery` and `v050-release-program` bootstrap, tranche 2
+The program SHALL order work by dependency depth: tranche 1 is the
+bootstrap under the root contract (session-store recovery first), tranche 2
 `lane-runtime-typescript`, tranche 3 `launcher-node-port`, tranche 4
 `three-outcome-verdicts` then `audit-groundedness-gate` then
 `evidence-contracts`, tranche 5 `spec-triage-gate` and
 `foreman-discover-lane`, tranche 6 `build-determinism` and `wsl-preflight`,
 tranche 7 `doctrine-reality-drift`, tranche 8 the release child. Children
-in tranches 4 through 7 MAY run concurrently once tranche 2 has its
-integration milestone.
+in tranches 4 through 6 MAY run concurrently once tranche 2 has its
+integration milestone. Tranche 7 SHALL wait for the `evidence-contracts`
+milestone, because doctrine adopts its regression-injection mechanism.
 
 #### Scenario: Concurrent tranches after the runtime lands
 
@@ -215,16 +262,24 @@ integration milestone.
 ### Requirement: Exit predicates
 
 The program SHALL define eleven exit predicates, P1 through P11. Each
-predicate SHALL name one command and one expected observable result. WHEN
-the release check runs, the host SHALL measure every predicate on the
-unchanged candidate commit and SHALL record each command's output digest.
-IF any predicate fails or cannot run, THEN the release check SHALL record
-`UNCOMPUTABLE` for it and SHALL refuse publication.
+predicate SHALL name one command, its executed-case count where it runs
+tests, and one expected observable result. WHEN the release check runs, the
+host SHALL measure every predicate on the unchanged candidate commit and
+SHALL record each command's output digest and executed-case count. IF a
+predicate runs and fails, THEN the release check SHALL record `FAILED` for
+it. IF a predicate cannot run, THEN the release check SHALL record
+`UNCOMPUTABLE` for it. Either value SHALL refuse publication.
 
 #### Scenario: All predicates pass
 
 - **WHEN** the release check runs on the candidate
-- **THEN** eleven passes are recorded with their output digests
+- **THEN** eleven passes are recorded with their output digests and executed-case counts
+
+#### Scenario: A predicate fails
+
+- **WHEN** a predicate command exits non-zero
+- **THEN** the release check records `FAILED` for that predicate
+- **AND** publication is refused
 
 #### Scenario: A predicate cannot run
 
@@ -253,8 +308,11 @@ findings on one commit, the host SHALL record the expected remote
 predecessor, enter the publication journal at `prepared`, and push `main`
 with a compare-and-set against that predecessor. IF the remote predecessor
 differs, THEN the push SHALL NOT happen and the journal SHALL record
-`remote_diverged`. The program SHALL reuse the v0.4 publication journal and
-its interruption recovery unchanged.
+`remote_diverged`. The program SHALL reuse the v0.4 publication journal
+stages `prepared`, `local_integrated`, `main_published`, `tag_pushed`,
+`release_created`, and `verified`, with the v0.4 interruption recovery. The
+`image_pushed` stage SHALL be excluded because v0.5 changes no appliance
+image. The tag SHALL be annotated. A signature is not required.
 
 #### Scenario: Compare-and-set push succeeds
 

@@ -43,9 +43,9 @@ table is the narrative.
 | # | Predicate | Measurement |
 |---|---|---|
 | 1 | The lane path is TypeScript | `architecture-policy.js check --base 00c342b` passes. `LANE_RUN_BODY_SHA256` and the `watch.sh` pin no longer exist. Both scripts pass the thin-adapter grammar. |
-| 2 | One launcher | The `launcher/` tree is absent. `env/reference-manifest.toml` has no `foreman-launch` build row. The Node launcher suite includes a live strong cascade and a hostile escape closure. |
+| 2 | One POSIX launcher | The POSIX Bun build script, the WSL build row, and the runtime's POSIX Bun fallback are gone. The Bun source stays for the Windows executable until v0.6. The Node launcher suite includes a live strong cascade and a hostile escape closure. |
 | 3 | Containment is enforced in the runtime | The round runtime probes, records `containment` in `ownership`, refuses an implementation lane without an approval, and picks the kill target. `tests/lane-run.bats` passes through the thin adapter. |
-| 4 | Verdicts have three outcomes | The verdict schema accepts `UNVERIFIED` and `UNCOMPUTABLE`. The gate refuses an ungrounded audit. Every lane type asserts attempt-fresh deliverables. |
+| 4 | Verdicts are honest | The model-facing schema keeps its three values (approved, warning, blocked). The harness result adds `UNVERIFIED`. Measurements use `UNCOMPUTABLE`. The gate refuses an ungrounded audit. Every lane type asserts attempt-fresh deliverables. |
 | 5 | Exploratory work has a route | Spec triage runs in TypeScript before dispatch. The discover lane exists and is documented. |
 | 6 | The host tells the truth | WSL preflight runs in TypeScript. `fm-session recover` works on a fresh clone and after `fm-session repair`. `verify-runtime` refuses a symlinked `node_modules`. `secret-scan` scans a clean checkout within bounds. |
 | 7 | Doctrine matches code | `doctrine-check` runs offline on the candidate and passes. |
@@ -55,9 +55,9 @@ table is the narrative.
 
 | Tranche | OpenSpec owner | Status | Main result |
 |---|---|---|---|
-| 1 | `session-store-recovery`, `v050-release-program` | new | Recovery first, then the register, the program-parameterized runtime, and the Endstop family |
+| 1 | `v050-release-program` with `session-store-recovery` as its dependency | new | Bootstrap under the root contract: recovery first, then the runtime authorities, the register, frozen v0.4 fixtures, and the eleven-child family |
 | 2 | `lane-runtime-typescript` | new | `lane-round` owns the round, thin `lane-run.sh` and `watch.sh` adapters, pins retired |
-| 3 | `launcher-node-port` | reconcile | Bun tree retired, Windows Job Object parity, cascade proofs recorded |
+| 3 | `launcher-node-port` | reconcile | POSIX Bun build and fallback retired, cascade proofs recorded, Windows parity deferred to v0.6 |
 | 4 | `three-outcome-verdicts`, `audit-groundedness-gate`, `evidence-contracts` | reconcile | Honest verdict vocabulary, grounded gate, attempt-fresh evidence |
 | 5 | `spec-triage-gate`, `foreman-discover-lane` | reconcile to TypeScript | Exploratory route |
 | 6 | `build-determinism`, `wsl-preflight`, `wsl-tool-path-persistence` | one new, two reconcile | Host truth |

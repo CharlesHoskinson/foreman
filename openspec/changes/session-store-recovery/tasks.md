@@ -1,8 +1,12 @@
 ## Allowed file scope
 
-`packages/orchestration/src/session-sqlite-bootstrap.ts`,
-`packages/orchestration/src/fm-session-main.ts`, `packages/session-store/src/**`,
-their `.test.ts` siblings, `tests/session.bats`, `RESUME.md`, `brokenwindows.md`.
+Exact paths or terminal `/**` prefixes.
+
+- `packages/orchestration/src/session-sqlite-bootstrap.ts`, `packages/orchestration/src/session-sqlite-bootstrap.test.ts`
+- `packages/orchestration/src/fm-session-main.ts`, `packages/orchestration/src/fm-session-golden.test.ts`
+- `packages/session-store/src/**`
+- `tests/session.bats`, `RESUME.md`, `brokenwindows.md`
+- `skills/foreman/runtime/dist/**`, `skills/foreman/runtime/manifest.json`
 
 ## Tasks
 
