@@ -53,8 +53,9 @@ const EXIT_USAGE = 64;
 const USAGE_DIAGNOSTIC = "release-coverage: invalid invocation\n";
 const FAMILY_SCHEMA = "foreman.execution-family-source.v1" as const;
 const CHILD_SCHEMA = "foreman.execution-child-brief.v1" as const;
-const FAMILY_ID = "v040-release-20260822-f1" as const;
 const BRIEF_SCHEMA = "foreman.release-package-brief.v1" as const;
+const OPENSPEC_CHANGES_PREFIX = "openspec/changes";
+const EVIDENCE_FILE = "evidence";
 const ROADMAP_HEADER = "| Coverage key | Scope | Release | Owner |";
 const ROADMAP_SEPARATOR = "|---|---|---|---|";
 const OPENSPEC_LIST_ARGV = ["list", "--json"] as const;
@@ -93,7 +94,13 @@ export type ReleaseCoverageGitChangedPathsService = {
   readonly discover: (input: {
     readonly repository: string;
     readonly baselineCommit: string;
+    readonly pathPrefixes?: readonly string[];
   }) => Effect.Effect<readonly string[], unknown>;
+  readonly readAtCommit: (input: {
+    readonly repository: string;
+    readonly commit: string;
+    readonly path: string;
+  }) => Effect.Effect<Uint8Array, unknown>;
 };
 
 export type ReleaseCoverageChildBriefV1 = {
@@ -110,7 +117,7 @@ export type ReleaseCoverageChildBriefV1 = {
 export type ReleaseCoverageFamilySourceV1 = {
   readonly schema: "foreman.execution-family-source.v1";
   readonly program: ReleaseProgram;
-  readonly familyId: "v040-release-20260822-f1";
+  readonly familyId: string | null;
   readonly children: readonly ReleaseCoverageChildBriefV1[];
 };
 
@@ -497,6 +504,10 @@ export function makeLiveReleaseCoverageCliServices(
             dependencies.platform,
             dependencies.nullDevice,
           );
+          const prefixes = input.pathPrefixes ?? [
+            SUPERPOWERS_SPECS,
+            SUPERPOWERS_PLANS,
+          ];
           const tracked = yield* dependencies.runCaptured({
             command: trusted.physicalGit,
             args: gitArguments(trusted.physicalRepository, [
@@ -507,8 +518,7 @@ export function makeLiveReleaseCoverageCliServices(
               "--no-textconv",
               input.baselineCommit,
               "--",
-              SUPERPOWERS_SPECS,
-              SUPERPOWERS_PLANS,
+              ...prefixes,
             ]),
             env,
             maxOutputBytes: ONE_MIB,
@@ -527,8 +537,7 @@ export function makeLiveReleaseCoverageCliServices(
               "--others",
               "-z",
               "--",
-              SUPERPOWERS_SPECS,
-              SUPERPOWERS_PLANS,
+              ...prefixes,
             ]),
             env,
             maxOutputBytes: ONE_MIB,
@@ -540,6 +549,39 @@ export function makeLiveReleaseCoverageCliServices(
             return yield* Effect.fail({ _tag: "GitPathsInvalid" as const });
           }
           return dedupeUtf8ByteOrder([...trackedPaths, ...untrackedPaths]);
+        }),
+      readAtCommit: (input) =>
+        Effect.gen(function* () {
+          const trusted = yield* resolveTrustedGitContext(
+            input.repository,
+            "explicit",
+          );
+          const env = buildTrustedGitEnvironment(
+            trusted.physicalGit,
+            dependencies.platform,
+            dependencies.nullDevice,
+          );
+          if (
+            typeof input.path !== "string" ||
+            input.path.length === 0 ||
+            input.path.includes("\0") ||
+            input.path.includes("\\") ||
+            input.path.startsWith("/") ||
+            input.path.includes(":")
+          ) {
+            return yield* Effect.fail({ _tag: "GitPathsInvalid" as const });
+          }
+          const captured = yield* dependencies.runCaptured({
+            command: trusted.physicalGit,
+            args: gitArguments(trusted.physicalRepository, [
+              "show",
+              `${input.commit}:${input.path}`,
+            ]),
+            env,
+            maxOutputBytes: ONE_MIB,
+            timeoutMs: GIT_TIMEOUT_MS,
+          });
+          return yield* requireCapturedStdoutBytes(captured);
         }),
     },
     familySource: {
@@ -1040,7 +1082,7 @@ function validateFamilySource(
   }
   if (source["schema"] !== FAMILY_SCHEMA) return false;
   if (source["program"] !== program) return false;
-  if (source["familyId"] !== FAMILY_ID) return false;
+  if (source["familyId"] !== releaseProgramTable(program).familyId) return false;
   const children = source["children"];
   const expectedTranches = trancheSequence(program);
   const isDefaultProgram = program === RELEASE_PROGRAMS[0];
@@ -1209,6 +1251,15 @@ function evaluateReleaseCoverage(
       services.gitChangedPaths.discover({
         repository,
         baselineCommit: inspection.baselineCommit,
+        ...(parsed.program !== RELEASE_PROGRAMS[0]
+          ? {
+              pathPrefixes: [
+                SUPERPOWERS_SPECS,
+                SUPERPOWERS_PLANS,
+                OPENSPEC_CHANGES_PREFIX,
+              ],
+            }
+          : {}),
       }),
     ).pipe(Effect.either);
     if (changed._tag === "Left") return dependencyFailure();
@@ -1306,6 +1357,64 @@ function evaluateReleaseCoverage(
       }
     }
 
+    const tasksMarkdownByOwner: Record<string, string> = {};
+    if (parsed.program !== RELEASE_PROGRAMS[0] && parsed.phase._tag === "Lane") {
+      for (const owner of inspection.selectedOwners) {
+        const tasksPath = resolveContainedPath(repository, [
+          "openspec",
+          "changes",
+          owner,
+          "tasks.md",
+        ]);
+        if (tasksPath === null) continue;
+        const tasksRead = yield* readBoundedPort(
+          services.fileRead,
+          tasksPath,
+          repository,
+        );
+        if (tasksRead._tag === "Fail") return dependencyFailure();
+        if (tasksRead._tag === "NotFound") continue;
+        const tasksText = decodeUtf8Fatal(tasksRead.bytes);
+        if (tasksText === null) continue;
+        tasksMarkdownByOwner[owner] = tasksText;
+      }
+    }
+
+    let baselineRegisterText: string | undefined;
+    if (
+      parsed.program !== RELEASE_PROGRAMS[0] &&
+      (parsed.phase._tag === "Bootstrap" || parsed.phase._tag === "Release")
+    ) {
+      const baselineBytes = yield* callPort(() =>
+        services.gitChangedPaths.readAtCommit({
+          repository,
+          commit: inspection.baselineCommit,
+          path: releaseProgramTable(parsed.program).registerPath,
+        }),
+      ).pipe(Effect.either);
+      if (baselineBytes._tag === "Right") {
+        const baselineText = decodeUtf8Fatal(baselineBytes.right);
+        if (baselineText !== null) baselineRegisterText = baselineText;
+      }
+    }
+
+    const evidenceTexts: string[] = [];
+    if (parsed.program !== RELEASE_PROGRAMS[0] && parsed.phase._tag === "Release") {
+      const evidencePath = resolve(parsed.stateRoot!, EVIDENCE_FILE);
+      if (isNativeAbsolutePath(evidencePath)) {
+        const evidenceRead = yield* readBoundedPort(
+          services.fileRead,
+          evidencePath,
+          parsed.stateRoot,
+        );
+        if (evidenceRead._tag === "Fail") return dependencyFailure();
+        if (evidenceRead._tag === "Ok") {
+          const evidenceText = decodeUtf8Fatal(evidenceRead.bytes);
+          if (evidenceText !== null) evidenceTexts.push(evidenceText);
+        }
+      }
+    }
+
     return validateReleaseCoverageV1({
       phase: parsed.phase,
       registerText,
@@ -1317,6 +1426,11 @@ function evaluateReleaseCoverage(
       expectedBriefByOwner,
       packageBriefBytesByOwner,
       program: parsed.program,
+      ...(Object.keys(tasksMarkdownByOwner).length > 0
+        ? { tasksMarkdownByOwner }
+        : {}),
+      ...(baselineRegisterText !== undefined ? { baselineRegisterText } : {}),
+      ...(evidenceTexts.length > 0 ? { evidenceTexts } : {}),
     });
   }).pipe(
     Effect.catchAll((): Effect.Effect<ReleaseCoverageResultV1, never> =>

@@ -109,6 +109,11 @@ const CONTRACT_SHA =
 const FAMILY_SHA =
   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const BASELINE = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195";
+const V050_BASELINE = "00c342bd449948ab2ea5ca0b9d0c890614dd81d6";
+const V050_OWNER = "v050-release-program";
+const V050_ROADMAP_KEY = "roadmap:v050-publication";
+const V050_DEFERRED = "graph-store-port";
+const V050_DEP = "captured-facts-convergence";
 
 const ROADMAP_ABS = join(REPO, "ROADMAP.md");
 const TRACK1_WORKFLOW_ABS = join(
@@ -476,6 +481,136 @@ function sealRegister(input: {
   return text;
 }
 
+function v050RoadmapBytes(): Uint8Array {
+  return utf8(
+    [
+      "| Coverage key | Scope | Release | Owner |",
+      "|---|---|---|---|",
+      `| \`${V050_ROADMAP_KEY}\` | Exact-candidate release and publication | \`v0.5\` | \`${V050_OWNER}\` |`,
+      "",
+    ].join("\n"),
+  );
+}
+
+function sealV050Register(input: {
+  readonly activeNames: readonly string[];
+  readonly roadmapBytes: Uint8Array;
+  readonly extraEntry?: string;
+}): string {
+  const inv = inventorySha(input.activeNames);
+  const road = sha256Hex(input.roadmapBytes);
+  let text = [
+    `schema_version = 2`,
+    `baseline_commit = "${V050_BASELINE}"`,
+    `active_inventory_sha256 = "${inv}"`,
+    `roadmap_sha256 = "${road}"`,
+    ``,
+    `[[entry]]`,
+    `key = "change:${V050_OWNER}"`,
+    `source_kind = "openspec_change"`,
+    `source_path = "openspec/changes/${V050_OWNER}"`,
+    `disposition = "v050_owner"`,
+    `owner = "${V050_OWNER}"`,
+    `target_release = "v0.5"`,
+    `reconcile = "complete"`,
+    `reason = "governor"`,
+    ``,
+    `[[entry]]`,
+    `key = "${V050_ROADMAP_KEY}"`,
+    `source_kind = "roadmap"`,
+    `source_path = "ROADMAP.md"`,
+    `disposition = "v050_owner"`,
+    `owner = "${V050_OWNER}"`,
+    `target_release = "v0.5"`,
+    `reconcile = "complete"`,
+    `reason = "publication"`,
+  ].join("\n");
+  if (input.extraEntry) text += `\n${input.extraEntry}`;
+  return `${text}\n`;
+}
+
+const V050_BOOTSTRAP_ARGV = processArgv([
+  "check",
+  "--program",
+  "v050",
+  "--phase",
+  "bootstrap",
+  "--owner",
+  V050_OWNER,
+  "--register",
+  REGISTER,
+]);
+
+const V050_LANE_ARGV = processArgv([
+  "check",
+  "--program",
+  "v050",
+  "--phase",
+  "lane",
+  "--owner",
+  V050_OWNER,
+  "--repo",
+  REPO,
+  "--state-root",
+  STATE_ROOT,
+  "--contract-id",
+  CONTRACT_ID,
+  "--contract-sha",
+  CONTRACT_SHA,
+  "--family-sha",
+  FAMILY_SHA,
+  "--register",
+  REGISTER,
+]);
+
+const V050_RELEASE_ARGV = processArgv([
+  "check",
+  "--program",
+  "v050",
+  "--phase",
+  "release",
+  "--repo",
+  REPO,
+  "--state-root",
+  STATE_ROOT,
+  "--contract-id",
+  CONTRACT_ID,
+  "--contract-sha",
+  CONTRACT_SHA,
+  "--family-sha",
+  FAMILY_SHA,
+  "--register",
+  REGISTER,
+]);
+
+const V050_CHILD = {
+  schema: "foreman.execution-child-brief.v1" as const,
+  childId: "v050-release",
+  tranche: 8 as const,
+  packageId: V050_OWNER,
+  dependencyChildIds: [] as const,
+  objective: "Ship the v0.5 release program.",
+  acceptance: ["Bootstrap coverage passes."],
+  allowedPaths: ["packages/policy/**"],
+};
+
+const V050_FAMILY_RESULT: FamilyResult = {
+  stateRoot: STATE_ROOT,
+  contractId: CONTRACT_ID,
+  contractSha256: CONTRACT_SHA,
+  familySha256: FAMILY_SHA,
+  source: {
+    schema: "foreman.execution-family-source.v1",
+    program: "v050",
+    familyId: null,
+    children: [V050_CHILD],
+  },
+};
+
+function v050GovernorBriefAbs(): string {
+  return join(REPO, "openspec", "changes", V050_OWNER, "release-brief.json");
+}
+
 type CallLog = {
   readonly openspec: Array<{
     repository: string;
@@ -521,8 +656,8 @@ type FamilyChild = {
 
 type FamilySource = {
   readonly schema: "foreman.execution-family-source.v1";
-  readonly program: "v040";
-  readonly familyId: "v040-release-20260822-f1";
+  readonly program: "v040" | "v050";
+  readonly familyId: string | null;
   readonly children: readonly FamilyChild[];
 };
 
@@ -557,6 +692,9 @@ type HarnessOptions = {
   readonly repositoryRootThrow?: boolean;
   readonly packageReconcile?: "complete" | "required";
   readonly releaseTrack1Settled?: boolean;
+  readonly tasksMarkdownByOwner?: Readonly<Record<string, string>>;
+  readonly evidenceText?: string;
+  readonly baselineRegisterText?: string;
 };
 
 function cloneBytes(map: Map<string, Uint8Array>): ByteSnapshot {
@@ -744,6 +882,17 @@ function makeServices(
       utf8(`schema: ${schema}\n`),
     );
   }
+  for (const [owner, markdown] of Object.entries(
+    options.tasksMarkdownByOwner ?? {},
+  )) {
+    files.set(
+      join(REPO, "openspec", "changes", owner, "tasks.md"),
+      utf8(markdown),
+    );
+  }
+  if (options.evidenceText !== undefined) {
+    files.set(join(STATE_ROOT, "evidence"), utf8(options.evidenceText));
+  }
 
   // Durable byte image of repository + state material the CLI may touch.
   capture.repoStateBytes = new Map([
@@ -821,6 +970,12 @@ function makeServices(
       }
       if (options.gitError) return Effect.fail(options.gitError);
       return Effect.succeed(options.changedPaths ?? []);
+    },
+    readAtCommit: () => {
+      if (options.baselineRegisterText !== undefined) {
+        return Effect.succeed(utf8(options.baselineRegisterText));
+      }
+      return Effect.fail({ _tag: "GitShowUnavailable" as const });
     },
   };
 
@@ -2065,7 +2220,7 @@ test("lane and release authority bind the real family child and absolute brief p
 // 4. Result and dependency tables
 // ---------------------------------------------------------------------------
 
-test("twelve ReleaseCoverageFailureReason values print one canonical JSON line", async (t) => {
+test("every ReleaseCoverageFailureReason value prints one canonical JSON line", async (t) => {
   const harness = {
     invalid_register: {
       argv: BOOTSTRAP_ARGV,
@@ -2196,6 +2351,132 @@ test("twelve ReleaseCoverageFailureReason values print one canonical JSON line",
       ]),
       options: sharedBootstrapOptions(),
       expectOpenspec: false,
+    },
+    register_cross_field: {
+      argv: V050_BOOTSTRAP_ARGV,
+      options: (() => {
+        const roadmapBytes = v050RoadmapBytes();
+        const extraEntry = [
+          ``,
+          `[[entry]]`,
+          `key = "change:${V050_DEFERRED}"`,
+          `source_kind = "openspec_change"`,
+          `source_path = "openspec/changes/${V050_DEFERRED}"`,
+          `disposition = "v060"`,
+          `owner = "${V050_OWNER}"`,
+          `target_release = "v0.6"`,
+          `reconcile = "not_required"`,
+          `reason = "deferred"`,
+          ``,
+          `[[entry]]`,
+          `key = "change:${V050_DEP}"`,
+          `source_kind = "openspec_change"`,
+          `source_path = "openspec/changes/${V050_DEP}"`,
+          `disposition = "v050_dependency"`,
+          `owner = "${V050_DEFERRED}"`,
+          `target_release = "v0.5"`,
+          `reconcile = "required"`,
+          `reason = "owner is deferred"`,
+        ].join("\n");
+        return {
+          roadmapBytes,
+          activeNames: [V050_OWNER, V050_DEFERRED, V050_DEP],
+          workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+          registerText: sealV050Register({
+            activeNames: [V050_OWNER, V050_DEFERRED, V050_DEP],
+            roadmapBytes,
+            extraEntry,
+          }),
+        };
+      })(),
+      expectOpenspec: true,
+    },
+    iron_rule_violation: {
+      argv: V050_LANE_ARGV,
+      options: (() => {
+        const roadmapBytes = v050RoadmapBytes();
+        const registerText = sealV050Register({
+          activeNames: [V050_OWNER],
+          roadmapBytes,
+        });
+        const brief = deriveBrief(V050_CHILD);
+        return {
+          roadmapBytes,
+          activeNames: [V050_OWNER],
+          workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+          registerText,
+          familyResult: V050_FAMILY_RESULT,
+          briefBytesByAbsPath: new Map([
+            [v050GovernorBriefAbs(), briefFileBytes(brief)],
+          ]),
+          tasksMarkdownByOwner: {
+            [V050_OWNER]: [
+              "## Allowed file scope",
+              "",
+              "- `packages/policy/**`",
+              "",
+              "- [ ] Create `skills/foreman/scripts/spec-triage.sh`",
+              "",
+            ].join("\n"),
+          },
+        };
+      })(),
+      expectOpenspec: true,
+    },
+    deferred_package_changed: {
+      argv: V050_BOOTSTRAP_ARGV,
+      options: (() => {
+        const roadmapBytes = v050RoadmapBytes();
+        const extraEntry = [
+          ``,
+          `[[entry]]`,
+          `key = "change:${V050_DEFERRED}"`,
+          `source_kind = "openspec_change"`,
+          `source_path = "openspec/changes/${V050_DEFERRED}"`,
+          `disposition = "v060"`,
+          `owner = "${V050_OWNER}"`,
+          `target_release = "v0.6"`,
+          `reconcile = "not_required"`,
+          `reason = "deferred"`,
+        ].join("\n");
+        const registerText = sealV050Register({
+          activeNames: [V050_OWNER, V050_DEFERRED],
+          roadmapBytes,
+          extraEntry,
+        });
+        return {
+          roadmapBytes,
+          activeNames: [V050_OWNER, V050_DEFERRED],
+          workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+          registerText,
+          baselineRegisterText: registerText,
+          changedPaths: [`openspec/changes/${V050_DEFERRED}/tasks.md`],
+        };
+      })(),
+      expectOpenspec: true,
+    },
+    vocabulary_mixed: {
+      argv: V050_RELEASE_ARGV,
+      options: (() => {
+        const roadmapBytes = v050RoadmapBytes();
+        const registerText = sealV050Register({
+          activeNames: [V050_OWNER],
+          roadmapBytes,
+        });
+        const brief = deriveBrief(V050_CHILD);
+        return {
+          roadmapBytes,
+          activeNames: [V050_OWNER],
+          workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+          registerText,
+          familyResult: V050_FAMILY_RESULT,
+          briefBytesByAbsPath: new Map([
+            [v050GovernorBriefAbs(), briefFileBytes(brief)],
+          ]),
+          evidenceText: '{"verdict":"UNVERIFIED"}\n',
+        };
+      })(),
+      expectOpenspec: true,
     },
   } as const satisfies Record<
     ReleaseCoverageFailureReason,
