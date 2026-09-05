@@ -153,11 +153,12 @@ describe("buildCheckerAuthority / collectCheckerAuthority", () => {
 });
 
 describe("pseudo IDs, package aliases, unprovisioned", () => {
-  it("names the three pseudo IDs", () => {
+  it("names the four pseudo IDs", () => {
     assert.ok(PSEUDO_IDS.has("foreman_home_fs"));
     assert.ok(PSEUDO_IDS.has("foreman_skill"));
     assert.ok(PSEUDO_IDS.has("foreman-launch"));
-    assert.equal(PSEUDO_IDS.size, 3);
+    assert.ok(PSEUDO_IDS.has("containment"));
+    assert.equal(PSEUDO_IDS.size, 4);
   });
 
   it("maps flock → util-linux and timeout → coreutils", () => {

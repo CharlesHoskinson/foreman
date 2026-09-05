@@ -337,6 +337,7 @@ export function profileToolIds(
   }
   if (isWsl) {
     should.push("foreman-launch");
+    should.push("containment");
   }
   return { must, should };
 }

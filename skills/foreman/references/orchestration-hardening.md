@@ -209,6 +209,8 @@ form before it calls any queue or process service. Pueue v4.0.4 is staged at
 `~/.foreman/tools/pueue/`; there is no Windows package-manager route. Fixed
 group topology is created idempotently by `ensure`:
 
+Use `--containment-approval REASON` before `--` to record a specific acceptance of degraded process-group containment for the queued command.
+
 | Group | Parallelism | Purpose |
 |---|---|---|
 | `grok` | 3 | Grok CLI concurrency cap (T5b GREEN 2026-07-18 — see §4) |

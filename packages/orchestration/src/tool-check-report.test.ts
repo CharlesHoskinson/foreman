@@ -141,9 +141,11 @@ describe("profileToolIds", () => {
     assert.ok(!should.includes("foreman-launch"));
   });
 
-  it("WSL adds foreman-launch to should", () => {
-    const { should } = profileToolIds("soft", true);
+  it("WSL adds foreman-launch and containment to should", () => {
+    const { must, should } = profileToolIds("soft", true);
     assert.ok(should.includes("foreman-launch"));
+    assert.ok(should.includes("containment"));
+    assert.ok(!must.includes("containment"));
   });
 
   it("durable must excludes vendors", () => {

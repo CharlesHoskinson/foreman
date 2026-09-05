@@ -247,7 +247,7 @@ The queue syntax is:
 
 `lane-queue.sh add GROUP --endstop-state-root ABS --endstop-contract-id ID
 --endstop-contract-sha SHA256 --endstop-action ACTION
---endstop-candidate-sha SHA256 -- CMD [ARGS...]`
+--endstop-candidate-sha SHA256 [--containment-approval REASON] -- CMD [ARGS...]`
 
 This V1 form remains valid only before a v0.4 family is active. After family
 activation, every child queue request uses this fixed release block:
