@@ -80,7 +80,8 @@ CLI, **read-only** sandbox. Must be a **different vendor** than the worker
 
 ## Advisor (Judgment)
 
-**Who:** `foreman-advisor` — top judgment model, read-only tools (Claude Fable/Opus).
+**Who:** `foreman-advisor` — Claude Fable 5.1 (`claude-fable-5-1`), with
+read-only tools and an exact-model canary.
 
 **Owns:**
 
@@ -91,3 +92,19 @@ CLI, **read-only** sandbox. Must be a **different vendor** than the worker
 
 - Implement, edit files, or rubber-stamp weak plans
 - Replace the Codex auditor for routine post-diff review (different job: strategy vs. cold-diff QA)
+
+## High-judgment reviewer
+
+**Who:** GPT-6 Astra (`gpt-6-astra`) through an exact-model canary and a
+read-only lane.
+
+**Owns:**
+
+- Primary judgment for costly architecture and release decisions
+- High-judgment review in a configured Council profile
+
+**Does not:**
+
+- Implement routine work
+- Replace the independent Codex Sol audit
+- Approve a gate or suppress Council dissent

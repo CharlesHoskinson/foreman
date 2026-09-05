@@ -4,28 +4,34 @@
 
 | Lane | Producer | Claude agent | Direct CLI (headless) |
 |---|---|---|---|
-| Routine implementer | Grok 4.5 | `grok-implementer` | `grok --prompt-file … -m grok-4.5 --allow "Write" --allow "Edit"` |
+| Routine implementer | Grok 4.6 | `grok-implementer` | `grok --prompt-file … -m grok-4.6 --allow "Write" --allow "Edit"` |
 | Cross-vendor implementer | GPT-5.6 Sol (medium) | `codex-implementer` | `codex exec --model gpt-5.6-sol -c model_reasoning_effort=medium --sandbox workspace-write` |
 | **Audit (default)** | **GPT-5.6 Sol (high)** | **`codex-auditor`** | `codex exec --model gpt-5.6-sol -c model_reasoning_effort=high --sandbox read-only` |
-| Judgment | Fable 5.1 | `foreman-advisor` | Session model or `model: claude-fable-5-1` agent; exact identity is host-verified |
+| High judgment | GPT-6 Astra | Architect or Council reviewer | `codex exec --model gpt-6-astra --sandbox read-only` after an exact-model canary |
+| Advisory | Fable 5.1 | `foreman-advisor` | `model: claude-fable-5-1` agent after an exact-model canary |
 
 ### Default pairing
 
 ```text
-Grok implements  →  architect re-runs checks  →  Codex Sol audits  →  architect ships
+Grok 4.6 implements  →  architect re-runs checks  →  Codex Sol audits  →  architect ships
 ```
 
 If Codex implemented, **do not** call `codex-auditor`. Use architect review or a
 non-OpenAI auditor and say so explicitly.
 
+The current agent and adapter defaults still name `grok-4.5`. Set
+`WC_GROK_MODEL=grok-4.6` in the lane process before
+`adapter_implement_argv`. Without this override, report a route mismatch and
+do not claim Grok 4.6 identity. This skill update does not migrate runtime
+defaults or installed user configuration.
+
 ### Grok worker flags (soft)
 
 - `--prompt-file` — never shell-interpolate large specs
-- `-m grok-4.5` (or pinned model from config)
-- `--allow "Write" --allow "Edit"` — auto-approve file writes only; NOT
-  `--permission-mode acceptEdits` (the grok CLI accepts that flag value but
-  silently ignores it, and headless prompt-cancellation then kills every
-  write); shell stays gated
+- `-m grok-4.6` for the current soft route
+- `--allow "Write" --allow "Edit"` — auto-approve file writes only
+- Older observed releases accepted `--permission-mode acceptEdits` but ignored
+  it. Current help text does not prove changed behavior. Keep the allow rules.
 - `--cwd` / working directory explicit
 - Wall clock ~600s when `timeout`/`gtimeout` exists
 - grok `--prompt-file` is single-burst → write-first specs; exploratory work
@@ -38,15 +44,17 @@ distinct from the architect-orchestrated `grok-implementer` agent dispatch
 above:
 
 ```bash
-grok -p "<spec>" --cwd <worktree> --output-format json --always-approve \
-  --session-id <uuid> --no-auto-update
+grok -p "<spec>" --cwd <worktree> -m grok-4.6 --output-format json \
+  --always-approve --session-id <uuid> --no-subagents --disable-web-search \
+  --verbatim
 ```
 
 - `--output-format json` — machine-readable (one JSON object at the end)
 - `--always-approve` — unattended edits; no interactive tool-approval prompt
 - `--session-id <uuid>` — a fresh, unique session per lane round
-- `--no-auto-update` — skip grok's own background update check (required in
-  scripts/CI/any automated environment)
+- `--no-subagents` — keep the provider identity and author lane closed
+- `--disable-web-search` — disable built-in web search when the spec does not authorize web research
+- `--verbatim` — send the five-part spec without CLI prompt rewriting
 - `GROK_HOME` is set per lane by `lane-run.sh`'s `LANE_VENDOR=grok` plumbing
   (see the vendor-home isolation contract above) — never shared across lanes
 
@@ -54,8 +62,9 @@ Resuming a lane reuses the same session and vendor home, stdout still
 redirected to the lane's own per-lane output file:
 
 ```bash
-grok -r <session-id> --cwd <worktree> --output-format json --always-approve \
-  --no-auto-update
+grok -r <session-id> --cwd <worktree> -m grok-4.6 \
+  --output-format json --always-approve --no-subagents \
+  --disable-web-search --verbatim
 ```
 
 **Auth doctrine:** grok authentication is a **Setup-stage** responsibility,
@@ -72,6 +81,10 @@ unrefuted, `lane-run.sh` scans the worktree SOURCE (excluding its own
 before ever spawning grok, and refuses the lane
 (`alert{kind:"grok_secrets_refused"}`, non-zero exit, CMD never spawned) if
 either is found.
+
+The July 18, 2026 concurrency evidence applies to the tested model and CLI.
+It does not prove Grok 4.6 identity or concurrency behavior. Run the current
+exact-model canary and current CLI probe before the first Grok 4.6 dispatch.
 
 Grok is a **verified default-eligible implementer** as of the 2026-07-18
 live authenticated T5b run (real-vendor destructive-concurrency
@@ -118,11 +131,20 @@ Setup, same as grok.
 - Wall clock ~600s when timeout exists
 - After run: `git status --porcelain` must show no auditor mutations
 
+### GPT-6 Astra judgment flags
+
+- `codex exec --model gpt-6-astra` with the decision bundle on stdin
+- Use a read-only sandbox for Council and architecture review
+- Bind the model response to the exact prompt and candidate hashes
+- Treat a completed model turn as advice, not as an audit or gate verdict
+- Keep GPT-5.6 Sol for the cheaper independent audit and fallback roles
+
 ### Preflight
 
 ```bash
 command -v grok && grok --version     # implementer
 command -v codex && codex --version   # implementer race + default auditor
+command -v claude && claude --version # Fable advisory canary
 ```
 
 Missing CLI → `STATUS: unavailable` with install hint. **Never** silently substitute
@@ -154,7 +176,7 @@ mode = "soft"   # soft | hard
 
 [worker]
 vendor = "grok"       # claude | codex | grok — must differ from orchestrator in hard mode
-model  = "grok-4.5"
+model  = "grok-4.6"
 
 [audit]
 vendor = "codex"      # default auditor family
@@ -177,8 +199,11 @@ hash_paths = ["tests/**", ".github/**"]
 
 | Lane | Limit | Consequence for specs |
 |---|---|---|
-| Grok headless | `--permission-mode acceptEdits` is silently ignored by the CLI; without `--allow "Write" --allow "Edit"` every write is prompt-cancelled while the model narrates success | Always pass the two allow rules; treat zero-change evidence digests as a cancelled-writes signal |
+| Grok headless | Older observed releases silently ignored `--permission-mode acceptEdits`. Grok 1.0.13 lists the mode, but help output does not prove write behavior. | Keep the two explicit allow rules until a current destructive-write probe proves the new behavior. Treat zero-change evidence digests as a cancelled-writes signal. |
+| Grok 1.0.13 | `--no-auto-update` is absent from current help. | Do not copy that obsolete flag into new direct-CLI recipes. Probe flags after each CLI update. |
 | Grok headless | Shell tool prompt-cancelled (no headless approver); cannot delete/rename/chmod or run commands | Wrapper runs verification; deletions go to `ARCHITECT_ACTIONS`; never spec a deletion to Grok |
 | Grok headless | May narrate success without writing; may attempt git commits | Evidence contract (head/status digests) is mandatory; git-write ban is standing |
 | Codex exec | `workspace-write` sandbox: no writes outside workspace, no network installs | Keep file set inside the worktree; pre-install deps via bootstrap |
 | Both | No conversation context | Five-part spec must be self-contained; include Standing constraints verbatim |
+| GPT-6 Astra | Official guidance reports that the model can stop for clarification, react strongly to skill conflicts, delegate less than desired, and test too broadly. | State priority, authorized scope, delegation policy, and proportional verification in the decision prompt. |
+| Frontier reviewers | Model cards report residual factual, authorization, scope, and monitorability failures. | Require terminal-first admission, hash-bound evidence, non-author review, independent checks, and preserved dissent. |
