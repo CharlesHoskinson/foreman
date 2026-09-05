@@ -34,6 +34,8 @@ export type BootstrapOpts = {
 export type RepairStoreOpts = {
   /** Test seam. Production callers omit it and use wall-clock UTC. */
   readonly now?: () => Date;
+  /** Test seam. Called after backup allocation and before the first dest link. */
+  readonly beforeMove?: (dest: string) => void;
 };
 
 export type RepairStoreResult =
@@ -121,7 +123,8 @@ function backupTripletOccupied(
 }
 
 /**
- * First free `.corrupt-<stamp>` path. Collision suffixes are `-1`, `-2`, ...
+ * First free `.corrupt-<stamp>` path from `startSuffix` onward.
+ * Suffix 0 is the unsuffixed base. Collision suffixes are `-1`, `-2`, ...
  * A candidate is free only when none of `<base>`, `<base>-wal`, and
  * `<base>-shm` exist by `lstat` (a dangling symlink counts as occupied).
  * The `occupied` seam is for tests; production uses `fs.lstatSync`.
@@ -129,23 +132,18 @@ function backupTripletOccupied(
 export function allocateCorruptBackupPath(
   dbPath: string,
   stamp: string,
+  startSuffix = 0,
   occupied: (path: string) => boolean = pathOccupied,
-): string {
+): { path: string; suffix: number } {
   const base = `${dbPath}.corrupt-${stamp}`;
-  if (!backupTripletOccupied(base, occupied)) return base;
-  let n = 1;
-  let candidate = `${base}-${n}`;
-  while (backupTripletOccupied(candidate, occupied)) {
+  let n = startSuffix;
+  for (;;) {
+    const candidate = n === 0 ? base : `${base}-${n}`;
+    if (!backupTripletOccupied(candidate, occupied)) {
+      return { path: candidate, suffix: n };
+    }
     n += 1;
-    candidate = `${base}-${n}`;
   }
-  return candidate;
-}
-
-function eexistError(path: string): NodeJS.ErrnoException {
-  const err = new Error(`EEXIST: file already exists, ${path}`) as NodeJS.ErrnoException;
-  err.code = "EEXIST";
-  return err;
 }
 
 function unlinkCreated(paths: readonly string[]): void {
@@ -153,39 +151,47 @@ function unlinkCreated(paths: readonly string[]): void {
     try {
       fs.unlinkSync(p);
     } catch {
-      // best-effort rollback of hardlinks created in this attempt
+      // best-effort rollback of links and reservations this attempt created
     }
   }
 }
 
+const BACKUP_TRIPLET_SUFFIXES = ["", ...BACKUP_SIDECARS] as const;
+
 /**
  * Move the database and any existing `-wal`/`-shm` files without replacing
- * an occupied destination. `link` then `unlink` fails with `EEXIST` when
- * the destination is taken.
+ * an occupied destination. Reserve all three destination names for the whole
+ * move: `link` when the source exists, `openSync(wx)` when it does not.
+ * `wx` and `link` fail with `EEXIST` when the destination is taken.
  */
 function renameStoreAside(dbPath: string, dest: string): void {
-  if (backupTripletOccupied(dest)) {
-    throw eexistError(dest);
-  }
-  const pairs: Array<{ src: string; dest: string }> = [{ src: dbPath, dest }];
-  for (const suffix of BACKUP_SIDECARS) {
-    if (pathOccupied(dbPath + suffix)) {
-      pairs.push({ src: dbPath + suffix, dest: dest + suffix });
-    }
-  }
   const created: string[] = [];
+  const reservations: string[] = [];
   try {
-    for (const pair of pairs) {
-      fs.linkSync(pair.src, pair.dest);
-      created.push(pair.dest);
+    for (const suffix of BACKUP_TRIPLET_SUFFIXES) {
+      const src = dbPath + suffix;
+      const dst = dest + suffix;
+      if (pathOccupied(src)) {
+        fs.linkSync(src, dst);
+        created.push(dst);
+      } else {
+        const fd = fs.openSync(dst, "wx");
+        created.push(dst);
+        reservations.push(dst);
+        fs.closeSync(fd);
+      }
     }
   } catch (e) {
     unlinkCreated(created);
     throw e;
   }
-  for (const pair of pairs) {
-    fs.unlinkSync(pair.src);
+  for (const suffix of BACKUP_TRIPLET_SUFFIXES) {
+    const src = dbPath + suffix;
+    if (pathOccupied(src)) {
+      fs.unlinkSync(src);
+    }
   }
+  unlinkCreated(reservations);
 }
 
 /**
@@ -203,9 +209,13 @@ export function repairStore(dbPath: string, opts: RepairStoreOpts = {}): RepairS
   }
   const stamp = compactUtcTimestamp((opts.now ?? (() => new Date()))());
   let renamedPath: string | undefined;
+  let lastSuffix = -1;
   for (let attempt = 0; attempt < MAX_BACKUP_MOVE_ATTEMPTS; attempt++) {
-    const dest = allocateCorruptBackupPath(dbPath, stamp);
+    const allocated = allocateCorruptBackupPath(dbPath, stamp, lastSuffix + 1);
+    lastSuffix = allocated.suffix;
+    const dest = allocated.path;
     try {
+      opts.beforeMove?.(dest);
       renameStoreAside(dbPath, dest);
       renamedPath = dest;
       break;

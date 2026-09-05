@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import {
   SqliteSessionStore,
   classifySqliteStore,
+  decodeSnapshot,
   encodeSnapshot,
 } from "@foreman/session-store";
 import { sidecarPathFor } from "./session-paths.js";
@@ -120,6 +121,13 @@ function listingOf(dir: string): readonly { name: string; size: number }[] {
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
+/** Canonical sidecar plus two trailing spaces on the header line. Still valid. */
+function sidecarWithTrailingSpacesOnHeader(canonical: string): Buffer {
+  const lines = canonical.split("\n");
+  lines[0] = `${lines[0]}  `;
+  return Buffer.from(lines.join("\n"));
+}
+
 function captureStderr(body: () => void): string {
   let text = "";
   const orig = process.stderr.write;
@@ -150,31 +158,38 @@ test("allocateCorruptBackupPath appends -1, -2 until free and overwrites nothing
     "/tmp/session.db.corrupt-20260905T000000Z",
     "/tmp/session.db.corrupt-20260905T000000Z-1",
   ]);
-  assert.equal(
-    allocateCorruptBackupPath("/tmp/session.db", "20260905T000000Z", (p) => taken.has(p)),
-    "/tmp/session.db.corrupt-20260905T000000Z-2",
+  assert.deepEqual(
+    allocateCorruptBackupPath("/tmp/session.db", "20260905T000000Z", 0, (p) => taken.has(p)),
+    { path: "/tmp/session.db.corrupt-20260905T000000Z-2", suffix: 2 },
   );
-  assert.equal(
-    allocateCorruptBackupPath("/tmp/session.db", "20260905T000000Z", () => false),
-    "/tmp/session.db.corrupt-20260905T000000Z",
+  assert.deepEqual(
+    allocateCorruptBackupPath("/tmp/session.db", "20260905T000000Z", 0, () => false),
+    { path: "/tmp/session.db.corrupt-20260905T000000Z", suffix: 0 },
   );
 });
 
 test("allocateCorruptBackupPath treats -wal or -shm occupancy as a collision", () => {
   const walTaken = new Set(["/tmp/session.db.corrupt-20260905T000000Z-wal"]);
-  assert.equal(
-    allocateCorruptBackupPath("/tmp/session.db", "20260905T000000Z", (p) => walTaken.has(p)),
-    "/tmp/session.db.corrupt-20260905T000000Z-1",
+  assert.deepEqual(
+    allocateCorruptBackupPath("/tmp/session.db", "20260905T000000Z", 0, (p) => walTaken.has(p)),
+    { path: "/tmp/session.db.corrupt-20260905T000000Z-1", suffix: 1 },
   );
   const shmTaken = new Set(["/tmp/session.db.corrupt-20260905T000000Z-shm"]);
-  assert.equal(
-    allocateCorruptBackupPath("/tmp/session.db", "20260905T000000Z", (p) => shmTaken.has(p)),
-    "/tmp/session.db.corrupt-20260905T000000Z-1",
+  assert.deepEqual(
+    allocateCorruptBackupPath("/tmp/session.db", "20260905T000000Z", 0, (p) => shmTaken.has(p)),
+    { path: "/tmp/session.db.corrupt-20260905T000000Z-1", suffix: 1 },
   );
   const suffixWalTaken = new Set(["/tmp/session.db.corrupt-20260905T000000Z-1-wal"]);
-  assert.equal(
-    allocateCorruptBackupPath("/tmp/session.db", "20260905T000000Z", (p) => suffixWalTaken.has(p)),
-    "/tmp/session.db.corrupt-20260905T000000Z",
+  assert.deepEqual(
+    allocateCorruptBackupPath("/tmp/session.db", "20260905T000000Z", 0, (p) => suffixWalTaken.has(p)),
+    { path: "/tmp/session.db.corrupt-20260905T000000Z", suffix: 0 },
+  );
+});
+
+test("allocateCorruptBackupPath startSuffix skips lower suffixes even when they are free", () => {
+  assert.deepEqual(
+    allocateCorruptBackupPath("/tmp/session.db", "20260905T000000Z", 2, () => false),
+    { path: "/tmp/session.db.corrupt-20260905T000000Z-2", suffix: 2 },
   );
 });
 
@@ -219,9 +234,11 @@ test("repair on a healthy store with a sidecar changes no directory entry and le
     established_ts: "2026-08-01T00:00:00Z",
     session_id: null,
   });
+  const canonicalSidecar = encodeSnapshot(store.snapshot());
   store.close();
   const sidecar = sidecarPathFor(p);
-  const sidecarBytes = Buffer.from("distinctive-sidecar-bytes-must-not-change\n");
+  const sidecarBytes = sidecarWithTrailingSpacesOnHeader(canonicalSidecar);
+  decodeSnapshot(sidecarBytes.toString("utf8"));
   writeFileSync(sidecar, sidecarBytes);
   classifySqliteStore(p);
   const listingBefore = listingOf(dir);
@@ -229,12 +246,12 @@ test("repair on a healthy store with a sidecar changes no directory entry and le
   const res = spawnSession(dir, p, ["repair"]);
   assert.equal(res.status, 0, res.stderr);
   assert.equal(res.stdout, "repair: store is healthy, nothing to do\n");
-  assert.deepEqual(listingOf(dir), listingBefore);
-  assert.ok(Buffer.compare(dbBefore, readFileSync(p)) === 0);
   assert.ok(
     Buffer.compare(sidecarBytes, readFileSync(sidecar)) === 0,
     "existing sidecar bytes must be unchanged; this assertion fails if repair is removed from NO_SIDECAR_REFRESH_CMDS",
   );
+  assert.ok(Buffer.compare(dbBefore, readFileSync(p)) === 0);
+  assert.deepEqual(listingOf(dir), listingBefore);
   assert.equal(classifySqliteStore(p), "port");
   assert.ok(factStatements(p).includes("keep me"));
 });
@@ -348,6 +365,62 @@ test("repair allocates the next suffix when the intended backup -shm exists", ()
   assert.equal(existsSync(intended), false);
   assert.ok(Buffer.compare(occupant, readFileSync(`${intended}-shm`)) === 0);
   assert.equal(existsSync(result.renamedPath), true);
+  assert.equal(classifySqliteStore(p), "port");
+});
+
+test("repair reserves dest-wal and dest-shm and retries when dest-wal appears after allocation", () => {
+  const dir = makeTempDir("ss-repair-reserve-wal-");
+  const p = join(dir, "session.db");
+  writeHalfMigratedStore(p);
+  rmSync(`${p}-wal`, { force: true });
+  rmSync(`${p}-shm`, { force: true });
+  writeFactSidecar(sidecarPathFor(p), "after repair");
+  const frozen = new Date("2026-09-05T12:00:00Z");
+  const intended = `${p}.corrupt-20260905T120000Z`;
+  const occupant = Buffer.from("injected-dest-wal-bytes");
+
+  const result = repairStore(p, {
+    now: () => frozen,
+    beforeMove: (dest) => {
+      if (dest === intended) {
+        writeFileSync(`${dest}-wal`, occupant);
+      }
+    },
+  });
+  assert.equal(result.status, "repaired", result.status === "failed" ? result.detail : "");
+  if (result.status !== "repaired") return;
+  assert.equal(result.renamedPath, `${intended}-1`);
+  assert.ok(Buffer.compare(occupant, readFileSync(`${intended}-wal`)) === 0);
+  assert.equal(existsSync(`${result.renamedPath}-wal`), false);
+  assert.equal(existsSync(`${result.renamedPath}-shm`), false);
+  assert.equal(classifySqliteStore(p), "port");
+});
+
+test("repair retries advance the suffix after dest then dest-shm collisions", () => {
+  const dir = makeTempDir("ss-repair-retry-suffix-");
+  const p = join(dir, "session.db");
+  writeHalfMigratedStore(p);
+  writeFactSidecar(sidecarPathFor(p), "after repair");
+  const frozen = new Date("2026-09-05T12:00:00Z");
+  const intended = `${p}.corrupt-20260905T120000Z`;
+  let attempts = 0;
+
+  const result = repairStore(p, {
+    now: () => frozen,
+    beforeMove: (dest) => {
+      attempts += 1;
+      if (attempts === 1) {
+        writeFileSync(dest, "occupy-dest");
+      } else if (attempts === 2) {
+        writeFileSync(`${dest}-shm`, "occupy-shm");
+      }
+    },
+  });
+  assert.equal(result.status, "repaired", result.status === "failed" ? result.detail : "");
+  if (result.status !== "repaired") return;
+  assert.equal(result.renamedPath, `${intended}-2`);
+  assert.ok(result.renamedPath.endsWith("-2"));
+  assert.equal(attempts, 3);
   assert.equal(classifySqliteStore(p), "port");
 });
 

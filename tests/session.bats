@@ -499,15 +499,17 @@ store_listing() {
   sidecar="${FOREMAN_SESSION_DB%.db}.ndjson"
   $SESS fact "keep me"
   [ -f "$sidecar" ]
-  printf 'must-not-change\n' >> "$sidecar"
+  # Valid sidecar from the real writer, then two trailing spaces on line 1.
+  # Bytes differ from canonical serialization. JSON.parse still accepts the line.
+  sed -i '1s/$/  /' "$sidecar"
   sidecar_before=$(cksum "$sidecar")
   $SESS recover >/dev/null
   listing_before=$(store_listing "$store_dir")
   run $SESS repair
   [ "$status" -eq 0 ]
   [[ "$output" == *"repair: store is healthy, nothing to do"* ]]
-  [ "$(store_listing "$store_dir")" = "$listing_before" ]
   [ "$(cksum "$sidecar")" = "$sidecar_before" ]
+  [ "$(store_listing "$store_dir")" = "$listing_before" ]
 }
 
 @test "repair on a healthy store without a sidecar creates none" {
