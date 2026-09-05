@@ -80,20 +80,25 @@ outer `unshare` wrapper cascades the same way). On `unshare`
 unavailability/failure (checked via a disposable probe before the
 irreversible self-replacement), the launcher falls back to the PRE-v0.2.7.5
 `setsid` + `kill(-pgid)` path and logs a DEGRADED marker — never silently.
+CAUTION: with the Bun binary an unprivileged user always gets `EPERM`
+(`CLONE_NEWPID` and `CLONE_NEWNS` need `CAP_SYS_ADMIN`, and its flag list has
+no `--user`). Since 2026-09-05 `lane-run.sh` prefers the Node launcher, which
+probes `--user --map-current-user` first and gets the cascade unprivileged.
+`lane-run.sh` probes once per round (`--probe-only`), records
+`containment` in the `ownership` event, emits a `degraded` alert for a
+non-strong capability, and refuses an implementation lane
+(`LANE_VENDOR` set) unless `FOREMAN_CONTAINMENT_APPROVAL` is recorded. See
+`docs/research/foreman-pidns-degradation-2026-09-05.md`.
 
 The OLD asymmetry (`kill -9 <launcher_pid>` alone leaves CMD's process
 group alive; an external reaper must send the signal to `-<pid>`, the pgid
 from the heartbeat's `pid` field) still applies WHENEVER that DEGRADED
-marker was logged, and is otherwise still exactly what `lane-run.sh`'s own
-`kill_launcher_bounded` POSIX branch does today (unchanged by this package;
-`lane-run.sh` is owned by a different lane) — it sends `-pid` to the
-gate-phase child, refreshed via `lane_refresh_gate_ownership_pid` for the
-gate phase (see `lane-run.sh` header CONTRACT and its "Rework round 1, F2"
-comment). That `-pid` targeting remains correct and unaffected either way:
-it targets CMD's own pgid directly, which is reaped by BOTH the old
-cooperative path and the new pidns cascade. A future `lane-run.sh` revision
-could additionally target `launcher_pid` directly (now sufficient on its
-own whenever pidns is active) — not done here, out of this package's scope.
+marker was logged. `kill_launcher_bounded` in `lane-run.sh` now branches on
+the capability record: a degraded round sends `-pid` to CMD's own pgid
+(refreshed via `lane_refresh_gate_ownership_pid` for the gate phase), a
+strong round sends `SIGKILL` to `launcher_pid` only. The heartbeat `pid` is
+namespace-local when the cascade is active, so `-pid` on the host would
+name an unrelated process group.
 
 **NTSTATUS masking (accepted, documented ambiguity):** on Windows, a child
 dying with an NTSTATUS code (e.g. `0xC0000005`) surfaces byte-masked through
@@ -251,6 +256,10 @@ config-loader tables per v0.2.5 T7): bounds `watch.sh`'s `wd_is_queued`
 pueue-status round-trip — an unreachable daemon's own connection-refused
 path has been measured at ~2.2s on this host, and the watcher's tick cadence
 must never stall on that.
+
+Use `--containment-approval REASON` before `--` to record a specific
+acceptance of degraded process-group containment for the queued command. The
+queue passes it to the command as `FOREMAN_CONTAINMENT_APPROVAL`.
 
 ## 4. Vendor config isolation
 

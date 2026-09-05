@@ -131,9 +131,12 @@ claude
 ```
 
 ```text
-/model fable
+/model claude-fable-5-1
 /foreman
 ```
+
+Use the canonical model ID. Foreman does not accept the `fable` alias as
+evidence that Fable 5.1 ran.
 
 Restate the goal and mode in one short paragraph. Soft unless
 `.foreman/config.toml` sets `mode = "hard"` or you ask for hard mode. From

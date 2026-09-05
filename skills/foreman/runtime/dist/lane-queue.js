@@ -32473,7 +32473,7 @@ var EXIT_OK = 0;
 var EXIT_FAIL = 1;
 var EXIT_CONFIG = 2;
 var EXIT_MISSING_CLI = 3;
-var ADD_USAGE = "usage: lane-queue.sh ensure|add GROUP [--endstop-prior-reservation-id ID] --endstop-state-root ABS --endstop-contract-id ID --endstop-contract-sha SHA256 [--endstop-family-sha SHA256 --endstop-child-id ID] --endstop-action ACTION --endstop-candidate-sha SHA256 [--release-program v040 --release-phase PHASE --release-owner PACKAGE --release-repo ABS --release-candidate-commit SHA40 --release-register ABS --release-evidence ABS] -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
+var ADD_USAGE = "usage: lane-queue.sh ensure|add GROUP [--endstop-prior-reservation-id ID] --endstop-state-root ABS --endstop-contract-id ID --endstop-contract-sha SHA256 [--endstop-family-sha SHA256 --endstop-child-id ID] --endstop-action ACTION --endstop-candidate-sha SHA256 [--containment-approval REASON] [--release-program v040 --release-phase PHASE --release-owner PACKAGE --release-repo ABS --release-candidate-commit SHA40 --release-register ABS --release-evidence ABS] -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
 var FIXED_GROUPS = [
   { name: "grok", parallel: 3 },
   { name: "codex", parallel: 2 },
@@ -32813,7 +32813,7 @@ var cmdEnsure = (io2, options) => Effect_exports.gen(function* () {
   }
   return EXIT_OK;
 });
-var cmdAdd = (io2, group, cmd) => Effect_exports.gen(function* () {
+var cmdAdd = (io2, group, cmd, containmentApproval) => Effect_exports.gen(function* () {
   if (!GROUP_RE.test(group)) {
     io2.writeStderr(
       `lane-queue: invalid GROUP '${group}' (must match ^[a-z][a-z0-9_-]*$)
@@ -32850,7 +32850,8 @@ var cmdAdd = (io2, group, cmd) => Effect_exports.gen(function* () {
     );
     return EXIT_CONFIG;
   }
-  const quoted = quoteForShell(pueueBin, cmd, null, fileExists);
+  const queued = containmentApproval === void 0 ? cmd : ["env", `FOREMAN_CONTAINMENT_APPROVAL=${containmentApproval}`, ...cmd];
+  const quoted = quoteForShell(pueueBin, queued, null, fileExists);
   if (!quoted.ok) {
     io2.writeStderr(
       "lane-queue: pueue config overrides daemon.shell_command -- lane-queue does not know how to quote for that shell and refuses to guess\n"
@@ -40422,7 +40423,7 @@ function stripNodeArgv(argv) {
   return args2;
 }
 function parseQueueArgv(argv) {
-  const args2 = stripNodeArgv(argv);
+  const args2 = [...stripNodeArgv(argv)];
   if (args2.length === 0) {
     return { kind: "usage", message: USAGE };
   }
@@ -40431,6 +40432,49 @@ function parseQueueArgv(argv) {
     case "ensure":
       return { kind: "ensure" };
     case "add": {
+      let containmentApproval;
+      const separatorIndex = args2.indexOf("--", 2);
+      const releaseEnd = separatorIndex === -1 ? args2.length : separatorIndex;
+      const approvalIndexes = [];
+      for (let i = 2; i < releaseEnd; i += 1) {
+        if (args2[i] === "--containment-approval") approvalIndexes.push(i);
+      }
+      if (approvalIndexes.length > 1) {
+        return {
+          kind: "usage",
+          message: "lane-queue: --containment-approval must appear at most once"
+        };
+      }
+      if (approvalIndexes.length === 1) {
+        const approvalIndex = approvalIndexes[0];
+        const reason = args2[approvalIndex + 1];
+        if (reason === void 0 || approvalIndex + 1 >= releaseEnd) {
+          return {
+            kind: "usage",
+            message: "lane-queue: --containment-approval requires a reason"
+          };
+        }
+        if (reason.length === 0) {
+          return {
+            kind: "usage",
+            message: "lane-queue: --containment-approval reason must be non-empty"
+          };
+        }
+        if (reason.length > 200) {
+          return {
+            kind: "usage",
+            message: "lane-queue: --containment-approval reason must be at most 200 characters"
+          };
+        }
+        if (/[\x00-\x1f\x7f]/.test(reason)) {
+          return {
+            kind: "usage",
+            message: "lane-queue: --containment-approval reason must not contain control characters"
+          };
+        }
+        containmentApproval = reason;
+        args2.splice(approvalIndex, 2);
+      }
       const group = args2[1];
       if (group !== void 0) {
         const hasPrior = args2[2] === "--endstop-prior-reservation-id";
@@ -40457,6 +40501,7 @@ function parseQueueArgv(argv) {
                 candidateSha256: release.block.candidateSha256
               },
               ...priorReservationId === void 0 ? {} : { priorReservationId },
+              ...containmentApproval === void 0 ? {} : { containmentApproval },
               cmd: cmd2
             };
           }
@@ -40482,6 +40527,7 @@ function parseQueueArgv(argv) {
           action,
           candidateSha256
         },
+        ...containmentApproval === void 0 ? {} : { containmentApproval },
         cmd
       };
     }
@@ -40578,7 +40624,12 @@ var cmdAddGuarded = (io2, parsed, options) => {
               return EXIT_CONFIG;
             });
           }
-          return cmdAdd(io2, parsed.group, parsed.cmd);
+          return cmdAdd(
+            io2,
+            parsed.group,
+            parsed.cmd,
+            parsed.containmentApproval
+          );
         }
       })
     );
@@ -40614,7 +40665,12 @@ var cmdAddGuarded = (io2, parsed, options) => {
             return EXIT_CONFIG;
           });
         }
-        return cmdAdd(io2, parsed.group, parsed.cmd);
+        return cmdAdd(
+          io2,
+          parsed.group,
+          parsed.cmd,
+          parsed.containmentApproval
+        );
       }
     })
   );

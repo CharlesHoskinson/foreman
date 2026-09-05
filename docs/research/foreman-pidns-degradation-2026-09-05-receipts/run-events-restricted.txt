@@ -1,0 +1,8 @@
+{"seq": "1", "ts": "2026-09-05T02:30:38Z", "type": "prompt", "lane": "grok", "payload": "{\"cmd\": \"grok --prompt-file /home/charl/.foreman/runs/council-binding-20260905/task1.md --cwd /home/charl/foreman-wt-council-binding-20260905-implement-binding -m grok-4.6 --output-format json --always-approve --no-subagents --disable-web-search --verbatim --max-turns 40\", \"model\": {\"vendor\": \"grok\", \"requested_alias\": \"grok-4.6\", \"cli_version\": \"grok 1.0.13 (5e9a58528b76)\"}}"}
+{"seq": "2", "ts": "2026-09-05T02:30:38Z", "type": "ownership", "lane": "grok", "payload": "{\"attempt\": 1, \"launcher_pid\": 316190, \"pid\": 316201, \"job_id\": \"316201\", \"worktree\": \"/home/charl/foreman-wt-council-binding-20260905-implement-binding\", \"config_dir\": \"/home/charl/.foreman/credential-profiles/grok-default/homes/grok\", \"launcher\": true}"}
+{"seq": "3", "ts": "2026-09-05T02:31:00Z", "type": "checkpoint", "lane": "grok", "commit": "ba71d15e40d3fcbe3fad91515d9ee4be8f05488a", "payload": "{\"sha\": \"ba71d15e40d3fcbe3fad91515d9ee4be8f05488a\"}"}
+{"seq": "4", "ts": "2026-09-05T02:31:05Z", "type": "alert", "lane": "grok", "payload": "{\"state\": \"RUNNING_IMPL\", \"age\": 3}"}
+{"seq": "36", "ts": "2026-09-05T02:46:25Z", "type": "state", "lane": "grok", "payload": "{\"state\": \"verifying\", \"attempt\": 1}"}
+{"seq": "37", "ts": "2026-09-05T02:46:27Z", "type": "waiting_child", "lane": "grok", "payload": "{\"gate_rc\": 1, \"report_fresh\": false}"}
+{"seq": "38", "ts": "2026-09-05T02:46:27Z", "type": "alert", "lane": "grok", "payload": "{\"kind\": \"round_incomplete\", \"gate_rc\": 1, \"report_fresh\": false}"}
+{"seq": "39", "ts": "2026-09-05T02:46:33Z", "type": "alert", "lane": "grok", "payload": "{\"state\": \"AGENT_ABANDONED\", \"age\": 0}"}

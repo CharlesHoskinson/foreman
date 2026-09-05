@@ -16,6 +16,12 @@ while `grok -p` answered normally and `grok models` returned exit 0 with the
 signed-in banner in 2.4 s. Setup blocked a release round on a vendor that was
 working.
 
+The same contradiction recurred on 2026-09-02: Setup reported Grok as signed
+out, while a headless read-only inference returned the requested exact token.
+The `models` command later returned the signed-in banner without any credential
+change. A presentation command is therefore not authoritative evidence that a
+real Grok workload can or cannot run.
+
 The root cause is in `env/tool-check.sh`'s `vendor_authed`. The grok branch
 runs `timeout 10 grok models` and then:
 
@@ -78,6 +84,10 @@ mid-release — changing the toolchain under a running gate. Only
   table instead of in ad-hoc branches: `declared` evidence where the vendor
   ships a status verb (`claude`, `codex`), `probed` evidence where it does not
   (`grok`, `agy`).
+- Grok readiness is decided by a bounded minimal workload outside the target
+  repository. It disables tools, subagents, web access, and memory, and it must
+  return exactly `FOREMAN_GROK_READY_V1`. A `models` banner no longer decides
+  readiness.
 - Currency determined by comparing `--version` against a floor pinned in
   `env/reference-manifest.toml`. The preflight SHALL NOT invoke any vendor's
   `update` verb except `grok update --check`, which is the only non-mutating

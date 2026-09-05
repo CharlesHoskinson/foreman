@@ -1,31 +1,23 @@
 ---
 name: foreman
 description: >
-  Cross-vendor architect/worker orchestration skill. Soft mode routes specs to
-  Grok implementers under a high-judgment architect, audits diffs with Codex
-  GPT-5.6 Sol (codex-auditor), and consults a Claude advisor at commitment
-  boundaries; hard mode adds worktrees, host-side evidence, independent checks,
-  cold-diff audit, and a deterministic merge gate. Use when the user runs
-  /foreman, asks to orchestrate multi-model coding, delegates implementation
-  across Claude/Codex/Grok, wants cost-aware architect routing, Codex audit,
-  cross-vendor review, sandboxed workers, or a gated PR loop.
+  Use when the user asks to orchestrate multi-model coding across Claude,
+  Codex, or Grok, run independent review, use sandboxes, or apply gated PRs.
 ---
 
 # Foreman — Architect / Worker Orchestration
 
 You are the **orchestrator (architect)**. You own requirements, decomposition,
-specs, routing, verification, audit judgment, and the merge decision. You almost
-never type implementation code yourself.
+specs, routing, verification, audit judgment, and merge decisions. You almost never implement.
 
 This skill merges two complementary patterns:
 
 | Layer | Source | What it contributes |
 |---|---|---|
-| **Soft mode** (default) | Fable Advisor–style routing | Cost discipline, five-part specs, Grok implementer, **Codex GPT-5.6 Sol auditor**, Claude advisor |
+| **Soft mode** (default) | Cost-aware model routing | Five-part specs, Grok 4.6 implementation, **Codex GPT-5.6 Sol audit**, GPT-6 Astra judgment, Claude advice |
 | **Hard mode** (opt-in) | Original Foreman harness | Worktrees, Docker workers, host evidence, cold-diff audit, deterministic gate → PR |
 
-Pick mode from the task (or config). Soft always works; hard requires Docker/WSL
-and the harness scripts under `scripts/`.
+Pick mode from the task or config. Soft always works. Hard requires Docker or WSL and the harness scripts under `scripts/`.
 
 ## Operating model: Setup & Environment → Use → Cleanup
 
@@ -34,29 +26,54 @@ starts until Setup has reported READY for every lane it needs:
 
 1. **Setup & Environment** owns tool-check (`env/tool-check.sh`), bootstrap
    (`env/bootstrap-windows.ps1` / `env/bootstrap-wsl.sh`), **all**
-   model-vendor authentication (grok, codex, claude), and — on WSL — full
+   implementation-lane authentication (grok and codex), and — on WSL — full
    environment provisioning. Setup MUST report READY, including a
    per-vendor authenticated/not-authenticated verdict, before Use begins.
    Run it via `skills/foreman/scripts/foreman-setup.sh [--profile
-   soft|hard|full] [--lane grok|codex|claude]`: it composes tool-check.sh,
+   soft|hard|full] [--lane grok|codex]`: it composes tool-check.sh,
    prints a `<vendor>: NOT-READY — run <instruction>` line for any vendor
-   that is not authenticated (`grok login --device-code` / `codex login` /
-   `claude auth login`), and **never authenticates anything itself** —
+   that is not authenticated. Use `grok login --device-code` or `codex login`.
+   Setup **never authenticates anything itself** —
    device/interactive auth is always an operator action Setup only
    instructs. Idempotent: a second run on an already-ready host changes
    nothing and re-reports READY. See `references/reference-environment.md`.
+   On WSL the inventory also shows a `containment` row. It runs the Node
+   launcher in `--probe-only` mode and reports DEGRADED when the host has no
+   PID-namespace cascade. Generic READY does not depend on it. A DEGRADED
+   row means every implementation lane will refuse to start unless the queue
+   request carries `--containment-approval REASON`.
    **Before Use**, verify the installed skill runtime with the compiled
    command (repository, symlink, junction, or copied skill root):
    `node skills/foreman/runtime/dist/architecture-policy.js verify-install
    --skill-root <path-to-skills/foreman>`. Exit 0 and `_tag":"Pass"` are
    required. This is the canonical installed-runtime check; the legacy
    Setup shell script is not yet a thin adapter to it.
+   The judgment lane is advisory-only and does not use a credential profile.
+   Before a Fable consultation, run a bounded read-only Claude Code canary from
+   the operating-system temporary directory with
+   `--model claude-fable-5-1`, no tools, plan permission mode, no session
+   persistence, safe mode, and no browser. Admit it only when the JSON result
+   records `modelUsage["claude-fable-5-1"].canonicalModel` as
+   `claude-fable-5-1`. `claude auth status` alone, the alias `fable`, an
+   auxiliary model, or the model's own claim is not identity evidence. If the
+   canary times out or fails without positive signed-out evidence, report
+   readiness as unknown. Never invent a login diagnosis. Never silently
+   substitute another Claude model.
 2. **Use** assumes an authenticated, provisioned environment and never
    authenticates. This is enforced as a real gate, not just a report:
    `lane-run.sh`, when `LANE_VENDOR` is set, refuses to spawn the lane's
    command for a not-ready vendor — citing Setup, before touching the
    worktree lock or emitting any event — so "grok wasn't signed in" is
    always a Setup-stage finding, never a mid-round Use-stage failure.
+   `lane-run.sh` also probes process containment once per round. An
+   implementation lane (`LANE_VENDOR` set) requires a strong capability
+   (`FOREMAN_CONTAINMENT_REQUIRE=strong` by default). Without it the round
+   emits `alert {kind: "containment_refused"}` and exits before the vendor
+   CLI runs. Record an explicit acceptance with
+   `lane-queue.sh add ... --containment-approval REASON`. The `ownership`
+   event carries `containment: {tag, kind, reason, approval}` for review.
+   Containment is process lifecycle only. It is not filesystem, network,
+   or credential isolation. See `references/security-model.md`.
 3. **Cleanup** closes every run, in order: best-effort SIGINT of any
    still-alive lane subprocess, `wt-cleanup.sh`'s existing dirty-worktree
    guard + report archive (composed, not reimplemented), stopping a
@@ -102,15 +119,17 @@ The session model is the most expensive lane. Keep its token volume low:
 
 | Lane | Producer | Invoke | Route when |
 |---|---|---|---|
-| **Routine** (default implementer) | Grok 4.5 | `grok-implementer` | Spec fully determines the outcome |
+| **Routine** (default implementer) | Grok 4.6 (`grok-4.6`) | `WC_GROK_MODEL=grok-4.6` + `grok-implementer` | Spec fully determines the outcome |
 | **Cross-vendor implementer** | GPT-5.6 Sol (high) | `codex-implementer` | Race / second implementation, or Grok unavailable |
 | **Audit** (default auditor) | **GPT-5.6 Sol (high)** | **`codex-auditor`** | After independent checks on a worker diff; **default when worker ≠ OpenAI** |
-| **Judgment** | Top Claude (Fable/Opus) | `foreman-advisor` | Commitment boundaries only — never implements |
+| **High judgment** | GPT-6 Astra (`gpt-6-astra`) | Architect or Council reviewer | Costly architecture and release decisions |
+| **Advisory** | Claude Fable 5.1 (`claude-fable-5-1`) | `foreman-advisor` | Commitment-boundary advice only, with exact identity verified |
 
 **Deciding rule (implement):** How much does the outcome depend on judgment the
-spec can't capture? Little → Grok. A lot / costly mistakes → race Grok + Codex
-implementers, or keep with architect. Same-family implementer as architect is a
-downgrade — state it explicitly if CLIs are unavailable.
+spec cannot capture? Little means Grok 4.6. For costly mistakes, use GPT-6
+Astra for architecture judgment before an independent implementation lane.
+Race Grok and Codex implementers when implementation diversity is useful. A
+same-family implementer is a downgrade. Report it when no other CLI is ready.
 
 **Deciding rule (audit):** After you re-run verification, send a **cold diff +
 acceptance criteria** to `codex-auditor` (GPT-5.6 Sol, read-only). Do this for
@@ -242,7 +261,7 @@ The queue syntax is:
 
 `lane-queue.sh add GROUP --endstop-state-root ABS --endstop-contract-id ID
 --endstop-contract-sha SHA256 --endstop-action ACTION
---endstop-candidate-sha SHA256 -- CMD [ARGS...]`
+--endstop-candidate-sha SHA256 [--containment-approval REASON] -- CMD [ARGS...]`
 
 This V1 form remains valid only before a v0.4 family is active. After family
 activation, every child queue request uses this fixed release block:
@@ -345,7 +364,7 @@ isolation status, and merge-freshness verdicts:
 
 ### Commitment boundaries
 
-Consult `foreman-advisor` (read-only, ≤ ~300 words) before:
+Use GPT-6 Astra for primary judgment. Consult the verified Fable 5.1 `foreman-advisor` for independent advice:
 
 - Architecture, migration, API shape, or refactor strategy
 - A problem that resisted two distinct attempts
@@ -353,6 +372,12 @@ Consult `foreman-advisor` (read-only, ≤ ~300 words) before:
 
 Pass decision, constraints, options. Act on the verdict or surface disagreement —
 never silently ignore it.
+
+### Configurable Council profile
+
+Select `astra-grok-fable` only when requested, including requested Moriarty gates.
+Read `references/model-routing-evidence.md` and apply `skills/council/SKILL.md`.
+Preserve exact identity, non-author review, terminal-first admission, hashes, dissent, Endstop, and Foreman gate authority.
 
 ### Soft verification + audit
 
@@ -461,8 +486,7 @@ every worktree; never mounted into the worker.
 
 ### Reporting and claim discipline
 
-Release metrics (M1–M13 definitions, companions, sigma-before-claim) live in
-`references/release-metrics.md`. Standing doctrine, not optional style:
+Release metrics live in `references/release-metrics.md`. Standing doctrine, not optional style:
 
 1. **Companion number** — no metric value without its companion in the same
    row/sentence.
@@ -483,9 +507,7 @@ mode reports violations and exits 0; `--mode enforce` fails the build).
 - `references/reference-environment.md` — WSL/Windows inventory + bootstrap
 - `references/parallel-worktrees.md` — parallel search/plan/audit worktrees
 - `references/durable-lanes.md` — durable-lanes architecture, config keys, honest limits
-- `references/orchestration-hardening.md` — v0.2.5 launcher contract, typed
-  watch states, pueue groups/quoting, vendor isolation, merge-freshness gate,
-  auto-resume
-- `references/release-metrics.md` — metric formulas, companions, sigma,
-  zero-denominator and uncomputable renders; claim discipline for release notes
+- `references/orchestration-hardening.md` — v0.2.5 launcher, watch states, pueue, isolation, merge freshness, and auto-resume
+- `references/release-metrics.md` — metric formulas, companions, sigma, uncomputable values, and release claim discipline
+- `references/model-routing-evidence.md` — current model sources, exact IDs, routing reasons, and practical limitations
 - `env/reference-manifest.toml` — tool inventory source of truth

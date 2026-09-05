@@ -62,6 +62,7 @@ export type ParsedCommand =
       readonly version?: "v2";
       readonly release?: ReleasePolicyBlockV1;
       readonly priorReservationId?: string;
+      readonly containmentApproval?: string;
       readonly cmd: readonly string[];
     }
   | { readonly kind: "status"; readonly taskId: string | undefined }
@@ -94,7 +95,7 @@ export function stripNodeArgv(argv: readonly string[]): readonly string[] {
 }
 
 export function parseQueueArgv(argv: readonly string[]): ParsedCommand {
-  const args = stripNodeArgv(argv);
+  const args = [...stripNodeArgv(argv)];
   if (args.length === 0) {
     return { kind: "usage", message: USAGE };
   }
@@ -103,6 +104,49 @@ export function parseQueueArgv(argv: readonly string[]): ParsedCommand {
     case "ensure":
       return { kind: "ensure" };
     case "add": {
+      let containmentApproval: string | undefined;
+      const separatorIndex = args.indexOf("--", 2);
+      const releaseEnd = separatorIndex === -1 ? args.length : separatorIndex;
+      const approvalIndexes: number[] = [];
+      for (let i = 2; i < releaseEnd; i += 1) {
+        if (args[i] === "--containment-approval") approvalIndexes.push(i);
+      }
+      if (approvalIndexes.length > 1) {
+        return {
+          kind: "usage",
+          message: "lane-queue: --containment-approval must appear at most once",
+        };
+      }
+      if (approvalIndexes.length === 1) {
+        const approvalIndex = approvalIndexes[0]!;
+        const reason = args[approvalIndex + 1];
+        if (reason === undefined || approvalIndex + 1 >= releaseEnd) {
+          return {
+            kind: "usage",
+            message: "lane-queue: --containment-approval requires a reason",
+          };
+        }
+        if (reason.length === 0) {
+          return {
+            kind: "usage",
+            message: "lane-queue: --containment-approval reason must be non-empty",
+          };
+        }
+        if (reason.length > 200) {
+          return {
+            kind: "usage",
+            message: "lane-queue: --containment-approval reason must be at most 200 characters",
+          };
+        }
+        if (/[\x00-\x1f\x7f]/.test(reason)) {
+          return {
+            kind: "usage",
+            message: "lane-queue: --containment-approval reason must not contain control characters",
+          };
+        }
+        containmentApproval = reason;
+        args.splice(approvalIndex, 2);
+      }
       const group = args[1];
       if (group !== undefined) {
         const hasPrior = args[2] === "--endstop-prior-reservation-id";
@@ -136,6 +180,9 @@ export function parseQueueArgv(argv: readonly string[]): ParsedCommand {
               ...(priorReservationId === undefined
                 ? {}
                 : { priorReservationId }),
+              ...(containmentApproval === undefined
+                ? {}
+                : { containmentApproval }),
               cmd,
             };
           }
@@ -178,6 +225,9 @@ export function parseQueueArgv(argv: readonly string[]): ParsedCommand {
           action: action as ExecutionActionKind,
           candidateSha256,
         },
+        ...(containmentApproval === undefined
+          ? {}
+          : { containmentApproval }),
         cmd,
       };
     }
@@ -295,7 +345,12 @@ const cmdAddGuarded = (
               return EXIT_CONFIG;
             });
           }
-          return cmdAdd(io, parsed.group, parsed.cmd);
+          return cmdAdd(
+            io,
+            parsed.group,
+            parsed.cmd,
+            parsed.containmentApproval,
+          );
         },
       }),
     );
@@ -332,7 +387,12 @@ const cmdAddGuarded = (
             return EXIT_CONFIG;
           });
         }
-        return cmdAdd(io, parsed.group, parsed.cmd);
+        return cmdAdd(
+          io,
+          parsed.group,
+          parsed.cmd,
+          parsed.containmentApproval,
+        );
       },
     }),
   );

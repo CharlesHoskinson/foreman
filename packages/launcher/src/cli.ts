@@ -3,6 +3,8 @@
  * Pure decode only — no process effects.
  */
 
+import type { ContainmentRequirement } from "./capability.js";
+
 export const FOREMAN_LAUNCH_VERSION = "0.3.0";
 
 export const EXIT_TIMEOUT = 124;
@@ -14,6 +16,9 @@ export type ParsedLaunchArgs = {
   readonly heartbeatFile: string | undefined;
   readonly heartbeatIntervalSecs: number;
   readonly detach: boolean;
+  readonly requireContainment: ContainmentRequirement;
+  readonly capabilityFile: string | undefined;
+  readonly probeOnly: boolean;
   readonly cmd: readonly string[];
 };
 
@@ -26,7 +31,9 @@ export function usage(): string {
   return [
     "usage: foreman-launch [--timeout SECS] [--grace SECS=10]",
     "                       [--heartbeat-file F] [--heartbeat-interval SECS=15]",
-    "                       [--detach] -- CMD [ARGS...]",
+    "                       [--require-containment strong|any]",
+    "                       [--capability-file PATH] [--probe-only]",
+    "                       [--detach] [-- CMD [ARGS...]]",
     "       foreman-launch --version",
     "",
     "stdout/stderr of CMD pass through unmodified. CMD's stdin is the null",
@@ -77,20 +84,17 @@ export function parseArgs(argv: readonly string[]): CliParseResult {
   if (flagSlice.includes("--version")) {
     return { _tag: "Version" };
   }
-  if (sepIdx === -1) {
-    return { _tag: "UsageError", message: "missing '--' separator before CMD" };
-  }
-  const flagArgs = argv.slice(0, sepIdx);
-  const cmd = argv.slice(sepIdx + 1);
-  if (cmd.length === 0) {
-    return { _tag: "UsageError", message: "no CMD given after '--'" };
-  }
+  const flagArgs = sepIdx === -1 ? argv : argv.slice(0, sepIdx);
+  const cmd = sepIdx === -1 ? [] : argv.slice(sepIdx + 1);
 
   let timeoutSecs: number | undefined;
   let graceSecs = 10;
   let heartbeatFile: string | undefined;
   let heartbeatIntervalSecs = 15;
   let detach = false;
+  let requireContainment: ContainmentRequirement = "any";
+  let capabilityFile: string | undefined;
+  let probeOnly = false;
 
   for (let i = 0; i < flagArgs.length; i++) {
     const a = flagArgs[i]!;
@@ -145,6 +149,31 @@ export function parseArgs(argv: readonly string[]): CliParseResult {
       case "--detach":
         detach = true;
         break;
+      case "--require-containment": {
+        const value = flagArgs[++i];
+        if (value !== "strong" && value !== "any") {
+          return {
+            _tag: "UsageError",
+            message: "--require-containment requires strong or any",
+          };
+        }
+        requireContainment = value;
+        break;
+      }
+      case "--capability-file": {
+        const value = flagArgs[++i];
+        if (!value) {
+          return {
+            _tag: "UsageError",
+            message: "--capability-file requires a path",
+          };
+        }
+        capabilityFile = value;
+        break;
+      }
+      case "--probe-only":
+        probeOnly = true;
+        break;
       default:
         return { _tag: "UsageError", message: `unrecognized flag: ${a}` };
     }
@@ -156,6 +185,18 @@ export function parseArgs(argv: readonly string[]): CliParseResult {
       message: "--detach requires --heartbeat-file",
     };
   }
+  if (detach && probeOnly) {
+    return {
+      _tag: "UsageError",
+      message: "--detach cannot be used with --probe-only",
+    };
+  }
+  if (!probeOnly && sepIdx === -1) {
+    return { _tag: "UsageError", message: "missing '--' separator before CMD" };
+  }
+  if (!probeOnly && cmd.length === 0) {
+    return { _tag: "UsageError", message: "no CMD given after '--'" };
+  }
 
   return {
     _tag: "Ok",
@@ -165,6 +206,9 @@ export function parseArgs(argv: readonly string[]): CliParseResult {
       heartbeatFile,
       heartbeatIntervalSecs,
       detach,
+      requireContainment,
+      capabilityFile,
+      probeOnly,
       cmd,
     },
   };
@@ -193,7 +237,9 @@ export function argvWithoutDetach(rawArgv: readonly string[]): string[] {
       a === "--timeout" ||
       a === "--grace" ||
       a === "--heartbeat-file" ||
-      a === "--heartbeat-interval"
+      a === "--heartbeat-interval" ||
+      a === "--require-containment" ||
+      a === "--capability-file"
     ) {
       if (i + 1 < flagsPart.length) {
         outFlags.push(flagsPart[++i]!);

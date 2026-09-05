@@ -9,6 +9,9 @@ import {
 import type { TerminalObservationV1 } from "@council/schema";
 import { Effect, Layer } from "effect";
 
+/** Canonical Claude Code model identity admitted for Foreman's judgment lane. */
+export const CLAUDE_FABLE_5_1_MODEL = "claude-fable-5-1";
+
 /**
  * Claude Code (2.1.220) canary invocation input. Provider-neutral fields only;
  * wire shapes stay private below.
@@ -46,6 +49,31 @@ type ClaudeOuterWire = {
   readonly num_turns?: unknown;
   readonly structured_output?: unknown;
   readonly result?: unknown;
+  readonly modelUsage?: unknown;
+};
+
+/**
+ * Claude Code may report auxiliary helper models in addition to the selected
+ * model. Admission requires an exact Fable 5.1 key whose own canonicalModel
+ * also matches; auxiliary entries neither satisfy nor invalidate that proof.
+ */
+const observesFable51 = (value: unknown): boolean => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const usage = value as Record<string, unknown>;
+  const selected = usage[CLAUDE_FABLE_5_1_MODEL];
+  if (
+    selected === null ||
+    typeof selected !== "object" ||
+    Array.isArray(selected)
+  ) {
+    return false;
+  }
+  return (
+    (selected as Record<string, unknown>).canonicalModel ===
+    CLAUDE_FABLE_5_1_MODEL
+  );
 };
 
 /**
@@ -336,6 +364,7 @@ export const decodeClaudeCanaryTerminal = (
     "api_error_status",
     "num_turns",
     "result",
+    "modelUsage",
   ] as const;
   const requiredFieldsPresent = requiredFields.every((field) =>
     Object.prototype.hasOwnProperty.call(wire, field),
@@ -371,7 +400,8 @@ export const decodeClaudeCanaryTerminal = (
     !terminalReasonField.ok ||
     !numTurnsField.ok ||
     !resultField.ok ||
-    apiErrorMalformed
+    apiErrorMalformed ||
+    !observesFable51(wire.modelUsage)
   ) {
     return {
       structuredOutput: null,
@@ -383,7 +413,8 @@ export const decodeClaudeCanaryTerminal = (
         parserComplete: false,
         structuredOutputPresent: false,
         structuredOutputError: null,
-        errorMessage: "provider outer JSON has a malformed field type",
+        errorMessage:
+          "provider outer JSON has a malformed field type or lacks observed Fable 5.1 identity",
       }),
     };
   }
@@ -571,6 +602,15 @@ export const ClaudeProviderCanaryAdapterLive = Layer.succeed(
               category: "invalid_invocation",
               reason:
                 "Claude provider canary adapter requires inline schema JSON",
+            }),
+          );
+        }
+        if (input.model !== CLAUDE_FABLE_5_1_MODEL) {
+          return yield* Effect.fail(
+            new ProviderCanaryAdapterError({
+              category: "invalid_invocation",
+              reason:
+                "Claude provider canary requires canonical model claude-fable-5-1",
             }),
           );
         }

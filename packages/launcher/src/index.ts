@@ -25,12 +25,22 @@ export {
 export {
   PIDNS_INNER_ENV,
   HOST_PID_ENV,
+  PIDNS_KIND_ENV,
   formatCapabilityDiagnostic,
+  formatRefusalLine,
+  capabilityRecord,
   capabilityFromProbe,
+  isStrong,
   resolveLauncherPid,
   isPidnsInner,
   type PlatformCapability,
   type CapabilityDiagnostic,
+  type CapabilityKind,
+  type StrongKind,
+  type CapabilityProbeReason,
+  type ContainmentRequirement,
+  type ProbeAttempt,
+  type CapabilityRecord,
 } from "./capability.js";
 
 export {
@@ -43,7 +53,11 @@ export {
   buildTaskkillArgv,
   planTaskkill,
   resolveCapability,
+  classifyProbeFailure,
+  formatAttempts,
+  UNSHARE_USERNS_PIDNS_FLAGS,
   UNSHARE_PIDNS_FLAGS,
+  UNSHARE_PROBE_LADDER,
   type ExecveRequest,
   type UnshareProbeResult,
 } from "./platform.js";
@@ -56,6 +70,7 @@ export {
   WindowsTreeTerminator,
   ExecveService,
   UnshareProbeService,
+  CapabilityWriter,
   HeartbeatWriter,
   ByteSink,
   LauncherClock,
@@ -63,7 +78,14 @@ export {
   StderrLog,
   LiveClockLayer,
   liveClock,
+  liveUnshareProbe,
+  liveCapabilityWriter,
+  type CapabilityWriteError,
 } from "./services.js";
 
 export { LiveLauncherLayer } from "./services.js";
-export { runMain, selfScriptArgvPrefix } from "./main.js";
+export {
+  runMain,
+  selfScriptArgvPrefix,
+  buildSelfScriptArgvPrefix,
+} from "./main.js";

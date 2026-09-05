@@ -54,17 +54,17 @@ diagnose_instruction = "Re-run codex login status"
 vendor = "grok"
 cli_name = "grok"
 evidence_class = "probed"
-auth_argv = ["models"]
+auth_argv = ["--single", "Reply with exactly this ASCII token and nothing else: FOREMAN_GROK_READY_V1", "--no-subagents", "--disable-web-search", "--no-memory", "--tools", "", "--verbatim"]
 version_argv = ["--version"]
 version_floor = "0.2.118"
-auth_positive_markers = ["You are logged in with grok.com."]
+auth_positive_markers = ["FOREMAN_GROK_READY_V1"]
 auth_negative_markers = ["not authenticated", "sign in", "log in"]
 update_mutates = true
 update_check_argv = ["update", "--check", "--json"]
 login_instruction = "grok login --device-code"
 install_instruction = "npm install -g @xai-official/grok@latest"
 update_instruction = "npm install -g @xai-official/grok@latest"
-diagnose_instruction = "Re-run bounded grok models and inspect network"
+diagnose_instruction = "Re-run the bounded read-only Grok readiness canary and inspect network"
 `;
 
 describe("parseVendorCapabilitiesFromToml", () => {
@@ -83,7 +83,17 @@ describe("parseVendorCapabilitiesFromToml", () => {
     assert.equal(grok!.versionFloor, "0.2.118");
     assert.equal(claude!.evidenceClass, "declared");
     assert.equal(grok!.evidenceClass, "probed");
-    assert.deepEqual(grok!.authArgv, ["models"]);
+    assert.deepEqual(grok!.authArgv, [
+      "--single",
+      "Reply with exactly this ASCII token and nothing else: FOREMAN_GROK_READY_V1",
+      "--no-subagents",
+      "--disable-web-search",
+      "--no-memory",
+      "--tools",
+      "",
+      "--verbatim",
+    ]);
+    assert.deepEqual(grok!.authPositiveMarkers, ["FOREMAN_GROK_READY_V1"]);
     assert.deepEqual(grok!.updateCheckArgv, ["update", "--check", "--json"]);
     assert.equal(findCapability(table, "agy"), null);
   });
@@ -234,6 +244,23 @@ diagnose_instruction = "diagnose"
     });
     assert.ok(!isVendorPreflightContractFailure(ok));
     assert.equal(ok.capabilities[0]!.authArgv.length, 63);
+  });
+
+  it("allows an exact empty argv option value but rejects whitespace-only values", () => {
+    const table = parseVendorCapabilitiesFromToml(SAMPLE);
+    assert.ok(!isVendorPreflightContractFailure(table));
+    const raw = JSON.parse(capabilityTableToCanonicalJson(table)) as {
+      capabilities: Array<Record<string, unknown>>;
+      schemaVersion: number;
+    };
+    const grok = raw.capabilities.find((cap) => cap.vendor === "grok");
+    assert.ok(grok);
+    assert.ok((grok!.authArgv as string[]).includes(""));
+
+    grok!.authArgv = ["--tools", " "];
+    const decoded = decodeVendorCapabilityTableV1(raw);
+    assert.ok(isVendorPreflightContractFailure(decoded));
+    assert.equal(decoded.reason, "blank_string");
   });
 
   it("rejects capability argv per-entry and total UTF-8 byte overflow", () => {

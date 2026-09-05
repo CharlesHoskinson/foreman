@@ -54,10 +54,9 @@
 #                         threshold).
 #   VCT_KILL_GRACE        seconds after VCT_TIMEOUT's SIGTERM before a
 #                         SIGKILL is forced (default 5; `timeout -k`).
-#   VCT_AUTH_TIMEOUT      per-lane auth-reprobe bound in seconds (default 10,
-#                         matching env/tool-check.sh's own bare `timeout 10`
-#                         for the grok probe); VCT_KILL_GRACE also bounds the
-#                         reprobe's kill-grace, same as the main task.
+#   VCT_AUTH_TIMEOUT      Codex auth-probe bound in seconds (default 10).
+#                         The compiled preflight owns Grok's 90-second bound.
+#                         VCT_KILL_GRACE bounds the Codex probe kill grace.
 # @exitcode 0 verdict computed: GREEN
 # @exitcode 1 verdict computed: RED (containment/JSON/freeze/auth-invalidation
 #   abort tripped -- see "abort:" reasons in stdout and the abort-log file)
@@ -176,41 +175,28 @@ vct_json_bad() {
 
 # @description Probe a lane's own auth state, run inside that lane's own
 #   env (its vendor-HOME + per-lane $HOME/$USERPROFILE -- never the real
-#   ambient environment), using the SAME non-billing command
-#   env/tool-check.sh's own `vendor_authed` uses per vendor: grok ->
-#   `grok models`, fail-closed, requiring the exact positive substring
-#   "logged in" and rejecting on any of the documented negative phrases
-#   even if a positive substring also appears (mirrors vendor_authed's own
-#   ordering exactly); codex -> `codex login status`, a genuine
-#   exit-code contract. Bounded with `timeout -k`: env/tool-check.sh's own
-#   grok probe is a bare `timeout 10` with no kill-grace, which is fine for
-#   a real, well-behaved CLI but would hang THIS harness forever against an
-#   adversarial/misbehaving shim (this file already exercises exactly that
-#   shape for the freeze/kill-9 monitor) -- the kill-grace addition changes
-#   nothing about which command is run, only bounds it defensively. Unknown
-#   vendors have no defined probe: "na" (never evaluated, never assumed
-#   authenticated -- unlike vendor_authed's own `*) return 0`, which is safe
-#   for a readiness gate but would be an unsafe default for THIS
-#   invalidation check).
+#   ambient environment). The Grok branch delegates to the compiled provider
+#   preflight, which owns the bounded exact-token workload canary. The Codex
+#   branch uses `codex login status`, a genuine exit-code contract. Unknown
+#   vendors have no defined probe. The function returns "na" for them.
 # @arg $1 vendor vendor id
 # @arg $2 lane_root the lane's own root (its config/home subdirs)
-# @arg $3 tmo probe timeout in seconds (default 10, matching
-#   env/tool-check.sh's own bare `timeout 10`)
+# @arg $3 tmo Codex probe timeout in seconds (default 10)
 # @arg $4 grace kill-grace in seconds after $3 before SIGKILL (default 3;
 #   `timeout -k`)
 # @stdout "yes" | "no" | "na"
 vct_auth_status() {
-  local vendor="$1" lane_root="$2" tmo="${3:-10}" grace="${4:-3}" env_var out rc=0
+  local vendor="$1" lane_root="$2" tmo="${3:-10}" grace="${4:-3}" env_var rc=0
+  local preflight="$SCRIPT_DIR/../runtime/dist/vendor-preflight.js"
   env_var="$(vct_env_var "$vendor")"
   case "$vendor" in
     grok)
-      out="$(env "$env_var=$lane_root/config" HOME="$lane_root/home" USERPROFILE="$lane_root/home" \
-        timeout -k "${grace}s" "${tmo}s" "$vendor" models 2>&1)" || rc=$?
-      if (( rc != 0 )) || [[ -z "$out" ]]; then echo no; return; fi
-      if [[ "$out" == *"not authenticated"* || "$out" == *"sign in"* || "$out" == *"log in"* ]]; then
-        echo no; return
+      if env "$env_var=$lane_root/config" HOME="$lane_root/home" USERPROFILE="$lane_root/home" \
+        node "$preflight" inspect grok >/dev/null 2>&1; then
+        echo yes
+      else
+        echo no
       fi
-      if [[ "$out" == *"logged in"* ]]; then echo yes; else echo no; fi
       ;;
     codex)
       if env "$env_var=$lane_root/config" HOME="$lane_root/home" USERPROFILE="$lane_root/home" \

@@ -4,6 +4,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  readlinkSync,
   rmSync,
   writeFileSync,
   mkdirSync,
@@ -24,7 +25,13 @@ import {
 } from "./heartbeat.js";
 import { processGroupKillTarget, planTaskkill } from "./platform.js";
 import {
+  UNSHARE_USERNS_PIDNS_FLAGS,
+  type UnshareProbeResult,
+} from "./platform.js";
+import type { CapabilityRecord } from "./capability.js";
+import {
   ByteSink,
+  CapabilityWriter,
   ChildSpawner,
   DetachSpawner,
   ExecveService,
@@ -35,12 +42,13 @@ import {
   UnshareProbeService,
   WindowsTreeTerminator,
   liveClock,
+  liveUnshareProbe,
   type SpawnedChild,
   type StreamChunk,
 } from "./services.js";
 import { supervise, type LaunchEvent } from "./supervise.js";
 import { LiveLauncherLayer } from "./services.js";
-import { runMain } from "./main.js";
+import { buildSelfScriptArgvPrefix, runMain } from "./main.js";
 import { EXIT_LAUNCHER_ERROR, EXIT_TIMEOUT, mapSuperviseExit } from "./cli.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -444,21 +452,23 @@ describe("async spawn error maps to typed launcher failure", () => {
       t.skip("live spawn-error exit-code mapping (125) requires POSIX exec semantics; unavailable on win32");
       return;
     }
-    const { runMain } = await import("./main.js");
-    const code = await runMain(
+    const bundlePath = join(
+      root,
+      "skills/foreman/runtime/dist/foreman-launch.js",
+    );
+    const result = spawnSync(
+      process.execPath,
       [
-        process.execPath,
-        "foreman-launch",
+        bundlePath,
         "--",
         "/nonexistent/foreman-no-such-binary-xyz-9f3a",
       ],
       {
-        writeStdout: () => {},
-        writeStderr: () => {},
-        exit: () => {},
+        env: { PATH: "", HOME: process.env.HOME ?? "" },
+        encoding: "utf8",
       },
     );
-    assert.equal(code, EXIT_LAUNCHER_ERROR);
+    assert.equal(result.status, EXIT_LAUNCHER_ERROR, result.stderr);
   });
 });
 
@@ -619,8 +629,18 @@ describe("copied compiled bundle without repository node_modules", () => {
       const copied = join(dir, "foreman-launch.js");
       cpSync(bundlePath, copied);
       const empty = join(dir, "empty-cwd");
+      const stdoutPath = join(dir, "stdout.txt");
+      const stderrPath = join(dir, "stderr.txt");
       mkdirSync(empty);
-      const r = spawnSync(process.execPath, [copied, "--version"], {
+      const r = spawnSync("sh", [
+        "-c",
+        'exec "$1" "$2" --version >"$3" 2>"$4"',
+        "/bin/sh",
+        process.execPath,
+        copied,
+        stdoutPath,
+        stderrPath,
+      ], {
         cwd: empty,
         encoding: "utf8",
         env: {
@@ -629,9 +649,10 @@ describe("copied compiled bundle without repository node_modules", () => {
         },
       });
       assert.equal(r.status, 0, r.stderr);
-      assert.match(r.stdout, /foreman-launch/);
-      assert.match(r.stdout, /node /);
-      assert.equal(r.stdout.includes("bun"), false);
+      const stdout = readFileSync(stdoutPath, "utf8");
+      assert.match(stdout, /foreman-launch/);
+      assert.match(stdout, /node /);
+      assert.equal(stdout.includes("bun"), false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -677,6 +698,7 @@ function handoffLayer(opts: {
   | LauncherClock
   | ExecveService
   | UnshareProbeService
+  | CapabilityWriter
   | DetachSpawner
   | StderrLog
 > {
@@ -719,8 +741,13 @@ function handoffLayer(opts: {
         Effect.succeed({
           _tag: "Failed" as const,
           unsharePath: null,
+          reason: "unshare_missing" as const,
           detail: "test",
+          attempts: [],
         }),
+    }),
+    Layer.succeed(CapabilityWriter, {
+      write: () => Effect.void,
     }),
     Layer.succeed(DetachSpawner, {
       spawnDetachedSelf: () => Effect.succeed({ pid: opts.detachedPid }),
@@ -744,6 +771,361 @@ function hbLineForPid(launcherPid: number): string {
   };
   return formatHeartbeatLine(line);
 }
+
+function mainTestLayer(opts: {
+  readonly probe: UnshareProbeResult;
+  readonly records?: CapabilityRecord[];
+  readonly events?: string[];
+  readonly logs?: string[];
+}): Layer.Layer<
+  | ChildSpawner
+  | ProcessGroupTerminator
+  | WindowsTreeTerminator
+  | HeartbeatWriter
+  | ByteSink
+  | LauncherClock
+  | ExecveService
+  | UnshareProbeService
+  | CapabilityWriter
+  | DetachSpawner
+  | StderrLog
+> {
+  const events = opts.events ?? [];
+  const records = opts.records ?? [];
+  const logs = opts.logs ?? [];
+  return Layer.mergeAll(
+    Layer.succeed(ChildSpawner, {
+      spawn: () => {
+        events.push("spawn");
+        return Effect.succeed(fakeChild({ pid: 80, exitCode: 0 }));
+      },
+    }),
+    Layer.succeed(ProcessGroupTerminator, { killGroup: () => Effect.void }),
+    Layer.succeed(WindowsTreeTerminator, {
+      terminateTree: () => Effect.void,
+    }),
+    Layer.succeed(HeartbeatWriter, {
+      reset: () => {
+        events.push("heartbeat-reset");
+        return Effect.void;
+      },
+      appendLine: () => {
+        events.push("heartbeat-append");
+        return Effect.void;
+      },
+      readText: () => Effect.succeed(""),
+    }),
+    Layer.succeed(ByteSink, {
+      writeStdout: () => Effect.void,
+      writeStderr: () => Effect.void,
+    }),
+    Layer.succeed(LauncherClock, liveClock),
+    Layer.succeed(ExecveService, {
+      execve: () => {
+        events.push("execve");
+        return Effect.fail({
+          _tag: "ExecveFailed" as const,
+          message: "test execve failure",
+        });
+      },
+    }),
+    Layer.succeed(UnshareProbeService, {
+      probe: () => Effect.succeed(opts.probe),
+    }),
+    Layer.succeed(CapabilityWriter, {
+      write: (_path, record) =>
+        Effect.sync(() => {
+          events.push(`capability-${record.tag}`);
+          records.push(record);
+        }),
+    }),
+    Layer.succeed(DetachSpawner, {
+      spawnDetachedSelf: () =>
+        Effect.fail({ _tag: "SpawnError" as const, message: "unused" }),
+    }),
+    Layer.succeed(StderrLog, {
+      write: (line) =>
+        Effect.sync(() => {
+          logs.push(line);
+        }),
+    }),
+  );
+}
+
+describe("capability policy and self re-exec", () => {
+  it("builds a self prefix with Node exec args before the script", () => {
+    assert.deepEqual(
+      buildSelfScriptArgvPrefix(
+        ["--import", "tsx", "--trace-warnings"],
+        "/repo/packages/launcher/src/main.ts",
+      ),
+      [
+        "--import",
+        "tsx",
+        "--trace-warnings",
+        "/repo/packages/launcher/src/main.ts",
+      ],
+    );
+  });
+
+  it("writes a Refused record and spawns nothing when strong is unavailable", async (t) => {
+    if (isWin) {
+      t.skip("the injected POSIX strong-policy path is unavailable on win32");
+      return;
+    }
+    const records: CapabilityRecord[] = [];
+    const events: string[] = [];
+    const logs: string[] = [];
+    const code = await runMain(
+      [
+        process.execPath,
+        "foreman-launch",
+        "--require-containment",
+        "strong",
+        "--capability-file",
+        "/tmp/cap.json",
+        "--heartbeat-file",
+        "/tmp/hb.jsonl",
+        "--",
+        "true",
+      ],
+      { writeStdout: () => {}, writeStderr: () => {}, exit: () => {} },
+      mainTestLayer({
+        probe: {
+          _tag: "Failed",
+          unsharePath: null,
+          reason: "unshare_missing",
+          detail: "unshare not found on PATH",
+          attempts: [],
+        },
+        records,
+        events,
+        logs,
+      }),
+    );
+    assert.equal(code, EXIT_LAUNCHER_ERROR);
+    assert.equal(records.length, 1);
+    assert.equal(records[0]?.tag, "Refused");
+    assert.equal(records[0]?.reason, "refused_by_policy");
+    assert.equal(events.includes("spawn"), false);
+    assert.equal(events.some((event) => event.startsWith("heartbeat-")), false);
+    assert.equal(logs.some((line) => line.includes("REFUSED")), true);
+  });
+
+  it("probe-only writes capability evidence and never spawns", async (t) => {
+    if (isWin) {
+      t.skip("the injected POSIX probe-only path is unavailable on win32");
+      return;
+    }
+    const records: CapabilityRecord[] = [];
+    const events: string[] = [];
+    const code = await runMain(
+      [
+        process.execPath,
+        "foreman-launch",
+        "--probe-only",
+        "--capability-file",
+        "/tmp/cap.json",
+      ],
+      { writeStdout: () => {}, writeStderr: () => {}, exit: () => {} },
+      mainTestLayer({
+        probe: {
+          _tag: "Failed",
+          unsharePath: null,
+          reason: "unshare_missing",
+          detail: "missing",
+          attempts: [],
+        },
+        records,
+        events,
+      }),
+    );
+    assert.equal(code, 0);
+    assert.equal(records[0]?.tag, "Degraded");
+    assert.equal(events.includes("spawn"), false);
+    assert.equal(events.includes("execve"), false);
+  });
+
+  it("rewrites the record as Refused when strong execve fails", async (t) => {
+    if (isWin) {
+      t.skip("the injected POSIX execve-refusal path is unavailable on win32");
+      return;
+    }
+    const records: CapabilityRecord[] = [];
+    const events: string[] = [];
+    const logs: string[] = [];
+    const code = await runMain(
+      [
+        process.execPath,
+        "foreman-launch",
+        "--require-containment",
+        "strong",
+        "--capability-file",
+        "/tmp/cap.json",
+        "--",
+        "true",
+      ],
+      { writeStdout: () => {}, writeStderr: () => {}, exit: () => {} },
+      mainTestLayer({
+        probe: {
+          _tag: "Ok",
+          unsharePath: "/usr/bin/unshare",
+          kind: "posix_pidns_userns_strong",
+          flags: UNSHARE_USERNS_PIDNS_FLAGS,
+          attempts: [
+            {
+              flags: UNSHARE_USERNS_PIDNS_FLAGS,
+              status: 0,
+              signal: null,
+              stderr: "",
+            },
+          ],
+        },
+        records,
+        events,
+        logs,
+      }),
+    );
+    assert.equal(code, EXIT_LAUNCHER_ERROR);
+    assert.deepEqual(events.slice(0, 3), [
+      "capability-Strong",
+      "execve",
+      "capability-Refused",
+    ]);
+    assert.equal(records.at(-1)?.tag, "Refused");
+    assert.equal(events.includes("spawn"), false);
+    assert.equal(logs.some((line) => line.includes("REFUSED")), true);
+  });
+
+  it("rewrites the record as Degraded before fallback spawn when execve fails under any", async (t) => {
+    if (isWin) {
+      t.skip("the injected POSIX execve-fallback path is unavailable on win32");
+      return;
+    }
+    const records: CapabilityRecord[] = [];
+    const events: string[] = [];
+    const code = await runMain(
+      [
+        process.execPath,
+        "foreman-launch",
+        "--capability-file",
+        "/tmp/cap.json",
+        "--",
+        "true",
+      ],
+      { writeStdout: () => {}, writeStderr: () => {}, exit: () => {} },
+      mainTestLayer({
+        probe: {
+          _tag: "Ok",
+          unsharePath: "/usr/bin/unshare",
+          kind: "posix_pidns_userns_strong",
+          flags: UNSHARE_USERNS_PIDNS_FLAGS,
+          attempts: [
+            {
+              flags: UNSHARE_USERNS_PIDNS_FLAGS,
+              status: 0,
+              signal: null,
+              stderr: "",
+            },
+          ],
+        },
+        records,
+        events,
+      }),
+    );
+    assert.equal(code, 0);
+    assert.deepEqual(events.slice(0, 4), [
+      "capability-Strong",
+      "execve",
+      "capability-Degraded",
+      "spawn",
+    ]);
+    assert.equal(records.at(-1)?.tag, "Degraded");
+    assert.equal(records.at(-1)?.reason, "execve_failed");
+  });
+});
+
+describe("host-gated user-namespace strong path", () => {
+  it("records a bounded successful first ladder attempt when the host permits it", async (t) => {
+    if (isWin) {
+      t.skip("unshare is unavailable on win32");
+      return;
+    }
+    const probe = await Effect.runPromise(liveUnshareProbe.probe());
+    if (probe._tag === "Failed") {
+      t.skip(`host ladder unavailable: ${probe.reason}: ${probe.detail}`);
+      return;
+    }
+    assert.equal(probe.kind, "posix_pidns_userns_strong");
+    assert.deepEqual(probe.flags, UNSHARE_USERNS_PIDNS_FLAGS);
+    assert.equal(probe.attempts.length, 1);
+    assert.equal(probe.attempts[0]?.status, 0);
+    for (const attempt of probe.attempts) {
+      assert.equal(Buffer.byteLength(attempt.stderr) <= 200, true);
+    }
+  });
+
+  it("runs a short compiled child in a different pid namespace", { timeout: 20_000 }, async (t) => {
+    if (isWin) {
+      t.skip("Linux pid namespaces are unavailable on win32");
+      return;
+    }
+    const probe = await Effect.runPromise(liveUnshareProbe.probe());
+    if (probe._tag === "Failed") {
+      t.skip(`host ladder unavailable: ${probe.reason}: ${probe.detail}`);
+      return;
+    }
+    const bundlePath = join(
+      root,
+      "skills/foreman/runtime/dist/foreman-launch.js",
+    );
+    if (!existsSync(bundlePath)) {
+      t.skip("compiled launcher bundle is unavailable");
+      return;
+    }
+    const dir = mkdtempSync(join(tmpdir(), "fl-pidns-"));
+    try {
+      const observationPath = join(dir, "observation.txt");
+      const childEnv = {
+        PATH: process.env.PATH ?? "",
+        HOME: process.env.HOME ?? "",
+        FOREMAN_LAUNCH_PIDNS_INNER: "1",
+        FOREMAN_LAUNCH_HOST_PID: String(process.pid),
+        FOREMAN_LAUNCH_PIDNS_KIND: probe.kind,
+      };
+      const child = spawn(
+        probe.unsharePath,
+        [
+          ...probe.flags,
+          "--",
+          process.execPath,
+          bundlePath,
+          "--require-containment",
+          "strong",
+          "--",
+          "sh",
+          "-c",
+          "printf 'pid=%s ns=%s\\n' \"$$\" \"$(readlink /proc/self/ns/pid)\" > \"$1\"",
+          "sh",
+          observationPath,
+        ],
+        { env: childEnv, stdio: "ignore" },
+      );
+      const status = await new Promise<number | null>((resolve, reject) => {
+        child.once("error", reject);
+        child.once("close", resolve);
+      });
+      assert.equal(status, 0);
+      const observation = readFileSync(observationPath, "utf8");
+      const match = /^pid=(\d+) ns=(pid:\[\d+\])$/m.exec(observation);
+      assert.ok(match, `unexpected child output: ${observation}`);
+      assert.equal(Number(match[1]) > 0, true);
+      assert.notEqual(match[2], readlinkSync("/proc/self/ns/pid"));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("detach handoff launcher_pid binding", () => {
   it("refuses a valid post-reset heartbeat from another launcher_pid", async () => {
@@ -837,6 +1219,8 @@ describe("compiled bundle large stdout/stderr byte-exact pass-through", () => {
       const outSize = 256 * 1024;
       const errSize = 256 * 1024;
       const script = join(dir, "emit.mjs");
+      const stdoutPath = join(dir, "stdout.bin");
+      const stderrPath = join(dir, "stderr.bin");
       writeFileSync(
         script,
         `
@@ -859,26 +1243,30 @@ process.exit(0);
       for (let i = 0; i < errSize; i++) expectedErr[i] = (i * 3) % 251;
 
       const child = spawn(
-        process.execPath,
-        [bundlePath, "--", process.execPath, script],
+        "/bin/sh",
+        [
+          "-c",
+          'exec "$1" "$2" -- "$1" "$3" >"$4" 2>"$5"',
+          "sh",
+          process.execPath,
+          bundlePath,
+          script,
+          stdoutPath,
+          stderrPath,
+        ],
         {
-          stdio: ["ignore", "pipe", "pipe"],
-          env: process.env,
+          stdio: "ignore",
+          env: { PATH: "", HOME: process.env.HOME ?? "" },
         },
       );
-
-      const outChunks: Buffer[] = [];
-      const errChunks: Buffer[] = [];
-      child.stdout.on("data", (c: Buffer) => outChunks.push(c));
-      child.stderr.on("data", (c: Buffer) => errChunks.push(c));
 
       const status: number | null = await new Promise((resolve, reject) => {
         child.on("error", reject);
         child.on("close", (code) => resolve(code));
       });
 
-      const gotOut = Buffer.concat(outChunks);
-      const gotErrAll = Buffer.concat(errChunks);
+      const gotOut = readFileSync(stdoutPath);
+      const gotErrAll = readFileSync(stderrPath);
 
       assert.equal(
         status,

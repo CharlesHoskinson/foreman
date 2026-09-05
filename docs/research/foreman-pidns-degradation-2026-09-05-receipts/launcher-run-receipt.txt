@@ -1,0 +1,44 @@
+# actual launcher binary run  2026-09-05T02:57:24Z
+a9a3e9cf534c63b96a4770edecd6fae5e544af98948e2e427d2c92fca4a711ea  /home/charl/foreman/launcher/dist/foreman-launch
+foreman-launch 0.2.5 (bun 1.3.14)
+rc=0
+strings check:
+2
+    console.error("foreman-launch: unshare unavailable/failed (availability probe) -- " + "DEGRADED: falling back to setsid+pgid, no kernel pidns cascade guaran
+    console.error("foreman-launch: unshare resolved by the probe but not by Bun.which() -- " + "DEGRADED: falling back to setsid+pgid, no kernel pidns cascade g
+
+## L1 launcher -- true (stderr captured)
+rc=0
+stderr:
+foreman-launch: unshare unavailable/failed (availability probe) -- DEGRADED: falling back to setsid+pgid, no kernel pidns cascade guarantee
+heartbeat lines:
+{"ts":"2026-09-05T02:57:25.973Z","launcher_pid":337956,"pid":337965,"job_id":"337965","alive":true,"stdout_bytes":0,"stderr_bytes":0,"elapsed_s":0.001}
+{"ts":"2026-09-05T02:57:25.976Z","launcher_pid":337956,"pid":337965,"job_id":"337965","alive":false,"stdout_bytes":0,"stderr_bytes":0,"elapsed_s":0.004}
+
+## L2 strace -f of launcher -- true (unshare/execve/prctl/setsid/kill only)
+rc=0
+337974 prctl(PR_GET_THP_DISABLE, 0, 0, 0, 0) = 0
+337974 prctl(PR_SET_THP_DISABLE, 1, 0, 0, 0) = 0
+337974 prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, 0x73f150c00000, 137438953472, "JSGigacage") = 0
+337974 prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, 0x741148c00000, 134217728, "WKFastMalloc") = 0
+337974 prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, 0x74115134a000, 4096, "WKFastMalloc") = 0
+337974 prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, 0x741151349000, 4096, "WKFastMalloc") = 0
+337974 prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, 0x741151346000, 12288, "WKFastMalloc") = 0
+337974 prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, 0x741146200000, 33554432, "WKFastMalloc") = 0
+337974 prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, 0x741151341000, 20480, "WKFastMalloc") = 0
+337974 prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, 0x741144200000, 33554432, "WKFastMalloc") = 0
+337974 prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, 0x7411041fe000, 1073750016, "JSJITCode") = 0
+337974 prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, 0x73fe00000000, 8589934592, "JSStructureHeap") = 0
+337974 prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, 0x741100000000, 67108864, "WKFastMalloc") = 0
+337974 prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, 0x741151312000, 4096, "WKFastMalloc") = 0
+337976 prctl(PR_SET_NAME, "HeapHelper") = 0
+337977 prctl(PR_SET_NAME, "HeapHelper") = 0
+337978 prctl(PR_SET_NAME, "HeapHelper") = 0
+337979 prctl(PR_SET_NAME, "HeapHelper") = 0
+337980 prctl(PR_SET_NAME, "HeapHelper") = 0
+337981 prctl(PR_SET_NAME, "JITWorker")  = 0
+
+## L3 pgid observation of child under degraded launcher
+child pid=338000 pgid= 338000 sid= 338000 ppid=337991 pidns=pid:[4026532221]
+rc=0
+launcher-side pidns: pid:[4026532221]

@@ -86,9 +86,12 @@ claude
 ```
 
 ```text
-/model fable
+/model claude-fable-5-1
 /foreman
 ```
+
+Use the canonical model ID. Foreman does not accept the `fable` alias as
+evidence that Fable 5.1 ran.
 
 Restate the goal and mode in one short paragraph. Soft unless you set
 `mode = "hard"` in `.foreman/config.toml` or ask for hard mode.
@@ -228,7 +231,7 @@ successful `wt-merge`; those reports are already archived under
 | Routine implementer | Grok 4.5 | `grok --prompt-file … -m grok-4.5 --allow "Write" --allow "Edit" --output-format plain --cwd <dir>` |
 | Cross-vendor implementer | GPT-5.6 Sol (medium) | `codex exec --model gpt-5.6-sol -c model_reasoning_effort=medium --sandbox workspace-write` |
 | Audit (default) | GPT-5.6 Sol (high) | `codex exec --model gpt-5.6-sol -c model_reasoning_effort=high --sandbox read-only` |
-| Judgment | Fable / Opus | Session model or `model: fable` agent |
+| Judgment | Fable 5.1 | Session model or `model: claude-fable-5-1` agent; exact identity is host-verified |
 
 **Grok is live on the reference host**: Grok Build (0.2.118) installed via
 `npm i -g @xai-official/grok`, signed in via `grok login --device-code`, and
@@ -542,6 +545,34 @@ irreversible self-replacement), the launcher falls back to the pre-v0.2.7.5
 `setsid` + `kill(-pgid)` path and logs a **DEGRADED** marker — check for that
 marker before assuming the stronger guarantee held. Full mechanism:
 `launcher/README.md` "POSIX asymmetry."
+
+The Bun binary above always degrades for an unprivileged user, because
+`unshare(2)` needs `CAP_SYS_ADMIN` for `--pid` and `--mount-proc`. Since
+2026-09-05 `lane-run.sh` prefers the Node launcher
+(`skills/foreman/runtime/dist/foreman-launch.js`), which probes a
+user-namespace ladder first and gets the cascade unprivileged. Set
+`FOREMAN_LAUNCH_IMPL=bun` to force the legacy binary. Diagnosis:
+`docs/research/foreman-pidns-degradation-2026-09-05.md`.
+
+#### Containment policy in a round
+
+Before spawning CMD, `lane-run.sh` runs the launcher in `--probe-only` mode and
+reads `<WT>/.harness/capability.json`. The round's `ownership` event then
+carries `containment: {tag, kind, reason, approval}`.
+
+- `FOREMAN_CONTAINMENT_REQUIRE=strong|any`. Default `strong` when
+  `LANE_VENDOR` is set (an implementation lane), else `any`.
+- A non-strong capability under `strong` with no approval is refused:
+  `lane-run.sh` emits `alert {kind: "containment_refused"}`, prints
+  `lane-run: REFUSED containment=...`, and exits 2 before CMD runs.
+- `FOREMAN_CONTAINMENT_APPROVAL="<reason>"` admits a degraded round and
+  records the reason in the degraded alert and the ownership event. Set it
+  through the queue with `lane-queue.sh add ... --containment-approval REASON`.
+- Setup shows a `containment` row (`env/tool-check.sh`). It reports DEGRADED
+  when the probe fails and never changes generic READY.
+- With a strong capability, `lane-run.sh` kills the launcher pid with
+  `SIGKILL` on cleanup, which tears the namespace down. With a degraded
+  capability it keeps the process-group kill.
 
 If `launcher/dist/foreman-launch` itself is absent, there is no pidns launcher
 to enter and `lane-run.sh` emits the frozen `launcher_absent` degraded alert.

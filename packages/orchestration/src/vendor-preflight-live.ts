@@ -3,7 +3,9 @@
  * Reuses ProcessExec and PathLookup; never mutates the toolchain.
  */
 
-import { isAbsolute, resolve as resolvePath } from "node:path";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { isAbsolute, join, resolve as resolvePath } from "node:path";
 import { Context, Effect, Layer } from "effect";
 import {
   MAX_CAPTURE_BYTES,
@@ -31,6 +33,17 @@ import {
 
 /** Wall-clock bound for every auth or version probe (milliseconds). */
 export const PREFLIGHT_PROBE_TIMEOUT_MS = 10_000;
+
+/**
+ * The Grok CLI has no reliable non-inference authentication-status contract.
+ * Allow the same upper bound as the operator canary documented in the
+ * repository trap table. A timeout remains unknown; it is never evidence that
+ * the account is signed out.
+ */
+export const GROK_READINESS_PROBE_TIMEOUT_MS = 90_000;
+
+/** Prefix for the private, one-probe Grok working directory. */
+export const GROK_READINESS_CWD_PREFIX = "foreman-grok-ready-";
 
 /** Combined stdout+stderr capture bound (bytes). */
 export const PREFLIGHT_PROBE_OUTPUT_BOUND_BYTES = MAX_CAPTURE_BYTES;
@@ -119,6 +132,8 @@ function runProbe(
   tailArgv: readonly string[],
   vendorBinding: VendorCapabilityV1["vendor"],
   env?: NodeJS.ProcessEnv,
+  cwd?: string,
+  timeoutMs = PREFLIGHT_PROBE_TIMEOUT_MS,
 ): Effect.Effect<ProbeCapture, never, ProcessExec> {
   return Effect.gen(function* () {
     const fullArgv = [executable, ...tailArgv];
@@ -135,9 +150,10 @@ function runProbe(
       .runCaptured({
         command: executable,
         args: [...tailArgv],
-        timeoutMs: PREFLIGHT_PROBE_TIMEOUT_MS,
+        timeoutMs,
         maxOutputBytes: PREFLIGHT_PROBE_OUTPUT_BOUND_BYTES,
         ...(env !== undefined ? { env } : {}),
+        ...(cwd !== undefined ? { cwd } : {}),
       })
       .pipe(Effect.either);
 
@@ -324,13 +340,43 @@ export const inspectVendor = (
       versionOutcome,
     );
 
-    // Auth probe
-    const authCap = yield* runProbe(
-      executable,
-      capability.authArgv,
-      capability.vendor,
-      probeEnv,
-    );
+    // Auth probe. Grok's readiness contract is a minimal read-only workload,
+    // not its historically unreliable `models` presentation. Keep that probe
+    // outside the caller's repository so local instructions cannot influence
+    // the exact-token response.
+    const authEffect =
+      capability.vendor === "grok"
+        ? Effect.acquireUseRelease(
+            Effect.try({
+              try: () =>
+                mkdtempSync(join(tmpdir(), GROK_READINESS_CWD_PREFIX)),
+              catch: () =>
+                new VendorPreflightFailure(
+                  "internal",
+                  "could not create private Grok readiness directory",
+                ),
+            }),
+            (privateCwd) =>
+              runProbe(
+                executable,
+                capability.authArgv,
+                capability.vendor,
+                probeEnv,
+                privateCwd,
+                GROK_READINESS_PROBE_TIMEOUT_MS,
+              ),
+            (privateCwd) =>
+              Effect.sync(() => {
+                rmSync(privateCwd, { recursive: true });
+              }),
+          )
+        : runProbe(
+            executable,
+            capability.authArgv,
+            capability.vendor,
+            probeEnv,
+          );
+    const authCap = yield* authEffect;
     const authProbe = probeRecord(
       "auth",
       executable,
@@ -389,7 +435,7 @@ export const inspectVendor = (
       capability.vendor === "grok" &&
       authProbe.outcome === "completed" &&
       auth.value === "unknown" &&
-      auth.reason.includes("neither")
+      auth.reason.includes("did not match")
     ) {
       finalAuthProbe = {
         ...authProbe,

@@ -57,8 +57,12 @@ const LANE_SUPERVISE_MIGRATION_PATH =
   "skills/foreman/scripts/lane-supervise.sh";
 
 /** Exact R7B2-B profile-bound lane adapter body. */
+// Re-pinned 2026-09-05 (pidns-remedy): per-round containment probe, ownership
+// containment fields, and the capability-aware kill target. Recorded as
+// legacy debt: this policy belongs in the TypeScript round runtime once
+// lane-run.sh is strangled.
 const LANE_RUN_BODY_SHA256 =
-  "07d1f57953eb1c3cb4b7a8090743ef05c723ff900e0d3881fb8b1efc0be93f31";
+  "5368260642cac6d0ff9d38a45597dc359e6c5a0b9a008f49dee3383bc7f16110";
 
 /**
  * SHA-256 of every byte of the approved R5D lane-supervise.sh thin adapter.
@@ -71,15 +75,21 @@ const LANE_SUPERVISE_BODY_SHA256 =
   "a09929d92ce817fc861800b38529300889a62b8324fc67fea9a305ea32ac7062";
 
 /**
- * Exact release-migration artifacts admitted by the v0.4 convergence.
- * These paths still fail closed on any byte change or relocation. The lock
- * helper entry freezes the final BW-004 MSYS portability correction. New
- * shell work beyond these artifacts must use the closed thin-adapter grammar.
+ * Exact legacy migration artifacts admitted by reviewed changes.
+ * These paths still fail closed on any byte change or relocation. The v0.4
+ * entries freeze the release convergence. The provider-readiness entries
+ * freeze the adapters that now delegate Grok readiness to the compiled
+ * authority. New shell work beyond these artifacts must use the closed
+ * thin-adapter grammar.
  */
-const V040_MIGRATION_BODY_SHA256 = new Map<string, string>([
+const LEGACY_MIGRATION_BODY_SHA256 = new Map<string, string>([
   [
     "skills/foreman/scripts/gate-eval.sh",
     "bd0a5e404cb97dfe356084764f797a2852b8a6d84862e038aaecad085f70b546",
+  ],
+  [
+    "skills/foreman/scripts/adapters/grok.sh",
+    "5661b8005c54be4f66d11d7bf3db7e71f7886fd06baf69b9b2c4f4bf85cba1ca",
   ],
   [
     "skills/foreman/scripts/lib/release-policy.sh",
@@ -97,6 +107,16 @@ const V040_MIGRATION_BODY_SHA256 = new Map<string, string>([
     "skills/foreman/scripts/merge-gate.sh",
     "8854bd9bf4ddc0234989c156ca32287d2ade4e3b68bbb8c66e560e4a093fd95b",
   ],
+  [
+    "skills/foreman/scripts/vendor-concurrency-test.sh",
+    "6433ef616bfc1fb28944b418f0291f6eedc196d5815fa73c2451e04bf327f889",
+  ],
+  // Pinned 2026-09-05 (pidns-remedy): display-only containment note on the
+  // watchdog state line. Same legacy-debt note as lane-run.sh above.
+  [
+    "skills/foreman/scripts/watch.sh",
+    "6ee0c22f756bf7395c93ff1876d42a877e0c7a0e091b06fe592d23a5b320ff14",
+  ],
 ]);
 
 export function isPinnedLegacyMigrationArtifact(
@@ -104,7 +124,7 @@ export function isPinnedLegacyMigrationArtifact(
   sourceText: string,
 ): boolean {
   const normalizedPath = path.replace(/\\/g, "/");
-  const expected = V040_MIGRATION_BODY_SHA256.get(normalizedPath);
+  const expected = LEGACY_MIGRATION_BODY_SHA256.get(normalizedPath);
   if (expected === undefined) return false;
   return (
     createHash("sha256").update(sourceText, "utf8").digest("hex") === expected
@@ -395,8 +415,8 @@ export function inspectLegacyAdapter(
   if (normalizedPath === LANE_SUPERVISE_MIGRATION_PATH) {
     return inspectLaneSuperviseMigrationAdapter(sourceText);
   }
-  const pinnedV040Digest = V040_MIGRATION_BODY_SHA256.get(normalizedPath);
-  if (pinnedV040Digest !== undefined) {
+  const pinnedLegacyDigest = LEGACY_MIGRATION_BODY_SHA256.get(normalizedPath);
+  if (pinnedLegacyDigest !== undefined) {
     return isPinnedLegacyMigrationArtifact(path, sourceText) ? null : DENY;
   }
 

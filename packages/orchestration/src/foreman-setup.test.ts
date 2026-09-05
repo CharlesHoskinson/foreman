@@ -164,6 +164,8 @@ type CapturedEnvCall = {
 
 function vendorLayer(opts: {
   grokAuthStdout: string;
+  grokAuthStderr?: string;
+  grokAuthExitCode?: number;
   codexAuthStdout?: string;
   capturedEnvs?: CapturedEnvCall[];
 }): Layer.Layer<ProcessExec | PathLookup | PreflightClock> {
@@ -192,9 +194,9 @@ function vendorLayer(opts: {
         }
         if (name === "grok" && head === "models") {
           return Effect.succeed({
-            exitCode: 0,
+            exitCode: opts.grokAuthExitCode ?? 0,
             stdout: opts.grokAuthStdout,
-            stderr: "",
+            stderr: opts.grokAuthStderr ?? "",
           });
         }
         if (name === "codex" && head === "login") {
@@ -399,7 +401,9 @@ describe("runForemanSetup persistence and readiness", () => {
               PATH: "/usr/bin",
             },
             layer: vendorLayer({
-              grokAuthStdout: "You are not authenticated.\n",
+              grokAuthStdout: "",
+              grokAuthStderr: "You are not authenticated.\n",
+              grokAuthExitCode: 1,
             }),
             storeLayer: livePreflightRecordStore,
             nowUtc: () => FIXED,

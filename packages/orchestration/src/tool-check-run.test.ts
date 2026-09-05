@@ -25,6 +25,7 @@ import {
   parseToolCheckArgv,
 } from "./tool-check-cli.js";
 import {
+  checkOne,
   resolveRepoRoot,
   runToolCheck,
   MAX_INVENTORY_OUT_PATH_BYTES,
@@ -89,6 +90,55 @@ function stubLayer(): Layer.Layer<ProcessExec | PathLookup | PreflightClock> {
     }),
   );
 }
+
+describe("containment probe", () => {
+  it("runs the launcher probe and degrades on nonzero exit", async () => {
+    const calls: Array<{ command: string; args: readonly string[] }> = [];
+    const layer = Layer.mergeAll(
+      Layer.succeed(ProcessExec, {
+        runCaptured: (opts) => {
+          calls.push({ command: opts.command, args: opts.args });
+          return Effect.succeed({
+            exitCode: 125,
+            stdout: "",
+            stderr: "foreman-launch: missing '--' separator before CMD\n",
+          });
+        },
+        runIgnoredStdio: () => Effect.fail(new ProcessFailure("spawn_failed")),
+        runForeground: () => Effect.fail(new ProcessFailure("spawn_failed")),
+      }),
+      Layer.succeed(PathLookup, {
+        which: () => Effect.succeed(null),
+        fileExists: () => Effect.succeed(false),
+        isExecutable: () => Effect.succeed(false),
+      }),
+      Layer.succeed(PreflightClock, {
+        nowUtcRfc3339: () => Effect.succeed(FIXED),
+      }),
+    );
+    const repoRoot = "/repo";
+    const result = await Effect.runPromise(
+      checkOne("containment", {
+        repoRoot,
+        capabilityTable: emptyTable,
+        processEnv: {},
+        isWsl: true,
+      }).pipe(Effect.provide(layer)),
+    );
+    assert.deepEqual(calls, [{
+      command: process.execPath,
+      args: [
+        join(repoRoot, "skills/foreman/runtime/dist/foreman-launch.js"),
+        "--probe-only",
+        "--require-containment",
+        "strong",
+      ],
+    }]);
+    assert.equal(result.status, "degraded");
+    assert.match(result.detail, /exit=125/);
+    assert.match(result.detail, /FOREMAN_CONTAINMENT_APPROVAL/);
+  });
+});
 
 describe("platform pure helpers", () => {
   it("detects WSL force override", () => {

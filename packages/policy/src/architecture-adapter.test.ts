@@ -8,12 +8,14 @@ import { inspectLegacyAdapter } from "./architecture-adapter.js";
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const LANE_RUN_PATH = "skills/foreman/scripts/lane-run.sh";
 const LANE_SUPERVISE_PATH = "skills/foreman/scripts/lane-supervise.sh";
-const V040_PINNED_SHELL_PATHS = [
+const PINNED_LEGACY_MIGRATION_PATHS = [
   "skills/foreman/scripts/gate-eval.sh",
+  "skills/foreman/scripts/adapters/grok.sh",
   "skills/foreman/scripts/lib/lock.sh",
   "skills/foreman/scripts/lib/release-policy.sh",
   "skills/foreman/scripts/maintenance.sh",
   "skills/foreman/scripts/merge-gate.sh",
+  "skills/foreman/scripts/vendor-concurrency-test.sh",
 ] as const;
 const LANE_RUN_FORWARDING_BLOCK = [
   '  lane_gate_runtime="$SCRIPT_DIR/../runtime/dist/credential-profile-lane.js"',
@@ -797,8 +799,8 @@ describe("inspectLegacyAdapter", () => {
     });
   });
 
-  describe("v0.4 release migration artifacts", () => {
-    for (const path of V040_PINNED_SHELL_PATHS) {
+  describe("pinned legacy migration artifacts", () => {
+    for (const path of PINNED_LEGACY_MIGRATION_PATHS) {
       it(`accepts only the tracked ${path} body at its exact path`, () => {
         const body = readFileSync(join(REPO_ROOT, path), "utf8");
         assert.equal(inspectLegacyAdapter(path, body), null);

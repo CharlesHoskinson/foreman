@@ -17,11 +17,19 @@ import {
   firstValidHeartbeatLine,
 } from "./heartbeat.js";
 import {
+  capabilityRecord,
+  formatRefusalLine,
+  isPidnsInner,
+  isStrong,
+  type PlatformCapability,
+} from "./capability.js";
+import {
   planPidnsExecve,
   resolveCapability,
 } from "./platform.js";
 import { supervise } from "./supervise.js";
 import {
+  CapabilityWriter,
   DetachSpawner,
   ExecveService,
   HeartbeatWriter,
@@ -135,9 +143,14 @@ function runDetachHandoff(
  * `node <script> ...`. For the compiled bundle, process.argv[1] is the script.
  */
 export function selfScriptArgvPrefix(): string[] {
-  const script = process.argv[1];
-  if (script) return [script];
-  return [];
+  return buildSelfScriptArgvPrefix(process.execArgv, process.argv[1]);
+}
+
+export function buildSelfScriptArgvPrefix(
+  execArgv: readonly string[],
+  script: string | undefined,
+): string[] {
+  return script ? [...execArgv, script] : [...execArgv];
 }
 
 export function runMain(
@@ -152,6 +165,7 @@ export function runMain(
     | LauncherClock
     | ExecveService
     | UnshareProbeService
+    | CapabilityWriter
     | DetachSpawner
     | StderrLog
   > = LiveLauncherLayer,
@@ -175,6 +189,7 @@ export function runMain(
     const log = yield* StderrLog;
     const probeSvc = yield* UnshareProbeService;
     const execve = yield* ExecveService;
+    const capabilityWriter = yield* CapabilityWriter;
 
     if (args.detach) {
       return yield* runDetachHandoff(
@@ -185,7 +200,7 @@ export function runMain(
     }
 
     const probe =
-      process.platform === "win32"
+      process.platform === "win32" || isPidnsInner(process.env)
         ? null
         : yield* probeSvc.probe();
 
@@ -199,6 +214,31 @@ export function runMain(
     // Capability diagnostic always goes to stderr, never child stdout.
     yield* log.write(diagnostic.message);
 
+    const refusedByPolicy =
+      args.requireContainment === "strong" && !isStrong(capability);
+    const record = capabilityRecord(
+      capability,
+      args.requireContainment,
+      launcherPid,
+      refusedByPolicy,
+    );
+    if (args.capabilityFile !== undefined) {
+      yield* capabilityWriter.write(args.capabilityFile, record);
+    }
+
+    if (args.probeOnly) {
+      if (refusedByPolicy) {
+        yield* log.write(formatRefusalLine(record));
+        return EXIT_LAUNCHER_ERROR;
+      }
+      return 0;
+    }
+
+    if (refusedByPolicy) {
+      yield* log.write(formatRefusalLine(record));
+      return EXIT_LAUNCHER_ERROR;
+    }
+
     if (capability._tag === "Strong") {
       const req = planPidnsExecve({
         unsharePath: capability.unsharePath,
@@ -209,9 +249,39 @@ export function runMain(
         ],
         hostPid: capability.hostPid,
         baseEnv: process.env,
+        flags: capability.flags,
+        kind: capability.kind,
       });
       const r = yield* Effect.either(execve.execve(req));
       if (r._tag === "Left") {
+        const failedCapability: PlatformCapability = {
+          _tag: "Degraded",
+          kind: "posix_process_group_degraded",
+          reason: r.left.message.includes("unavailable")
+            ? "execve_unavailable"
+            : "execve_failed",
+          detail: `execve: ${r.left.message}`,
+          attempts: capability.attempts,
+        };
+        if (args.requireContainment === "strong") {
+          const refusedRecord = capabilityRecord(
+            failedCapability,
+            "strong",
+            launcherPid,
+            true,
+          );
+          if (args.capabilityFile !== undefined) {
+            yield* capabilityWriter.write(args.capabilityFile, refusedRecord);
+          }
+          yield* log.write(formatRefusalLine(refusedRecord));
+          return EXIT_LAUNCHER_ERROR;
+        }
+        if (args.capabilityFile !== undefined) {
+          yield* capabilityWriter.write(
+            args.capabilityFile,
+            capabilityRecord(failedCapability, "any", launcherPid, false),
+          );
+        }
         yield* log.write(
           `foreman-launch: unshare exec failed (execve: ${r.left.message}) -- DEGRADED: falling back to process-group, no kernel pidns cascade guarantee`,
         );

@@ -1,0 +1,12 @@
+[2026-09-04 20:57:45] INFO: Fetched (200) <GET https://media.x.ai/v1/website/card-4p6-4cd2dc57.pdf> (referer: https://www.google.com/)
+{
+ "requested_url": "https://media.x.ai/v1/website/card-4p6-4cd2dc57.pdf",
+ "canonical_url": "https://media.x.ai/v1/website/card-4p6-4cd2dc57.pdf",
+ "retrieved_utc": "2026-09-05T02:57:44.875333+00:00",
+ "status": 200,
+ "content_type": "application/pdf",
+ "bytes": 540844,
+ "sha256": "1fbb3ab6d7c572720e05d501eab8f11052b32db8d5936e66802c5c49b2261f4f",
+ "pdf_signature": true,
+ "scrapling": "0.4.15"
+}

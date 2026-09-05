@@ -16027,7 +16027,9 @@ function usage() {
   return [
     "usage: foreman-launch [--timeout SECS] [--grace SECS=10]",
     "                       [--heartbeat-file F] [--heartbeat-interval SECS=15]",
-    "                       [--detach] -- CMD [ARGS...]",
+    "                       [--require-containment strong|any]",
+    "                       [--capability-file PATH] [--probe-only]",
+    "                       [--detach] [-- CMD [ARGS...]]",
     "       foreman-launch --version",
     "",
     "stdout/stderr of CMD pass through unmodified. CMD's stdin is the null",
@@ -16057,19 +16059,16 @@ function parseArgs(argv) {
   if (flagSlice.includes("--version")) {
     return { _tag: "Version" };
   }
-  if (sepIdx === -1) {
-    return { _tag: "UsageError", message: "missing '--' separator before CMD" };
-  }
-  const flagArgs = argv.slice(0, sepIdx);
-  const cmd = argv.slice(sepIdx + 1);
-  if (cmd.length === 0) {
-    return { _tag: "UsageError", message: "no CMD given after '--'" };
-  }
+  const flagArgs = sepIdx === -1 ? argv : argv.slice(0, sepIdx);
+  const cmd = sepIdx === -1 ? [] : argv.slice(sepIdx + 1);
   let timeoutSecs;
   let graceSecs = 10;
   let heartbeatFile;
   let heartbeatIntervalSecs = 15;
   let detach = false;
+  let requireContainment = "any";
+  let capabilityFile;
+  let probeOnly = false;
   for (let i = 0; i < flagArgs.length; i++) {
     const a = flagArgs[i];
     switch (a) {
@@ -16123,6 +16122,31 @@ function parseArgs(argv) {
       case "--detach":
         detach = true;
         break;
+      case "--require-containment": {
+        const value = flagArgs[++i];
+        if (value !== "strong" && value !== "any") {
+          return {
+            _tag: "UsageError",
+            message: "--require-containment requires strong or any"
+          };
+        }
+        requireContainment = value;
+        break;
+      }
+      case "--capability-file": {
+        const value = flagArgs[++i];
+        if (!value) {
+          return {
+            _tag: "UsageError",
+            message: "--capability-file requires a path"
+          };
+        }
+        capabilityFile = value;
+        break;
+      }
+      case "--probe-only":
+        probeOnly = true;
+        break;
       default:
         return { _tag: "UsageError", message: `unrecognized flag: ${a}` };
     }
@@ -16133,6 +16157,18 @@ function parseArgs(argv) {
       message: "--detach requires --heartbeat-file"
     };
   }
+  if (detach && probeOnly) {
+    return {
+      _tag: "UsageError",
+      message: "--detach cannot be used with --probe-only"
+    };
+  }
+  if (!probeOnly && sepIdx === -1) {
+    return { _tag: "UsageError", message: "missing '--' separator before CMD" };
+  }
+  if (!probeOnly && cmd.length === 0) {
+    return { _tag: "UsageError", message: "no CMD given after '--'" };
+  }
   return {
     _tag: "Ok",
     value: {
@@ -16141,6 +16177,9 @@ function parseArgs(argv) {
       heartbeatFile,
       heartbeatIntervalSecs,
       detach,
+      requireContainment,
+      capabilityFile,
+      probeOnly,
       cmd
     }
   };
@@ -16158,7 +16197,7 @@ function argvWithoutDetach(rawArgv) {
     const a = flagsPart[i];
     if (a === "--detach") continue;
     outFlags.push(a);
-    if (a === "--timeout" || a === "--grace" || a === "--heartbeat-file" || a === "--heartbeat-interval") {
+    if (a === "--timeout" || a === "--grace" || a === "--heartbeat-file" || a === "--heartbeat-interval" || a === "--require-containment" || a === "--capability-file") {
       if (i + 1 < flagsPart.length) {
         outFlags.push(flagsPart[++i]);
       }
@@ -16274,19 +16313,23 @@ var DETACH_HANDOFF_BOUND_MS = 5e3;
 // packages/launcher/src/capability.ts
 var PIDNS_INNER_ENV = "FOREMAN_LAUNCH_PIDNS_INNER";
 var HOST_PID_ENV = "FOREMAN_LAUNCH_HOST_PID";
+var PIDNS_KIND_ENV = "FOREMAN_LAUNCH_PIDNS_KIND";
+function isStrong(cap) {
+  return cap._tag === "Strong" || cap._tag === "AlreadyInner";
+}
 function formatCapabilityDiagnostic(cap) {
   switch (cap._tag) {
     case "Strong":
       return {
         _tag: "CapabilityDiagnostic",
         capability: cap,
-        message: `foreman-launch: capability=posix_pidns_strong unshare=${cap.unsharePath} host_pid=${cap.hostPid}`
+        message: `foreman-launch: capability=${cap.kind} unshare=${cap.unsharePath} flags=${cap.flags.join(" ")} host_pid=${cap.hostPid}`
       };
     case "AlreadyInner":
       return {
         _tag: "CapabilityDiagnostic",
         capability: cap,
-        message: `foreman-launch: capability=posix_pidns_strong already_inner host_pid=${cap.hostPid}`
+        message: `foreman-launch: capability=${cap.kind} already_inner host_pid=${cap.hostPid}`
       };
     case "Degraded":
       return {
@@ -16295,6 +16338,28 @@ function formatCapabilityDiagnostic(cap) {
         message: `foreman-launch: DEGRADED capability=${cap.kind} reason=${cap.reason} ${cap.detail}`
       };
   }
+}
+function capabilityRecord(cap, required, launcherPid, refused) {
+  const flags = cap._tag === "Strong" ? cap.flags : [];
+  const attempts = cap._tag === "AlreadyInner" ? [] : cap.attempts;
+  const reason = refused ? "refused_by_policy" : cap._tag === "Strong" ? "probe_ok" : cap._tag === "AlreadyInner" ? "already_inner" : cap.reason;
+  const detail = cap._tag === "Strong" ? `unshare=${cap.unsharePath}` : cap._tag === "AlreadyInner" ? "already_inner" : cap.detail;
+  return {
+    schema: "foreman-launch-capability/1",
+    tag: refused ? "Refused" : cap._tag,
+    kind: cap.kind,
+    reason,
+    required,
+    flags,
+    detail,
+    attempts,
+    launcher_pid: launcherPid,
+    launcher_version: FOREMAN_LAUNCH_VERSION,
+    platform: process.platform
+  };
+}
+function formatRefusalLine(record) {
+  return `foreman-launch: REFUSED capability=${record.kind} reason=${record.reason} required=strong -- no command was spawned`;
 }
 function resolveLauncherPid(env, processPid) {
   const raw = env[HOST_PID_ENV];
@@ -16306,57 +16371,47 @@ function resolveLauncherPid(env, processPid) {
 function isPidnsInner(env) {
   return env[PIDNS_INNER_ENV] === "1";
 }
-function capabilityFromProbe(input) {
-  if (input.platform === "win32") {
-    return {
-      _tag: "Degraded",
-      kind: "windows_job_object_unavailable",
-      reason: "windows_no_job_object",
-      detail: "Node has no Job Object primitive in this package; tree kill uses taskkill boundary"
-    };
-  }
-  if (input.alreadyInner) {
-    return {
-      _tag: "AlreadyInner",
-      kind: "posix_pidns_strong",
-      hostPid: input.hostPid
-    };
-  }
-  if (input.unsharePath === null) {
-    return {
-      _tag: "Degraded",
-      kind: "posix_process_group_degraded",
-      reason: "unshare_missing",
-      detail: input.probeDetail || "unshare not resolved on PATH"
-    };
-  }
-  if (!input.probeOk) {
-    return {
-      _tag: "Degraded",
-      kind: "posix_process_group_degraded",
-      reason: "unshare_probe_failed",
-      detail: input.probeDetail || "unshare probe failed"
-    };
-  }
-  return {
-    _tag: "Strong",
-    kind: "posix_pidns_strong",
-    unsharePath: input.unsharePath,
-    hostPid: input.hostPid
-  };
-}
 
 // packages/launcher/src/platform.ts
+var UNSHARE_USERNS_PIDNS_FLAGS = [
+  "--user",
+  "--map-current-user",
+  "--pid",
+  "--mount-proc",
+  "--fork",
+  "--kill-child"
+];
 var UNSHARE_PIDNS_FLAGS = [
   "--pid",
   "--mount-proc",
   "--fork",
   "--kill-child"
 ];
-function buildUnshareArgv(execPath, originalArgs) {
+var UNSHARE_PROBE_LADDER = [
+  {
+    kind: "posix_pidns_userns_strong",
+    flags: UNSHARE_USERNS_PIDNS_FLAGS
+  },
+  { kind: "posix_pidns_strong", flags: UNSHARE_PIDNS_FLAGS }
+];
+function classifyProbeFailure(attempts) {
+  const isEperm = (attempt) => attempt.stderr.includes("Operation not permitted");
+  if (attempts[0] !== void 0 && isEperm(attempts[0])) {
+    return "userns_blocked";
+  }
+  if (attempts.some(isEperm)) return "unshare_eperm";
+  return "unshare_probe_failed";
+}
+function formatAttempts(attempts) {
+  return attempts.map((attempt) => {
+    const status3 = attempt.status ?? attempt.signal ?? "null";
+    return `entry=${attempt.flags.join(" ")} status=${status3} stderr=${attempt.stderr}`;
+  }).join(" | ");
+}
+function buildUnshareArgv(execPath, originalArgs, flags = UNSHARE_PIDNS_FLAGS) {
   return [
     "unshare",
-    ...UNSHARE_PIDNS_FLAGS,
+    ...flags,
     "--",
     execPath,
     ...originalArgs
@@ -16371,10 +16426,15 @@ function buildExecveEnv(baseEnv, overrides) {
   return merged;
 }
 function planPidnsExecve(input) {
-  const argv = buildUnshareArgv(input.execPath, input.originalArgs);
+  const argv = buildUnshareArgv(
+    input.execPath,
+    input.originalArgs,
+    input.flags
+  );
   const env = buildExecveEnv(input.baseEnv, {
     [HOST_PID_ENV]: String(input.hostPid),
-    [PIDNS_INNER_ENV]: "1"
+    [PIDNS_INNER_ENV]: "1",
+    [PIDNS_KIND_ENV]: input.kind
   });
   return {
     path: input.unsharePath,
@@ -16398,14 +16458,13 @@ function planTaskkill(pid) {
 function resolveCapability(input) {
   const launcherPid = resolveLauncherPid(input.env, input.processPid);
   if (input.platform === "win32") {
-    const capability2 = capabilityFromProbe({
-      platform: "win32",
-      alreadyInner: false,
-      hostPid: launcherPid,
-      unsharePath: null,
-      probeOk: false,
-      probeDetail: "windows"
-    });
+    const capability2 = {
+      _tag: "Degraded",
+      kind: "windows_job_object_unavailable",
+      reason: "windows_no_job_object",
+      detail: "Node has no Job Object primitive in this package; tree kill uses taskkill boundary",
+      attempts: []
+    };
     return {
       capability: capability2,
       diagnostic: formatCapabilityDiagnostic(capability2),
@@ -16413,14 +16472,13 @@ function resolveCapability(input) {
     };
   }
   if (isPidnsInner(input.env)) {
-    const capability2 = capabilityFromProbe({
-      platform: input.platform,
-      alreadyInner: true,
-      hostPid: launcherPid,
-      unsharePath: null,
-      probeOk: true,
-      probeDetail: "already_inner"
-    });
+    const markedKind = input.env[PIDNS_KIND_ENV];
+    const kind = markedKind === "posix_pidns_userns_strong" || markedKind === "posix_pidns_strong" ? markedKind : "posix_pidns_strong";
+    const capability2 = {
+      _tag: "AlreadyInner",
+      kind,
+      hostPid: launcherPid
+    };
     return {
       capability: capability2,
       diagnostic: formatCapabilityDiagnostic(capability2),
@@ -16430,31 +16488,32 @@ function resolveCapability(input) {
   const probe = input.probe ?? {
     _tag: "Failed",
     unsharePath: null,
-    detail: "probe not run"
+    reason: "unshare_missing",
+    detail: "probe not run",
+    attempts: []
   };
   if (probe._tag === "Ok") {
-    const capability2 = capabilityFromProbe({
-      platform: input.platform,
-      alreadyInner: false,
-      hostPid: input.processPid,
+    const capability2 = {
+      _tag: "Strong",
+      kind: probe.kind,
       unsharePath: probe.unsharePath,
-      probeOk: true,
-      probeDetail: "probe_ok"
-    });
+      flags: probe.flags,
+      hostPid: input.processPid,
+      attempts: probe.attempts
+    };
     return {
       capability: capability2,
       diagnostic: formatCapabilityDiagnostic(capability2),
       launcherPid: input.processPid
     };
   }
-  const capability = capabilityFromProbe({
-    platform: input.platform,
-    alreadyInner: false,
-    hostPid: input.processPid,
-    unsharePath: probe.unsharePath,
-    probeOk: false,
-    probeDetail: probe.detail
-  });
+  const capability = {
+    _tag: "Degraded",
+    kind: "posix_process_group_degraded",
+    reason: probe.reason,
+    detail: probe.detail,
+    attempts: probe.attempts
+  };
   return {
     capability,
     diagnostic: formatCapabilityDiagnostic(capability),
@@ -16483,6 +16542,8 @@ var ExecveService = class extends Context_exports.Tag("ExecveService")() {
 var UnshareProbeService = class extends Context_exports.Tag("UnshareProbeService")() {
 };
 var HeartbeatWriter = class extends Context_exports.Tag("HeartbeatWriter")() {
+};
+var CapabilityWriter = class extends Context_exports.Tag("CapabilityWriter")() {
 };
 var ByteSink = class extends Context_exports.Tag("ByteSink")() {
 };
@@ -16638,27 +16699,59 @@ var liveUnshareProbe = {
       return {
         _tag: "Failed",
         unsharePath: null,
-        detail: "unshare not found on PATH"
+        reason: "unshare_missing",
+        detail: "unshare not found on PATH",
+        attempts: []
       };
     }
-    const probe = spawnSync(
-      unsharePath,
-      [...UNSHARE_PIDNS_FLAGS, "--", "true"],
-      {
-        stdio: ["ignore", "ignore", "pipe"],
-        env: process.env,
-        encoding: "utf8"
+    const attempts = [];
+    for (const entry of UNSHARE_PROBE_LADDER) {
+      const probe = spawnSync(
+        unsharePath,
+        [...entry.flags, "--", "true"],
+        {
+          stdio: ["ignore", "ignore", "pipe"],
+          env: process.env,
+          encoding: "utf8",
+          timeout: 1e4
+        }
+      );
+      const rawStderr = String(probe.stderr || probe.error?.message || "").replace(/[\r\n]+/g, " ").trim();
+      const truncated = Buffer.from(rawStderr).subarray(0, 200).toString("utf8").replace(/\uFFFD$/u, "").trim();
+      attempts.push({
+        flags: entry.flags,
+        status: probe.status,
+        signal: probe.signal,
+        stderr: truncated
+      });
+      if (probe.status === 0) {
+        return {
+          _tag: "Ok",
+          unsharePath,
+          kind: entry.kind,
+          flags: entry.flags,
+          attempts
+        };
       }
-    );
-    if (probe.status === 0) {
-      return { _tag: "Ok", unsharePath };
     }
-    const errText = (probe.stderr || probe.error?.message || "probe failed").toString().trim();
     return {
       _tag: "Failed",
       unsharePath,
-      detail: errText.slice(0, 200)
+      reason: classifyProbeFailure(attempts),
+      detail: formatAttempts(attempts) || "unshare probe failed",
+      attempts
     };
+  })
+};
+var liveCapabilityWriter = {
+  write: (path, record) => Effect_exports.try({
+    try: () => {
+      writeFileSync(path, JSON.stringify(record) + "\n");
+    },
+    catch: (e) => ({
+      _tag: "CapabilityWriteError",
+      message: e instanceof Error ? e.message : String(e)
+    })
   })
 };
 var liveHeartbeatWriter = {
@@ -16742,6 +16835,7 @@ var LiveLauncherLayer = Layer_exports.mergeAll(
   Layer_exports.succeed(WindowsTreeTerminator, liveWindowsTreeTerminator),
   Layer_exports.succeed(ExecveService, liveExecve),
   Layer_exports.succeed(UnshareProbeService, liveUnshareProbe),
+  Layer_exports.succeed(CapabilityWriter, liveCapabilityWriter),
   Layer_exports.succeed(HeartbeatWriter, liveHeartbeatWriter),
   Layer_exports.succeed(ByteSink, liveByteSink),
   Layer_exports.succeed(StderrLog, liveStderrLog),
@@ -17038,9 +17132,10 @@ function runDetachHandoff(rawArgv, heartbeatFile, selfScriptArgv) {
   });
 }
 function selfScriptArgvPrefix() {
-  const script = process.argv[1];
-  if (script) return [script];
-  return [];
+  return buildSelfScriptArgvPrefix(process.execArgv, process.argv[1]);
+}
+function buildSelfScriptArgvPrefix(execArgv, script) {
+  return script ? [...execArgv, script] : [...execArgv];
 }
 function runMain(argv = process.argv, io = defaultIo, layer = LiveLauncherLayer) {
   const raw = stripNodeArgv(argv);
@@ -17060,6 +17155,7 @@ function runMain(argv = process.argv, io = defaultIo, layer = LiveLauncherLayer)
     const log3 = yield* StderrLog;
     const probeSvc = yield* UnshareProbeService;
     const execve = yield* ExecveService;
+    const capabilityWriter = yield* CapabilityWriter;
     if (args2.detach) {
       return yield* runDetachHandoff(
         raw,
@@ -17067,7 +17163,7 @@ function runMain(argv = process.argv, io = defaultIo, layer = LiveLauncherLayer)
         selfScriptArgvPrefix()
       );
     }
-    const probe = process.platform === "win32" ? null : yield* probeSvc.probe();
+    const probe = process.platform === "win32" || isPidnsInner(process.env) ? null : yield* probeSvc.probe();
     const { capability, diagnostic, launcherPid } = resolveCapability({
       platform: process.platform,
       env: process.env,
@@ -17075,6 +17171,27 @@ function runMain(argv = process.argv, io = defaultIo, layer = LiveLauncherLayer)
       probe
     });
     yield* log3.write(diagnostic.message);
+    const refusedByPolicy = args2.requireContainment === "strong" && !isStrong(capability);
+    const record = capabilityRecord(
+      capability,
+      args2.requireContainment,
+      launcherPid,
+      refusedByPolicy
+    );
+    if (args2.capabilityFile !== void 0) {
+      yield* capabilityWriter.write(args2.capabilityFile, record);
+    }
+    if (args2.probeOnly) {
+      if (refusedByPolicy) {
+        yield* log3.write(formatRefusalLine(record));
+        return EXIT_LAUNCHER_ERROR;
+      }
+      return 0;
+    }
+    if (refusedByPolicy) {
+      yield* log3.write(formatRefusalLine(record));
+      return EXIT_LAUNCHER_ERROR;
+    }
     if (capability._tag === "Strong") {
       const req = planPidnsExecve({
         unsharePath: capability.unsharePath,
@@ -17084,10 +17201,38 @@ function runMain(argv = process.argv, io = defaultIo, layer = LiveLauncherLayer)
           ...raw
         ],
         hostPid: capability.hostPid,
-        baseEnv: process.env
+        baseEnv: process.env,
+        flags: capability.flags,
+        kind: capability.kind
       });
       const r = yield* Effect_exports.either(execve.execve(req));
       if (r._tag === "Left") {
+        const failedCapability = {
+          _tag: "Degraded",
+          kind: "posix_process_group_degraded",
+          reason: r.left.message.includes("unavailable") ? "execve_unavailable" : "execve_failed",
+          detail: `execve: ${r.left.message}`,
+          attempts: capability.attempts
+        };
+        if (args2.requireContainment === "strong") {
+          const refusedRecord = capabilityRecord(
+            failedCapability,
+            "strong",
+            launcherPid,
+            true
+          );
+          if (args2.capabilityFile !== void 0) {
+            yield* capabilityWriter.write(args2.capabilityFile, refusedRecord);
+          }
+          yield* log3.write(formatRefusalLine(refusedRecord));
+          return EXIT_LAUNCHER_ERROR;
+        }
+        if (args2.capabilityFile !== void 0) {
+          yield* capabilityWriter.write(
+            args2.capabilityFile,
+            capabilityRecord(failedCapability, "any", launcherPid, false)
+          );
+        }
         yield* log3.write(
           `foreman-launch: unshare exec failed (execve: ${r.left.message}) -- DEGRADED: falling back to process-group, no kernel pidns cascade guarantee`
         );
@@ -17131,6 +17276,7 @@ if (isMain) {
   });
 }
 export {
+  buildSelfScriptArgvPrefix,
   exitWhenStreamsFlushed,
   runMain,
   selfScriptArgvPrefix

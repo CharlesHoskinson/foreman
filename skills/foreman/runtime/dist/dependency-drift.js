@@ -6,7 +6,7 @@ var __export = (target, all4) => {
 
 // packages/orchestration/src/dependency-drift.ts
 import { existsSync as existsSync4 } from "node:fs";
-import { dirname as dirname2, join as join5 } from "node:path";
+import { dirname as dirname2, join as join6 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // node_modules/effect/dist/esm/Function.js
@@ -16103,6 +16103,7 @@ function profileToolIds(profile, isWsl) {
   }
   if (isWsl) {
     should.push("foreman-launch");
+    should.push("containment");
   }
   return { must, should };
 }
@@ -16124,11 +16125,13 @@ import {
   unlinkSync,
   writeSync
 } from "node:fs";
-import { dirname, isAbsolute as isAbsolute2, join as join4 } from "node:path";
+import { dirname, isAbsolute as isAbsolute2, join as join5 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // packages/orchestration/src/vendor-preflight-live.ts
-import { isAbsolute, resolve as resolvePath } from "node:path";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { isAbsolute, join as join4, resolve as resolvePath } from "node:path";
 
 // packages/core/src/failures.ts
 var CORE_FAILURE_BRAND = Symbol("@foreman/core/CoreFailure");
@@ -16428,35 +16431,61 @@ function classifyGrokAuth(stdout, stderr, exitCode, outcome, positiveMarkers, ne
   if (outcome !== "completed") {
     return {
       value: "unknown",
-      reason: `grok models probe outcome ${outcome}`
+      reason: `grok readiness canary outcome ${outcome}`
     };
   }
   const combined = `${stdout}
 ${stderr}`;
   if (combined.trim().length === 0) {
-    return { value: "unknown", reason: "grok models returned empty output" };
+    return {
+      value: "unknown",
+      reason: "grok readiness canary returned empty output"
+    };
   }
+  const failedProcess = exitCode !== null && exitCode !== 0;
+  const negativeEvidence = failedProcess ? combined : stderr;
   for (const marker of negativeMarkers) {
-    if (marker.length > 0 && combined.includes(marker)) {
+    if (marker.length > 0 && negativeEvidence.toLowerCase().includes(marker.toLowerCase())) {
       return {
         value: "not-authenticated",
-        reason: "grok models matched a recognized signed-out marker"
+        reason: "grok readiness canary matched a recognized signed-out marker"
       };
     }
   }
+  if (exitCode === 0 && stderr.trim().length === 0) {
+    for (const marker of positiveMarkers) {
+      if (marker.length > 0 && stdout.trim() === marker) {
+        return {
+          value: "authenticated",
+          reason: "grok readiness canary returned the exact success token"
+        };
+      }
+    }
+  }
+  if (exitCode !== 0) {
+    return {
+      value: "unknown",
+      reason: "grok readiness canary exited nonzero without a recognized signed-out marker"
+    };
+  }
+  if (stderr.trim().length > 0) {
+    return {
+      value: "unknown",
+      reason: "grok readiness canary emitted unexpected stderr"
+    };
+  }
   for (const marker of positiveMarkers) {
-    if (marker.length > 0 && combined.includes(marker)) {
+    if (marker.length > 0 && stdout.includes(marker)) {
       return {
-        value: "authenticated",
-        reason: "grok models matched the positive logged-in marker"
+        value: "unknown",
+        reason: "grok readiness canary contained the success token with unexpected output"
       };
     }
   }
   return {
     value: "unknown",
-    reason: "grok models output matched neither the positive logged-in marker nor a recognized signed-out marker"
+    reason: "grok readiness canary output did not match the exact success token or a recognized signed-out marker"
   };
-  void exitCode;
 }
 function classifyAuthForVendor(vendor, stdout, stderr, exitCode, outcome, capability) {
   switch (vendor) {
@@ -16584,6 +16613,8 @@ function processFailureToProbeOutcome(reason) {
 
 // packages/orchestration/src/vendor-preflight-live.ts
 var PREFLIGHT_PROBE_TIMEOUT_MS = 1e4;
+var GROK_READINESS_PROBE_TIMEOUT_MS = 9e4;
+var GROK_READINESS_CWD_PREFIX = "foreman-grok-ready-";
 var PREFLIGHT_PROBE_OUTPUT_BOUND_BYTES = MAX_CAPTURE_BYTES;
 var VendorPreflightFailure = class {
   constructor(reason, detail) {
@@ -16602,7 +16633,7 @@ var livePreflightClock = Layer_exports.succeed(PreflightClock, {
 });
 var VendorPreflight = class extends Context_exports.Tag("VendorPreflight")() {
 };
-function runProbe(executable, tailArgv, vendorBinding, env) {
+function runProbe(executable, tailArgv, vendorBinding, env, cwd, timeoutMs = PREFLIGHT_PROBE_TIMEOUT_MS) {
   return Effect_exports.gen(function* () {
     const fullArgv = [executable, ...tailArgv];
     if (argvContainsMutatingUpdate(fullArgv, vendorBinding)) {
@@ -16616,9 +16647,10 @@ function runProbe(executable, tailArgv, vendorBinding, env) {
     const either4 = yield* exec.runCaptured({
       command: executable,
       args: [...tailArgv],
-      timeoutMs: PREFLIGHT_PROBE_TIMEOUT_MS,
+      timeoutMs,
       maxOutputBytes: PREFLIGHT_PROBE_OUTPUT_BOUND_BYTES,
-      ...env !== void 0 ? { env } : {}
+      ...env !== void 0 ? { env } : {},
+      ...cwd !== void 0 ? { cwd } : {}
     }).pipe(Effect_exports.either);
     if (either4._tag === "Left") {
       const fail8 = either4.left;
@@ -16755,12 +16787,32 @@ var inspectVendor = (capability, options) => Effect_exports.gen(function* () {
     capability.versionFloor,
     versionOutcome
   );
-  const authCap = yield* runProbe(
+  const authEffect = capability.vendor === "grok" ? Effect_exports.acquireUseRelease(
+    Effect_exports.try({
+      try: () => mkdtempSync(join4(tmpdir(), GROK_READINESS_CWD_PREFIX)),
+      catch: () => new VendorPreflightFailure(
+        "internal",
+        "could not create private Grok readiness directory"
+      )
+    }),
+    (privateCwd) => runProbe(
+      executable,
+      capability.authArgv,
+      capability.vendor,
+      probeEnv,
+      privateCwd,
+      GROK_READINESS_PROBE_TIMEOUT_MS
+    ),
+    (privateCwd) => Effect_exports.sync(() => {
+      rmSync(privateCwd, { recursive: true });
+    })
+  ) : runProbe(
     executable,
     capability.authArgv,
     capability.vendor,
     probeEnv
   );
+  const authCap = yield* authEffect;
   const authProbe = probeRecord(
     "auth",
     executable,
@@ -16799,7 +16851,7 @@ var inspectVendor = (capability, options) => Effect_exports.gen(function* () {
       reason: "claude auth status returned malformed JSON"
     };
   }
-  if (capability.vendor === "grok" && authProbe.outcome === "completed" && auth.value === "unknown" && auth.reason.includes("neither")) {
+  if (capability.vendor === "grok" && authProbe.outcome === "completed" && auth.value === "unknown" && auth.reason.includes("did not match")) {
     finalAuthProbe = {
       ...authProbe,
       outcome: "unmatched_output"
@@ -16839,14 +16891,14 @@ function resolveRepoRoot(url = import.meta.url) {
   const file = fileURLToPath(url);
   const normalized = file.replace(/\\/g, "/");
   if (normalized.includes("/skills/foreman/runtime/dist/")) {
-    return resolveRealPath(join4(dirname(file), "../../../.."));
+    return resolveRealPath(join5(dirname(file), "../../../.."));
   }
   if (normalized.includes("/packages/orchestration/src/")) {
-    return resolveRealPath(join4(dirname(file), "../../.."));
+    return resolveRealPath(join5(dirname(file), "../../.."));
   }
   let dir = dirname(file);
   for (let i = 0; i < 8; i += 1) {
-    if (existsSync3(join4(dir, "env/reference-manifest.toml"))) {
+    if (existsSync3(join5(dir, "env/reference-manifest.toml"))) {
       return resolveRealPath(dir);
     }
     const parent = dirname(dir);
@@ -16864,7 +16916,8 @@ var MAX_DRIFT_INPUT_BYTES = 1048576;
 var PSEUDO_IDS = /* @__PURE__ */ new Set([
   "foreman_home_fs",
   "foreman_skill",
-  "foreman-launch"
+  "foreman-launch",
+  "containment"
 ]);
 var UNPROVISIONED_IDS = /* @__PURE__ */ new Set([
   "nats-server",
@@ -17123,8 +17176,8 @@ function runDependencyDrift(argv, io, options = {}) {
   const layer = options.layer ?? liveBoundedFs;
   const program = Effect_exports.gen(function* () {
     const fs = yield* BoundedFs;
-    const manifestPath = join5(repoRoot, REL_MANIFEST);
-    const bootstrapPath = join5(repoRoot, REL_BOOTSTRAP);
+    const manifestPath = join6(repoRoot, REL_MANIFEST);
+    const bootstrapPath = join6(repoRoot, REL_BOOTSTRAP);
     const manifestRead = yield* fs.readFileBounded(
       manifestPath,
       MAX_DRIFT_INPUT_BYTES
@@ -17176,7 +17229,7 @@ function resolveDriftRepoRoot(url) {
   }
   let dir = process.cwd();
   for (let i = 0; i < 8; i += 1) {
-    if (existsSync4(join5(dir, REL_MANIFEST))) {
+    if (existsSync4(join6(dir, REL_MANIFEST))) {
       return dir;
     }
     const parent = dirname2(dir);

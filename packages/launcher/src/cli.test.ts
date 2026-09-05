@@ -23,6 +23,10 @@ describe("cli parse and exit mapping", () => {
       "/tmp/hb",
       "--heartbeat-interval",
       "3",
+      "--require-containment",
+      "strong",
+      "--capability-file",
+      "/tmp/cap",
       "--",
       "echo",
       "hi",
@@ -34,6 +38,9 @@ describe("cli parse and exit mapping", () => {
     assert.equal(r.value.heartbeatFile, "/tmp/hb");
     assert.equal(r.value.heartbeatIntervalSecs, 3);
     assert.equal(r.value.detach, false);
+    assert.equal(r.value.requireContainment, "strong");
+    assert.equal(r.value.capabilityFile, "/tmp/cap");
+    assert.equal(r.value.probeOnly, false);
     assert.deepEqual(r.value.cmd, ["echo", "hi"]);
   });
 
@@ -44,6 +51,23 @@ describe("cli parse and exit mapping", () => {
     assert.equal(r.value.graceSecs, 10);
     assert.equal(r.value.heartbeatIntervalSecs, 15);
     assert.equal(r.value.timeoutSecs, undefined);
+    assert.equal(r.value.requireContainment, "any");
+    assert.equal(r.value.capabilityFile, undefined);
+    assert.equal(r.value.probeOnly, false);
+  });
+
+  it("allows probe-only without a separator or command", () => {
+    const r = parseArgs([
+      "--probe-only",
+      "--require-containment",
+      "strong",
+      "--capability-file",
+      "/tmp/cap.json",
+    ]);
+    assert.equal(r._tag, "Ok");
+    if (r._tag !== "Ok") return;
+    assert.equal(r.value.probeOnly, true);
+    assert.deepEqual(r.value.cmd, []);
   });
 
   it("maps --version without requiring --", () => {
@@ -63,6 +87,18 @@ describe("cli parse and exit mapping", () => {
     );
     assert.equal(parseArgs(["--nope", "--", "true"])._tag, "UsageError");
     assert.equal(parseArgs(["--detach", "--", "true"])._tag, "UsageError");
+    assert.equal(
+      parseArgs(["--require-containment", "weak", "--", "true"])._tag,
+      "UsageError",
+    );
+    assert.equal(
+      parseArgs(["--capability-file", "--", "true"])._tag,
+      "UsageError",
+    );
+    assert.equal(
+      parseArgs(["--probe-only", "--detach", "--heartbeat-file", "f"])._tag,
+      "UsageError",
+    );
   });
 
   it("requires --heartbeat-file with --detach", () => {
@@ -101,6 +137,9 @@ describe("cli parse and exit mapping", () => {
     assert.match(u, /--grace/);
     assert.match(u, /--heartbeat-file/);
     assert.match(u, /--detach/);
+    assert.match(u, /--require-containment strong\|any/);
+    assert.match(u, /--capability-file/);
+    assert.match(u, /--probe-only/);
     assert.match(u, /124/);
     assert.match(u, /125/);
   });
@@ -111,11 +150,27 @@ describe("cli parse and exit mapping", () => {
         "--detach",
         "--heartbeat-file",
         "f",
+        "--require-containment",
+        "strong",
+        "--capability-file",
+        "/tmp/cap",
+        "--probe-only",
         "--",
         "sleep",
         "1",
       ]),
-      ["--heartbeat-file", "f", "--", "sleep", "1"],
+      [
+        "--heartbeat-file",
+        "f",
+        "--require-containment",
+        "strong",
+        "--capability-file",
+        "/tmp/cap",
+        "--probe-only",
+        "--",
+        "sleep",
+        "1",
+      ],
     );
   });
 

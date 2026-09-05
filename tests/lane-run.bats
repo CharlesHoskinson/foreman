@@ -23,7 +23,10 @@ setup() {
   export DURABLE_ENABLED=false
   export DURABLE_CHECKPOINT_INTERVAL=0 DURABLE_HEARTBEAT_INTERVAL=0
   export FOREMAN_LAUNCH="$BATS_TEST_TMPDIR/no-such-foreman-launch-binary"
-  unset LANE_VENDOR LANE_CREDENTIAL_PROFILE LANE_CONFIG_DIR GROK_HOME CODEX_HOME 2>/dev/null || true
+  unset LANE_VENDOR LANE_CREDENTIAL_PROFILE LANE_CONFIG_DIR GROK_HOME CODEX_HOME \
+    FOREMAN_CONTAINMENT_REQUIRE FOREMAN_CONTAINMENT_APPROVAL \
+    FAKE_LAUNCHER_CAPABILITY FAKE_LAUNCHER_ARGV_LOG FAKE_LAUNCHER_EXIT \
+    FOREMAN_LAUNCH_IMPL 2>/dev/null || true
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
   source "$SCRIPTS/lib/common.sh"
   setup_lock_trust_fixture
@@ -58,16 +61,34 @@ write_fake_launcher() {
 set -uo pipefail
 orig_argv=("$@")
 hb=""
+cap_file=""
+probe_only=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --heartbeat-file) hb="$2"; shift 2 ;;
     --heartbeat-interval) shift 2 ;;
+    --probe-only) probe_only=1; shift ;;
+    --capability-file) cap_file="$2"; shift 2 ;;
+    --require-containment) shift 2 ;;
+    --timeout|--grace) shift 2 ;;
     --) shift; break ;;
     *) shift ;;
   esac
 done
 if [[ -n "${FAKE_LAUNCHER_ARGV_LOG:-}" ]]; then
   printf '%s\n' "${orig_argv[*]}" >> "$FAKE_LAUNCHER_ARGV_LOG"
+fi
+write_capability() {
+  [[ -z "$cap_file" ]] && return 0
+  if [[ -n "${FAKE_LAUNCHER_CAPABILITY:-}" ]]; then
+    printf '%s\n' "$FAKE_LAUNCHER_CAPABILITY" > "$cap_file"
+  else
+    printf '%s\n' '{"schema":"foreman-launch-capability/1","tag":"Strong","kind":"posix_pidns_userns_strong","reason":"probe_ok","required":"any","flags":["--user","--map-current-user","--pid","--mount-proc","--fork","--kill-child"],"detail":"","attempts":[],"launcher_pid":'"$$"',"launcher_version":"fake","platform":"linux"}' > "$cap_file"
+  fi
+}
+write_capability
+if (( probe_only == 1 )); then
+  exit 0
 fi
 launcher_pid=$$
 child_pid=$((launcher_pid + 1000))
@@ -778,7 +799,13 @@ EOF
   mkdir -p "$stub_dir"
   write_fake_launcher "$stub_dir"
   export PATH="$stub_dir:$PATH"
+  export FOREMAN_LAUNCH_IMPL=bun
   unset FOREMAN_LAUNCH
+  # An empty tool root hides any host-built launcher/dist binary and the Node
+  # bundle, so PATH is the only resolution route left. Without this, a host
+  # with a built Bun binary silently tests that binary instead of the shim.
+  export FOREMAN_TOOL_ROOT="$BATS_TEST_TMPDIR/empty-tool-root"
+  mkdir -p "$FOREMAN_TOOL_ROOT"
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c "echo hi"
   [ "$status" -eq 0 ]
   events="$(run_dir run1)/events.jsonl"
@@ -802,6 +829,82 @@ EOF
   # And no degraded alert -- the launcher WAS present.
   run jq -rc "select(.type==\"alert\" and .payload.kind==\"degraded\")" "$events"
   [ -z "$output" ]
+}
+
+@test "lane-run containment: strong capability records ownership and requires strong" {
+  stub_dir="$BATS_TEST_TMPDIR/stub"
+  mkdir -p "$stub_dir"
+  write_fake_launcher "$stub_dir"
+  export FOREMAN_LAUNCH="$stub_dir/foreman-launch"
+  export FAKE_LAUNCHER_ARGV_LOG="$BATS_TEST_TMPDIR/argv.log"
+
+  run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c "true"
+
+  [ "$status" -eq 0 ]
+  events="$(run_dir run1)/events.jsonl"
+  run jq -rc 'select(.type=="ownership") | .payload.containment.tag' "$events"
+  [ "$output" = "Strong" ]
+  run jq -rc 'select(.type=="ownership") | .payload.containment.kind' "$events"
+  [ "$output" = "posix_pidns_userns_strong" ]
+  run jq -rc 'select(.type=="alert" and .payload.kind=="degraded")' "$events"
+  [ -z "$output" ]
+  run grep -E -- '--require-containment strong .*--capability-file' "$FAKE_LAUNCHER_ARGV_LOG"
+  [ "$status" -eq 0 ]
+}
+
+@test "lane-run containment: degraded capability runs under default any policy" {
+  stub_dir="$BATS_TEST_TMPDIR/stub"
+  mkdir -p "$stub_dir"
+  write_fake_launcher "$stub_dir"
+  export FOREMAN_LAUNCH="$stub_dir/foreman-launch"
+  export FAKE_LAUNCHER_CAPABILITY='{"schema":"foreman-launch-capability/1","tag":"Degraded","kind":"posix_pidns_userns_none","reason":"unshare_eperm","required":"any","flags":[],"detail":"","attempts":[],"launcher_pid":1,"launcher_version":"fake","platform":"linux"}'
+
+  run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c "exit 7"
+
+  [ "$status" -eq 7 ]
+  events="$(run_dir run1)/events.jsonl"
+  run bash -c "jq -c 'select(.type==\"alert\" and .payload.kind==\"degraded\" and .payload.reason==\"containment_unshare_eperm\")' '$events' | jq -s length"
+  [ "$output" = "1" ]
+  run jq -rc 'select(.type=="ownership") | .payload.containment.tag' "$events"
+  [ "$output" = "Degraded" ]
+}
+
+@test "lane-run containment: degraded capability refuses strong policy without approval" {
+  stub_dir="$BATS_TEST_TMPDIR/stub"
+  mkdir -p "$stub_dir"
+  write_fake_launcher "$stub_dir"
+  export FOREMAN_LAUNCH="$stub_dir/foreman-launch"
+  export FOREMAN_CONTAINMENT_REQUIRE=strong
+  export FAKE_LAUNCHER_CAPABILITY='{"schema":"foreman-launch-capability/1","tag":"Degraded","kind":"posix_pidns_userns_none","reason":"unshare_eperm","required":"any","flags":[],"detail":"","attempts":[],"launcher_pid":1,"launcher_version":"fake","platform":"linux"}'
+
+  run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c "touch '$WT/should-not-run'"
+
+  [ "$status" -eq 2 ]
+  events="$(run_dir run1)/events.jsonl"
+  run bash -c "jq -c 'select(.type==\"alert\" and .payload.kind==\"containment_refused\")' '$events' | jq -s length"
+  [ "$output" = "1" ]
+  run jq -rc 'select(.type=="ownership" or .type=="round_done")' "$events"
+  [ -z "$output" ]
+  [ ! -e "$WT/should-not-run" ]
+}
+
+@test "lane-run containment: approval admits degraded strong policy" {
+  stub_dir="$BATS_TEST_TMPDIR/stub"
+  mkdir -p "$stub_dir"
+  write_fake_launcher "$stub_dir"
+  export FOREMAN_LAUNCH="$stub_dir/foreman-launch"
+  export FOREMAN_CONTAINMENT_REQUIRE=strong
+  export FOREMAN_CONTAINMENT_APPROVAL="operator accepted 2026-09-05"
+  export FAKE_LAUNCHER_CAPABILITY='{"schema":"foreman-launch-capability/1","tag":"Degraded","kind":"posix_pidns_userns_none","reason":"unshare_eperm","required":"any","flags":[],"detail":"","attempts":[],"launcher_pid":1,"launcher_version":"fake","platform":"linux"}'
+
+  run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c "exit 6"
+
+  [ "$status" -eq 6 ]
+  events="$(run_dir run1)/events.jsonl"
+  run jq -rc 'select(.type=="alert" and .payload.kind=="degraded") | .payload.approval' "$events"
+  [ "$output" = "operator accepted 2026-09-05" ]
+  run jq -rc 'select(.type=="ownership") | .payload.containment.approval' "$events"
+  [ "$output" = "operator accepted 2026-09-05" ]
 }
 
 # T2 spec: round_done.exit_code gains documented launcher codes 124
@@ -963,7 +1066,13 @@ EOF
   mkdir -p "$stub_dir"
   write_fake_launcher "$stub_dir"
   export PATH="$stub_dir:$PATH"
+  export FOREMAN_LAUNCH_IMPL=bun
   unset FOREMAN_LAUNCH
+  # An empty tool root hides any host-built launcher/dist binary and the Node
+  # bundle, so PATH is the only resolution route left. Without this, a host
+  # with a built Bun binary silently tests that binary instead of the shim.
+  export FOREMAN_TOOL_ROOT="$BATS_TEST_TMPDIR/empty-tool-root"
+  mkdir -p "$FOREMAN_TOOL_ROOT"
   report="$BATS_TEST_TMPDIR/FOREMAN_REPORT.md"
   run bash "$SCRIPTS/lane-run.sh" --round "true" "$report" run1 lane-a "$WT" -- \
     bash -c "echo attempt: 1 > $report"
@@ -1055,10 +1164,12 @@ EOF
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c "echo hi"
   [ "$status" -eq 0 ]
   [ -f "$argv_log" ]
-  recorded="$(cat "$argv_log")"
+  mapfile -t recorded < "$argv_log"
   hb_path="$WT/.harness/heartbeat.ndjson"
-  expected="--heartbeat-file $hb_path --heartbeat-interval 15 -- bash -c echo hi"
-  [ "$recorded" = "$expected" ]
+  cap_path="$WT/.harness/capability.json"
+  [ "${recorded[0]}" = "--probe-only --capability-file $cap_path --require-containment any" ]
+  expected="--heartbeat-file $hb_path --heartbeat-interval 15 --require-containment strong --capability-file $cap_path -- bash -c echo hi"
+  [ "${recorded[1]}" = "$expected" ]
 }
 
 # Rework round 2 (architect-diagnosed present-path regression caught by the
