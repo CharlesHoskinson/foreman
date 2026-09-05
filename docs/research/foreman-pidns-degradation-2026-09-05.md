@@ -268,7 +268,7 @@ flags are CLI policy inside the same process. The kernel does not enforce them.
 | Process-group kill reaps the tree in degraded mode (README, lane-run.sh) | Source fact: setsid(2) creates a new session and process group for the caller. kill(-pgid) does not reach it. Repository observation: the launcher's own child is created exactly this way. | A `setsid` or double-fork descendant escapes the group kill. The README states this correctly in its fallback ladder. |
 | Launcher kills the tree on normal exit (implied by "owns a spawned command's whole process tree") | Repository observation: `launcher/src/supervise.ts` calls `closeJob` on Windows only. POSIX performs no kill after `child.exited`. | Not true on POSIX. Background descendants survive a normal round. |
 | `systemd-run --scope --collect` "cleans it up (killing any remaining member processes) once the scope's main process exits" (launcher/README.md) | Source fact: systemd.scope(5) says scope units have no main process and live while at least one process exists. systemd-run(1) says `--collect` only sets `CollectMode=inactive-or-failed`, which controls unloading of the unit record. | False. `--collect` does not imply descendant termination. A scope kills members only on `systemctl stop` or `RuntimeMaxSec`. |
-| A transient service would give parent-death cleanup | Source fact: systemd.service(5) `ExitType=main` stops the unit when the main process exits. systemd.kill(5) `KillMode=control-group` then SIGTERMs and, after the stop timeout, SIGKILLs every remaining cgroup member. systemd-run(1) `--wait` propagates the exit status. Experiment: `systemd-run --user --wait --pipe --collect` runs on this host and places the command under `user@1000.service/app.slice`. | Supported by documentation. Not measured for escapees on this host (see approved-test design). |
+| A transient service would give parent-death cleanup | Source fact: systemd.service(5) `ExitType=main` stops the unit when the main process exits. systemd.kill(5) `KillMode=control-group` then SIGTERMs and, after the stop timeout, SIGKILLs every remaining cgroup member. systemd-run(1) `--wait` propagates the exit status. Experiment T1: a `setsid` escapee inside the unit was gone one second after the main process exited. Experiment T2b: a process that created a sibling cgroup under the user-owned `app.slice` and moved into it survived the unit stop. | Measured. Cleanup holds for cooperative and accidental escapees. A hostile process escapes the cgroup. |
 | "Local WSL host does not permit unprivileged PID namespaces" (v0.4.0 release notes) | Experiment: `unshare --user --map-current-user --pid --mount-proc --fork --kill-child` succeeds as uid 1000, inner pid 1, distinct pid namespace. | Overstated. The host permits them through a user namespace. The launcher's flag list does not request one. |
 | Hosted CI denies `unshare` so the strong path is untested there (foreman-qa lessons) | Repository observation. | Consistent. With this host also degraded, the strong path is currently exercised nowhere. |
 | Ownership event or heartbeat records containment | Repository observation: heartbeat keys are frozen to eight fields, the ownership payload has `launcher: true` only, and the queue has no capability vocabulary. | No consumer can see the degradation. |
@@ -489,7 +489,19 @@ Codex lane and verified by the architect:
   `ownership` event, degraded alert, refusal for implementation lanes, and
   the capability-aware kill target.
 
-Not done: the destructive descendant-survival tests, the transient-service
-cleanup test, the cgroup escape check, and the same-context pueue probe. They
-still need operator approval. The Bun binary is unchanged and remains the
-fallback under `FOREMAN_LAUNCH_IMPL=bun`.
+The Bun binary is unchanged and remains the fallback under
+`FOREMAN_LAUNCH_IMPL=bun`.
+
+### Approved experiments (run later the same day)
+
+The operator approved the D7 experiments. Raw output:
+`foreman-pidns-degradation-2026-09-05-receipts/approved-tests-2026-09-05.txt`.
+
+| Test | Observation |
+|---|---|
+| T1 transient user service, `setsid` escapee, main process exits | One sleeper inside the unit before exit. Zero sleepers one second after `systemd-run --wait` returned. `KillMode=control-group` reaped the escapee. |
+| T2 cgroup escape by writing to the parent `cgroup.procs` | The write failed with an I/O error. The parent has controllers enabled and cannot hold processes directly. |
+| T2b cgroup escape via a user-created sibling cgroup | `mkdir` under the user-owned `app.slice` succeeded. The escapee moved itself into the new cgroup and survived the unit stop. A transient service is lifecycle hygiene, not a boundary. |
+| T3 same-context probe through pueue (group `misc`) | Privileged flags: `Operation not permitted`, exit 1. User-namespace flags: exit 0. `CapEff 0`, `NoNewPrivs 0`, `Seccomp 0`. The lane context matches the shell context. |
+| T4 degraded round (Bun launcher, recorded approval), SIGTERM to `lane-run.sh` | One `setsid` sleeper survived with its own pgid and session. The ownership event carried the approval text. |
+| T5 strong round (Node launcher), SIGTERM to `lane-run.sh` | Zero survivors. The namespace cascade reaped the `setsid` escapee. |
