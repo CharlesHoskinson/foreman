@@ -9,9 +9,16 @@ in that file.
 
 ## Decisions
 
-- Receipts live under `$FOREMAN_HOME/receipts/<tree-sha256>/<gate-id>.json`,
-  written only by the harness process after `checks-run.sh` or the landing
-  step. Workers run under their own home and never see this path.
+- Receipts live under `$FOREMAN_HOME/receipts/<tree-sha256>/<gate-id>.json`
+  and are registered in `events.jsonl` at write time. In soft mode the
+  worker shares the operator's uid, so the file system is not a boundary.
+  Trust comes from the registration event, the recomputed tree digest, and
+  event ordering, the same authority `round_done` carries today.
+- The audit is pipelined, not concurrent: it is reserved automatically the
+  moment the passing checks receipt is registered. The release policy order
+  is unchanged.
+- Effect owns the rework loop, the pipelined audit, landing resources, and
+  cancellation. Pure functions own classification and receipt keys.
 - The change descriptor is a pure function of the registered authority
   (`execution-guard`, `release-coverage`, credential profile) plus one
   change id. It is printed before any side effect.
@@ -42,7 +49,9 @@ export function classifySmallChange(diffStat: DiffStat, spec: SpecMeta, forbidde
 ## Dependencies
 
 This package depends on `lane-runtime-typescript` for the round entry
-point, the watchdog, and the cleanup ladder. The watchdog-survives-gate and
+point, the watchdog, and the cleanup ladder, and on
+`doctrine-reality-drift` for the doctrine checker it extends. It therefore
+runs in tranche 7 after both milestones. The watchdog-survives-gate and
 `queue_wait_s` requirements are specified there and consumed here.
 
 ## Failure handling

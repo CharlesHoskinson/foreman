@@ -60,9 +60,9 @@ table is the narrative.
 | 2 | `lane-runtime-typescript` | new | `lane-round` owns the round, thin `lane-run.sh` and `watch.sh` adapters, pins retired |
 | 3 | `launcher-node-port` | reconcile | POSIX Bun build and fallback retired, cascade proofs recorded, Windows parity deferred to v0.6 |
 | 4 | `three-outcome-verdicts`, `audit-groundedness-gate`, `evidence-contracts` | reconcile | Honest verdict vocabulary, grounded gate, attempt-fresh evidence |
-| 5 | `spec-triage-gate`, `foreman-discover-lane`, `workflow-weight-reduction` | two reconcile, one new | Exploratory route, and the weight reduction the four-reviewer study converged on (`docs/research/v050/workflow-reviews/`) |
+| 5 | `spec-triage-gate`, `foreman-discover-lane` | reconcile to TypeScript | Exploratory route |
 | 6 | `build-determinism`, `wsl-preflight`, `wsl-tool-path-persistence` | one new, two reconcile | Host truth |
-| 7 | `doctrine-reality-drift` | reconcile to TypeScript | Doctrine claims registry and checker |
+| 7 | `doctrine-reality-drift`, then `workflow-weight-reduction` | one reconcile, one new | Doctrine claims registry and checker, then the weight reduction the four-reviewer study converged on (`docs/research/v050/workflow-reviews/`) |
 | 8 | `v050-release-program` | new | Candidate verification and publication |
 
 ## Deferred to v0.6

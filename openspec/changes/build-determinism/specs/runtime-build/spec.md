@@ -17,7 +17,9 @@ report drift.
 ### Requirement: Expected installed set
 
 WHEN `verify-runtime` starts, it SHALL derive the expected installed set by
-walking `package-lock.json` from the root entry and each workspace entry
+walking `package-lock.json` from the traversal roots (the root entry `""`
+and each workspace `link: true` entry, which are traversed but never
+compared)
 along `dependencies`, `devDependencies`, and `peerDependencies` edges, and
 along `optionalDependencies` edges only into entries whose `os`, `cpu`, and
 `libc` lists admit the current host. An entry reachable only through an

@@ -260,9 +260,9 @@ The program SHALL order work by dependency depth: tranche 1 is the
 bootstrap under the root contract (session-store recovery first), tranche 2
 `lane-runtime-typescript`, tranche 3 `launcher-node-port`, tranche 4
 `three-outcome-verdicts` then `audit-groundedness-gate` then
-`evidence-contracts`, tranche 5 `spec-triage-gate`, `foreman-discover-lane`, and
-`workflow-weight-reduction`, tranche 6 `build-determinism` and `wsl-preflight`,
-tranche 7 `doctrine-reality-drift`, tranche 8 the release child. Children
+`evidence-contracts`, tranche 5 `spec-triage-gate` and `foreman-discover-lane`, tranche 6
+`build-determinism` and `wsl-preflight`, tranche 7 `doctrine-reality-drift`
+then `workflow-weight-reduction`, tranche 8 the release child. Children
 in tranches 4 through 6 MAY run concurrently once tranche 2 has its
 integration milestone. Tranche 7 SHALL wait for the `evidence-contracts`
 milestone, because doctrine adopts its regression-injection mechanism.

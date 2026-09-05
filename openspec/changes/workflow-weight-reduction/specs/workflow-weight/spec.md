@@ -31,16 +31,43 @@ component differs, THEN the harness SHALL run the gate.
 - **WHEN** the lockfile digest differs from the receipt key
 - **THEN** the gate runs again
 
-### Requirement: Workers cannot write receipts
+### Requirement: Receipt registration
 
-A worker process SHALL NOT be able to create or modify a verification
-receipt. IF a receipt file is written by a process outside the harness,
-THEN the harness SHALL ignore it and SHALL record `receipt_untrusted`.
+WHEN the harness writes a receipt, it SHALL append a `receipt` event to the
+run's `events.jsonl` carrying the receipt digest, the receipt key, and the
+harness attempt id, before any later stage starts. In soft mode the lane
+runs under the operator's own uid, so a file location is not a trust
+boundary. Receipt trust SHALL equal event-log trust, the same authority
+that `round_done` has today. The container profile of hard mode remains
+the only principal boundary.
 
-#### Scenario: Worker plants a receipt
+#### Scenario: Receipt registered
 
-- **WHEN** a lane writes a file under `$FOREMAN_HOME/receipts/`
-- **THEN** the next stage ignores it and records `receipt_untrusted`
+- **WHEN** `checks-run.sh` writes a receipt
+- **THEN** a `receipt` event with the same digest exists in `events.jsonl`
+
+### Requirement: Receipt reuse is verified
+
+WHEN a stage considers reusing a receipt, it SHALL recompute the candidate
+tree digest from the frozen archive the harness created, SHALL require a
+`receipt` event whose digest equals the file's digest, and SHALL require
+that event to precede the current stage's `prompt` event. IF any check
+fails, THEN the stage SHALL record `receipt_untrusted` and run the gate.
+
+#### Scenario: Forged receipt with a valid shape
+
+- **WHEN** a receipt file has the accepted shape but no matching `receipt` event
+- **THEN** the stage records `receipt_untrusted` and runs the gate
+
+#### Scenario: Replaced receipt
+
+- **WHEN** the receipt file's digest differs from the registered digest
+- **THEN** the stage records `receipt_untrusted` and runs the gate
+
+#### Scenario: Late registration
+
+- **WHEN** the `receipt` event follows the current stage's `prompt` event
+- **THEN** the stage records `receipt_untrusted` and runs the gate
 
 ### Requirement: Bound change descriptor
 
@@ -116,8 +143,11 @@ NOT satisfy landing.
 ### Requirement: Small-change tier
 
 WHEN a change has at most three files and 150 changed lines, touches no
-forbidden or security path, touches only TypeScript or documentation, and
-has a determined spec, the harness SHALL admit it to the small-change tier.
+path under `sandbox/`, `env/`, `packages/policy/`, `packages/launcher/`,
+`skills/foreman/scripts/`, or the `forbidden_paths` list in
+`.foreman/config.toml`, touches only `.ts` or `.md` files, and has a spec
+whose five parts are all present, the harness SHALL admit it to the
+small-change tier.
 The tier SHALL skip the search and plan fan-out and the separate audit
 round. It SHALL keep host verification and, for executable code, the
 cross-vendor audit run beside the gate.
@@ -139,21 +169,29 @@ the round to the full tier before landing.
 - **WHEN** the produced diff touches five files
 - **THEN** the round is upgraded and the full tier runs
 
-### Requirement: Audit beside the gate
+### Requirement: Audit pipelined after the checks receipt
 
-WHEN the gate phase starts, the harness SHALL start the cross-vendor audit
-on the same frozen candidate concurrently. The round SHALL NOT complete
-until both have a result.
+WHEN the gate's checks receipt is registered with a passing result, the
+harness SHALL reserve and start the cross-vendor `audit` action on the same
+frozen candidate without a human step. The retained release policy order
+(checks receipt before `audit`) SHALL NOT change. The round SHALL NOT
+complete until the audit has a result.
 
-#### Scenario: Concurrent audit
+#### Scenario: Audit starts on the checks receipt
 
-- **WHEN** the gate starts
-- **THEN** the audit's `prompt` event timestamp precedes the gate's `round_done`
+- **WHEN** the passing checks receipt event is appended
+- **THEN** the audit `prompt` event follows it within ten seconds
+- **AND** no operator command was issued between them
+
+#### Scenario: Audit refused without checks
+
+- **WHEN** an audit reservation is requested before a passing checks receipt exists
+- **THEN** release policy refuses it as today
 
 ### Requirement: Bounded automatic rework
 
-IF the gate fails and the failure output is attributable to the change,
-THEN the harness SHALL dispatch one rework round with the failure output as
+IF the gate fails and the failure output names at least one path in the
+candidate diff, THEN the harness SHALL dispatch one rework round with the failure output as
 the corrected spec, at most `max_rework_rounds` times, and SHALL record
 each rework as an attempt.
 
@@ -163,18 +201,48 @@ each rework as an attempt.
 - **THEN** a second attempt runs with the failure output in its spec
 - **AND** the attempt count is 2
 
-### Requirement: Landing transaction
+### Requirement: Landing freezes first
 
-WHEN `lane-round land RUN_ID` runs, the harness SHALL freeze pending edits,
-require the full-tier receipt and the audit result, recheck the branch and
-target immediately before applying, apply, archive evidence, and clean up
-disposable worktrees in one step. IF the branch or target changed, THEN
-landing SHALL refuse with `target_moved`.
+WHEN `lane-round land RUN_ID` runs, the harness SHALL first commit any
+pending worker edits host-side so the candidate is one commit.
+
+#### Scenario: Pending edits frozen
+
+- **WHEN** the worktree has uncommitted edits at landing
+- **THEN** one host-side commit is created before any check runs
+
+### Requirement: Landing requires receipts
+
+WHEN the candidate is frozen, landing SHALL require a registered full-tier
+receipt and an audit result for that exact candidate. IF either is absent,
+THEN landing SHALL refuse with `full_tier_required` or `audit_required`.
+
+#### Scenario: Audit missing
+
+- **WHEN** no audit result exists for the candidate
+- **THEN** landing refuses with `audit_required`
+
+### Requirement: Landing rechecks the target
+
+WHEN receipts are present, landing SHALL recheck the branch head and the
+target head immediately before applying. IF either changed, THEN landing
+SHALL refuse with `target_moved`.
 
 #### Scenario: Target moved
 
 - **WHEN** `main` advances between verification and apply
 - **THEN** landing refuses with `target_moved`
+
+### Requirement: Landing applies and archives
+
+WHEN the recheck passes, landing SHALL apply the candidate, archive the
+run's evidence, and remove clean disposable worktrees, in that order. A
+dirty worktree SHALL be preserved. A `landed` event SHALL carry `land_s`.
+
+#### Scenario: Dirty worktree preserved
+
+- **WHEN** a disposable worktree has untracked files at cleanup
+- **THEN** it is preserved and named in the landing result
 
 ### Requirement: Test suite partition
 
@@ -188,6 +256,19 @@ SHALL keep the existing mutex and serial order.
 
 - **WHEN** no isolation record exists
 - **THEN** the runner runs serially under the mutex
+
+### Requirement: Full gate feasibility measured first
+
+WHEN this package starts, the harness SHALL run the complete Bats suite
+once under the existing mutex and record the wall clock and the exclusive
+phase duration. IF the exclusive phase alone exceeds 600 seconds, THEN the
+full-tier budget SHALL be renegotiated in the register before any shard
+work starts.
+
+#### Scenario: Budget renegotiated
+
+- **WHEN** the measured exclusive phase is 900 seconds
+- **THEN** the register records the new full-tier budget and its reason
 
 ### Requirement: Doctrine core
 
@@ -214,21 +295,31 @@ the allowed paths. It SHALL NOT include the full trap archive.
 
 ### Requirement: Round instrumentation
 
-WHEN a round completes, the `round_done` payload SHALL carry
-`queue_wait_s`, `preamble_s`, `implement_s`, `gate_s`, `audit_s`, and
-`land_s`. The release check SHALL compute the idle share of the last twenty
-rounds from these fields.
+WHEN a round completes, the `round_done` payload SHALL carry the interval
+timestamps `queued_at`, `prompt_at`, `implement_end_at`, `gate_start_at`,
+`gate_end_at`, `audit_start_at`, and `audit_end_at`, plus the derived
+`queue_wait_s`. The `landed` event SHALL carry `land_s`. The release check
+SHALL compute idle time as the round's wall clock minus the union of the
+model, gate, and audit intervals, over the twenty most recent rounds whose
+`runtime_commit` equals the candidate. IF fewer than twenty such rounds
+exist, THEN the predicate SHALL be `UNCOMPUTABLE`.
 
 #### Scenario: Queue wait recorded
 
 - **WHEN** a round waited in the queue
 - **THEN** `queue_wait_s` is a number, not null
 
+#### Scenario: Overlap not double-counted
+
+- **WHEN** the gate and audit intervals overlap by 30 seconds
+- **THEN** the idle computation subtracts their union, not their sum
+
 ### Requirement: Stale instructions corrected
 
 The doctrine SHALL name only commands that exist. IF a doctrine file names
 a path that does not exist in the repository, THEN `doctrine-check` SHALL
-fail.
+fail. The checker is owned by `doctrine-reality-drift`. This package
+extends it only after that package's milestone.
 
 #### Scenario: fm-session.py
 

@@ -511,7 +511,7 @@ disposition = "v050_owner"
 owner = "workflow-weight-reduction"
 target_release = "v0.5"
 reconcile = "complete"
-reason = "Tranche 5. Verification receipts, bound change descriptor, tiered gate plan with a small-change tier, landing transaction, test partition, doctrine compression, round instrumentation. Converged by four independent reviews."
+reason = "Tranche 7, after the doctrine milestone. Verification receipts, bound change descriptor, tiered gate plan with a small-change tier, landing transaction, test partition, doctrine compression, round instrumentation. Converged by four independent reviews."
 
 [[entry]]
 key = "change:wsl-launcher-shipped"

@@ -26,8 +26,8 @@ before activation, and every child binds one distinct package.
 t1 bootstrap (root contract): session-store-recovery, runtime authorities, register, fixtures, family
    └─► t2 lane-runtime-typescript ─► t3 launcher-node-port ──────────────────────────────────────┐
             ├─► t4 three-outcome-verdicts ─► audit-groundedness-gate ─► evidence-contracts ─┐      │
-            │                                                                              └─► t7 doctrine-reality-drift ─┤
-            ├─► t5 spec-triage-gate, foreman-discover-lane, workflow-weight-reduction ─────────────┤
+            │                                                                              └─► t7 doctrine-reality-drift ─► workflow-weight-reduction ─┤
+            ├─► t5 spec-triage-gate, foreman-discover-lane ────────────────────────────────────────┤
             └─► t6 build-determinism, wsl-preflight ───────────────────────────────────────────────┴─► t8 release
 ```
 
@@ -116,14 +116,10 @@ deletion and Job Object parity are v0.6 items.
 | P8 | `npx tsx scripts/run-tests.ts "packages/orchestration/src/session-sqlite-bootstrap.test.ts"` | pass with zero skipped; the half-migrated fixture case, the fresh-clone case, and the `no_session_source` case all execute |
 | P9 | `npx tsx scripts/run-tests.ts "scripts/verify-runtime.test.ts"` | pass with zero skipped; the symlink fixture, the lockfile-mismatch fixture, and the two-path build fixture all execute |
 | P10 | `npx tsx scripts/run-tests.ts "packages/orchestration/src/secret-scan.test.ts" "packages/orchestration/src/wsl-preflight*.test.ts"` | pass; the live-traversal case executed (not skipped) on the Linux release host and reports `Clean` |
-| P12 | `node skills/foreman/runtime/dist/lane-round.js stats --last 20` | idle share (wall clock minus model, gate, and audit time) at most 25 percent over the last twenty real rounds, with `queue_wait_s` non-null in each |
+| P12 | `node skills/foreman/runtime/dist/lane-round.js stats --last 20 --runtime-commit <candidate>` | idle share (wall clock minus the union of model, gate, and audit intervals) at most 25 percent over the twenty most recent rounds run on the candidate runtime, `UNCOMPUTABLE` with fewer, `queue_wait_s` non-null in each |
 | P13 | `node skills/foreman/runtime/dist/gate-plan.js run --tier pre-commit` then `--tier full` on the candidate | pre-commit completes in at most 60 s and full in at most 600 s on the reference host, both `pass`, neither `incomplete` |
-| P14 | three real one-file changes and one three-package change through `lane-round dispatch` and `lane-round wait`, recorded in `docs/research/v050/weight-before-after.md` | each one-file change lands in at most 15 minutes wall clock with at most six manual steps and one `npm run verify` per candidate tree |
-| P15 | `node skills/foreman/runtime/dist/doctrine-check.js --read-floor` | the mandated cold read set is at most 12,000 tokens and the rule-id inventory is complete |
-| P12 | `node skills/foreman/runtime/dist/lane-round.js stats --last 20` | idle share (wall clock minus model, gate, and audit time) at most 25 percent over the last twenty real rounds, with `queue_wait_s` non-null in each |
-| P13 | `node skills/foreman/runtime/dist/gate-plan.js run --tier pre-commit` then `--tier full` on the candidate | pre-commit completes in at most 60 s and full in at most 600 s on the reference host, both `pass`, neither `incomplete` |
-| P14 | three real one-file changes and one three-package change through `lane-round dispatch` and `lane-round wait`, recorded in `docs/research/v050/weight-before-after.md` | each one-file change lands in at most 15 minutes wall clock with at most six manual steps and one `npm run verify` per candidate tree |
-| P15 | `node skills/foreman/runtime/dist/doctrine-check.js --read-floor` | the mandated cold read set is at most 12,000 tokens and the rule-id inventory is complete |
+| P14 | `node skills/foreman/runtime/dist/lane-round.js bench --workload docs/research/v050/bench/` on four pinned fixture repositories, receipts under `$FOREMAN_HOME/endstop/v050/receipts/` | each one-file change lands in at most 15 minutes wall clock with at most six manual steps and one `npm run verify` per candidate tree |
+| P15 | `node skills/foreman/runtime/dist/doctrine-check.js --read-floor` (bytes divided by four over `docs/doctrine-read-set.txt`) | the mandated cold read set is at most 12,000 tokens and the rule-id inventory is complete |
 | P11 | `node skills/foreman/runtime/dist/doctrine-check.js && node skills/foreman/runtime/dist/doctrine-check.js --mutation-control` | both exit 0; the inventory contains the fourteen claim ids listed in `doctrine-reality-drift` task 7.1 (eleven from R5 section 8.2 plus `launcher-verified-unprivileged`, `systemd-scope-collect-kills`, `launcher-kills-group-on-exit`); the mutation control reports each of the fourteen protected |
 
 Publication is not a predicate. It is gated by the fifteen predicates, the

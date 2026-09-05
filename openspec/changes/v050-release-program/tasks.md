@@ -23,7 +23,7 @@ Exact paths or terminal `/**` prefixes, as the family path grammar requires.
 - [ ] 1.0 Create the root Endstop contract with `execution-guard.js create` and record its id and digest as SessionDB facts after task 1.1 succeeds. Every later bootstrap task runs under this root.
 - [ ] 1.1 Run `session-store-recovery` under the root contract as a dependency of this package. Verify P8, then run `repair` and `recover` on the reference host. Expected: both exit 0.
 - [ ] 1.1a Freeze the v0.4 inputs: copy the v0.4 register, the baseline active-inventory list, and the baseline `ROADMAP.md` into `packages/policy/src/fixtures/v040/`. Change the fixture-loading lines of `release-coverage.test.ts` (near 2417 and 2436) to read them. Run the policy tests. Expected: pass unchanged.
-- [ ] 1.2 RED: add cases to `release-policy.test.ts`, `release-admission.test.ts`, `release-admission-cli.test.ts`, `release-authority.test.ts`, `release-coverage.test.ts`, `release-coverage-cli.test.ts`, `execution-contract.test.ts`, and `execution-guard-cli.test.ts` that expect `v050` accepted, `v041` refused with `wrong_program`, and a cross-program family receipt refused with `invalid_family_authority`. Run `npx tsx scripts/run-tests.ts "packages/orchestration/src/release-*.test.ts" "packages/policy/src/release-*.test.ts" "packages/orchestration/src/execution-contract.test.ts"`. Expected: the new cases fail.
+- [ ] 1.2 RED: add cases to `release-policy.test.ts`, `release-admission.test.ts`, `release-admission-cli.test.ts`, `release-authority.test.ts`, `release-coverage.test.ts`, `release-coverage-cli.test.ts`, `execution-contract.test.ts`, and `execution-guard-cli.test.ts` that expect `v050` accepted, `v041` refused with `wrong_program`, and a cross-program family receipt refused with `invalid_family_authority`. Run `npx tsx scripts/run-tests.ts "packages/orchestration/src/release-*.test.ts" "packages/policy/src/release-*.test.ts" "packages/orchestration/src/execution-contract.test.ts" "packages/orchestration/src/execution-guard-cli.test.ts"`. Expected: the new cases fail.
 - [ ] 1.3 GREEN: add `ReleaseProgram` and the per-program table. Expected: the new cases and every existing v040 case pass.
 - [ ] 1.4 RED: register version 2 cases for `unreconciled_package`, `register_cross_field`, `reconciliation_required`, `iron_rule_violation`, `deferred_package_changed`, `workflow_mismatch`, `vocabulary_mixed`, and roadmap row coverage. Expected: fail. GREEN: implement. Expected: pass.
 - [ ] 1.5 Reconcile `ROADMAP.md`: move the Council sprints 8 through 11, sprint 12, and sprint 16 dogfood rows to `v0.6`, add rows `roadmap:v050-lane-runtime`, `roadmap:v050-verdict-honesty`, `roadmap:v050-host-truth`, and `roadmap:v050-publication`. Update `roadmap_sha256` in the register.
@@ -54,7 +54,7 @@ Exact paths or terminal `/**` prefixes, as the family path grammar requires.
 
 - [ ] 5.1 Reconcile `spec-triage-gate`: the checker is `packages/orchestration/src/spec-triage.ts` bundled to `skills/foreman/runtime/dist/spec-triage.js`, and the runtime refuses an underdetermined spec before spawn. Reconcile `foreman-discover-lane` wording only.
 - [ ] 5.2 Dispatch both. Verify P7. Record the milestones.
-- [ ] 5.3 Dispatch `workflow-weight-reduction` tasks 1 through 13 in order. Its watchdog and `queue_wait_s` requirements were landed by tranche 2. Verify P12 through P15. Record the milestone.
+- [ ] 5.3 (moved to 7.3)
 
 ## 6. Host truth (children v050-build-determinism, v050-wsl-preflight)
 
@@ -66,6 +66,7 @@ Exact paths or terminal `/**` prefixes, as the family path grammar requires.
 - [ ] 7.0 Wait for the `evidence-contracts` milestone. Doctrine adopts its regression-injection mechanism.
 - [ ] 7.1 Reconcile `doctrine-reality-drift`: the checker is `packages/policy/src/doctrine-check.ts`. The claims registry stays `docs/doctrine-claims.tsv` and starts with the eleven claims from `docs/research/vnext/R5-internal-attachment-map.md` section 8.2 plus the three corrected on 2026-09-05.
 - [ ] 7.2 Dispatch. Verify P11. Record the milestone.
+- [ ] 7.3 Dispatch `workflow-weight-reduction` tasks 0 through 13 in order after the doctrine milestone. Its watchdog and `queue_wait_s` requirements were landed by tranche 2. Verify P12 through P15. Record the milestone.
 
 ## 8. Release (child v050-release)
 
