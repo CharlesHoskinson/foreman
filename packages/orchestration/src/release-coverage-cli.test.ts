@@ -157,8 +157,12 @@ const BRIEF_REL = `openspec/changes/${PACKAGE}/release-brief.json`;
 
 const SECRET = join(FIXTURE_ROOT, "secret", "private", "path");
 
-const SOURCE_REPO = resolve(
+const WORKTREE_ROOT = resolve(
   fileURLToPath(new URL("../../..", import.meta.url)),
+);
+const FROZEN_V040_COMMIT = "00c342bd449948ab2ea5ca0b9d0c890614dd81d6";
+const LIVE_COVERAGE_MAIN = fileURLToPath(
+  new URL("./release-coverage-main.ts", import.meta.url),
 );
 const TSX_LOADER = pathToFileURL(
   createRequire(import.meta.url).resolve("tsx"),
@@ -611,6 +615,64 @@ function snapshotPhysicalTree(root: string): ReadonlyMap<string, string> {
   };
   visit(root, "");
   return snapshot;
+}
+
+function extractFrozenV040Repository(destination: string): void {
+  mkdirSync(destination, { recursive: true });
+  const archived = spawnSync(
+    "sh",
+    [
+      "-c",
+      'git archive "$1" | tar -x -C "$2"',
+      "extract-frozen-v040",
+      FROZEN_V040_COMMIT,
+      destination,
+    ],
+    {
+      cwd: WORKTREE_ROOT,
+      encoding: "utf8",
+      timeout: 60_000,
+      maxBuffer: ONE_MIB,
+    },
+  );
+  assert.equal(archived.error, undefined);
+  assert.equal(archived.status, 0, archived.stderr);
+  const initialized = spawnSync(
+    "git",
+    ["init", "--quiet", "--object-format=sha1"],
+    {
+      cwd: destination,
+      encoding: "utf8",
+      timeout: 30_000,
+    },
+  );
+  assert.equal(initialized.error, undefined);
+  assert.equal(initialized.status, 0, initialized.stderr);
+  const fetched = spawnSync(
+    "git",
+    [
+      "fetch",
+      "--quiet",
+      "--no-tags",
+      WORKTREE_ROOT,
+      FROZEN_V040_COMMIT,
+      BASELINE,
+    ],
+    {
+      cwd: destination,
+      encoding: "utf8",
+      timeout: 60_000,
+    },
+  );
+  assert.equal(fetched.error, undefined);
+  assert.equal(fetched.status, 0, fetched.stderr);
+  const staged = spawnSync("git", ["add", "-A"], {
+    cwd: destination,
+    encoding: "utf8",
+    timeout: 30_000,
+  });
+  assert.equal(staged.error, undefined);
+  assert.equal(staged.status, 0, staged.stderr);
 }
 
 function emptyLog(): CallLog {
@@ -2003,7 +2065,7 @@ test("lane and release authority bind the real family child and absolute brief p
 // 4. Result and dependency tables
 // ---------------------------------------------------------------------------
 
-test("eleven ReleaseCoverageFailureReason values print one canonical JSON line", async (t) => {
+test("twelve ReleaseCoverageFailureReason values print one canonical JSON line", async (t) => {
   const harness = {
     invalid_register: {
       argv: BOOTSTRAP_ARGV,
@@ -2119,6 +2181,21 @@ test("eleven ReleaseCoverageFailureReason values print one canonical JSON line",
         openspecError: new Error(`boom at ${SECRET}/list`),
       }),
       expectOpenspec: true,
+    },
+    wrong_program: {
+      argv: processArgv([
+        "check",
+        "--program",
+        "v041",
+        "--phase",
+        "bootstrap",
+        "--owner",
+        TRACK1,
+        "--register",
+        REGISTER,
+      ]),
+      options: sharedBootstrapOptions(),
+      expectOpenspec: false,
     },
   } as const satisfies Record<
     ReleaseCoverageFailureReason,
@@ -2294,20 +2371,7 @@ test("services expose exactly four read-only ports and leave repo/state bytes un
     const temporary = mkdtempSync(join(tmpdir(), "release-coverage-main-"));
     const repository = join(temporary, "repo");
     try {
-      const cloned = spawnSync(
-        "git",
-        ["clone", "--quiet", "--no-hardlinks", SOURCE_REPO, repository],
-        { encoding: "utf8", timeout: 60_000, maxBuffer: ONE_MIB },
-      );
-      assert.equal(cloned.error, undefined);
-      assert.equal(cloned.status, 0, cloned.stderr);
-      const main = join(
-        SOURCE_REPO,
-        "packages",
-        "orchestration",
-        "src",
-        "release-coverage-main.ts",
-      );
+      extractFrozenV040Repository(repository);
       const register = join(
         repository,
         "openspec",
@@ -2318,7 +2382,7 @@ test("services expose exactly four read-only ports and leave repo/state bytes un
       const bootstrapArgv = [
         "--import",
         TSX_LOADER,
-        main,
+        LIVE_COVERAGE_MAIN,
         "check",
         "--program",
         "v040",
