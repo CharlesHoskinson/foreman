@@ -18900,6 +18900,7 @@ function profileToolIds(profile, isWsl) {
   }
   if (isWsl) {
     should.push("foreman-launch");
+    should.push("containment");
   }
   return { must, should };
 }
@@ -19284,6 +19285,37 @@ function checkOne(id, ctx) {
           "foreman-launch",
           "degraded",
           `DEGRADED: ${flBin} absent and bun is not installed (bun is should-tier); install bun, then run: (cd launcher && bun run build:posix)`
+        );
+      }
+      case "containment": {
+        const scriptPath = join7(
+          ctx.repoRoot,
+          "skills/foreman/runtime/dist/foreman-launch.js"
+        );
+        const r = yield* runCmd(process.execPath, [
+          scriptPath,
+          "--probe-only",
+          "--require-containment",
+          "strong"
+        ]);
+        if (r === null) {
+          return row(
+            "containment",
+            "degraded",
+            "DEGRADED: containment probe did not complete (spawn or timeout failure); POSIX lanes run with process-group cleanup only"
+          );
+        }
+        if (r.exitCode === 0) {
+          return row(
+            "containment",
+            "ok",
+            firstLine2(captureText3(r)) || "strong containment available"
+          );
+        }
+        return row(
+          "containment",
+          "degraded",
+          `DEGRADED: containment probe exit=${r.exitCode}; POSIX lanes run with process-group cleanup only until FOREMAN_CONTAINMENT_APPROVAL is set (${firstLine2(captureText3(r)) || "no output"})`
         );
       }
       case "foreman_home_fs": {

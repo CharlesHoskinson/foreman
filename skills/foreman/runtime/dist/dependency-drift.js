@@ -16103,6 +16103,7 @@ function profileToolIds(profile, isWsl) {
   }
   if (isWsl) {
     should.push("foreman-launch");
+    should.push("containment");
   }
   return { must, should };
 }
@@ -16915,7 +16916,8 @@ var MAX_DRIFT_INPUT_BYTES = 1048576;
 var PSEUDO_IDS = /* @__PURE__ */ new Set([
   "foreman_home_fs",
   "foreman_skill",
-  "foreman-launch"
+  "foreman-launch",
+  "containment"
 ]);
 var UNPROVISIONED_IDS = /* @__PURE__ */ new Set([
   "nats-server",
