@@ -105,6 +105,8 @@ export type ReleaseCoverageOpenSpecListService = {
   }) => Effect.Effect<Uint8Array, unknown>;
 };
 
+export type ReleaseCoverageGitError = unknown;
+
 export type ReleaseCoverageGitChangedPathsService = {
   readonly discover: (input: {
     readonly repository: string;
@@ -116,6 +118,11 @@ export type ReleaseCoverageGitChangedPathsService = {
     readonly commit: string;
     readonly path: string;
   }) => Effect.Effect<Uint8Array, unknown>;
+  readonly existsAtCommit: (input: {
+    readonly repository: string;
+    readonly commit: string;
+    readonly path: string;
+  }) => Effect.Effect<boolean, ReleaseCoverageGitError>;
 };
 
 export type ReleaseCoverageChildBriefV1 = {
@@ -607,6 +614,54 @@ export function makeLiveReleaseCoverageCliServices(
             timeoutMs: GIT_TIMEOUT_MS,
           });
           return yield* requireCapturedStdoutBytes(captured);
+        }),
+      existsAtCommit: (input) =>
+        Effect.gen(function* () {
+          const trusted = yield* resolveTrustedGitContext(
+            input.repository,
+            "explicit",
+          );
+          const env = buildTrustedGitEnvironment(
+            trusted.physicalGit,
+            dependencies.platform,
+            dependencies.nullDevice,
+          );
+          if (
+            typeof input.path !== "string" ||
+            input.path.length === 0 ||
+            input.path.includes("\0") ||
+            input.path.includes("\\") ||
+            input.path.startsWith("/") ||
+            input.path.includes(":")
+          ) {
+            return yield* Effect.fail({ _tag: "GitPathsInvalid" as const });
+          }
+          const tree = yield* dependencies.runCaptured({
+            command: trusted.physicalGit,
+            args: gitArguments(trusted.physicalRepository, [
+              "cat-file",
+              "-e",
+              `${input.commit}^{tree}`,
+            ]),
+            env,
+            maxOutputBytes: ONE_MIB,
+            timeoutMs: GIT_TIMEOUT_MS,
+          });
+          if (tree.exitCode !== 0) {
+            return yield* Effect.fail({ _tag: "GitError" as const });
+          }
+          const blob = yield* dependencies.runCaptured({
+            command: trusted.physicalGit,
+            args: gitArguments(trusted.physicalRepository, [
+              "cat-file",
+              "-e",
+              `${input.commit}:${input.path}`,
+            ]),
+            env,
+            maxOutputBytes: ONE_MIB,
+            timeoutMs: GIT_TIMEOUT_MS,
+          });
+          return blob.exitCode === 0;
         }),
     },
     familySource: {
@@ -1443,6 +1498,7 @@ function evaluateReleaseCoverage(
     }
 
     let baselineRegisterText: string | undefined;
+    let baselineRegisterAbsent = false;
     if (
       parsed.program !== RELEASE_PROGRAMS[0] &&
       (parsed.phase._tag === "Bootstrap" || parsed.phase._tag === "Release")
@@ -1459,24 +1515,34 @@ function evaluateReleaseCoverage(
           path: relativeRegister,
         }),
       ).pipe(Effect.either);
-      if (baselineBytes._tag === "Left") return dependencyFailure();
-      const baselineText = decodeUtf8Fatal(baselineBytes.right);
-      if (baselineText === null) return dependencyFailure();
-      baselineRegisterText = baselineText;
+      if (baselineBytes._tag === "Right") {
+        const baselineText = decodeUtf8Fatal(baselineBytes.right);
+        if (baselineText === null) return dependencyFailure();
+        baselineRegisterText = baselineText;
+      } else {
+        const present = yield* callPort(() =>
+          services.gitChangedPaths.existsAtCommit({
+            repository,
+            commit: inspection.baselineCommit,
+            path: relativeRegister,
+          }),
+        ).pipe(Effect.either);
+        if (present._tag === "Left" || present.right) {
+          return dependencyFailure();
+        }
+        baselineRegisterAbsent = true;
+      }
     }
 
     const evidenceArtifacts: Array<{ path: string; text: string }> = [];
     if (parsed.program !== RELEASE_PROGRAMS[0] && parsed.phase._tag === "Release") {
       const evidencePath = parsed.evidence;
-      const evidenceRoot = parsed.stateRoot;
       if (typeof evidencePath !== "string" || !isNativeAbsolutePath(evidencePath)) {
         return dependencyFailure();
       }
-      if (typeof evidenceRoot !== "string") return dependencyFailure();
       const classified = yield* callPort(() =>
         services.fileRead.classifyPath({
           path: evidencePath,
-          containmentRoot: evidenceRoot,
         }),
       ).pipe(Effect.either);
       if (classified._tag === "Left") return dependencyFailure();
@@ -1485,16 +1551,21 @@ function evaluateReleaseCoverage(
         return dependencyFailure();
       }
       const collected: string[] = [];
+      let evidenceBound: string;
       if (kind._tag === "File") {
+        const parent = dirname(evidencePath);
+        if (!isNativeAbsolutePath(parent)) return dependencyFailure();
+        evidenceBound = parent;
         collected.push(evidencePath);
       } else {
+        evidenceBound = evidencePath;
         const pending: string[] = [evidencePath];
         while (pending.length > 0) {
           const directory = pending.pop()!;
           const listed = yield* callPort(() =>
             services.fileRead.listDirectory({
               path: directory,
-              containmentRoot: evidenceRoot,
+              containmentRoot: evidenceBound,
             }),
           ).pipe(Effect.either);
           if (listed._tag === "Left") return dependencyFailure();
@@ -1508,7 +1579,7 @@ function evaluateReleaseCoverage(
             const childKind = yield* callPort(() =>
               services.fileRead.classifyPath({
                 path: child,
-                containmentRoot: evidenceRoot,
+                containmentRoot: evidenceBound,
               }),
             ).pipe(Effect.either);
             if (childKind._tag === "Left") return dependencyFailure();
@@ -1530,7 +1601,7 @@ function evaluateReleaseCoverage(
         const evidenceRead = yield* readBoundedPort(
           services.fileRead,
           filePath,
-          evidenceRoot,
+          evidenceBound,
         );
         if (evidenceRead._tag !== "Ok") return dependencyFailure();
         const evidenceText = decodeUtf8Fatal(evidenceRead.bytes);
@@ -1554,6 +1625,7 @@ function evaluateReleaseCoverage(
         ? { tasksMarkdownByOwner }
         : {}),
       ...(baselineRegisterText !== undefined ? { baselineRegisterText } : {}),
+      ...(baselineRegisterAbsent ? { baselineRegisterAbsent: true } : {}),
       ...(evidenceArtifacts.length > 0 ? { evidenceArtifacts } : {}),
     });
   }).pipe(

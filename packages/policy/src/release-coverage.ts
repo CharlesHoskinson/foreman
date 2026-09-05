@@ -881,6 +881,7 @@ function validateCollectionShapes(
     readonly packageBriefBytesByOwner: Readonly<Record<string, Uint8Array>>;
     readonly tasksMarkdownByOwner?: Readonly<Record<string, string>>;
     readonly baselineRegisterText?: string;
+    readonly baselineRegisterAbsent?: boolean;
     readonly evidenceTexts?: readonly string[];
     readonly evidenceArtifacts?: readonly ReleaseCoverageEvidenceArtifactV1[];
   },
@@ -918,6 +919,12 @@ function validateCollectionShapes(
   if (
     input.baselineRegisterText !== undefined &&
     typeof input.baselineRegisterText !== "string"
+  ) {
+    return false;
+  }
+  if (
+    input.baselineRegisterAbsent !== undefined &&
+    typeof input.baselineRegisterAbsent !== "boolean"
   ) {
     return false;
   }
@@ -1001,7 +1008,7 @@ function hasAllowedFileScope(markdown: string): boolean {
   if (headingIndex < 0) return false;
   for (let i = headingIndex + 1; i < lines.length; i++) {
     const line = lines[i]!;
-    if (/^##[ \t]+/.test(line)) break;
+    if (/^#{1,6}\s/.test(line)) break;
     if (line.trim().length > 0) return true;
   }
   return false;
@@ -1234,6 +1241,7 @@ export function validateReleaseCoverageV1(input: {
   readonly program?: ReleaseProgram;
   readonly tasksMarkdownByOwner?: Readonly<Record<string, string>>;
   readonly baselineRegisterText?: string;
+  readonly baselineRegisterAbsent?: boolean;
   readonly evidenceTexts?: readonly string[];
   readonly evidenceArtifacts?: readonly ReleaseCoverageEvidenceArtifactV1[];
 }): ReleaseCoverageResultV1 {
@@ -1357,6 +1365,7 @@ export function validateReleaseCoverageV1(input: {
     ) {
       const futureDisp = futureDisposition(program);
       const baselineText = input.baselineRegisterText;
+      const baselineAbsent = input.baselineRegisterAbsent === true;
       let baselineByKey: Map<string, RegisterEntry> | null = null;
       if (typeof baselineText === "string") {
         const baselineParsed = parseRegister(baselineText, program);
@@ -1376,6 +1385,9 @@ export function validateReleaseCoverageV1(input: {
           pathIsUnderPackageDirectory(path, name),
         );
         if (!directoryChanged) continue;
+        if (baselineAbsent) {
+          return invalid("deferred_package_changed");
+        }
         if (baselineByKey === null) continue;
         const baselineEntry = baselineByKey.get(entry.key);
         if (baselineEntry === undefined) continue;

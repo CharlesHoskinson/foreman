@@ -74,6 +74,20 @@ const _releaseCoverageLiveDependenciesContract: _ReleaseCoverageLiveDependencies
   true;
 void _releaseCoverageLiveDependenciesContract;
 
+type _GitChangedPathsRequireExistsAtCommit =
+  ReleaseCoverageGitChangedPathsService extends {
+    readonly existsAtCommit: (input: {
+      readonly repository: string;
+      readonly commit: string;
+      readonly path: string;
+    }) => Effect.Effect<boolean, unknown>;
+  }
+    ? true
+    : never;
+const _gitChangedPathsExistsAtCommitContract: _GitChangedPathsRequireExistsAtCommit =
+  true;
+void _gitChangedPathsExistsAtCommitContract;
+
 const ONE_MIB = 1_048_576;
 const EXIT_OK = 0;
 const EXIT_EVALUATED = 1;
@@ -645,6 +659,11 @@ type CallLog = {
     commit: string;
     path: string;
   }>;
+  readonly gitExists: Array<{
+    repository: string;
+    commit: string;
+    path: string;
+  }>;
   repositoryRootResolves: number;
 };
 
@@ -714,6 +733,8 @@ type HarnessOptions = {
   readonly baselineRegisterText?: string;
   readonly baselineError?: Error;
   readonly baselineThrow?: boolean;
+  readonly baselineCommitMissing?: boolean;
+  readonly liveEvidenceRoot?: string;
   readonly registerAbs?: string;
   readonly fileNotFoundPaths?: ReadonlySet<string>;
 };
@@ -724,6 +745,12 @@ function cloneBytes(map: Map<string, Uint8Array>): ByteSnapshot {
     out.set(key, Uint8Array.from(value));
   }
   return out;
+}
+
+function isUnderLiveEvidenceRoot(path: string, root: string): boolean {
+  if (path === root) return true;
+  const prefix = root.endsWith(sep) ? root : `${root}${sep}`;
+  return path.startsWith(prefix);
 }
 
 function snapshotsEqual(a: ByteSnapshot, b: ByteSnapshot): boolean {
@@ -841,6 +868,7 @@ function emptyLog(): CallLog {
     family: [],
     fileReads: [],
     gitShows: [],
+    gitExists: [],
     repositoryRootResolves: 0,
   };
 }
@@ -973,6 +1001,12 @@ function makeServices(
         containmentRoot: input.containmentRoot,
       });
       assert.equal(input.maxBytes, ONE_MIB);
+      if (
+        options.liveEvidenceRoot !== undefined &&
+        isUnderLiveEvidenceRoot(input.path, options.liveEvidenceRoot)
+      ) {
+        return liveReleaseCoverageCliServices.fileRead.readBounded(input);
+      }
       if (options.fileThrowPath === input.path) {
         throw new Error(`ENOENT: ${SECRET}/${input.path}`);
       }
@@ -990,8 +1024,22 @@ function makeServices(
       }
       return Effect.succeed(Uint8Array.from(bytes));
     },
-    classifyPath: (input) => Effect.succeed(classifyMockPath(input.path)),
+    classifyPath: (input) => {
+      if (
+        options.liveEvidenceRoot !== undefined &&
+        isUnderLiveEvidenceRoot(input.path, options.liveEvidenceRoot)
+      ) {
+        return liveReleaseCoverageCliServices.fileRead.classifyPath(input);
+      }
+      return Effect.succeed(classifyMockPath(input.path));
+    },
     listDirectory: (input) => {
+      if (
+        options.liveEvidenceRoot !== undefined &&
+        isUnderLiveEvidenceRoot(input.path, options.liveEvidenceRoot)
+      ) {
+        return liveReleaseCoverageCliServices.fileRead.listDirectory(input);
+      }
       const prefix = input.path.endsWith(sep) ? input.path : `${input.path}${sep}`;
       const names = new Set<string>();
       for (const key of capture.repoStateBytes.keys()) {
@@ -1045,10 +1093,31 @@ function makeServices(
         throw new Error(`git show boom at ${SECRET}/show`);
       }
       if (options.baselineError) return Effect.fail(options.baselineError);
+      if (options.baselineCommitMissing) {
+        return Effect.fail({ _tag: "GitError" as const });
+      }
       if (options.baselineRegisterText !== undefined) {
         return Effect.succeed(utf8(options.baselineRegisterText));
       }
-      return Effect.succeed(utf8(registerText));
+      return Effect.fail({ _tag: "GitError" as const });
+    },
+    existsAtCommit: (input) => {
+      capture.log.gitExists.push({
+        repository: input.repository,
+        commit: input.commit,
+        path: input.path,
+      });
+      if (options.baselineThrow) {
+        throw new Error(`git exists boom at ${SECRET}/exists`);
+      }
+      if (options.baselineError) return Effect.fail(options.baselineError);
+      if (options.baselineCommitMissing) {
+        return Effect.fail({ _tag: "GitError" as const });
+      }
+      if (options.baselineRegisterText !== undefined) {
+        return Effect.succeed(true);
+      }
+      return Effect.succeed(false);
     },
   };
 
@@ -1110,6 +1179,7 @@ function assertUsageFailure(capture: Capture, log: CallLog): void {
   assert.deepEqual(log.openspec, []);
   assert.deepEqual(log.git, []);
   assert.deepEqual(log.gitShows, []);
+  assert.deepEqual(log.gitExists, []);
   assert.deepEqual(log.family, []);
   assert.deepEqual(log.fileReads, []);
   assert.equal(log.repositoryRootResolves, 0);
@@ -2678,6 +2748,173 @@ test("v050 baseline read failure is dependency_failure", async () => {
   assertSanitized(capture);
 });
 
+test("v050 absent baseline register is Valid when deferred directories are unchanged", async () => {
+  const roadmapBytes = v050RoadmapBytes();
+  const extraEntry = [
+    ``,
+    `[[entry]]`,
+    `key = "change:${V050_DEFERRED}"`,
+    `source_kind = "openspec_change"`,
+    `source_path = "openspec/changes/${V050_DEFERRED}"`,
+    `disposition = "v060"`,
+    `owner = "${V050_OWNER}"`,
+    `target_release = "v0.6"`,
+    `reconcile = "not_required"`,
+    `reason = "deferred"`,
+  ].join("\n");
+  const registerText = sealV050Register({
+    activeNames: [V050_OWNER, V050_DEFERRED],
+    roadmapBytes,
+    extraEntry,
+  });
+  const { exitCode, capture } = await runCli(V050_BOOTSTRAP_ARGV, {
+    roadmapBytes,
+    activeNames: [V050_OWNER, V050_DEFERRED],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText,
+  });
+  assert.equal(exitCode, EXIT_OK);
+  assertCanonicalResult(
+    capture,
+    validResult([V050_OWNER, V050_DEFERRED], roadmapBytes, 3),
+  );
+});
+
+test("v050 absent baseline register is deferred_package_changed when a deferred directory changes", async () => {
+  const roadmapBytes = v050RoadmapBytes();
+  const extraEntry = [
+    ``,
+    `[[entry]]`,
+    `key = "change:${V050_DEFERRED}"`,
+    `source_kind = "openspec_change"`,
+    `source_path = "openspec/changes/${V050_DEFERRED}"`,
+    `disposition = "v060"`,
+    `owner = "${V050_OWNER}"`,
+    `target_release = "v0.6"`,
+    `reconcile = "not_required"`,
+    `reason = "deferred"`,
+  ].join("\n");
+  const registerText = sealV050Register({
+    activeNames: [V050_OWNER, V050_DEFERRED],
+    roadmapBytes,
+    extraEntry,
+  });
+  const { exitCode, capture } = await runCli(V050_BOOTSTRAP_ARGV, {
+    roadmapBytes,
+    activeNames: [V050_OWNER, V050_DEFERRED],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText,
+    changedPaths: [`openspec/changes/${V050_DEFERRED}/tasks.md`],
+  });
+  assert.equal(exitCode, EXIT_EVALUATED);
+  assertCanonicalResult(capture, invalidResult("deferred_package_changed"));
+});
+
+test("v050 missing baseline commit is dependency_failure", async () => {
+  const { exitCode, capture } = await runCli(V050_BOOTSTRAP_ARGV, {
+    roadmapBytes: v050RoadmapBytes(),
+    activeNames: [V050_OWNER],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText: sealV050Register({
+      activeNames: [V050_OWNER],
+      roadmapBytes: v050RoadmapBytes(),
+    }),
+    baselineCommitMissing: true,
+  });
+  assert.equal(exitCode, EXIT_EVALUATED);
+  assertCanonicalResult(capture, invalidResult("dependency_failure"));
+  assertSanitized(capture);
+});
+
+test("live v050 bootstrap against real repository history with absent baseline register", { timeout: 60_000 }, async () => {
+  const relativeRegister =
+    "openspec/changes/v050-release-program/coverage.toml";
+  const shown = await Effect.runPromise(
+    liveReleaseCoverageCliServices.gitChangedPaths
+      .readAtCommit({
+        repository: WORKTREE_ROOT,
+        commit: V050_BASELINE,
+        path: relativeRegister,
+      })
+      .pipe(Effect.either),
+  );
+  assert.equal(shown._tag, "Left");
+
+  const present = await Effect.runPromise(
+    liveReleaseCoverageCliServices.gitChangedPaths.existsAtCommit({
+      repository: WORKTREE_ROOT,
+      commit: V050_BASELINE,
+      path: relativeRegister,
+    }),
+  );
+  assert.equal(present, false);
+
+  const missingCommit = await Effect.runPromise(
+    liveReleaseCoverageCliServices.gitChangedPaths
+      .existsAtCommit({
+        repository: WORKTREE_ROOT,
+        commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        path: relativeRegister,
+      })
+      .pipe(Effect.either),
+  );
+  assert.equal(missingCommit._tag, "Left");
+
+  const temporary = mkdtempSync(join(tmpdir(), "release-coverage-v050-live-"));
+  const isolated = join(temporary, "repo");
+  try {
+    assertGitOk(
+      gitIn(WORKTREE_ROOT, ["worktree", "add", "--detach", isolated, "HEAD"]),
+      "git worktree add",
+    );
+    assertGitOk(
+      gitIn(isolated, [
+        "restore",
+        `--source=${V050_BASELINE}`,
+        "--worktree",
+        "--staged",
+        "--",
+        "docs/superpowers",
+      ]),
+      "restore baseline superpowers",
+    );
+    const register = join(isolated, relativeRegister);
+    const bootstrapArgv = [
+      "--import",
+      TSX_LOADER,
+      LIVE_COVERAGE_MAIN,
+      "check",
+      "--program",
+      "v050",
+      "--phase",
+      "bootstrap",
+      "--owner",
+      V050_OWNER,
+      "--register",
+      register,
+    ] as const;
+    const childEnv = { ...process.env };
+    delete childEnv.FORCE_COLOR;
+    childEnv.NO_COLOR = "1";
+    const invoked = spawnSync(process.execPath, [...bootstrapArgv], {
+      cwd: isolated,
+      encoding: "utf8",
+      timeout: 60_000,
+      maxBuffer: ONE_MIB,
+      env: childEnv,
+    });
+    assert.equal(invoked.error, undefined);
+    assert.equal(invoked.status, EXIT_OK, invoked.stderr || invoked.stdout);
+    assert.equal(invoked.stderr, "");
+    const output = JSON.parse(invoked.stdout.trim()) as ReleaseCoverageResultV1;
+    assert.equal(output._tag, "Valid");
+    assert.equal(invoked.stdout, `${canonicalize(output)}\n`);
+  } finally {
+    gitIn(WORKTREE_ROOT, ["worktree", "remove", "--force", isolated]);
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
 test("v050 baseline read uses the selected register relative path", async () => {
   const customRegister = join(
     REPO,
@@ -2835,6 +3072,85 @@ test("v050 release evidence directory vocabulary cases", async (t) => {
         assertCanonicalResult(capture, invalidResult(item.reason));
       }
     });
+  }
+});
+
+test("v050 release evidence directory outside state-root uses live classification", async (t) => {
+  const temporary = mkdtempSync(join(tmpdir(), "release-coverage-evidence-"));
+  try {
+    const evidenceDir = join(temporary, "evidence");
+    mkdirSync(join(evidenceDir, "nested"), { recursive: true });
+    const releaseArgv = processArgv([
+      "check",
+      "--program",
+      "v050",
+      "--phase",
+      "release",
+      "--repo",
+      REPO,
+      "--state-root",
+      STATE_ROOT,
+      "--contract-id",
+      CONTRACT_ID,
+      "--contract-sha",
+      CONTRACT_SHA,
+      "--family-sha",
+      FAMILY_SHA,
+      "--register",
+      V050_REGISTER,
+      "--evidence",
+      evidenceDir,
+    ]);
+    const roadmapBytes = v050RoadmapBytes();
+    const registerText = sealV050Register({
+      activeNames: [V050_OWNER],
+      roadmapBytes,
+    });
+    const brief = deriveBrief(V050_CHILD);
+    const base = {
+      roadmapBytes,
+      activeNames: [V050_OWNER],
+      workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+      registerText,
+      familyResult: V050_FAMILY_RESULT,
+      briefBytesByAbsPath: new Map([
+        [v050GovernorBriefAbs(), briefFileBytes(brief)],
+      ]),
+      liveEvidenceRoot: evidenceDir,
+    };
+
+    await t.test("Valid vocabularies", async () => {
+      writeFileSync(
+        join(evidenceDir, "nested", "verdict.json"),
+        '{"verdict":"APPROVED"}\n',
+      );
+      writeFileSync(
+        join(evidenceDir, "nested", "measure.md"),
+        "measurement_result: PASS\n",
+      );
+      const { exitCode, capture } = await runCli(releaseArgv, base);
+      assert.equal(exitCode, EXIT_OK);
+      assertCanonicalResult(
+        capture,
+        validResult([V050_OWNER], roadmapBytes, 2),
+      );
+    });
+
+    await t.test("vocabulary_mixed", async () => {
+      writeFileSync(
+        join(evidenceDir, "nested", "verdict.json"),
+        '{"verdict":"UNVERIFIED"}\n',
+      );
+      writeFileSync(
+        join(evidenceDir, "nested", "measure.md"),
+        "measurement_result: PASS\n",
+      );
+      const { exitCode, capture } = await runCli(releaseArgv, base);
+      assert.equal(exitCode, EXIT_EVALUATED);
+      assertCanonicalResult(capture, invalidResult("vocabulary_mixed"));
+    });
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
   }
 });
 

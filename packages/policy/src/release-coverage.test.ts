@@ -2711,6 +2711,7 @@ describe("release coverage policy", () => {
     extras: {
       readonly tasksMarkdownByOwner?: Readonly<Record<string, string>>;
       readonly baselineRegisterText?: string;
+      readonly baselineRegisterAbsent?: boolean;
       readonly evidenceTexts?: readonly string[];
       readonly evidenceArtifacts?: readonly {
         readonly path: string;
@@ -3219,6 +3220,61 @@ describe("release coverage policy", () => {
     });
   });
 
+  it("rejects workflow_mismatch when # Tasks follows the allowed file scope heading", () => {
+    const input = v050BaselineInput({
+      phase: "Lane",
+      laneOwner: V050_OWNER,
+      expectedPackageBriefByName: {
+        [V050_OWNER]: makeBrief("Ship v0.5.", V050_OWNER),
+      },
+      packageBriefBytesByName: {
+        [V050_OWNER]: canonicalBriefBytes(makeBrief("Ship v0.5.", V050_OWNER)),
+      },
+    });
+    expectV050Invalid(input, "workflow_mismatch", {
+      tasksMarkdownByOwner: {
+        [V050_OWNER]: "## Allowed file scope\n\n# Tasks\n",
+      },
+    });
+  });
+
+  it("rejects workflow_mismatch when ### Tasks follows the allowed file scope heading", () => {
+    const input = v050BaselineInput({
+      phase: "Lane",
+      laneOwner: V050_OWNER,
+      expectedPackageBriefByName: {
+        [V050_OWNER]: makeBrief("Ship v0.5.", V050_OWNER),
+      },
+      packageBriefBytesByName: {
+        [V050_OWNER]: canonicalBriefBytes(makeBrief("Ship v0.5.", V050_OWNER)),
+      },
+    });
+    expectV050Invalid(input, "workflow_mismatch", {
+      tasksMarkdownByOwner: {
+        [V050_OWNER]: "## Allowed file scope\n\n### Tasks\n",
+      },
+    });
+  });
+
+  it("accepts a scope heading followed by one path line", () => {
+    const input = v050BaselineInput({
+      phase: "Lane",
+      laneOwner: V050_OWNER,
+      expectedPackageBriefByName: {
+        [V050_OWNER]: makeBrief("Ship v0.5.", V050_OWNER),
+      },
+      packageBriefBytesByName: {
+        [V050_OWNER]: canonicalBriefBytes(makeBrief("Ship v0.5.", V050_OWNER)),
+      },
+    });
+    const result = runV050(input, {
+      tasksMarkdownByOwner: {
+        [V050_OWNER]: "## Allowed file scope\n\n- `packages/policy/**`\n",
+      },
+    });
+    assert.equal(result._tag, "Valid");
+  });
+
   it("keeps a missing tasks.md valid for a v050 lane", () => {
     const input = v050BaselineInput({
       phase: "Lane",
@@ -3432,6 +3488,47 @@ describe("release coverage policy", () => {
         changedPaths: ["openspec/changes/graph-store-port/tasks.md"],
       }),
       { baselineRegisterText: baseline },
+    );
+    assert.equal(result._tag, "Valid");
+  });
+
+  it("rejects deferred_package_changed when the baseline register is absent and a v060 directory changes", () => {
+    const active = [V050_OWNER, V050_DEFERRED];
+    const assignments = v050Assignments();
+    const roadmapText = renderRoadmapText(assignments);
+    const registerText = sealV050(active, roadmapText, {
+      entries: [v050GovernorEntry, v050DeferredEntry, v050RoadmapEntry],
+    });
+    expectV050Invalid(
+      v050BaselineInput({
+        registerText,
+        activePackageNames: active,
+        roadmapText,
+        roadmapAssignments: assignments,
+        packageWorkflowByName: { [V050_OWNER]: ACTIVE_WF },
+        changedPaths: ["openspec/changes/graph-store-port/tasks.md"],
+      }),
+      "deferred_package_changed",
+      { baselineRegisterAbsent: true },
+    );
+  });
+
+  it("accepts an absent baseline register when deferred directories are unchanged", () => {
+    const active = [V050_OWNER, V050_DEFERRED];
+    const assignments = v050Assignments();
+    const roadmapText = renderRoadmapText(assignments);
+    const registerText = sealV050(active, roadmapText, {
+      entries: [v050GovernorEntry, v050DeferredEntry, v050RoadmapEntry],
+    });
+    const result = runV050(
+      v050BaselineInput({
+        registerText,
+        activePackageNames: active,
+        roadmapText,
+        roadmapAssignments: assignments,
+        packageWorkflowByName: { [V050_OWNER]: ACTIVE_WF },
+      }),
+      { baselineRegisterAbsent: true },
     );
     assert.equal(result._tag, "Valid");
   });
