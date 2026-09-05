@@ -1,0 +1,52 @@
+# Approved experiments  2026-09-05T07:09:57Z  host=hoskinsonlaptop uid=1000 commit=48f0b6e
+
+## T1 transient user service: main process exits, setsid escapee remains in the cgroup
+pre-existing sleepers 3117: 0
+inside: cgroup=0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p856161-i857336.service sleepers=1
+systemd-run rc=0
+1s after main exit: sleepers=0
+7s after main exit: sleepers=0
+
+## T2 cgroup escape from a transient user service (write own pid to the user-owned parent cgroup.procs)
+parent cgroup.procs owner: charl:charl 644
+sh: 1: echo: echo: I/O error
+inside: unit cgroup=0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p856226-i857401.service
+systemd-run rc=0
+7s after main exit: escaped sleepers=0
+
+## T3 same-context probe through pueue (group misc)
+pueue task id: 1467
+pueue status: {'Done': {'enqueued_at': '2026-09-05T01:10:11.446097642-06:00', 'start': '2026-09-05T01:10:11.551756886-06:00', 'end': '2026-09-05T01:10:11.886168497-06:00', 'result': 'Success'}}
+unshare: unshare failed: Operation not permitted
+probe rc=1
+userns probe rc=0
+CapEff:	0000000000000000
+NoNewPrivs:	0
+Seccomp:	0
+pueue task removed
+
+## T4 degraded descendant survival under the legacy Bun launcher (approved degraded round, SIGTERM to lane-run)
+worktree=/home/charl/foreman-wt-pidns-approved-20260905-implement-t4
+pre-existing sleepers 3119: 0
+before: sleepers=6 lane-run alive=yes
+4s after SIGTERM to lane-run: sleepers=1
+  survivor pid 857463 pgid=857463 sid=857463
+(survivors killed by test)
+event alert {"kind": "degraded", "reason": "containment_capability_file_missing", "approval": "approved test T4 2026-09-05"}
+event ownership {"containment": {"tag": "Unknown", "kind": "unknown", "reason": "capability_file_missing", "approval": "approved test T4 2026-09-05"}}
+
+## T5 control: same survival test under the Node launcher (strong)
+pre-existing sleepers 3120: 0
+before: sleepers=7
+4s after SIGTERM to lane-run: sleepers=0
+
+## T2b cgroup escape via a user-created sibling leaf cgroup under app.slice
+app.slice owner: charl:charl 755  subtree_control: memory pids
+pre-existing sleepers 3121: 0
+mkdir sibling cgroup: ok owner=charl:charl
+escape-write-ok
+systemd-run rc=0
+7s after main exit: escaped sleepers=1
+  pid 858568 cgroup=0::/user.slice/user-1000.slice/user@1000.service/app.slice/pidns-escape-test
+(escapee killed by test)
+test cgroup removed
