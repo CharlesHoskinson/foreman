@@ -203,4 +203,3 @@ The semantics guide SHALL distinguish planned work, executable definitions, conf
 - **GIVEN** No implementation,trace-only results,scoped proof results and a changed semantics digest.
 - **WHEN** Render the status table and verify linked claim/trace artifacts and changed-domain invalidation.
 - **THEN** PLANNED remains the current sprint state until implementation evidence exists. Changed semantics reopen affected claims; historical evidence remains intact.
-

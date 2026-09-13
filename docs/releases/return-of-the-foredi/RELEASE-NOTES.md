@@ -344,3 +344,10 @@ The [K semantics proposal](../../../openspec/changes/foredi-07-k-semantics/propo
 The [semantics guide](../../guides/pel/semantics.md) explains its intended relationship to the current Pel implementation.
 No K executable semantics, equivalence proof, or additional formal release guarantee is claimed here.
 Current behavior remains governed by the implemented compatibility profile, source specifications, and recorded tests.
+
+## GitHub validation observation
+
+The first PR run reported six failures because the Linux job lacked the native test prerequisites.
+The workflow now installs ripgrep and Bubblewrap before the workspace tests and checks the namespace boundary explicitly.
+The affected 21 tests pass locally. The GitHub rerun remains pending at this documentation update.
+See the [local regression output](evidence/m6/ci-prerequisites-local.txt) and [original CI run](https://github.com/CharlesHoskinson/foreman/actions/runs/34768912646).
