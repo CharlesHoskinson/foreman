@@ -73,6 +73,15 @@
       "passed": 5,
       "failed": 0,
       "skipped": 0
+    },
+    {
+      "id": "committed-architecture-policy",
+      "command": "npm run policy:check -- --base eb8c6deeded5cae3e47412e0247521f98ed5cc97",
+      "exitCode": 0,
+      "output": "docs/releases/return-of-the-foredi/evidence/m5/committed-architecture-policy.txt",
+      "outputSha256": "f2e42ef200ba58aec9d9b0108652947ba80d777f47d5a460fc7cfe04a355fbf1",
+      "verdict": "Pass",
+      "findings": 0
     }
   ],
   "independentReviews": [
@@ -490,5 +499,6 @@
       "path": "skills/foreman/runtime/manifest.json",
       "sha256": "c753cda8938ec6cd1c460b1855bdac0237e86bd2e6974882bf989c3b9fc2e8c8"
     }
-  ]
+  ],
+  "implementationCommit": "03ff8073d86c7cbc698aa6bbec22be306e7dfd4d"
 }
