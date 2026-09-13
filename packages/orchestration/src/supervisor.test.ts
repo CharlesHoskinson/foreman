@@ -28,7 +28,6 @@ import {
   makeStubWorktreeRestore,
   type WorktreeRestorePermitV1,
 } from "./resume-worktree-restore.js";
-import { makeStubQueueSubmitter } from "./resume-queue-execution.js";
 import {
   ResumeLockProbe,
   ResumeProcessProbe,
@@ -166,8 +165,6 @@ function completedRecords(): readonly ReplayRecord[] {
 function baseConfig(overrides: Partial<SupervisorConfig> = {}): SupervisorConfig {
   return {
     resumeMaxAttempts: 2,
-    shellBinary: "/bin/bash",
-    laneRunScript: "/skill/scripts/lane-run.sh",
     dryRun: false,
     ...overrides,
   };
@@ -271,13 +268,6 @@ function makeHarness(opts: {
       });
     },
   });
-  const queue = makeStubQueueSubmitter({
-    submit: (_g, commandArgv) => {
-      order.push("submit");
-      opts.submitCalls?.push("submit");
-      return Effect.succeed({ _tag: "Ready", commandArgv });
-    },
-  });
   const layer = Layer.mergeAll(
     discovery,
     journalReader,
@@ -286,7 +276,6 @@ function makeHarness(opts: {
     lockProbe,
     restore,
     journal,
-    queue,
   );
   return { layer, order };
 }
@@ -543,25 +532,15 @@ describe("sweepOneRun", () => {
     assert.deepEqual(order, []);
   });
 
-  it("executes inspect→reserve→restore→submit for Resume", async () => {
-    const h = makeHarness({
-      records: promptAndCheckpoint("/abs/wt"),
-    });
-    const result = await Effect.runPromise(
-      sweepOneRun(runId, baseConfig()).pipe(Effect.provide(h.layer)),
-    );
-    assert.equal(result._tag, "Swept");
-    if (result._tag === "Swept") {
-      assert.equal(result.actions[0]?._tag, "Executed");
-      if (result.actions[0]?._tag === "Executed") {
-        assert.equal(result.actions[0].result.submission._tag, "Ready");
-        assert.ok(
-          result.actions[0].result.commandArgv.includes("--round"),
-        );
-        assert.ok(result.actions[0].result.commandArgv.includes(""));
-      }
+  it("refuses legacy Resume without inspection, reservation, restore, or submission", async () => {
+    const h = makeHarness({records:promptAndCheckpoint("/abs/wt")});
+    const result = await Effect.runPromise(sweepOneRun(runId,baseConfig()).pipe(Effect.provide(h.layer)));
+    assert.equal(result._tag,"Swept");
+    if(result._tag==="Swept") {
+      assert.equal(result.actions[0]?._tag,"LegacyControllerRequired");
+      assert.match(formatLaneActionLine(result.actions[0]!),/ActiveLegacyRun/);
     }
-    assert.deepEqual(h.order, ["inspect", "reserve", "restore", "submit"]);
+    assert.deepEqual(h.order,[]);
   });
 
   it("exhausted valid budget returns resume_limit_reached without mutation", async () => {
@@ -700,7 +679,7 @@ describe("sweepOneRun", () => {
     assert.deepEqual(submitCalls, []);
   });
 
-  it("round_done between decision and reserve fails before restore and submit", async () => {
+  it("legacy refusal does not reserve even when a concurrent terminal event would reject reservation", async () => {
     const inspectCalls: string[] = [];
     const reserveCalls: string[] = [];
     const restoreCalls: string[] = [];
@@ -721,13 +700,10 @@ describe("sweepOneRun", () => {
     );
     assert.equal(result._tag, "Swept");
     if (result._tag === "Swept") {
-      assert.equal(result.actions[0]?._tag, "ExecutionFailed");
-      if (result.actions[0]?._tag === "ExecutionFailed") {
-        assert.equal(result.actions[0].reason, "reserve_failed");
-      }
+      assert.equal(result.actions[0]?._tag, "LegacyControllerRequired");
     }
-    assert.deepEqual(inspectCalls, ["inspect"]);
-    assert.deepEqual(reserveCalls, ["reserve"]);
+    assert.deepEqual(inspectCalls, []);
+    assert.deepEqual(reserveCalls, []);
     assert.deepEqual(restoreCalls, []);
     assert.deepEqual(submitCalls, []);
   });

@@ -71,3 +71,22 @@ test('hash-only registered reads enforce registration, digest, bound, and nofoll
   assert.equal((await Effect.runPromise(Effect.either(service.readHash(f.project,f.ref.sha256,1000))))._tag,'Left');
  }finally{rmSync(f.root,{recursive:true,force:true});}
 });
+
+import {withPelRegistryTransaction} from './pel-registry-transaction.js';
+import {packageFixture} from './fixtures/pel-install/package-fixture.js';
+import {installPackage,withInstalledPrefix} from './pel-install.js';
+import {pathToFileURL} from 'node:url';
+import {writeFile} from 'node:fs/promises';
+test('T-M6-017 installed registration refuses a concurrent pointer transaction and a stale build before publication',async()=>{
+ const f=await fixture(),pkg=await packageFixture();try{
+  await Effect.runPromise(installPackage({sourceRoot:pkg.sourceRoot,prefix:pkg.prefix}));
+  const entryUrl=pathToFileURL(join(pkg.prefix,'versions',pkg.manifest.buildId,'runtime/dist/foreman.js')).href;
+  const service=makeLivePelProjectServices({cwd:f.cwd,foremanHome:f.foremanHome,entryUrl,validateAuthority:()=>Effect.void}),input=Buffer.from(canonicalAuthoringJson(f.project));
+  const locked=await Effect.runPromise(withInstalledPrefix(pkg.prefix,false,()=>service.configure(input).pipe(Effect.either)));
+  assert.equal(locked._tag,'Left');assert.throws(()=>readFileSync(join(f.foremanHome,'projects.json')));assert.throws(()=>readFileSync(join(f.project.repository.gitCommonDir,'foreman','project.json')));
+  const shared=await Effect.runPromise(withPelRegistryTransaction(f.foremanHome,service.configure(input).pipe(Effect.either)));assert.equal(shared._tag,'Left');assert.throws(()=>readFileSync(join(f.foremanHome,'projects.json')));
+  await Effect.runPromise(service.configure(input));const before=readFileSync(join(f.foremanHome,'projects.json')),settings=readFileSync(join(f.project.repository.gitCommonDir,'foreman','project.json'));
+  await writeFile(join(pkg.sourceRoot,'docs/guides/pel/install.md'),'next registration build');await pkg.seal('1.0.0');await Effect.runPromise(installPackage({sourceRoot:pkg.sourceRoot,prefix:pkg.prefix}));
+  const stale=await Effect.runPromise(service.configure(input).pipe(Effect.either));assert.equal(stale._tag,'Left');assert.deepEqual(readFileSync(join(f.foremanHome,'projects.json')),before);assert.deepEqual(readFileSync(join(f.project.repository.gitCommonDir,'foreman','project.json')),settings);
+ }finally{rmSync(f.root,{recursive:true,force:true});await pkg.close();}
+});

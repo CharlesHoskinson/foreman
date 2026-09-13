@@ -10,7 +10,7 @@
 #   below; v0.2.5 T6 adds durable.merge_base_max_commits, default 50, env
 #   MERGE_BASE_MAX_COMMITS -- the merge-freshness gate's staleness bound;
 #   v0.2.5 T7 adds durable.queue_timeout, default 3, env WATCH_QUEUE_TIMEOUT
-#   -- watch.sh's wd_is_queued pueue-status-probe bound, previously env-only
+#   -- the historical controller's wd_is_queued pueue-status-probe bound, previously env-only
 #   (see the _CFG_ENV_VAR comment below on how that differs from
 #   durable.watch_tick, which STAYS env-only); v0.2.5 T7 also adds the
 #   FOUR-key `[audit.policy]` dotted section -- warning_low_resolved,
@@ -29,7 +29,7 @@
 
 # Env var cfg_get resolves for each section.key it is asked about. This is
 # broader than the TOML "known keys" allowlist by exactly one entry
-# (durable.watch_tick -> WATCH_TICK): watch.sh's poll tick is not one of the
+# (durable.watch_tick -> WATCH_TICK): the historical controller's poll tick is not one of the
 # 20 documented [durable]/[nats]/[audit.policy] keys (see _cfg_parse_toml's
 # explicit case statement below, which is the actual TOML allowlist), but it
 # still needs a uniform cfg_get call site that honors its own pre-existing
@@ -38,7 +38,7 @@
 # (unlike watch_tick) is symmetric -- present in BOTH tables, per the
 # closed-allowlist rule (v0.2.5 T7 CRITICAL note): a key missing from either
 # silently no-ops.
-# v0.2.5 T4b adds four more symmetric (BOTH-tables) keys: watch.sh's typed
+# v0.2.5 T4b adds four more symmetric (BOTH-tables) keys: the historical controller's typed
 # state machine's phase-aware stale thresholds (starting_stale/impl_stale/
 # verify_stale) and its phase-transition grace window (grace). stall_warn/
 # stall_dead are UNCHANGED and stay exactly as they were -- the v1
@@ -50,7 +50,7 @@
 # merge-base may sit behind origin/main before the verdict flips to
 # NOT_MERGEABLE).
 # v0.2.5 T7 adds durable.queue_timeout (symmetric, BOTH tables): promotes
-# watch.sh's wd_is_queued pueue-status-probe bound from env-only to
+# the historical controller's wd_is_queued pueue-status-probe bound from env-only to
 # TOML-storable, unlike its sibling watch_tick above (which deliberately
 # STAYS env-only -- queue_timeout is a new v0.2.5 key with no legacy
 # env-only callers to preserve compatibility for, so there was no reason to

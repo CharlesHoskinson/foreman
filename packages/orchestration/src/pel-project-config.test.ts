@@ -78,3 +78,11 @@ test('T-M4-001 check and run share effective configuration and reject expanded l
   assert.equal(configurePelSnapshot(base, { ...decoded.value, resultContract: { ...decoded.value.resultContract, schemaSha256: 'b'.repeat(64) } }).ok, false);
   assert.equal(configurePelSnapshot(base, { ...decoded.value, limits: { ...decoded.value.limits, pel: { ...base.limits, maxReductions: base.limits.maxReductions + 1 } } }).ok, false);
 });
+test('M6 research index bindings are optional and reject paths, duplicate metadata, and unknown fields',()=>{const p=projectFixture(),ref={artifactId:'sha256-'+ 'b'.repeat(64),sha256:'b'.repeat(64),byteLength:100};assert.equal(decodeForemanProjectV1({...p,researchBundles:{'bundle:release-sources':ref}}).ok,true);for(const researchBundles of [{'/tmp/source':ref},{'bundle:release-sources':{...ref,readRoots:[]}},{'bundle:release-sources':{...ref,sha256:'changed'}}])assert.equal(decodeForemanProjectV1({...p,researchBundles}).ok,false);});
+
+test('M6 plan effect bounds remain independent from paid ledger actions',()=>{
+ const p=projectFixture(),limits={...p.limits.execution,totalActions:6},decoded=decodeForemanProjectV1({...p,limits:{...p.limits,execution:limits}});assert.ok(decoded.ok);if(!decoded.ok)return;
+ const base=createDefaultAuthoringSnapshotV1(),configured=configurePelSnapshot(base,decoded.value);assert.ok(configured.ok);if(!configured.ok)return;
+ const checked=checkPel({source:Buffer.from('(do '+Array.from({length:7},(_,i)=>`(fm/checkpoint :name "checkpoint-${i}")`).join(' ')+')'),snapshot:configured.value});
+ assert.equal(checked.tag,'ok');assert.equal(configured.value.policy.maxEffects,base.policy.maxEffects);assert.equal(decoded.value.limits.execution.totalActions,6);
+});

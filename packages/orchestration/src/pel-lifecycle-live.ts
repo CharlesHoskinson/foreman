@@ -1,4 +1,5 @@
 /** Product lifecycle assembly over registered project state and existing host services. */
+import {makePelInstalledAdmission} from './pel-install-admission.js';
 import {existsSync,lstatSync} from 'node:fs';
 import {homedir} from 'node:os';
 import {join} from 'node:path';
@@ -8,7 +9,8 @@ import {hashAuthoringContent,validateAuthoringSnapshotV1,type CheckedProgramV1,t
 import {CredentialPort,admitCell,resolveProfile,createXaiResponsesTransport,createAnthropicMessagesTransport,createOpenaiResponsesTransport,createGoogleInteractionsTransport,type HostPermissionPort,type ProviderRequestV1,type ProviderFailure,type ProviderTransport} from '@foreman/providers';
 import {EndstopLedger,makeLiveEndstopLedgerLayer} from './execution-ledger.js';
 import {executionContractSha256,type ExecutionMilestone} from './execution-contract.js';
-import {makeLiveRunLease} from './supervisor-live-services.js';
+import {makeLiveRunLease,makeLiveTypedJournalReader} from './supervisor-live-services.js';
+import {readPelLegacyStatus} from './pel-legacy-status.js';
 import {PelSupervisorRecovery} from './supervisor.js';
 import {loadProjectRegistryFileV1} from './project-registry.js';
 import {resumeProgram} from './pel-recovery.js';
@@ -25,6 +27,7 @@ import {makePelExecutionProviderPort} from './pel-execution-provider-live.js';
 import {makePelHostLibraryServices,makeForemanHostRegistry} from './pel-host-library.js';
 import {preflightPelDeliveryProviders} from './pel-host-preflight.js';
 import {makePelTaskHandler} from './pel-host-task.js';
+import {loadPelResearchBundleInputs,makePelImmutableResearchHandler} from './pel-research-host.js';
 import {makeLivePelNativeServices} from './pel-native-live.js';
 import {makePelNativePermissionAuthorizer,makePelNativePermissionExecutor} from './pel-native-permissions.js';
 import {projectPelHostReceiptEvidence} from './pel-host-evidence.js';
@@ -41,14 +44,15 @@ import {readProviderEvidence} from './pel-provider-evidence.js';
 import {authoringFailure,type AuthoringFailure,type AuthoringOutputPort} from './pel-authoring-contract.js';
 import type {PelLifecycleCliServices} from './pel-lifecycle-cli.js';
 
-export const PEL_EXECUTION_RUNTIME_VERSION='1';
-export const PEL_EXECUTION_HANDLER_VERSION='1';
-const handlerIds=new Set(['print','fm/checkpoint','fm/retry','fm/race','pel/nl-condition','fm/task','fm/verify','fm/review','fm/publish']);
+import {PEL_EXECUTION_RUNTIME_VERSION,PEL_EXECUTION_HANDLER_VERSION} from './pel-runtime-version.js';
+export {PEL_EXECUTION_RUNTIME_VERSION,PEL_EXECUTION_HANDLER_VERSION} from './pel-runtime-version.js';
+const handlerIds=new Set(['print','fm/checkpoint','fm/retry','fm/race','pel/nl-condition','fm/task','fm/verify','fm/review','fm/publish','fm/research']);
 const asAuthoring=(error:RunFailure):AuthoringFailure=>authoringFailure(error.code,error.diagnostic.message);
 const providerFailure=(message:string):ProviderFailure=>({_tag:'UnsupportedCapability',retryClass:'never',message});
 const denyPermissions:HostPermissionPort={authorize:()=>Effect.fail(providerFailure('This execution host has no admitted native tool boundary.')),submit:()=>Effect.fail(providerFailure('This execution host has no admitted tool-result channel.'))};
 const apiVersions:Readonly<Record<string,string>>={'xai-responses':'v1','anthropic-messages':'2023-06-01','openai-responses':'v1','google-interactions':'v1beta'};
 export interface PelLiveLifecycleOptions {
+  readonly entryUrl?:string;
   readonly cwd:string;
   readonly foremanHome:string;
   readonly userHome:string;
@@ -62,11 +66,13 @@ function reference(bytes:Uint8Array):PelArtifactRefV1 {
 import {sha256Hex as importHash} from '@foreman/core';
 
 export function makeLivePelLifecycleBackend(options:PelLiveLifecycleOptions):PelLifecycleBackend {
+  const admission=makePelInstalledAdmission(options.entryUrl??import.meta.url,options.foremanHome);
   const registryDigest=createDefaultAuthoringSnapshotV1().registryDigest;
-  const projectServices=makeLivePelProjectServices({cwd:options.cwd,foremanHome:options.foremanHome,
+  const projectServices=makeLivePelProjectServices({cwd:options.cwd,foremanHome:options.foremanHome,entryUrl:options.entryUrl??import.meta.url,
     validateAuthority:(project,read,readHash)=>Effect.gen(function*(){
       const reader:PelAuthorityInputReaderV1=(locator,max)=>'byteLength' in locator?read(locator,max):readHash(locator.sha256,max);
       yield* resolvePelProjectAuthority(project,reader);
+      yield* loadPelResearchBundleInputs(project,read);
       const parsed=validateAuthoringSnapshotV1(yield* parsePelInputJson(yield* read(project.authoringSnapshot,16777216)));
       if(!parsed.ok||parsed.value.registryDigest!==registryDigest||!configurePelSnapshot(parsed.value,project).ok)return yield* Effect.fail(pelFailure('binding-mismatch','The project snapshot or selections differ from this runtime.'));
     }).pipe(Effect.provide(makeLiveEndstopLedgerLayer(project.stateRoot)))});
@@ -78,13 +84,15 @@ export function makeLivePelLifecycleBackend(options:PelLiveLifecycleOptions):Pel
     const snapshotBytes=yield* projectServices.input.read(project,project.authoringSnapshot,16777216),snapshot=validateAuthoringSnapshotV1(yield* parsePelInputJson(snapshotBytes));
     if(!snapshot.ok||snapshot.value.registryDigest!==registryDigest||project.runtimeHandlerVersion!==PEL_EXECUTION_HANDLER_VERSION)return yield* Effect.fail(pelFailure('binding-mismatch','The configured snapshot or handler version is unavailable.'));
     const authority:PelValidatedAuthorityV1={...resolved,availableHandlers:handlerIds};
-    return {project,baseSnapshot:snapshot.value,authority,retainedInputs:[...resolved.retainedInputs,{ref:reference(snapshotBytes),bytes:snapshotBytes}]};
+    const researchInputs=yield* loadPelResearchBundleInputs(project,(ref,max)=>projectServices.input.read(project,ref,max));
+    return {project,baseSnapshot:snapshot.value,authority,retainedInputs:[...resolved.retainedInputs,{ref:reference(snapshotBytes),bytes:snapshotBytes},...researchInputs]};
   }).pipe(Effect.mapError(asAuthoring));
 
   function services(root:Pick<PelRegisteredRootV1,'stateRoot'|'projectId'|'repository'|'worktreePath'>,outputMode:'text'|'json'='text'):Layer.Layer<RunServices,AuthoringFailure>{
     const journalLayer=makeLiveRunJournalLayer(root.stateRoot),ledgerLayer=makeLiveEndstopLedgerLayer(root.stateRoot),leaseLayer=makeLiveRunLease(root.stateRoot);
     const runtimeLayer=Layer.effect(PelRuntime,Effect.gen(function*(){
-      const journal=yield* RunJournal,ledger=yield* EndstopLedger,processExec=yield* ProcessExec,resources=yield* makePelResourceScope(),artifacts=makeLivePelArtifactPort(root.stateRoot),native=makeLivePelNativeServices(liveContext(root));
+      const journal=yield* RunJournal,ledger=yield* EndstopLedger,processExec=yield* ProcessExec,artifacts=makeLivePelArtifactPort(root.stateRoot),native=makeLivePelNativeServices(liveContext(root));
+      const resources=yield* makePelResourceScope({readResearchIndex:(context,ref,max)=>artifacts.get(context.binding.runId,ref,max).pipe(Effect.mapError(()=>({code:'artifact-missing' as const,message:'The original research index is unavailable or changed.'})))});
       const retained=(runId:RunId):PelAuthorityInputReaderV1=>(locator,max)=>Effect.gen(function*(){
         let ref:PelArtifactRefV1;
         if('byteLength' in locator)ref=locator;
@@ -97,7 +105,7 @@ export function makeLivePelLifecycleBackend(options:PelLiveLifecycleOptions):Pel
       });
       let runtime:PelRuntimePorts;
       const handlers=new Map<string,import('./pel-run-contract.js').PelPreparedHandlerV1>();
-      runtime={artifacts,resources,clock:{now:Effect.sync(Date.now),sleep:Effect.sleep},handlers,controls:makePelControlHandlers(),
+      runtime={admission,artifacts,resources,clock:{now:Effect.sync(Date.now),sleep:Effect.sleep},handlers,controls:makePelControlHandlers(),
         output:(_ref,text)=>outputMode==='json'?Effect.void:options.output.stderr(text).pipe(Effect.mapError(()=>pelFailure('journal-write-failed','Program output could not be written.'))),
         providers:makePelExecutionProviderPort({live:liveContext(root),journal,runtime:()=>runtime,permissions:denyPermissions,nativeBoundary:native.boundary,nativeAuthorize:makePelNativePermissionAuthorizer,nativeToolExecutor:makePelNativePermissionExecutor}),
         validateDecisionAuthority:validatePelRegisteredDecisionAuthority,
@@ -153,6 +161,7 @@ export function makeLivePelLifecycleBackend(options:PelLiveLifecycleOptions):Pel
       }));
       Object.assign(runtime,{workspaceForHostRequest:library.workspaceForHostRequest,commitRaceWinner:library.commitRaceWinner});
       handlers.set('fm/verify',library.verification);handlers.set('fm/review',library.review);handlers.set('fm/publish',library.publication);
+      handlers.set('fm/research',makePelImmutableResearchHandler());
       makeForemanHostRegistry(handlers);
       return runtime;
     })).pipe(Layer.provide(Layer.mergeAll(journalLayer,ledgerLayer,liveProcessExec)));
@@ -162,6 +171,10 @@ export function makeLivePelLifecycleBackend(options:PelLiveLifecycleOptions):Pel
   const backend:PelLifecycleBackend={runtimeVersion:PEL_EXECUTION_RUNTIME_VERSION,evidenceKind:'product',now:Effect.sync(Date.now),load:loadProject,
     configure:bytes=>projectServices.configure(bytes).pipe(Effect.asVoid,Effect.mapError(asAuthoring)),services:(loaded,outputMode)=>services(rootFromLoaded(loaded),outputMode),
     registerOperatorDecision:(context,kind,input,source)=>kind==='recovery'?registerPelOperatorDecision(context.binding,context,'recovery',input):registerPelOperatorDecision(context.binding,context,'revision',input,source),
+    legacyStatus:(runId,override)=>Effect.gen(function*(){
+      const root=yield* resolvePelRegisteredRoot(options.cwd,options.foremanHome,override).pipe(Effect.mapError(asAuthoring));
+      return yield* readPelLegacyStatus(runId).pipe(Effect.provide(makeLiveTypedJournalReader(root.stateRoot)));
+    }),
     servicesForRun:(runId,override,outputMode)=>Effect.gen(function*(){
       const root=yield* resolvePelRegisteredRoot(options.cwd,options.foremanHome,override).pipe(Effect.mapError(asAuthoring)),layer=services(root,outputMode);
       const binding=yield* readPelExecutionBinding(runId).pipe(Effect.mapError(asAuthoring),Effect.provide(layer));

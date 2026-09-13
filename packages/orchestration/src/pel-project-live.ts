@@ -1,4 +1,5 @@
 /** Project settings reference existing authority; project input storage never grants it. */
+import {makePelInstalledAdmission} from './pel-install-admission.js';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {createHash,randomUUID} from 'node:crypto';
@@ -73,6 +74,7 @@ export function resolvePelRepository(cwd:string):Effect.Effect<PelProjectLocatio
  });
 }
 export interface PelProjectLiveOptions {
+ readonly entryUrl?:string;
  readonly cwd:string;
  readonly foremanHome:string;
  /** Validate actual registered ledger/authority envelopes before settings or registry writes. */
@@ -87,6 +89,7 @@ export interface PelProjectLiveServices {
 /** Inputs live only at stateRoot/project-inputs/project UUID/sha256-HASH. No arbitrary artifact path is accepted. */
 export function makeLivePelProjectServices(options:PelProjectLiveOptions):PelProjectLiveServices {
  const registryPath=join(options.foremanHome,'projects.json');
+ const admission=makePelInstalledAdmission(options.entryUrl??import.meta.url,options.foremanHome);
  const readHash=(project:Pick<ForemanProjectV1,'projectId'|'stateRoot'>,sha256:string,max:number)=>attempt(()=>{
   if(!UUID.test(project.projectId)||!/^([a-f0-9]{64})$/.test(sha256))throw Error('invalid input hash');
   directory(project.stateRoot);
@@ -126,7 +129,7 @@ export function makeLivePelProjectServices(options:PelProjectLiveOptions):PelPro
    yield* attempt(()=>validateFilesystem(project,location.repository),'Project settings reference foreign or changed repository, state root, or workspaces');
    yield* validateWorktrees(project);
    yield* options.validateAuthority(project,(ref,max)=>readInput(project,ref,max),(sha256,max)=>readHash(project,sha256,max));
-   yield* attempt(()=>{
+   yield* admission(attempt(()=>{
     // Stage and flush settings before registry publication. A later rename failure
     // can leave an inert association; read() still refuses missing/old settings.
     if(!isAbsolute(options.foremanHome))throw Error('home must be absolute');
@@ -147,7 +150,7 @@ export function makeLivePelProjectServices(options:PelProjectLiveOptions):PelPro
      renameSync(temporary,target);
      const parentFd=openSync(parent,constants.O_RDONLY|constants.O_DIRECTORY|constants.O_NOFOLLOW);try{fsyncSync(parentFd);}finally{closeSync(parentFd);}
     }finally{if(existsSync(temporary))unlinkSync(temporary);}
-   },'Project configuration could not be atomically registered and stored');
+   },'Project configuration could not be atomically registered and stored'));
    return project;
   }),
  };

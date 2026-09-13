@@ -6,7 +6,7 @@ import { readPelRecords, replayPelRun, decodePelChildStateV1, decodePelRaceDecis
 import { readPelArtifactJson } from './pel-recovery.js';
 import { pelHostField } from './pel-host-evidence.js';
 
-export function readPelCandidateScopes(context: HostContextV1) {
+export function readPelCandidateScopes(context: Pick<HostContextV1,'binding'>) {
     return Effect.gen(function* () {
         const replay = replayPelRun(yield* readPelRecords(context.binding.runId));
         if (!replay.ok) return yield* Effect.fail(replay.error);

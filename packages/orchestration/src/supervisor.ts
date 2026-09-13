@@ -2,7 +2,7 @@
  * One-shot resume supervisor core (R5D).
  *
  * Injectable Effect services for run discovery, typed journal reads,
- * per-run leases, safety observation, restore, and queue. Uses
+ * per-run leases and read-only legacy safety observation. Uses
  * decideRoundResume; derives worktrees only from ownership events.
  */
 
@@ -30,13 +30,7 @@ import {
   observeResumeSafety,
   type ResumeSafetyObservationV1,
 } from "./resume-safety-services.js";
-import {
-  runResumeQueueExecution,
-  type QueueSubmissionV1,
-  type ResumeQueueExecutionResultV1,
-} from "./resume-queue-execution.js";
-import { WorktreeRestore } from "./resume-worktree-restore.js";
-import { QueueSubmitter } from "./resume-queue-execution.js";
+import { runResumeQueueExecution, activeLegacyRun, type ActiveLegacyRun } from './resume-queue-execution.js';
 import { RunJournal } from "@foreman/event-log";
 import { join } from "node:path";
 
@@ -227,16 +221,10 @@ export type SupervisorLaneActionV1 =
       readonly dryRun: true;
     }
   | {
-      readonly _tag: "Executed";
+      readonly _tag: "LegacyControllerRequired";
       readonly runId: RunId;
       readonly laneId: LaneId;
-      readonly result: ResumeQueueExecutionResultV1;
-    }
-  | {
-      readonly _tag: "ExecutionFailed";
-      readonly runId: RunId;
-      readonly laneId: LaneId;
-      readonly reason: string;
+      readonly diagnostic: ActiveLegacyRun;
     };
 
 export type SupervisorRunResultV1 =
@@ -254,25 +242,20 @@ export type SupervisorRunResultV1 =
 
 export type SupervisorConfig = {
   readonly resumeMaxAttempts: number;
-  readonly shellBinary: string;
-  readonly laneRunScript: string;
   readonly dryRun: boolean;
-  readonly queueGroup?: string;
 };
 
 export type SupervisorServices =
   | RunDiscovery
   | TypedJournalReader
   | RunLease
-  | WorktreeRestore
   | RunJournal
-  | QueueSubmitter
   | import("./resume-safety-services.js").ResumeProcessProbe
   | import("./resume-safety-services.js").ResumeLockProbe;
 
 /**
  * Sweep one run: acquire lease, read journal, decide per lane, optionally
- * execute resume queue path.
+ * recover Pel under the existing owner. Legacy rounds remain read-only.
  */
 export function sweepOneRun(
   runId: RunId,
@@ -441,35 +424,7 @@ function decideAndMaybeExecuteLane(
       };
     }
 
-    const execEither = yield* Effect.either(
-      runResumeQueueExecution({
-        plan: decision.roundPlan,
-        checkpointIdentity: decision.checkpointIdentity,
-        worktree: ownership.worktree,
-        resumeMaxAttempts: config.resumeMaxAttempts,
-        shellBinary: config.shellBinary,
-        laneRunScript: config.laneRunScript,
-        ...(config.queueGroup !== undefined
-          ? { group: config.queueGroup }
-          : {}),
-      }),
-    );
-
-    if (execEither._tag === "Left") {
-      return {
-        _tag: "ExecutionFailed" as const,
-        runId,
-        laneId,
-        reason: execEither.left.reason,
-      };
-    }
-
-    return {
-      _tag: "Executed" as const,
-      runId,
-      laneId,
-      result: execEither.right,
-    };
+    return { _tag: "LegacyControllerRequired" as const, runId, laneId, diagnostic: activeLegacyRun(runId) };
   });
 }
 
@@ -535,16 +490,9 @@ export function formatLaneActionLine(action: SupervisorLaneActionV1): string {
       return `${base}: noop`;
     }
     case "Planned":
-      return `${base}: [dry-run] would resume worktree=${action.worktree} checkpoint=${action.decision.checkpointIdentity.commit}`;
-    case "Executed": {
-      const sub = action.result.submission;
-      if (sub._tag === "Queued") {
-        return `${base}: resumed queued task=${sub.taskId}`;
-      }
-      return `${base}: resumed ready-to-run`;
-    }
-    case "ExecutionFailed":
-      return `${base}: execution failed ${action.reason}`;
+      return `${base}: [dry-run] legacy checkpoint requires original controller; worktree=${action.worktree} checkpoint=${action.decision.checkpointIdentity.commit}`;
+    case "LegacyControllerRequired":
+      return `${base}: ActiveLegacyRun ${action.diagnostic.message}`;
     default: {
       const _e: never = action;
       void _e;
@@ -580,5 +528,3 @@ export function formatRunResultLines(
     }
   }
 }
-
-export type { QueueSubmissionV1 };

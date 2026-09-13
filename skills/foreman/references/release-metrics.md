@@ -89,7 +89,7 @@ A report **must not** describe the active set as "fully computed."
 | **Formula** | three figures together, never fewer: **p50** rounds-to-green, **p90** rounds-to-green, **abandoned-task count** as a fraction of tasks started |
 | **Units** | rounds (p50/p90); fraction or percent (abandoned) |
 | **Denominator** | tasks started in the window |
-| **Upstream fields** | `round_done` (round progression); `gate_decision.payload.pass` / `gate-decision.json.pass` (green); `alert` with abandonment/timeout kinds from `lane-supervise.sh` / `lane-run.sh` |
+| **Upstream fields** | `round_done` (round progression); `gate_decision.payload.pass` / `gate-decision.json.pass` (green); `alert` with abandonment/timeout kinds from historical controller records |
 | **Companion** | the three figures **are** the companion structure — publishing p50 alone is incomplete; also render task-start count (sample size) |
 | **Misreading** | "p50 = 1 means almost everything greened quickly" (hides a long tail and abandons) |
 | **Gaming vector** | Manually abandon hard tasks before they inflate p90; companion abandoned rate + start count exposes the cull. Typed fields: `m2_p50`, `m2_p90`, `m2_abandoned_rate`, `tasks_started`. |
@@ -189,7 +189,7 @@ field.
 | **Formula** | lanes that terminate without a gate decision (crash/orphan/kill/timeout/abandon classes) ÷ total lane starts × 100 |
 | **Units** | per 100 lane-starts |
 | **Denominator** | lane starts in the window |
-| **Upstream fields** | **numerator:** `alert` kinds from `lane-run.sh` (`worker_timeout`, `worker_launcher_error`, `ownership_timeout`, `degraded`/`launcher_absent`, `round_incomplete`, …) and `lane-supervise.sh` (`abandoned`); **denominator:** `ownership` events (lane claims work) |
+| **Upstream fields** | **numerator:** `alert` kinds from the historical lane controller (`worker_timeout`, `worker_launcher_error`, `ownership_timeout`, `degraded`/`launcher_absent`, `round_incomplete`, …) and the historical supervisor (`abandoned`); **denominator:** `ownership` events (lane claims work) |
 | **Companion** | total lane starts (denominator) **and** count of maintainer-initiated terminations (cancel/abandon) vs unattended (crash/orphan/timeout) |
 | **Misreading** | "lane mortality measures how fragile the orchestration layer is." (includes intentional cancels and tightened timeouts) |
 | **Gaming vector** | Tighten timeouts to "fail fast," inflating mortality while improving ops; companion maintainer-initiated share + start count shows the trade. Typed fields: `m7_per_100`, `lane_starts`, `maintainer_initiated_terminations`, `unattended_terminations`. |

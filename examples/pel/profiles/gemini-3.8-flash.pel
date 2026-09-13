@@ -1,0 +1,2 @@
+(fm/task :id "implement" :model "gemini-3.8-flash" :transport "gemini-cli"
+  :input "artifact:approved-spec" :output "schema:candidate-v1")

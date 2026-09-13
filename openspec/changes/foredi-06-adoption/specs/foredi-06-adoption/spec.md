@@ -20,9 +20,9 @@ When the quickstart starts an admitted workflow, the Foreman CLI SHALL execute t
 
 #### Scenario: T-M6-002 One-command admitted workflow
 
-- WHEN the following fixture is prepared: Copied installation and packages/orchestration/src/fixtures/pel-adoption/project-settings.json in a temporary Git repository, with M4 test-fixture binding and manifest-bound state root. Mandatory temporary fixture manifest includes stateRoot, assetRoot=<prefix>/current and assetManifestSha256 plus the copied project-settings fixture.
-- AND the test performs: node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> project configure --settings packages/orchestration/src/fixtures/pel-adoption/project-settings.json; node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> run <assetRoot>/examples/pel/implement-verify-review.pel; node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> status <run-id> --json.
-- THEN Configuration is stored at git-common-dir/foreman/project.json. One run command derives exact authority, limits, workspace and native profile mappings. Missing config exits 2 without effects. Fixture output is labeled test-fixture, never live-qualified. The launcher validates copied snapshot/example hashes from assetRoot. Missing manifest exits 2. ForemanProjectV1 is the single configuration schema name.
+- WHEN the following fixture is prepared: A verified extracted package supplies the exact snapshot and standard example bytes. A separate temporary asset copy retains its original package manifest and a bounded fixture-assets.json sidecar. Explicit test-fixture authority binds the temporary Git repository and state root.
+- AND the test performs: Run project configure with the concrete manifest-bound settings, then run examples/pel/implement-verify-review.pel without binding or context flags and read status. FOREMAN_PEL_ACCEPTANCE_PACKAGE_ROOT selects the extracted release package for final acceptance.
+- THEN Configuration is stored at git-common-dir/foreman/project.json and registered in the original projects.json. Missing or invalid settings exit 2 with zero action reservations and no program run. The standard workflow succeeds with exact authority, limits, grants and profiles. Output remains test-fixture; the product CLI rejects fixture manifests and fixture authority. Original package bytes and manifest remain unchanged.
 
 ### Requirement: R-M6-003 Installation prerequisite diagnosis
 
@@ -120,9 +120,9 @@ When an unchanged candidate repeats verification, the Foreman execution owner SH
 
 #### Scenario: T-M6-012 Verification receipt reuse
 
-- WHEN the following fixture is prepared: Migrated standard workflow runs twice with identical candidate, base, checks, dependencies, tools and environment.
-- AND the test performs: Execute the corpus twice, then change each verification binding in a table-driven test.
-- THEN Identical bindings invoke the full verifier once. Any changed binding invokes it again. Each run has one control-flow owner and one event history.
+- WHEN the following fixture is prepared: One admitted Pel owner executes three verification calls against retained candidate artifacts, a real registered Node.js gate, and the existing journal and ledger.
+- AND the test performs: Execute two identical calls, then change candidate, gate, environment, policy, or freshness. Recover an interrupted freshness recheck from its durable report.
+- THEN Identical calls execute the full gate once and reserve one verify action. Each changed binding executes it again with a distinct reservation. Recovery preserves the refresh reservation and does not execute a third gate. Each run has one event history and at most one active owner.
 
 ### Requirement: R-M6-013 Source-linked research query
 
@@ -170,7 +170,7 @@ When an installed release rolls back, the Foreman rollback tool SHALL check ever
 
 #### Scenario: T-M6-017 Compatible runtime rollback
 
-- WHEN the following fixture is prepared: prefix/versions/<old-build-id> and current manifests plus prefix/state-roots.json with two canonical state roots, one compatible and one incompatible or unreadable active checkpoint. Include a root created through registered --state-root override and a separate unregistered override.
+- WHEN the following fixture is prepared: prefix/versions/<old-build-id> and current manifests plus the existing foremanHome/projects.json registry with two canonical registered state roots, one compatible and one incompatible or unreadable active checkpoint. Include a root created through registered --state-root override and a separate unregistered override.
 - AND the test performs: foreman install rollback --to <old-build-id> for compatible and incompatible registered-state fixtures.
 - THEN Compatible rollback atomically switches prefix/current and preserves both histories. Any incompatible or unreadable registered root returns RollbackIncompatible before switch. No second scheduler starts. Compatible rollback exits 0. Incompatible or unreadable registered active state exits 3. Unknown build identity exits 2. Installed run/resume reject the unregistered override with exit 2. Rollback checks the registered override root. Checkout/fixture runs need no installation prefix projection.
 
@@ -190,9 +190,9 @@ When a configured project starts a Pel workflow, the Foreman CLI SHALL derive it
 
 #### Scenario: T-M6-019 pel-adoption contract
 
-- WHEN the following fixture is prepared: Git-common-dir/foreman/project.json created from packages/orchestration/src/fixtures/pel-adoption/project-settings.json, plus missing and invalid variants. Required fixture manifest supplies stateRoot, assetRoot=<prefix>/current and assetManifestSha256.
-- AND the test performs: node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> run <assetRoot>/examples/pel/implement-verify-review.pel without --binding.
-- THEN Valid configuration binds exact authority, state root, limits, profile mappings and workspace grants. Missing or invalid configuration exits 2 with zero reservation and dispatch.
+- WHEN the following fixture is prepared: Real canonical Git project settings and the original project registry are created by makeLivePelProjectServices under the explicit bounded fixture authority. Missing and malformed stored settings are tested before dispatch.
+- AND the test performs: Invoke the compiled fixture project configure command, then a bare standard run without --binding, --context, or --state-root. Repeat admission with missing and malformed settings.
+- THEN A valid configured project binds the exact authority, state root, original limits, role mappings and workspace grants. Missing or invalid configuration exits 2 with zero reservations and no provider dispatch. The installed product rejects the fixture authority.
 
 ### Requirement: R-M6-020 pel-package contract
 

@@ -970,7 +970,7 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 
 - Requirements: R-M6-001.
 - Level: acceptance.
-- Target: `packages/orchestration/src/pel-install.test.ts`.
+- Target: `packages/orchestration/src/pel-install-cli.test.ts`.
 - Fixture: Linux x64 Node24, artifacts/foredi/<buildId>.tar.gz returned by T-M6-016 archive producer, clean /tmp/foredi-unpacked and installation prefix /tmp/foredi-prefix, no checkout/global TS runner/vault.
 - Action: Extract artifacts/foredi/<buildId>.tar.gz to /tmp/foredi-unpacked, run node /tmp/foredi-unpacked/runtime/dist/install.js --prefix /tmp/foredi-prefix, then installed foreman --version --json and foreman check <prefix>/current/examples/pel/implement-verify-review.pel.
 - Expected: Installed generated Node.js executable works via symlink. Version JSON is {releaseName:"Return of the ForeDi",version:null,buildId:<manifest-build-id>} before version assignment. Snapshot/example hashes match and no provider call occurs. Installation, version display and the successful check each exit 0.
@@ -979,10 +979,10 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 
 - Requirements: R-M6-002.
 - Level: acceptance.
-- Target: `packages/orchestration/src/pel-adoption.test.ts`.
-- Fixture: Copied installation and packages/orchestration/src/fixtures/pel-adoption/project-settings.json in a temporary Git repository, with M4 test-fixture binding and manifest-bound state root. Mandatory temporary fixture manifest includes stateRoot, assetRoot=<prefix>/current and assetManifestSha256 plus the copied project-settings fixture.
-- Action: node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> project configure --settings packages/orchestration/src/fixtures/pel-adoption/project-settings.json; node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> run <assetRoot>/examples/pel/implement-verify-review.pel; node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> status <run-id> --json.
-- Expected: Configuration is stored at git-common-dir/foreman/project.json. One run command derives exact authority, limits, workspace and native profile mappings. Missing config exits 2 without effects. Fixture output is labeled test-fixture, never live-qualified. The launcher validates copied snapshot/example hashes from assetRoot. Missing manifest exits 2. ForemanProjectV1 is the single configuration schema name.
+- Target: `packages/orchestration/src/pel-adoption-project-cli.test.ts`.
+- Fixture: A verified extracted package supplies the exact snapshot and standard example bytes. A separate temporary asset copy retains its original package manifest and a bounded fixture-assets.json sidecar. Explicit test-fixture authority binds the temporary Git repository and state root.
+- Action: Run project configure with the concrete manifest-bound settings, then run examples/pel/implement-verify-review.pel without binding or context flags and read status. FOREMAN_PEL_ACCEPTANCE_PACKAGE_ROOT selects the extracted release package for final acceptance.
+- Expected: Configuration is stored at git-common-dir/foreman/project.json and registered in the original projects.json. Missing or invalid settings exit 2 with zero action reservations and no program run. The standard workflow succeeds with exact authority, limits, grants and profiles. Output remains test-fixture; the product CLI rejects fixture manifests and fixture authority. Original package bytes and manifest remain unchanged.
 
 ### T-M6-003
 
@@ -997,7 +997,7 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 
 - Requirements: R-M6-004.
 - Level: acceptance.
-- Target: `packages/orchestration/src/pel-examples.test.ts`.
+- Target: `packages/orchestration/src/pel-adoption-examples.test.ts`.
 - Fixture: Packaged examples/pel corpus and deterministic fake provider transcripts.
 - Action: Product foreman.js check each example using copied installed assets, then node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> run <assetRoot>/examples/pel/<example>.pel.
 - Expected: Every file parses and admits under its documented capabilities. Observable outputs demonstrate its named behavior and contain no implicit publication. research-prepare and parallel-read call registered fm/research with read-result preparation and zero provider/action reservations.
@@ -1006,7 +1006,7 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 
 - Requirements: R-M6-005.
 - Level: acceptance.
-- Target: `packages/orchestration/src/pel-examples.test.ts`.
+- Target: `packages/orchestration/src/pel-model-examples-cli.test.ts`.
 - Fixture: Six profile examples selecting grok-4.6, claude-opus-5, claude-fable-5-1, gpt-6-astra, gpt-5.6-sol and gemini-3.8-flash.
 - Action: foreman plan each profile example and foreman providers list --json.
 - Expected: All six exact IDs and concrete canonical transport IDs remain visible. Product evidence stays unqualified without live observations. Fixture-backed cells are labeled test-fixture, never live-qualified.
@@ -1015,7 +1015,7 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 
 - Requirements: R-M6-006.
 - Level: acceptance.
-- Target: `packages/orchestration/src/pel-examples.test.ts`.
+- Target: `packages/orchestration/src/pel-provider-readiness-live.test.ts`.
 - Fixture: Product binding with documented-only, fixture-only, expired or absent exact model/native permission evidence.
 - Action: foreman run the example using its documented command.
 - Expected: Exit 2 reports ModelUnavailable or CapabilityUnverified with configuration details. No provider call, reservation or worktree is created. Product rejects a test-fixture binding.
@@ -1024,7 +1024,7 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 
 - Requirements: R-M6-007.
 - Level: integration.
-- Target: `packages/orchestration/src/pel-migration.test.ts`.
+- Target: `packages/orchestration/src/pel-migration-live.test.ts`.
 - Fixture: packages/orchestration/src/fixtures/pel-migration/{implement-verify-review,bounded-rework}/ each contains round-v1.json, contract-v1.json, registered-command-bindings.json and expected-trace.json. Inputs use RoundPlanV1 and ExecutionContractV1 schemaVersion1.
 - Action: foreman migrate <case>/round-v1.json --contract <case>/contract-v1.json --out <file.pel>, then node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> run <file.pel>.
 - Expected: Both known templates preserve required effects, identities, bounds and terminal decisions. Unsupported schema/argv or Council input returns UnsupportedLegacyConstruct. No arbitrary command executes. Supported import exits 0. Unsupported schema/command/template exits 2.
@@ -1033,7 +1033,7 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 
 - Requirements: R-M6-008.
 - Level: integration.
-- Target: `packages/orchestration/src/pel-migration.test.ts`.
+- Target: `packages/orchestration/src/pel-legacy-status.test.ts`.
 - Fixture: An active legacy run with a lease, reservations and completed tool receipts.
 - Action: Attempt migration and resume through the new CLI.
 - Expected: Migration returns ActiveLegacyRun. The existing owner continues. Journal hashes and budgets remain unchanged. No second controller starts. ActiveLegacyRun exits 3 without transferring ownership.
@@ -1069,10 +1069,10 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 
 - Requirements: R-M6-012.
 - Level: integration.
-- Target: `packages/orchestration/src/pel-simplification.test.ts`.
-- Fixture: Migrated standard workflow runs twice with identical candidate, base, checks, dependencies, tools and environment.
-- Action: Execute the corpus twice, then change each verification binding in a table-driven test.
-- Expected: Identical bindings invoke the full verifier once. Any changed binding invokes it again. Each run has one control-flow owner and one event history.
+- Target: `packages/orchestration/src/pel-host-verify.test.ts`.
+- Fixture: One admitted Pel owner executes three verification calls against retained candidate artifacts, a real registered Node.js gate, and the existing journal and ledger.
+- Action: Execute two identical calls, then change candidate, gate, environment, policy, or freshness. Recover an interrupted freshness recheck from its durable report.
+- Expected: Identical calls execute the full gate once and reserve one verify action. Each changed binding executes it again with a distinct reservation. Recovery preserves the refresh reservation and does not execute a third gate. Each run has one event history and at most one active owner.
 
 ### T-M6-013
 
@@ -1114,8 +1114,8 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 
 - Requirements: R-M6-017.
 - Level: acceptance.
-- Target: `packages/orchestration/src/pel-package.test.ts`.
-- Fixture: prefix/versions/<old-build-id> and current manifests plus prefix/state-roots.json with two canonical state roots, one compatible and one incompatible or unreadable active checkpoint. Include a root created through registered --state-root override and a separate unregistered override.
+- Target: `packages/orchestration/src/pel-adoption.test.ts`.
+- Fixture: prefix/versions/<old-build-id> and current manifests plus the existing foremanHome/projects.json registry with two canonical registered state roots, one compatible and one incompatible or unreadable active checkpoint. Include a root created through registered --state-root override and a separate unregistered override.
 - Action: foreman install rollback --to <old-build-id> for compatible and incompatible registered-state fixtures.
 - Expected: Compatible rollback atomically switches prefix/current and preserves both histories. Any incompatible or unreadable registered root returns RollbackIncompatible before switch. No second scheduler starts. Compatible rollback exits 0. Incompatible or unreadable registered active state exits 3. Unknown build identity exits 2. Installed run/resume reject the unregistered override with exit 2. Rollback checks the registered override root. Checkout/fixture runs need no installation prefix projection.
 
@@ -1132,10 +1132,10 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 
 - Requirements: R-M6-019.
 - Level: acceptance.
-- Target: `packages/orchestration/src/pel-adoption.test.ts`.
-- Fixture: Git-common-dir/foreman/project.json created from packages/orchestration/src/fixtures/pel-adoption/project-settings.json, plus missing and invalid variants. Required fixture manifest supplies stateRoot, assetRoot=<prefix>/current and assetManifestSha256.
-- Action: node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> run <assetRoot>/examples/pel/implement-verify-review.pel without --binding.
-- Expected: Valid configuration binds exact authority, state root, limits, profile mappings and workspace grants. Missing or invalid configuration exits 2 with zero reservation and dispatch.
+- Target: `packages/orchestration/src/pel-adoption-project-cli.test.ts`.
+- Fixture: Real canonical Git project settings and the original project registry are created by makeLivePelProjectServices under the explicit bounded fixture authority. Missing and malformed stored settings are tested before dispatch.
+- Action: Invoke the compiled fixture project configure command, then a bare standard run without --binding, --context, or --state-root. Repeat admission with missing and malformed settings.
+- Expected: A valid configured project binds the exact authority, state root, original limits, role mappings and workspace grants. Missing or invalid configuration exits 2 with zero reservations and no provider dispatch. The installed product rejects the fixture authority.
 
 ### T-M6-020
 

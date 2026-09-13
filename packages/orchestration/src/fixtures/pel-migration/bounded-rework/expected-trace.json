@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "test-fixture",
+  "scenario": "repair-one",
+  "requiredEffects": [
+    "fm/task",
+    "fm/verify",
+    "fm/review",
+    "fm/task",
+    "fm/verify",
+    "fm/review",
+    "fm/publish"
+  ],
+  "counts": {
+    "implement": 1,
+    "correct": 1,
+    "verify": 2,
+    "audit": 2,
+    "publish": 0
+  },
+  "state": "needs-action",
+  "exitCode": 3,
+  "implementer": {
+    "profileId": "grok-4.6",
+    "transportId": "grok-acp",
+    "credentialProfileRef": "account:test"
+  },
+  "reviewer": {
+    "profileId": "gpt-5.6-sol",
+    "transportId": "codex-app-server",
+    "credentialProfileRef": "account:test"
+  },
+  "limits": {
+    "implementationRounds": 1,
+    "correctionRounds": 1,
+    "auditRounds": 2,
+    "councilRounds": 1,
+    "providerRetries": 2,
+    "resumeAttempts": 2,
+    "verificationRunsPerCandidate": 1,
+    "totalActions": 6,
+    "wallTimeMs": 7200000,
+    "noProductChangeMs": 1800000
+  },
+  "requiredMilestones": [
+    "checks",
+    "audit"
+  ],
+  "ignoredFields": [
+    "transport timing",
+    "temporary fixture root",
+    "fixture repository base identity"
+  ]
+}

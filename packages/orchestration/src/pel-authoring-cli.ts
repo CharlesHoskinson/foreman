@@ -21,6 +21,9 @@ import {
 import { makePelDraftSession } from "./pel-draft-session.js";
 import { runProviderCli } from "./pel-provider-cli.js";
 import { runPelLifecycleCli } from './pel-lifecycle-cli.js';
+import { runPelAdoptionCli } from './pel-adoption-cli.js';
+import { runPelResearchCli } from './pel-research-cli.js';
+import { runPelMigrationCli } from './pel-migration-cli.js';
 
 const SOURCE_LIMIT = 1024 * 1024;
 const JSON_LIMIT = 16 * 1024 * 1024;
@@ -175,6 +178,9 @@ export function renderAuthoringDiagnostic(
 export function makeForemanCli(services: AuthoringServices): ForemanCli {
   return {
     run: (argv) => {
+      if (['--version', 'install', 'support'].includes(argv[0] ?? '')) return runPelAdoptionCli(argv, services);
+      if (argv[0] === 'research') return runPelResearchCli(argv, services);
+      if (argv[0] === 'migrate') return runPelMigrationCli(argv, services);
       if (argv[0] === 'providers') return runProviderCli(argv, services);
       if (['run', 'resume', 'status', 'cancel', 'project'].includes(argv[0] ?? '')) return runPelLifecycleCli(argv, services);
       let source: Uint8Array = new Uint8Array();

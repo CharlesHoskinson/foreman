@@ -1,5 +1,8 @@
-(def result (fm/verify :id "verify" :input "artifact:approved-spec" :gate "candidate-full"))
+(def candidate
+  (fm/task :id "implement" :model "role:implementer"
+    :input "artifact:approved-spec" :output "schema:candidate-v1"))
+(def result (fm/verify :id "verify" :input candidate :gate "candidate-full"))
 (if (result :at ':passed)
   (fm/review :id "review" :model "role:reviewer"
     :input result :policy "independent-review")
-  [:status "verification-failed"])
+  result)

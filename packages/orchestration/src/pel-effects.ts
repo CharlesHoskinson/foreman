@@ -4,6 +4,7 @@ import { Effect } from 'effect';
 import { canonicalAuthoringJson, encodeHostArgumentsV1, getHostDescriptor, isPelDataValue, resolveModelSelection, validateDataSchema, validateHostReceipt, type HostRequestV1, type HostReceiptV1, type PelValue, type Result, type HostFunctionDescriptorV1 } from '@foreman/pel';
 import { executeNativePrint } from './pel-native-host.js';
 import { EndstopLedger } from './execution-ledger.js';
+import {resolvePelResearchIndex,type PelResearchIndexExpansionV1} from './pel-research-host.js';
 import { executionActionKinds } from './execution-terminal-policy.js';
 import { PelRuntime, decodePelActionAuthorityV1, type HostContextV1, type PelHostEffectFailureV1, type ResourceSetV1, type PreparedHostEffectV1, type PelReservationTokenV1, type RunFailure, type HostDispatchOutcomeV1 } from './pel-run-contract.js';
 import { appendPelRecord, appendPelEffectResult, pelHash, pelFailure, readPelRecords, replayPelRun, stablePelReservationId } from './pel-journal.js';
@@ -12,7 +13,7 @@ const denied = (message: string): PelHostEffectFailureV1 => ({code:'capability-d
 const text = (value: PelValue | undefined): string | undefined => value?.tag === 'string' ? value.value : undefined;
 const inside = (root:string,path:string) => path === root || path.startsWith(root + sep);
 /** Validate concrete M1 arguments against both the precise M2 call and its finite policy. */
-export function validateResolvedHostRequest(request:HostRequestV1, context:HostContextV1, resources?:ResourceSetV1):Result<HostFunctionDescriptorV1,PelHostEffectFailureV1> {
+export function validateResolvedHostRequest(request:HostRequestV1, context:HostContextV1, resources?:ResourceSetV1,research?:PelResearchIndexExpansionV1):Result<HostFunctionDescriptorV1,PelHostEffectFailureV1> {
  const fail = (message:string):Result<never,PelHostEffectFailureV1> => ({ok:false,error:denied(message)});
  const {checked,binding} = context, snapshot=checked.snapshot, policy=snapshot.policy;
  if(request.sourceDigest!==checked.sourceDigest || binding.sourceDigest!==checked.sourceDigest || binding.checkedProgramDigest!==checked.bindingDigest || binding.registryDigest!==snapshot.registryDigest || snapshot.registry.digest!==binding.registryDigest || context.effect.requestId!==request.requestId) return fail('The resolved request does not match its admitted source and registry.');
@@ -45,13 +46,15 @@ export function validateResolvedHostRequest(request:HostRequestV1, context:HostC
    const value=text(request.boundArguments[name]);
    if(!value) continue;
    if(value.includes('\0') || value.startsWith('/') || value.split(/[\\/]/u).includes('..')) return fail('Resolved input escapes its resource envelope.');
-   if(/^(artifact:|workspace:|source:)/u.test(value) && !policy.resourceEnvelope.reads.includes(value)) return fail('Resolved input resource is not admitted.');
+   if(/^(artifact:|workspace:|source:|bundle:)/u.test(value) && !policy.resourceEnvelope.reads.includes(value)) return fail('Resolved input resource is not admitted.');
    if(value.startsWith('artifact:') && !policy.artifactConstraints.allowedIds.includes(value)) return fail('Resolved artifact is not admitted.');
  }
+ if(research&&(request.registryId!=='fm/research'||text(request.boundArguments.bundle)!==research.bundleId||!policy.resourceEnvelope.reads.includes(research.bundleId)||canonicalAuthoringJson(context.project.researchBundles?.[research.bundleId]??null)!==canonicalAuthoringJson(research.indexRef)))return fail('Research expansion differs from its original index binding.');
  if(resources) {
+   if(research&&canonicalAuthoringJson(resources)!==canonicalAuthoringJson(research.resources))return fail('Research resources differ from the exact immutable index.');
    for(const [names,allowed] of [[resources.reads,policy.resourceEnvelope.reads],[resources.writes,policy.resourceEnvelope.writes]] as const) for(const name of names) {
      if(isAbsolute(name)) { if(!inside(context.workspace.canonicalRoot,name) || !allowed.some(p=>p==='workspace:default' || p===`source:${name.slice(context.workspace.canonicalRoot.length+1)}`)) return fail('Canonical resources escaped the admitted workspace.'); }
-     else if(!allowed.includes(name)) return fail('Resolved resources escaped the admitted finite envelope.');
+     else if(!allowed.includes(name)&&!(research&&names===resources.reads&&research.resources.reads.includes(name))) return fail('Resolved resources escaped the admitted finite envelope.');
    }
    if(resources.unknownScope && (resources.unknownScope!==context.workspace.canonicalRoot || policy.resourceEnvelope.reads.length+policy.resourceEnvelope.writes.length===0)) return fail('Unknown resources require one admitted exclusive workspace scope.');
  }
@@ -118,10 +121,12 @@ export function executeHostEffect(request:HostRequestV1,context:HostContextV1) {
      const receiptRef=yield* appendPelEffectResult(context.binding,context.effect,validated.value);
      return {kind:'settled',receipt:validated.value,receiptRef} as const;
    });
+   const research=request.registryId==='fm/research'?yield* resolvePelResearchIndex(request,context).pipe(Effect.either):null;
+   if(research?._tag==='Left')return yield* settle({tag:'failure',failure:research.left});
    const resolution=yield* runtime.resources.resolve(valid.value,request,context).pipe(Effect.either);
    if(resolution._tag==='Left')return yield* settle({tag:'failure',failure:{code:'resource-denied',message:resolution.left.message,cause:{effectId:context.effect.effectId,nodeId:request.nodeId}}});
    const resources=resolution.right;
-   const resolved=validateResolvedHostRequest(request,context,resources);
+   const resolved=validateResolvedHostRequest(request,context,resources,research?._tag==='Right'?research.right:undefined);
    if(!resolved.ok)return yield* settle({tag:'failure',failure:{code:'resource-denied',message:resolved.error.message,cause:{effectId:context.effect.effectId,nodeId:request.nodeId}}});
    const acquired=yield* runtime.resources.acquire(resources,context).pipe(Effect.either);
    if(acquired._tag==='Left')return yield* settle({tag:'failure',failure:{code:'resource-denied',message:acquired.left.message,cause:{effectId:context.effect.effectId,nodeId:request.nodeId}}});
@@ -139,7 +144,14 @@ export function executeHostEffect(request:HostRequestV1,context:HostContextV1) {
      return yield* settle({tag:'success',value:prepared.value});
    }
    if(prepared.kind==='read-result') {
+     if(request.registryId==='fm/research'&&(!prepared.preparationDigest||!/^[a-f0-9]{64}$/u.test(prepared.preparationDigest)))return yield* settle({tag:'failure',failure:{code:'task-output-invalid',message:'Research preparation has no valid immutable digest.'}});
+     if(research?._tag==='Right'){const expected=[...new Map([research.right.indexRef,...research.right.sources].map(ref=>[ref.artifactId,ref])).values()].sort((a,b)=>a.artifactId.localeCompare(b.artifactId));if(pelHash([...prepared.sources].sort((a,b)=>a.artifactId.localeCompare(b.artifactId)))!==pelHash(expected))return yield* settle({tag:'failure',failure:{code:'resource-denied',message:'Research preparation changed its admitted immutable source set.'}});}
      for(const source of prepared.sources) yield* runtime.artifacts.get(context.binding.runId,source,64*1024*1024);
+     if(prepared.preparationDigest){
+       const observed={stage:'research-read',requestId:request.requestId,preparationDigest:prepared.preparationDigest,sources:prepared.sources,valueHash:pelHash(prepared.value)};let retained=false;
+       for(const record of replay.value.records)if(record.type==='pel.effect.observed.v1'&&record.data.effectId===context.effect.effectId){const bytes=yield* runtime.artifacts.get(context.binding.runId,record.data.observationRef,1048576),prior=JSON.parse(Buffer.from(bytes).toString('utf8')) as {stage?:string};if(prior.stage==='research-read'){if(pelHash(prior)!==pelHash(observed))return yield* Effect.fail(pelFailure('binding-mismatch','Research preparation changed after its durable read observation.'));retained=true;}}
+       if(!retained){const observationRef=yield* runtime.artifacts.put(context.binding.runId,Buffer.from(canonicalAuthoringJson(observed)),1048576,'ordinary');yield* appendPelRecord(context.binding,'pel.effect.observed.v1',{effectId:context.effect.effectId,observationRef,providerIdentity:null,externalOutcome:'none'});}
+     }
      return yield* settle({tag:'success',value:prepared.value});
    }
    if(prepared.kind==='needs-action') {

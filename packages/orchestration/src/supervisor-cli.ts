@@ -17,7 +17,6 @@ import {
   type SupervisorRunResultV1,
 } from "./supervisor.js";
 import {
-  defaultSupervisorPaths,
   makeLiveSupervisorServices,
 } from "./supervisor-live-services.js";
 
@@ -165,8 +164,6 @@ function resumeMaxAttemptsFromEnv(env: NodeJS.ProcessEnv): number {
 export type SupervisorCliEnv = {
   readonly env?: NodeJS.ProcessEnv;
   readonly skillRoot?: string;
-  readonly shellBinary?: string;
-  readonly laneRunScript?: string;
   /**
    * Optional test injection: provide SupervisorServices instead of live.
    * When set, stateRoot still must resolve on disk, but live layers are not
@@ -205,12 +202,8 @@ export function runSupervisorCli(
     }
 
     const env = cliEnv.env ?? process.env;
-    const skillRoot = cliEnv.skillRoot ?? stateRoot;
-    const defaults = defaultSupervisorPaths(skillRoot);
     const config: SupervisorConfig = {
       resumeMaxAttempts: resumeMaxAttemptsFromEnv(env),
-      shellBinary: cliEnv.shellBinary ?? defaults.shellBinary,
-      laneRunScript: cliEnv.laneRunScript ?? defaults.laneRunScript,
       dryRun: parsed.dryRun,
     };
 
@@ -227,8 +220,6 @@ export function runSupervisorCli(
               makeLiveSupervisorServices({
                 stateRoot,
                 env,
-                shellBinary: config.shellBinary,
-                laneRunScript: config.laneRunScript,
                 pelRecovery: canonicalRoot => {
                   const options = defaultPelLifecycleOptions({
                     stdout: text => Effect.sync(() => io.writeStdout(text)),
@@ -258,20 +249,7 @@ export function runSupervisorCli(
       for (const line of formatRunResultLines(r)) {
         io.writeStderr(line + "\n");
       }
-      // Ready command vectors go to stdout (machine-readable).
-      // Any ExecutionFailed lane action forces public exit class EXIT_FAIL.
-      if (r._tag === "Swept") {
-        for (const a of r.actions) {
-          if (a._tag === "ExecutionFailed") {
-            overall = EXIT_FAIL;
-          }
-          if (a._tag === "Executed" && a.result.submission._tag === "Ready") {
-            const argvReady = a.result.submission.commandArgv;
-            // Print as a single JSON array line for exact argv fidelity.
-            io.writeStdout(JSON.stringify(argvReady) + "\n");
-          }
-        }
-      }
+      if (r._tag === "Swept" && overall !== EXIT_FAIL && r.actions.some(a => a._tag === "LegacyControllerRequired")) overall = 3;
     }
     return overall;
   }).pipe(

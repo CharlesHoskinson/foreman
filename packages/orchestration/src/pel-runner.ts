@@ -104,12 +104,14 @@ const cancellationSignals = new Map<RunId, Deferred.Deferred<void>>();
 export function signalPelRunCancellation(runId:RunId):Effect.Effect<void> {
   return Effect.suspend(() => {const signal=cancellationSignals.get(runId); return signal ? Deferred.succeed(signal,undefined).pipe(Effect.asVoid) : Effect.void;});
 }
-export function withPelRunOwner<A,E,R>(binding:ExecutionBindingV1, use:(owner:PelOwnedRunContextV1['owner'])=>Effect.Effect<A,E,R | Scope.Scope>):Effect.Effect<A,E|RunFailure,R|RunLease> {
-  return Effect.scoped(Effect.gen(function* () {
+export function acquirePelRunOwner(binding:ExecutionBindingV1):Effect.Effect<PelOwnedRunContextV1['owner'],RunFailure,RunLease|Scope.Scope> {
+  return Effect.gen(function*(){
     const service=yield* RunLease;
-    const owner=yield* Effect.acquireRelease(Effect.flatMap(service.acquire(binding.runId),lease=>lease._tag==='Busy'?Effect.fail(pelRunnerFailure('owner-busy','This run already has an active owner')):Effect.succeed({...lease,runId:binding.runId})),lease=>lease.release());
-    return yield* use(owner);
-  }));
+    return yield* Effect.acquireRelease(Effect.flatMap(service.acquire(binding.runId),lease=>lease._tag==='Busy'?Effect.fail(pelRunnerFailure('owner-busy','This run already has an active owner')):Effect.succeed({...lease,runId:binding.runId})),lease=>lease.release());
+  });
+}
+export function withPelRunOwner<A,E,R>(binding:ExecutionBindingV1, use:(owner:PelOwnedRunContextV1['owner'])=>Effect.Effect<A,E,R | Scope.Scope>):Effect.Effect<A,E|RunFailure,R|RunLease> {
+  return Effect.scoped(Effect.flatMap(acquirePelRunOwner(binding),use));
 }
 export function runProgram(checked:CheckedProgramV1,binding:ExecutionBindingV1):Effect.Effect<RunResultV1,RunFailure,RunServices> {
   return withPelRunOwner(binding,owner=>Effect.gen(function* () {

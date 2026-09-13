@@ -97,15 +97,15 @@ const needsAction = association([
 ]);
 const researchRow = association([
   ["sourceLocator", string()],
-  ["hash", string(128)],
-  ["capturedAt", string(128)],
+  ["sourceHash", string(64)],
+  ["capturedAt", string(64)],
   [
     "claimClass",
-    string(128, ["primary", "secondary", "inference", "unverified"]),
+    string(128, ["hypothesis", "adopted-decision", "verified-observation", "open-question"]),
   ],
-  ["freshness", string(128, ["current", "stale", "unknown"])],
-  ["excerpt", string(16384)],
-  ["coverage", string(128, ["complete", "partial", "unknown"])],
+  ["freshness", string(128, ["fresh", "stale", "missing"])],
+  ["excerpt", string(8192)],
+  ["coverage", list(string(1024), 20)],
 ]);
 export const foremanDataSchemasV1: Readonly<Record<string, PelDataSchemaV1>> = {
   "schema:review-report-v1": association([
@@ -141,7 +141,7 @@ export const foremanDataSchemasV1: Readonly<Record<string, PelDataSchemaV1>> = {
     ],
   ]),
   "schema:research-result-v1": association([
-    ["status", string(64, ["complete", "partial", "unavailable"])],
+    ["status", string(64, ["complete", "stale"])],
     ["results", list(researchRow, 20)],
   ]),
   "schema:pel-source-v1": association([["pelSource", string(1048576)]]),
@@ -246,13 +246,13 @@ function descriptor(
     effectKind,
     capabilities,
     resources: {
-      reads: ["workspace:default", "artifact:approved-spec"],
+      reads: name === "fm/research" ? [] : ["workspace:default", "artifact:approved-spec"],
       writes: writes ? ["workspace:default"] : [],
       unknown: false,
     },
     resourceResolverId: "foreman-resources-v1",
     resourceEnvelope: {
-      reads: ["workspace:default", "artifact:approved-spec"],
+      reads: name === "fm/research" ? [] : ["workspace:default", "artifact:approved-spec"],
       writes: writes ? ["workspace:default"] : [],
       hostValidationRequired: true,
     },
@@ -470,6 +470,9 @@ export function createDefaultAuthoringSnapshotV1(): AuthoringSnapshotV1 {
           "artifact:source-a",
           "artifact:source-b",
           "source:approved",
+          "bundle:release-sources",
+          "bundle:pel-paper",
+          "bundle:model-evidence",
         ],
         writes: ["workspace:default", "host:output"],
       },

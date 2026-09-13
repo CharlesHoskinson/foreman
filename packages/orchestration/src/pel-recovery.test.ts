@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as recovery from './pel-recovery.js';
+import {makeLivePelAdoptionServices} from './pel-adoption.js';
 import { DEFAULT_LIMITS, createPelEnvironment, startPel, checkPel } from '@foreman/pel';
 import { createDefaultAuthoringSnapshotV1 } from './pel-host-descriptors.js';
 import { pelHash, replayPelRun } from './pel-journal.js';
@@ -444,4 +445,38 @@ test('operator registration and apply accept the same unexecuted revision withou
             assert.equal(restarted.state, 'succeeded'); assert.deepEqual(restarted.finalValue, result.finalValue);
         })));
     } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+import {packageFixture} from './fixtures/pel-install/package-fixture.js';
+import {installPackage,withInstalledPrefix} from './pel-install.js';
+import {makePelInstalledAdmission} from './pel-install-admission.js';
+import {pathToFileURL} from 'node:url';
+import {readFileSync} from 'node:fs';
+import {writeFile} from 'node:fs/promises';
+test('T-M6-017 failed-run revision refuses concurrent rollback and stale invocation before any journal debit',async()=>{
+ const f=durableFixture('(def x (fm/checkpoint :name "saved"))\n(/ 1 (- (len x) 2))',4),pkg=await packageFixture();
+ Object.assign(f.ports,{validateDecisionAuthority:()=>Effect.void});
+ try{
+  await Effect.runPromise(installPackage({sourceRoot:pkg.sourceRoot,prefix:pkg.prefix}));
+  Object.assign(f.ports,{admission:makePelInstalledAdmission(pathToFileURL(join(pkg.prefix,'versions',pkg.manifest.buildId,'runtime/dist/foreman.js')).href,pkg.root)});
+  await Effect.runPromise(f.provide(Effect.gen(function*(){
+   const fixture=yield* f.setup;
+   yield* appendPelEffectResult(fixture.binding,fixture.effect,{requestId:fixture.request.requestId,outcome:{tag:'success',value:{tag:'list',items:[{tag:'pair',key:'name',value:{tag:'string',value:'saved'}},{tag:'pair',key:'sequence',value:{tag:'number',value:7}}]}}});
+   const failed=yield* recovery.resumeProgram(f.runId,fixture.context);assert.equal(failed.state,'failed');
+   const source=Buffer.from('(def x (fm/checkpoint :name "saved"))\n9'),next=checkPel({source,snapshot:fixture.context.snapshot});if(next.tag!=='ok')throw Error('check');
+   const prefix=prepareRevisionPrefix(fixture.checked.program,next.checked.program,1,[]);if(!prefix.ok)throw Error('prefix');
+   const revision={source,decision:{schemaVersion:1 as const,runId:f.runId,parentSourceDigest:fixture.binding.sourceDigest,revisedSourceDigest:next.checked.sourceDigest,completedPrefixDigest:prefix.value.prefixDigest,completedTopLevelCount:1,pendingSuffixBoundary:1,authorityReceipt:{effectId:'operator',sequence:1,sha256:'a'.repeat(64)}}};
+   const path=join(f.root,'runs',f.runId,'events.ndjson'),before=readFileSync(path);
+   const blocked=yield* withInstalledPrefix(pkg.prefix,false,()=>recovery.resumeProgram(f.runId,fixture.context,{revision}).pipe(Effect.either));assert.equal(blocked._tag,'Left');assert.deepEqual(readFileSync(path),before);
+   yield* Effect.promise(async()=>{await writeFile(join(pkg.sourceRoot,'docs/guides/pel/install.md'),'next revision build');await pkg.seal('1.0.0');});
+   yield* installPackage({sourceRoot:pkg.sourceRoot,prefix:pkg.prefix});
+   const stale=yield* recovery.resumeProgram(f.runId,fixture.context,{revision}).pipe(Effect.either);assert.equal(stale._tag,'Left');assert.deepEqual(readFileSync(path),before);
+   const adoption=makeLivePelAdoptionServices({entryUrl:pathToFileURL(join(pkg.prefix,'current/runtime/dist/foreman.js')).href,foremanHome:pkg.root,loadRegisteredRoots:()=>Effect.succeed([f.root])});
+   yield* adoption.rollback(pkg.manifest.buildId);
+   assert.deepEqual(readFileSync(path),before);
+   const revised=yield* recovery.resumeProgram(f.runId,fixture.context,{revision});
+   assert.equal(revised.state,'succeeded');
+   assert.deepEqual(revised.finalValue,{tag:'number',value:9});
+  })));
+ }finally{rmSync(f.root,{recursive:true,force:true});await pkg.close();}
 });

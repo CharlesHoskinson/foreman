@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "runId": "legacy-implement-verify-review",
+  "laneId": "worker",
+  "attemptId": 1,
+  "mode": "round",
+  "commandArgv": [
+    "grok",
+    "--prompt-file",
+    "implement-verify-review.md",
+    "-m",
+    "grok-4.6",
+    "--allow",
+    "Write",
+    "--allow",
+    "Edit",
+    "--output-format",
+    "plain",
+    "--cwd",
+    "/legacy/workspace",
+    "--no-leader"
+  ],
+  "gateCommand": "/usr/bin/git -c core.fsmonitor=false diff --no-ext-diff --no-textconv --check",
+  "reportPath": "reports/implement-verify-review.md",
+  "reportBaseline": {
+    "_tag": "Absent"
+  }
+}

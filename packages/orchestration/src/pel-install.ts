@@ -1,0 +1,41 @@
+/** Retained package installation. Only the final current symlink selects executable bytes. */
+import {constants,closeSync,openSync,lstatSync,realpathSync,mkdirSync,readlinkSync,symlinkSync,renameSync,rmSync,writeFileSync,fsyncSync,readdirSync,fchmodSync} from 'node:fs';
+import {dirname,isAbsolute,join,normalize} from 'node:path';
+import {randomUUID} from 'node:crypto';
+import {Effect} from 'effect';
+import {acquireKernelDirectoryLock,canonicalize} from '@foreman/core';
+import {verifyPelPackage,installFailure,type InstallFailure,type InstallManifestV1,type VerifiedPelPackageV1} from './pel-package.js';
+export interface InstalledPackageV1 {readonly prefix:string;readonly buildId:string;readonly releaseName:'Return of the ForeDi';readonly version:string|null;readonly packageRoot:string;}
+export interface InstallPackageInputV1 {readonly sourceRoot:string;readonly prefix:string;readonly platform?:string;readonly arch?:string;readonly nodeVersion?:string;}
+const io=<A>(f:()=>A)=>Effect.try({try:f,catch:()=>installFailure('InstallIoFailure','The package transaction could not complete.')} );
+function canonicalPrefix(prefix:string,create:boolean){if(!isAbsolute(prefix)||normalize(prefix)!==prefix||prefix==='/')throw installFailure('PackageIntegrityMismatch','The installation prefix must be an absolute canonical directory without symlink ancestors.');let ancestor=prefix;for(;;){try{const info=lstatSync(ancestor);if(!info.isDirectory()||info.isSymbolicLink()||realpathSync(ancestor)!==ancestor)throw installFailure('PackageIntegrityMismatch','The installation prefix must be an absolute canonical directory without symlink ancestors.');break;}catch(error){if((error as NodeJS.ErrnoException).code==='ENOTDIR')throw installFailure('PackageIntegrityMismatch','The installation prefix has a regular-file ancestor.');if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;const parent=dirname(ancestor);if(parent===ancestor)throw error;ancestor=parent;}}
+ if(create)mkdirSync(prefix,{recursive:true,mode:0o700});if(realpathSync(prefix)!==prefix||!lstatSync(prefix).isDirectory())throw installFailure('PackageIntegrityMismatch','The installation prefix must be an absolute canonical directory without symlink ancestors.');return prefix;}
+export function withInstalledPrefix<A,E,R>(prefix:string,create:boolean,use:(anchor:string)=>Effect.Effect<A,E,R>):Effect.Effect<A,E|InstallFailure,R>{return Effect.scoped(Effect.gen(function*(){
+ const canonical=yield* Effect.try({try:()=>canonicalPrefix(prefix,create),catch:error=>typeof error==='object'&&error!==null&&'_tag' in error&&error._tag==='PackageIntegrityMismatch'?error as InstallFailure:installFailure(create?'InstallIoFailure':'UnknownPackage','The installation prefix is unavailable or invalid.')});
+ const fd=yield* Effect.acquireRelease(io(()=>openSync(canonical,constants.O_RDONLY|constants.O_DIRECTORY|constants.O_NOFOLLOW)),value=>Effect.sync(()=>closeSync(value)));
+ const lock=yield* Effect.acquireRelease(io(()=>{const held=acquireKernelDirectoryLock(fd,'.install-lock','foreman.pel-install.v1');if(!held)throw Error('busy');return held;}),held=>Effect.sync(held.release));void lock;
+ return yield* use(`/proc/self/fd/${fd}`);
+}));}
+const ordinaryDirectory=(path:string)=>{try{const info=lstatSync(path);if(!info.isDirectory()||info.isSymbolicLink())throw Error('directory');}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;mkdirSync(path,{mode:0o755});}};
+const syncDirectory=(path:string)=>{const anchor=/^\/proc\/self\/fd\/(\d+)$/.exec(path);if(anchor){fsyncSync(Number(anchor[1]));return;}const fd=openSync(path,constants.O_RDONLY|constants.O_DIRECTORY|constants.O_NOFOLLOW);try{fsyncSync(fd);}finally{closeSync(fd);}};
+function syncTree(path:string){for(const entry of readdirSync(path,{withFileTypes:true}))if(entry.isDirectory())syncTree(join(path,entry.name));syncDirectory(path);}
+function currentTarget(anchor:string):string|null {try{const info=lstatSync(join(anchor,'current'));if(!info.isSymbolicLink())throw Error('current');const target=readlinkSync(join(anchor,'current'));if(!/^versions\/[a-f0-9]{64}$/.test(target))throw Error('current');return target;}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return null;throw error;}}
+export function selectInstalledBuild(anchor:string,buildId:string,previous:string|null):Effect.Effect<void,InstallFailure>{return io(()=>{if(!/^[a-f0-9]{64}$/.test(buildId)||currentTarget(anchor)!==previous)throw Error('changed');const bin=join(anchor,'bin');ordinaryDirectory(bin);const executable=join(bin,'foreman');try{if(!lstatSync(executable).isSymbolicLink()||readlinkSync(executable)!=='../current/runtime/dist/foreman.js')throw Error('entry');}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;symlinkSync('../current/runtime/dist/foreman.js',executable);syncDirectory(bin);}
+ const temporary=join(anchor,`.current-${randomUUID()}`);try{symlinkSync(`versions/${buildId}`,temporary);renameSync(temporary,join(anchor,'current'));syncDirectory(anchor);}finally{rmSync(temporary,{force:true});}
+}).pipe(Effect.uninterruptible);}
+export const readInstalledCurrent=(anchor:string)=>io(()=>currentTarget(anchor));
+function retainPackage(verified:VerifiedPelPackageV1,anchor:string){return Effect.scoped(Effect.gen(function*(){const versions=join(anchor,'versions');yield* io(()=>ordinaryDirectory(versions));const target=join(versions,verified.manifest.buildId),exists=yield* io(()=>{try{lstatSync(target);return true;}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return false;throw error;}});
+ if(exists){const existing=yield* verifyPelPackage(target);if(existing.manifest.buildId!==verified.manifest.buildId)return yield* Effect.fail(installFailure('PackageIntegrityMismatch','The retained build identity differs.'));return;}
+ const stage=yield* Effect.acquireRelease(io(()=>{const path=join(versions,`.stage-${randomUUID()}`);mkdirSync(path,{mode:0o700});return path;}),path=>Effect.sync(()=>rmSync(path,{recursive:true,force:true})));
+ for(const file of verified.files){yield* io(()=>{const path=join(stage,file.record.path);mkdirSync(dirname(path),{recursive:true,mode:0o755});const fd=openSync(path,constants.O_WRONLY|constants.O_CREAT|constants.O_EXCL|constants.O_NOFOLLOW,file.record.mode);try{writeFileSync(fd,file.bytes);fchmodSync(fd,file.record.mode);fsyncSync(fd);}finally{closeSync(fd);}});yield* Effect.sleep(0);}
+ yield* io(()=>{const fd=openSync(join(stage,'manifest.json'),constants.O_WRONLY|constants.O_CREAT|constants.O_EXCL|constants.O_NOFOLLOW,0o644);try{writeFileSync(fd,canonicalize(verified.manifest)+'\n');fchmodSync(fd,0o644);fsyncSync(fd);}finally{closeSync(fd);}syncTree(stage);});
+ const staged=yield* verifyPelPackage(stage);if(staged.manifest.buildId!==verified.manifest.buildId)return yield* Effect.fail(installFailure('PackageIntegrityMismatch','The staged package changed.'));
+ yield* io(()=>{renameSync(stage,target);syncDirectory(versions);}).pipe(Effect.uninterruptible);
+}));}
+export function installedPackageResult(prefix:string,manifest:InstallManifestV1):InstalledPackageV1{return {prefix,buildId:manifest.buildId,releaseName:manifest.releaseName,version:manifest.version,packageRoot:join(prefix,'versions',manifest.buildId)};}
+export function installPackage(input:InstallPackageInputV1):Effect.Effect<InstalledPackageV1,InstallFailure>{return Effect.gen(function*(){
+ if((input.platform??process.platform)!=='linux'||(input.arch??process.arch)!=='x64'||!/^24\.[0-9]+\.[0-9]+(?:[-+].*)?$/.test(input.nodeVersion??process.versions.node))return yield* Effect.fail(installFailure('InstallPrerequisiteMissing','Installation requires Linux x64 and Node.js >=24 <25.'));
+ if(!isAbsolute(input.prefix)||normalize(input.prefix)!==input.prefix||input.prefix==='/')return yield* Effect.fail(installFailure('PackageIntegrityMismatch','The installation prefix must be an absolute canonical directory.'));
+ const verified=yield* verifyPelPackage(input.sourceRoot);
+ return yield* withInstalledPrefix(input.prefix,true,anchor=>Effect.gen(function*(){const previous=yield* readInstalledCurrent(anchor);yield* retainPackage(verified,anchor);yield* selectInstalledBuild(anchor,verified.manifest.buildId,previous);return installedPackageResult(input.prefix,verified.manifest);}));
+});}

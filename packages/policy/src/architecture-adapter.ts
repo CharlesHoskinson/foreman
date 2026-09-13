@@ -42,56 +42,18 @@ import type { PolicyReason } from "./architecture-schema.js";
 const DENY = "legacy_adapter_domain_logic" as const;
 
 /**
- * Closed migration path for the R4C3 lane-run strangler only.
- * Repository-relative, forward-slash form; not a general path exception.
- */
-const LANE_RUN_MIGRATION_PATH = "skills/foreman/scripts/lane-run.sh";
-
-/**
- * Closed migration path for the R5D lane-supervise thin adapter only.
- * Repository-relative, forward-slash form; not a general path exception.
- * Injects `--state-root` from FOREMAN_HOME before the Node supervisor CLI;
- * that is outside the six/eight-production pure-exec grammar.
- */
-const LANE_SUPERVISE_MIGRATION_PATH =
-  "skills/foreman/scripts/lane-supervise.sh";
-
-/** Exact R7B2-B profile-bound lane adapter body. */
-// Re-pinned 2026-09-05 (pidns-remedy): per-round containment probe, ownership
-// containment fields, and the capability-aware kill target. Recorded as
-// legacy debt: this policy belongs in the TypeScript round runtime once
-// lane-run.sh is strangled.
-const LANE_RUN_BODY_SHA256 =
-  "5368260642cac6d0ff9d38a45597dc359e6c5a0b9a008f49dee3383bc7f16110";
-
-/**
- * SHA-256 of every byte of the approved R5D lane-supervise.sh thin adapter.
- * Full-body pin: the short adapter is the entire migration artifact. A
- * one-byte change or domain-logic edit fails. Recomputed only when an
- * intentional adapter change is approved with the R5D migration artifact.
- * Caller-supplied digests are never accepted.
- */
-const LANE_SUPERVISE_BODY_SHA256 =
-  "a09929d92ce817fc861800b38529300889a62b8324fc67fea9a305ea32ac7062";
-
-/**
  * Exact legacy migration artifacts admitted by reviewed changes.
  * These paths still fail closed on any byte change or relocation. The v0.4
- * entries freeze the release convergence. The provider-readiness entries
- * freeze the adapters that now delegate Grok readiness to the compiled
- * authority. New shell work beyond these artifacts must use the closed
+ * entries freeze the release convergence and retained helper behavior.
+ * New shell work beyond these artifacts must use the closed
  * thin-adapter grammar.
  */
+// M6 adds exact reviewed comment-cleanup bodies; executable bytes match committed HEAD.
+// These pins permit no additional mutation or relocation.
 const LEGACY_MIGRATION_BODY_SHA256 = new Map<string, string>([
   [
     "skills/foreman/scripts/gate-eval.sh",
     "bd0a5e404cb97dfe356084764f797a2852b8a6d84862e038aaecad085f70b546",
-  ],
-  // Re-pinned 2026-09-05: default model grok-4.6 and verified CLI 1.0.13.
-  // Data-only change, no new logic.
-  [
-    "skills/foreman/scripts/adapters/grok.sh",
-    "6dcf82398b49681f66129e38f52e7b8c5a70257044028ee1ed7b6381ff3a4232",
   ],
   [
     "skills/foreman/scripts/lib/release-policy.sh",
@@ -107,18 +69,23 @@ const LEGACY_MIGRATION_BODY_SHA256 = new Map<string, string>([
   ],
   [
     "skills/foreman/scripts/merge-gate.sh",
-    "8854bd9bf4ddc0234989c156ca32287d2ade4e3b68bbb8c66e560e4a093fd95b",
+    "5af0591b3b458da11b602037582da4fed6a81d60d05b54198a3d4cd31c8a9cfb",
   ],
   [
     "skills/foreman/scripts/vendor-concurrency-test.sh",
-    "6433ef616bfc1fb28944b418f0291f6eedc196d5815fa73c2451e04bf327f889",
+    "543d0827ea0039dd5cb0452e0f27b5a6df61171b91e1535fa22fff27e8bbb0e7",
   ],
-  // Pinned 2026-09-05 (pidns-remedy): display-only containment note on the
-  // watchdog state line. Same legacy-debt note as lane-run.sh above.
-  [
-    "skills/foreman/scripts/watch.sh",
-    "6ee0c22f756bf7395c93ff1876d42a877e0c7a0e091b06fe592d23a5b320ff14",
-  ],
+
+  ["env/wsl-clock-preflight.sh", "50e5244978ec1760a34a80e9d0ede947e00c1a8dbe4abf5bb1d1e4f455531a98"],
+  ["skills/foreman/scripts/foreman-cleanup.sh", "12945ea8367e4cad4294440d8449cf32501064921f063651060a1dff55dd2e23"],
+  ["skills/foreman/scripts/lane-complete-check.sh", "60e4010797b1d03bdcc153f2520cb3aaf2284e06da6d12c7206221591f9f6770"],
+  ["skills/foreman/scripts/lib/config.sh", "f721c5c4eb1d603e3ccafcfd328c41210958d96162a47c31e8cc07e521f57d29"],
+  ["skills/foreman/scripts/lib/eventlog.sh", "7fbf4436350e56b5f21dcab8714a7040e0f5bc8863212cbb0ab8bffd4965f392"],
+  ["skills/foreman/scripts/lib/evidence.sh", "04fa2b71f40288fd7500f429c7d9715dc9bbebc8848e121fb9137c5673e9e5e8"],
+  ["skills/foreman/scripts/lib/launch.sh", "e26a233bcd01553719f359276ef6d4695306124a102751cc0a9fb03ab93d18fd"],
+  ["skills/foreman/scripts/lib/telemetry.sh", "f305b1a792ba8f066a77d8581ae51b4df5942622ad43f04a10e42a031cc689dd"],
+  ["skills/foreman/scripts/wt-cleanup.sh", "2709e63ecfd0fcff7e649bf321937261c73fa6ddce1933190981b100a35e9902"],
+  ["skills/foreman/scripts/wt-new.sh", "84e1df1c1be23a5c0b9d181fe188cf720b5487649a773a11507b28cf52172bed"],
 ]);
 
 export function isPinnedLegacyMigrationArtifact(
@@ -131,34 +98,6 @@ export function isPinnedLegacyMigrationArtifact(
   return (
     createHash("sha256").update(sourceText, "utf8").digest("hex") === expected
   );
-}
-
-/**
- * Closed validator for the single approved lane-run.sh migration artifact.
- * Accepts only the exact profile-bound adapter body. Rejects every other
- * change with legacy_adapter_domain_logic.
- */
-function inspectLaneRunMigrationAdapter(sourceText: string): PolicyReason | null {
-  if (/[\u0000]/.test(sourceText)) return DENY;
-
-  const digest = createHash("sha256").update(sourceText, "utf8").digest("hex");
-  return digest === LANE_RUN_BODY_SHA256 ? null : DENY;
-}
-
-/**
- * Closed validator for the single approved lane-supervise.sh migration
- * artifact. Accepts only the exact thin adapter body (full SHA-256 pin).
- * Rejects every other change with legacy_adapter_domain_logic.
- */
-function inspectLaneSuperviseMigrationAdapter(
-  sourceText: string,
-): PolicyReason | null {
-  if (/[\u0000]/.test(sourceText)) return DENY;
-  const digest = createHash("sha256")
-    .update(sourceText, "utf8")
-    .digest("hex");
-  if (digest !== LANE_SUPERVISE_BODY_SHA256) return DENY;
-  return null;
 }
 
 const SHEBANG =
@@ -400,23 +339,13 @@ function inspectPosixShellAdapter(
  * Returns null when the adapter body is within the thin-adapter grammar;
  * otherwise returns legacy_adapter_domain_logic.
  *
- * The 1,482-line lane-run.sh migration artifact is admitted only by the
- * closed R4C3 validator (exact forwarding block + pinned prefix and suffix
- * digests that pin block position). The R5D lane-supervise.sh thin adapter
- * is admitted only by the closed full-body SHA-256 pin for its exact path.
- * All other paths keep the six-production / eight-production grammar.
+ * All unpinned paths use the closed six/eight-production grammar.
  */
 export function inspectLegacyAdapter(
   path: string,
   sourceText: string,
 ): PolicyReason | null {
   const normalizedPath = path.replace(/\\/g, "/");
-  if (normalizedPath === LANE_RUN_MIGRATION_PATH) {
-    return inspectLaneRunMigrationAdapter(sourceText);
-  }
-  if (normalizedPath === LANE_SUPERVISE_MIGRATION_PATH) {
-    return inspectLaneSuperviseMigrationAdapter(sourceText);
-  }
   const pinnedLegacyDigest = LEGACY_MIGRATION_BODY_SHA256.get(normalizedPath);
   if (pinnedLegacyDigest !== undefined) {
     return isPinnedLegacyMigrationArtifact(path, sourceText) ? null : DENY;

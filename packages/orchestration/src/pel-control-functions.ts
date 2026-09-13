@@ -38,6 +38,25 @@ import type { HostContextV1, HostDispatchOutcomeV1, PelChildStateV1, PelControlH
 import { appendPelEffectResult, appendPelRecord, pelHash, readPelRecords, replayPelRun, stablePelEffectIdentity } from './pel-journal.js';
 import { PEL_ARTIFACT_MAX_BYTES, pelRunnerFailure, persistPelChild, persistPelContinuation, persistPelSuspension, putPelRunData } from './pel-runner.js';
 
+/** A committed loser can discard local completion only after external work is durably settled. */
+export function settlePelKnownRaceLoser(request:HostRequestV1,context:HostContextV1,observation:import('./pel-journal.js').PelObservedDataV1|undefined) {
+  return Effect.gen(function*(){
+    if(!observation||!['none','confirmed-complete','confirmed-cancelled'].includes(observation.externalOutcome))return undefined;
+    const receipt:HostReceiptV1={requestId:request.requestId,outcome:{tag:'failure',failure:{code:'cancelled',message:'The committed race winner discarded this joined loser after its external work settled.',cause:{observationRef:{...observation.observationRef},externalOutcome:observation.externalOutcome}}}};
+    const valid=validateHostReceipt(context.checked.snapshot.registry,request,receipt);if(!valid.ok)return yield* Effect.fail(pelRunnerFailure('continuation-incompatible',valid.error.message));
+    yield* appendPelEffectResult(context.binding,context.effect,receipt);return receipt;
+  });
+}
+function settleJoinedLoser(child:PelChildStateV1,parent:PelContinuationV1,context:HostContextV1,history:import('./pel-journal.js').PelReplayV1) {
+  return Effect.gen(function*(){
+    if(!child.pending.length)return child;
+    const runtime=yield* PelRuntime,bytes=yield* runtime.artifacts.get(context.binding.runId,child.continuationRef,PEL_ARTIFACT_MAX_BYTES),decoded=decodePelContinuation(bytes,{sourceDigest:parent.sourceDigest,profileDigest:parent.profileDigest,registryDigest:parent.registryDigest,optionsDigest:child.optionsDigest});
+    if(!decoded.ok)return yield* Effect.fail(pelRunnerFailure('continuation-incompatible',decoded.error.message));
+    const pending:PelChildStateV1['pending'][number][]=[];
+    for(const item of child.pending){if(history.results.has(item.effect.effectId))continue;const request=decoded.value.pending[item.effect.requestId]?.request;if(!request)return yield* Effect.fail(pelRunnerFailure('journal-corrupt','The abandoned effect has no original child request.'));const settled=history.intents.has(item.effect.effectId)?yield* settlePelKnownRaceLoser(request,{...context,effect:item.effect,workspace:child.workspaceGrant},history.observations.get(item.effect.effectId)):undefined;if(!settled)pending.push(item);}
+    return {...child,pending};
+  });
+}
 function loserCancellation(child:PelChildStateV1,history:import('./pel-journal.js').PelReplayV1):string {
   if(child.phase==='done') return 'completed';
   return child.pending.some(item=>history.intents.has(item.effect.effectId)&&!history.results.has(item.effect.effectId)&&history.observations.get(item.effect.effectId)?.externalOutcome!=='confirmed-cancelled')?'unknown':'confirmed-cancelled';
@@ -201,7 +220,8 @@ const raceHandler:PelControlHandlerV1={execute:(request,context,parent,driver)=>
     const receipt=JSON.parse(Buffer.from(resultBytes).toString('utf8')) as HostReceiptV1;
     if(receipt.outcome.tag!=='success'||!isPelDataValue(receipt.outcome.value)) return yield* Effect.fail(pelRunnerFailure('journal-corrupt','Committed race winner is not ordinary success data'));
     let charged=parent; const losers:PelDataValue[]=[];
-    for(const child of existing.sort((a,b)=>a.index-b.index)) {
+    for(let child of existing.sort((a,b)=>a.index-b.index)) {
+      if(child.index!==winnerChild.index){child=yield* settleJoinedLoser(child,parent,context,replay.value);child=yield* persistPelChild(context.binding,{...child,phase:child.phase==='done'?'done':'abandoned',winnerDecisionRef:{effectId:context.effect.effectId,sequence:record.sequence,sha256:record.data.decisionRef.sha256}});driver.updateChild(child);}
       charged=yield* charge(charged,child);
       if(child.index!==winnerChild.index) losers.push(list(pair('index',number(child.index)),pair('cancellation',string(loserCancellation(child,replay.value))),pair('artifacts',list(...(child.resultRef?[string(child.resultRef.artifactId)]:[])))));
     }
@@ -245,13 +265,14 @@ const raceHandler:PelControlHandlerV1={execute:(request,context,parent,driver)=>
   const decisionRef=yield* putPelRunData(context.binding,{parentRequestId:request.requestId,eligible,winnerIndex:selected.index});
   const decision=yield* appendPelRecord(context.binding,'pel.race.decision.v1',{decisionRef});
   yield* Effect.forEach(fibers.filter((_,offset)=>offset+1!==selected!.index),Fiber.interrupt,{concurrency:'unbounded',discard:true});
-  const cleanup=replayPelRun(yield* readPelRecords(context.binding.runId));
+  let cleanup=replayPelRun(yield* readPelRecords(context.binding.runId));
   if(!cleanup.ok) return yield* Effect.fail(cleanup.error);
   let charged=parent;
   const loserRows:PelDataValue[]=[];
   for(let index=1;index<=tasks.items.length;index++) {
     let child=driver.children.find(child=>child.childInvocationId===`${request.requestId}/race/${index}`);
     if(!child) continue;
+    if(index!==selected.index)child=yield* settleJoinedLoser(child,parent,context,cleanup.value);
     child=yield* persistPelChild(context.binding,{...child,phase:index===selected.index?'done':child.phase==='done'?'done':'abandoned',winnerDecisionRef:{effectId:context.effect.effectId,sequence:decision.seq,sha256:decisionRef.sha256}});
     driver.updateChild(child);
     charged=yield* charge(charged,child);

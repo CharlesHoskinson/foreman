@@ -1,4 +1,6 @@
+#!/usr/bin/env node
 import { open } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { basename } from "node:path";
@@ -7,6 +9,9 @@ import { makeForemanCli } from "./pel-authoring-cli.js";
 import { defaultLiveProviderContext, makeLiveProviderCliServices } from './pel-provider-live.js';
 import { makeLiveAuthoringGenerate } from './pel-provider-generation-live.js';
 import {makeLivePelLifecycleServices,defaultPelLifecycleOptions} from './pel-lifecycle-live.js';
+import {makeLivePelAdoptionServices} from './pel-adoption.js';
+import {makePelResearchCliServices} from './pel-research-refresh.js';
+import {makeLivePelMigrationServices} from './pel-migration-live.js';
 import {
   authoringFailure,
   type AuthoringInputPort,
@@ -113,13 +118,17 @@ export function runPelAuthoringMain(
         };
       }
       const providerContext = defaultLiveProviderContext();
+      const lifecycleOptions = defaultPelLifecycleOptions(overrides.output ?? nodeAuthoringOutput);
       const result = yield* makeForemanCli({
         input: nodeAuthoringInput,
         output: nodeAuthoringOutput,
         context: { defaultSnapshotPath: defaultAuthoringSnapshotPath() },
         providers: makeLiveProviderCliServices(providerContext),
         generate: makeLiveAuthoringGenerate(providerContext),
-        lifecycle: makeLivePelLifecycleServices(defaultPelLifecycleOptions(overrides.output ?? nodeAuthoringOutput)),
+        lifecycle: makeLivePelLifecycleServices(lifecycleOptions),
+        adoption: makeLivePelAdoptionServices({entryUrl:import.meta.url,foremanHome:lifecycleOptions.foremanHome}),
+        research: makePelResearchCliServices({entryUrl:import.meta.url,foremanHome:lifecycleOptions.foremanHome,checkoutRoot:lifecycleOptions.cwd}),
+        migration: makeLivePelMigrationServices({entryUrl:import.meta.url,foremanHome:lifecycleOptions.foremanHome,cwd:lifecycleOptions.cwd}),
         ...overrides,
         ...(terminal ? { terminal } : {}),
       }).run(argv);
@@ -138,8 +147,8 @@ export function runPelAuthoringMain(
 }
 if (
   process.argv[1] &&
-  basename(process.argv[1]) === "foreman.js" &&
-  fileURLToPath(import.meta.url) === process.argv[1]
+  basename(fileURLToPath(import.meta.url)) === "foreman.js" &&
+  fileURLToPath(import.meta.url) === realpathSync(process.argv[1])
 ) {
   const controller = new AbortController();
   const cancel = () => controller.abort();

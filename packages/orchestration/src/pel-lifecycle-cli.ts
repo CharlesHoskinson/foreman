@@ -1,5 +1,6 @@
 /** Lifecycle parsing extends the one Foreman CLI. Services own durable execution. */
 import {Effect} from 'effect';
+import {isPelLegacyStatusV1,type PelLegacyStatusV1} from './pel-legacy-status.js';
 import {decodeRunId, type RunId} from '@foreman/event-log';
 import type {AuthoringSnapshotV1} from '@foreman/pel';
 import {authoringFailure, type AuthoringFailure, type AuthoringServices, type CliResult} from './pel-authoring-contract.js';
@@ -23,11 +24,13 @@ export interface PelLifecycleResumeInput {
   readonly revision?:Uint8Array;
   readonly started:(runId:string)=>Effect.Effect<void,AuthoringFailure>;
 }
+export type PelLifecycleNeedsActionV1 = Omit<AuthoringFailure,'exitCode'> & {readonly exitCode:3};
+export type PelLifecycleFailure = AuthoringFailure | PelLifecycleNeedsActionV1;
 export interface PelLifecycleCliServices {
-  readonly run:(input:PelLifecycleStartInput)=>Effect.Effect<RunResultV1,AuthoringFailure>;
-  readonly resume:(input:PelLifecycleResumeInput)=>Effect.Effect<RunResultV1,AuthoringFailure>;
-  readonly status:(runId:RunId,stateRoot?:string)=>Effect.Effect<RunStatusV1|RunResultV1,AuthoringFailure>;
-  readonly cancel:(runId:RunId,stateRoot?:string)=>Effect.Effect<RunStatusV1|RunResultV1,AuthoringFailure>;
+  readonly run:(input:PelLifecycleStartInput)=>Effect.Effect<RunResultV1,PelLifecycleFailure>;
+  readonly resume:(input:PelLifecycleResumeInput)=>Effect.Effect<RunResultV1,PelLifecycleFailure>;
+  readonly status:(runId:RunId,stateRoot?:string)=>Effect.Effect<RunStatusV1|RunResultV1|PelLegacyStatusV1,PelLifecycleFailure>;
+  readonly cancel:(runId:RunId,stateRoot?:string)=>Effect.Effect<RunStatusV1|RunResultV1,PelLifecycleFailure>;
   readonly configure:(bytes:Uint8Array)=>Effect.Effect<void,AuthoringFailure>;
   readonly configuredSnapshot?:(base:AuthoringSnapshotV1,explicit:boolean)=>Effect.Effect<AuthoringSnapshotV1,AuthoringFailure>;
   readonly renderResult?:(result:RunResultV1,format:'text'|'json',stateRoot?:string)=>Effect.Effect<string|null,AuthoringFailure>;
@@ -62,7 +65,7 @@ export function runPelLifecycleCli(argv:readonly string[],services:AuthoringServ
     if(flags['--revision']&&!flags['--decision'])return yield* Effect.fail(authoringFailure('PEL_CLI_USAGE','A source revision requires its bound --decision record.'));
     const started=(runId:string)=>services.output.stderr(json?JSON.stringify({type:'run-started',runId,state:'running'})+'\n':`run-id: ${runId}\n`);
     const read=(name:string,max=1048576)=>flags[name]?services.input.read(flags[name]!,max):Effect.succeed(undefined);
-    let result:RunStatusV1|RunResultV1;
+    let result:RunStatusV1|RunResultV1|PelLegacyStatusV1;
     const stateRoot=flags['--state-root'];
     if(command==='run'){
       const source=yield* services.input.read(positional,1048576),binding=yield* read('--binding'),context=yield* read('--context',16777216);
@@ -73,6 +76,11 @@ export function runPelLifecycleCli(argv:readonly string[],services:AuthoringServ
         const decision=yield* read('--decision'),revision=yield* read('--revision');
         result=yield* lifecycle.resume({runId,started,outputMode:json?'json':'text',...(stateRoot?{stateRoot}:{}),...(decision?{decision}:{}),...(revision?{revision}:{})});
       }else result=yield* (command==='cancel'?lifecycle.cancel(runId,stateRoot):lifecycle.status(runId,stateRoot));
+    }
+    if('kind' in result){
+      if(command!=='status'||!isPelLegacyStatusV1(result))return yield* Effect.fail(authoringFailure('PEL_RUN_RESULT','Historical status returned an invalid record.',1));
+      yield* services.output.stdout(json?JSON.stringify(result)+'\n':`${result.runId}: legacy ${result.state}\nNext action: ${result.nextAction}\n`);
+      return {exitCode:result.state==='terminal'?0 as const:3 as const};
     }
     const decoded = command==='run'||command==='resume'||'finalValue' in result ? decodeRunResultV1(result) : decodeRunStatusV1(result);
     if(!decoded.ok)return yield* Effect.fail(authoringFailure('PEL_RUN_RESULT','Execution returned an invalid result record.',1));
@@ -86,7 +94,7 @@ export function runPelLifecycleCli(argv:readonly string[],services:AuthoringServ
     yield* services.output.stdout(delivery??(json?JSON.stringify(result)+'\n':rendered));
     return {exitCode:pelLifecycleExit(result)};
   }).pipe(Effect.catchAll(e=>Effect.gen(function*(){
-    if(json)yield* services.output.stdout(JSON.stringify({schemaVersion:1,outcome:e.exitCode===2?'invalid':'failed',code:e.code,diagnostics:e.diagnostics??[{message:e.message}]})+'\n');
+    if(json)yield* services.output.stdout(JSON.stringify({schemaVersion:1,outcome:e.exitCode===2?'invalid':e.exitCode===3?'needs-action':'failed',code:e.code,diagnostics:e.diagnostics??[{message:e.message}]})+'\n');
     else yield* services.output.stderr(`${e.code}: ${e.message}\n`);
     return {exitCode:e.exitCode};
   })));

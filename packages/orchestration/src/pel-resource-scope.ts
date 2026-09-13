@@ -2,6 +2,7 @@ import { realpath, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { Effect, STM, TRef } from 'effect';
 import {canonicalize,sha256Hex} from '@foreman/core';
+import {decodePelResearchIndexExpansion} from './pel-research-host.js';
 import type { HostContextV1, PelHostEffectFailureV1, PelResourcePort, ResourceSetV1, PelDestinationBindingV1 } from './pel-run-contract.js';
 
 export const pelPublicationResource=(destination:PelDestinationBindingV1):string=>`publication:${sha256Hex(canonicalize({repositoryIdentitySha256:destination.repositoryIdentitySha256,remoteIdentity:destination.remoteIdentity,ref:destination.ref}))}`;
@@ -18,7 +19,7 @@ async function canonical(path: string): Promise<string> {
     return join(await canonical(parent), relative(parent, path));
   }
 }
-export function canonicalWorkspacePath(path: string, context: HostContextV1) {
+export function canonicalWorkspacePath(path: string, context: {readonly workspace: {readonly canonicalRoot: string; readonly directoryIdentity: string}}) {
   return Effect.tryPromise({ try: async () => {
     if (path.includes('\0') || path.split(/[\\/]/u).includes('..')) throw denied();
     const root = context.workspace.canonicalRoot;
@@ -38,7 +39,7 @@ function conflicts(a: ResourceSetV1, b: ResourceSetV1): boolean {
   return aw.some(x => [...br, ...bw].some(y => overlaps(x, y))) || bw.some(x => ar.some(y => overlaps(x, y)));
 }
 /** One run-owned resource service. STM atomically acquires whole sets; scoped finalizers release them. */
-export function makePelResourceScope(): Effect.Effect<PelResourcePort> {
+export function makePelResourceScope(options:{readonly readResearchIndex?:(context:HostContextV1,ref:import('./pel-run-contract.js').PelArtifactRefV1,maxBytes:number)=>Effect.Effect<Uint8Array,PelHostEffectFailureV1>}={}): Effect.Effect<PelResourcePort> {
   return Effect.gen(function* () {
     const held = yield* TRef.make<readonly { id: object; resources: ResourceSetV1 }[]>([]).pipe(STM.commit);
     const permits = new Map<number, Effect.Semaphore>();
@@ -77,6 +78,13 @@ export function makePelResourceScope(): Effect.Effect<PelResourcePort> {
     });
     return {
       resolve: (descriptor, request, context) => Effect.gen(function* () {
+        if(request.registryId==='fm/research'){
+          const argument=request.boundArguments.bundle,id=argument?.tag==='string'?argument.value:null,ref=id?context.project.researchBundles?.[id]:undefined,policy=context.checked.snapshot.policy;
+          if(!id||!ref||!options.readResearchIndex||!policy.allowedCapabilities.includes('research.read')||!policy.resourceEnvelope.reads.includes(id))return yield* Effect.fail(denied());
+          const index=decodePelResearchIndexExpansion(id,ref,yield* options.readResearchIndex(context,ref,1048576));
+          if(!index||index.bundle.includesExternalVault&&!policy.allowedCapabilities.includes('vault.read'))return yield* Effect.fail(denied());
+          return index.resources;
+        }
         const reads = new Set(descriptor.resources.reads);
         for (const field of ['input', 'bundle']) {
           const value = request.boundArguments[field];

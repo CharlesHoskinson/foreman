@@ -297,7 +297,7 @@ profile = ["soft", "hard", "full", "durable"]
 where = ["wsl"]
 check = "node skills/foreman/runtime/dist/foreman-launch.js --probe-only --require-containment strong"
 required = false
-notes = "Kernel PID-namespace containment for lanes. The Node launcher probes an unprivileged user-namespace ladder first. A DEGRADED row means every POSIX lane runs with process-group cleanup only, and lane-run.sh refuses implementation lanes unless FOREMAN_CONTAINMENT_APPROVAL is set. See docs/research/foreman-pidns-degradation-2026-09-05.md."
+notes = "Kernel PID-namespace containment for lanes. The Node launcher probes an unprivileged user-namespace ladder first. A DEGRADED row means every POSIX lane runs with process-group cleanup only, and does not establish namespace containment. Installed provider admission requires its exact native boundary and qualification. See docs/research/foreman-pidns-degradation-2026-09-05.md."
 
 [[tools]]
 id = "pueue"

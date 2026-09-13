@@ -1,0 +1,2 @@
+(fm/task :id "implement" :model "claude-opus-5" :transport "claude-code"
+  :input "artifact:approved-spec" :output "schema:candidate-v1")

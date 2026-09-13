@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "contractId": "legacy-implement-verify-review",
+  "packageId": "legacy-import-fixture",
+  "objectiveSha256": "8fc5988cc534595db7b87b1d45f0ef875ec42a863638878d8240f81f2cbd15c5",
+  "acceptanceSha256": "7dbb2c2cdb42e00f62a16dd9d7aef4f42c4d5a2cd5a38254215efb3a2edfbf0d",
+  "baseCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "allowedPathsSha256": "eb197a215863a48e2e136f12f8b5cdf4224564d775f077d2da63fb84017c5c5d",
+  "dependencyContractIds": [],
+  "authorizationSha256": "16bdebf6a833d870648c9b5c546a51739b88cd04240d77161752d3f0ba5b2795",
+  "createdAt": "2026-09-13T00:00:00Z",
+  "deadlineAt": "2026-09-13T02:00:00Z",
+  "limits": {
+    "implementationRounds": 1,
+    "correctionRounds": 1,
+    "auditRounds": 1,
+    "councilRounds": 1,
+    "providerRetries": 2,
+    "resumeAttempts": 2,
+    "verificationRunsPerCandidate": 1,
+    "totalActions": 3,
+    "wallTimeMs": 7200000,
+    "noProductChangeMs": 1800000
+  },
+  "requiredMilestones": [
+    "checks",
+    "audit"
+  ]
+}

@@ -86,3 +86,63 @@ test('T-M4-001 retained input validation precedes the durable run record and sta
     assert.equal(records.some(row=>row.type==='pel.run.v1'),false);
   }finally{rmSync(f.root,{recursive:true,force:true});}
 });
+
+import {packageFixture} from './fixtures/pel-install/package-fixture.js';
+import {installPackage,withInstalledPrefix} from './pel-install.js';
+import {makeInstallManifest} from './pel-package.js';
+import {makeLivePelAdoptionServices} from './pel-adoption.js';
+import {makePelInstalledAdmission} from './pel-install-admission.js';
+import {canonicalize} from '@foreman/core';
+import {writeFile,readlink} from 'node:fs/promises';
+import {pathToFileURL} from 'node:url';
+test('T-M6-017 real lifecycle admission and rollback serialize, reject a stale invoker, and release before startup',async()=>{
+ const f=await fixture(),pkg=await packageFixture();try{
+  const {buildId,...payload}=pkg.manifest;void buildId;
+  const old=makeInstallManifest({...payload,runtimeCompatibility:{runtimeVersion:'1',runtimeHandlerVersion:'older'}});
+  await writeFile(join(pkg.sourceRoot,'manifest.json'),canonicalize(old)+'\n');
+  await Effect.runPromise(installPackage({sourceRoot:pkg.sourceRoot,prefix:pkg.prefix}));
+  const next=await pkg.seal('1.0.0');await Effect.runPromise(installPackage({sourceRoot:pkg.sourceRoot,prefix:pkg.prefix}));
+  const entryUrl=pathToFileURL(join(pkg.prefix,'versions',next.buildId,'runtime/dist/foreman.js')).href;
+  Object.assign(f.runtime,{admission:makePelInstalledAdmission(entryUrl,pkg.root)});
+  let startupCount=0,blockedAdmission=false;
+  const input={source:Buffer.from('42'),sourcePath:'admitted.pel',started:()=>Effect.sync(()=>{startupCount++;})};
+  const api=makeLivePelAdoptionServices({entryUrl,foremanHome:pkg.root,loadRegisteredRoots:()=>Effect.gen(function*(){
+   const attempt=yield* f.api.run(input).pipe(Effect.either);assert.equal(attempt._tag,'Left');blockedAdmission=true;return [f.root];
+  })});
+  await Effect.runPromise(api.rollback(old.buildId));assert.equal(blockedAdmission,true);assert.equal(startupCount,0);
+  assert.equal(await readlink(join(pkg.prefix,'current')),`versions/${old.buildId}`);
+  const stale=await Effect.runPromise(f.api.run(input).pipe(Effect.either));assert.equal(stale._tag,'Left');assert.equal(startupCount,0);
+  assert.equal(readdirSync(f.root).includes('runs')?readdirSync(join(f.root,'runs')).filter(name=>name.startsWith('pel-')).length:0,0);
+  await Effect.runPromise(installPackage({sourceRoot:pkg.sourceRoot,prefix:pkg.prefix}));
+  const admitted=await Effect.runPromise(f.api.run({...input,started:()=>makePelInstalledAdmission(entryUrl,pkg.root)(Effect.sync(()=>{startupCount++;})).pipe(Effect.mapError(()=>({_tag:'AuthoringFailure' as const,code:'test',message:'lock retained at startup',exitCode:1 as const})),Effect.zipRight(Effect.fail({_tag:'AuthoringFailure' as const,code:'test',message:'stop after durable admission',exitCode:1 as const})))}).pipe(Effect.either));
+  assert.equal(admitted._tag,'Left');assert.equal(startupCount,1);
+  const recheck=makeLivePelAdoptionServices({entryUrl,foremanHome:pkg.root,loadRegisteredRoots:()=>Effect.succeed([f.root])});
+  const refused=await Effect.runPromise(recheck.rollback(old.buildId).pipe(Effect.either));assert.equal(refused._tag,'Left');if(refused._tag==='Left')assert.equal(refused.left.exitCode,3);
+  assert.equal(await readlink(join(pkg.prefix,'current')),`versions/${next.buildId}`);
+ }finally{rmSync(f.root,{recursive:true,force:true});await pkg.close();}
+});
+
+test('T-M6-017 rollback excludes second-prefix and checkout admission through the original registry transaction',async()=>{
+ const f=await fixture(),pkg=await packageFixture();try{
+  const {buildId,...payload}=pkg.manifest;void buildId;const old=makeInstallManifest({...payload,runtimeCompatibility:{runtimeVersion:'1',runtimeHandlerVersion:'older'}});
+  await writeFile(join(pkg.sourceRoot,'manifest.json'),canonicalize(old)+'\n');await Effect.runPromise(installPackage({sourceRoot:pkg.sourceRoot,prefix:pkg.prefix}));
+  const next=await pkg.seal('1.0.0');await Effect.runPromise(installPackage({sourceRoot:pkg.sourceRoot,prefix:pkg.prefix}));
+  const otherPrefix=join(pkg.root,'other-prefix');await Effect.runPromise(installPackage({sourceRoot:pkg.sourceRoot,prefix:otherPrefix}));
+  const entryUrl=pathToFileURL(join(pkg.prefix,'versions',next.buildId,'runtime/dist/foreman.js')).href;
+  const otherUrl=pathToFileURL(join(otherPrefix,'versions',next.buildId,'runtime/dist/foreman.js')).href;
+  let blocked=0,started=0;
+  const api=makeLivePelAdoptionServices({entryUrl,foremanHome:pkg.root,loadRegisteredRoots:()=>Effect.gen(function*(){
+   for(const url of [otherUrl,import.meta.url]){
+    Object.assign(f.runtime,{admission:makePelInstalledAdmission(url,pkg.root)});
+    const attempt=yield* f.api.run({source:Buffer.from('42'),sourcePath:'concurrent.pel',started:()=>Effect.sync(()=>{started++;})}).pipe(Effect.either);
+    assert.equal(attempt._tag,'Left',url);blocked++;
+   }
+   return [f.root];
+  })});
+  await Effect.runPromise(api.rollback(old.buildId));assert.equal(blocked,2);assert.equal(started,0);
+  assert.equal(readdirSync(f.root).includes('runs')?readdirSync(join(f.root,'runs')).filter(name=>name.startsWith('pel-')).length:0,0);
+  assert.equal(await readlink(join(pkg.prefix,'current')),`versions/${old.buildId}`);
+  // Checkout still needs no prefix once rollback has released the transaction.
+  const result=await Effect.runPromise(f.api.run({source:Buffer.from('42'),sourcePath:'checkout.pel',started:()=>Effect.sync(()=>{started++;})}));assert.equal(result.state,'succeeded');assert.equal(started,1);
+ }finally{rmSync(f.root,{recursive:true,force:true});await pkg.close();}
+});

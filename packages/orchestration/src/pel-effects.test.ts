@@ -50,15 +50,17 @@ async function integration(source:string, variant:'dispatch'|'retry'|'predicate'
   const result=await Effect.runPromise(Effect.gen(function*(){
    const journal=yield* RunJournal,ledger=yield* EndstopLedger;yield* ledger.create(contract);
    const runId='run-pel-effects' as RunId,attempt=yield* journal.allocate(runId,'pel' as import('@foreman/event-log').LaneId);
-   const artifacts=makeLivePelArtifactPort(root),resources=yield* makePelResourceScope();
+   const artifacts=makeLivePelArtifactPort(root),resources=yield* makePelResourceScope({readResearchIndex:(context,ref,max)=>artifacts.get(context.binding.runId,ref,max).pipe(Effect.mapError(()=>({code:'artifact-missing' as const,message:'Missing fixture research index.'})))});
    const ref=yield* artifacts.put(runId,Buffer.from('{}'),100,'ordinary');
+   const researchRef=yield* artifacts.put(runId,Buffer.from(JSON.stringify({schemaVersion:1,bundleId:'bundle:release-sources',capturedAt:'2026-09-13T00:00:00Z',sources:[],graph:null})),1024,'ordinary');
    const binding={schemaVersion:1,evidenceKind:'test-fixture',runId,attempt,contractId:contract.contractId,contractSha256:executionContractSha256(contract),authority:{kind:'v1',authoritySha256:contract.authorizationSha256,authorityRef:ref},authoritySha256:contract.authorizationSha256,checkedProgramDigest:check.checked.bindingDigest,revisionDigest:check.checked.sourceDigest,sourceDigest:check.checked.sourceDigest,registryDigest:snapshot.registryDigest,optionsDigest:snapshot.optionsDigest,runtimeVersion:'pel-m4',languageProfileId:snapshot.languageProfile.id,languageProfileDigest:snapshot.languageProfileDigest,limits:{deadline:Date.parse(contract.deadlineAt),maxConcurrentEffects:1,maxOutputBytes:100000}} as unknown as ExecutionBindingV1;
    const admittedBinding=variant==='predicate'?{...binding,authority:{kind:'v2-child' as const,authoritySha256:binding.authoritySha256,authorityRef:ref,rootContractId:binding.contractId,rootContractSha256:binding.contractSha256,familySha256:'d'.repeat(64),childId:'evaluation-child',originReservationId:'origin',taskPlanSha256:'e'.repeat(64),authorityBundleSha256:'f'.repeat(64)}}:binding;
    const context={binding:admittedBinding,checked:check.checked,effect:stablePelEffectIdentity(admittedBinding,request.requestId,variant==='retry'?1:0,variant==='retry'?'prior-effect':undefined),...(variant==='retry'?{retryContext:{parentRequestId:'parent',attemptIndex:2,logicalOperationKey:'nested-task'}}:{}),workspace:{grantId:'grant',canonicalRoot:workspace,directoryIdentity:`${info.dev}:${info.ino}`,writablePaths:['.']},project:{taskActions:{task:'implement'},destinations:{'destination:pull-request':{operation:'publish'}}}} as unknown as HostContextV1;
+   Object.assign(context.project,{researchBundles:{'bundle:release-sources':researchRef}});
    const taskValue:import('@foreman/pel').PelDataValue={tag:'list',items:[{tag:'pair',key:'status',value:{tag:'string',value:'no-change'}},{tag:'pair',key:'candidate',value:{tag:'nil'}},{tag:'pair',key:'artifacts',value:{tag:'list',items:[]}},{tag:'pair',key:'implementation-receipt',value:{tag:'nil'}},{tag:'pair',key:'findings',value:{tag:'list',items:[]}}]};
    const researchValue={tag:'list' as const,items:[{tag:'pair' as const,key:'status',value:{tag:'string' as const,value:'complete'}},{tag:'pair' as const,key:'results',value:{tag:'list' as const,items:[]}}]};
    const handler:PelPreparedHandlerV1={prepare:()=>Effect.gen(function*(){
-    if(variant==='read-result')return {kind:'read-result' as const,value:researchValue,sources:[]};
+    if(variant==='read-result')return {kind:'read-result' as const,value:researchValue,sources:[researchRef],preparationDigest:pelHash({researchRef,value:researchValue})};
     if(variant==='needs-action')return {kind:'needs-action' as const,reason:'reconciliation-required' as const,diagnostic:{code:'grant',message:'Host grant required.',sourceSpan:null,effectId:context.effect.effectId,retryable:false,nextAction:'Supply grant.',evidenceRefs:[]},observationRef:ref};
     const descriptor=snapshot.registry.descriptors.find(d=>d.id===request.registryId)!;
     return {kind:'dispatch' as const,operationDigest:pelHash({requestId:request.requestId}),resources:yield* resources.resolve(descriptor,request,context),action:variant==='predicate'?'evaluate' as const:request.registryId==='fm/publish'?'publish' as const:'implement' as const,inputs:ref,candidate:variant==='predicate'?{commit:'1'.repeat(40),tree:'2'.repeat(40),candidateSha256:'3'.repeat(64)}:null,...(variant==='predicate'?{actionAuthority:{taskPlanSha256:'e'.repeat(64),authorityBundleSha256:'9'.repeat(64)}}:{})};
@@ -75,8 +77,8 @@ async function integration(source:string, variant:'dispatch'|'retry'|'predicate'
  } finally {await rm(root,{recursive:true,force:true});}
 }
 test('T-M4-019 read-result and needs-action consume no existing ledger reservations', async()=>{
- const source='(fm/research :id "read" :query "bounded" :bundle "artifact:approved-spec")';
- const read=await integration(source,'read-result');assert.equal(read.count,0);assert.equal(read.dispatches,0);assert.equal(read.intents,0);
+ const source='(fm/research :id "read" :query "bounded" :bundle "bundle:release-sources")';
+ const read=await integration(source,'read-result');assert.equal(read.count,0);assert.equal(read.dispatches,0);assert.equal(read.intents,0);assert.equal(read.first.kind,'settled');if(read.first.kind==='settled')assert.equal(read.first.receipt.outcome.tag,'success');
  const pending=await integration(source,'needs-action');assert.equal(pending.count,0);assert.equal(pending.first.kind,'waiting');
 });
 test('T-M4-019 dispatch reserves exactly once in the existing ledger and durable receipt replay dispatches zero',async()=>{
@@ -87,7 +89,7 @@ test('T-M4-020 native print records one output, returns vals, and replays withou
 });
 
 test('T-M4-019 a read-only research descriptor cannot be turned into an implementation reservation',async()=>{
- await assert.rejects(integration('(fm/research :id "read" :query "bounded" :bundle "artifact:approved-spec")','dispatch'));
+ await assert.rejects(integration('(fm/research :id "read" :query "bounded" :bundle "bundle:release-sources")','dispatch'));
 });
 
 test('T-M4-019 retry replaces implement with one provider_retry and V2 predicate uses evaluate once',async()=>{

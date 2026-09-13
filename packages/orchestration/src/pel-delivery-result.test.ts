@@ -28,6 +28,14 @@ test('delivery projection links current host evidence, removes credentials, and 
    assert.equal((yield* projectPelDeliveryResult(result(x),x.context)).review,null);
    const correctionToken=token('correct','implement'),correctedRef=yield* x.put({...candidate,commit:'e'.repeat(40),candidateSha256:sha256Hex('e'.repeat(40)),producingEffectId:correctionToken.effect.effectId});yield* record({schemaVersion:1,kind:'implementation',effect:correctionToken.effect,candidateRef:correctedRef,providerIdentity:implementer,reportRef:raw,reservation:correctionToken,beforeManifestRef:raw,afterManifestRef:raw});
    const corrected=yield* projectPelDeliveryResult(result(x),x.context);assert.equal(corrected.candidate?.value.commit,'e'.repeat(40));assert.equal(corrected.checks,null);assert.equal(corrected.review,null);assert.equal(corrected.publication,null);
+   // The later implementation belongs to a losing contender. Its completion
+   // must not replace the earlier committed winner in the operator projection.
+   for(const [index,item] of [implementationToken,correctionToken].entries()){
+    const childRef=yield* x.put({schemaVersion:1,parentRequestId:'race-parent',parentEffectId:'race-parent-effect',childInvocationId:`child-${index}`,childKind:'race',index,phase:'active',closureArgumentDigest:'a'.repeat(64),continuationRef:raw,optionsDigest:x.context.binding.optionsDigest,allocatedLimits:x.context.binding.limits.pel,consumed:result(x).usage.counters,trancheOrdinal:0,lastCounterChargeSequence:0,pending:[{effect:item.effect,argumentsRef:raw,expectedResultSchemaId:'schema:pel-data-v1',reservation:item,observationRef:null,providerIdentity:null}],workspaceGrant:x.context.workspace,immutableBase:x.context.workspace.immutableBase,winnerDecisionRef:null});
+    yield* appendPelRecord(x.context.binding,'pel.child-suspension.v1',{childRef});
+   }
+   yield* appendPelRecord(x.context.binding,'pel.race.decision.v1',{decisionRef:yield* x.put({parentRequestId:'race-parent',eligible:[{index:0,receipt:{effectId:implementationToken.effect.effectId,sequence:1,sha256:raw.sha256},workspaceGrantId:x.context.workspace.grantId}],winnerIndex:0})});
+   const winner=yield* projectPelDeliveryResult(result(x),x.context);assert.equal(winner.candidate?.value.commit,identity.commit);assert.equal(winner.checks?.passed,true);
   });yield* work.pipe(Effect.provideService(PelRuntime,x.runtime));
  })));}finally{f.close();}
 });

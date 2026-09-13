@@ -54,6 +54,9 @@ export interface AuthoringTerminalPort {
   setCompleter?(complete: (prefix: string) => readonly string[]): void;
 }
 export interface AuthoringServices {
+  readonly adoption?: import('./pel-adoption.js').PelAdoptionServices;
+  readonly research?: import('./pel-research-refresh.js').ResearchCliServices;
+  readonly migration?: import('./pel-migration-live.js').PelMigrationServices;
   readonly lifecycle?: import('./pel-lifecycle-cli.js').PelLifecycleCliServices;
   readonly providers?: import('./pel-provider-cli.js').ProviderCliServices;
   readonly input: AuthoringInputPort;

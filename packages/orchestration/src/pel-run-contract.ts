@@ -127,6 +127,8 @@ export interface ForemanProjectV1 {
     readonly destinations: Readonly<Record<string, PelDestinationBindingV1>>;
     readonly roleBindings: Readonly<Record<string, AuthoringModelSelectionV1>>;
     readonly taskActions: Readonly<Record<string, 'implement' | 'correct'>>;
+    /** Immutable research indexes. Source metadata belongs only to each index. */
+    readonly researchBundles?: Readonly<Record<string, PelArtifactRefV1>>;
     readonly nlConditionProfile: PelPredicateSelectionV1 | null;
     readonly dependencyMode: PelRunOptionsV1['dependencyMode'];
     readonly resultContract: PelResultContractV1;
@@ -266,6 +268,7 @@ export type PreparedHostEffectV1 = {
     readonly value: PelDataValue;
 } | {
     readonly kind: 'read-result';
+    readonly preparationDigest?: string;
     readonly value: PelDataValue;
     readonly sources: readonly PelArtifactRefV1[];
 } | {
@@ -492,7 +495,10 @@ export interface PelClockPort {
     readonly now: Effect.Effect<number>;
     readonly sleep: (milliseconds: number) => Effect.Effect<void>;
 }
+export type PelAdmissionTransaction = <A,E,R>(operation:Effect.Effect<A,E,R>)=>Effect.Effect<A,E|RunFailure,R>;
 export interface PelRuntimePorts {
+    /** Bounded installed admission only; release before evaluation or provider work. */
+    readonly admission?: PelAdmissionTransaction;
     /** Resolve a captured candidate's original admitted workspace before host execution. */
     readonly workspaceForHostRequest?: (request: HostRequestV1, context: HostContextV1) => Effect.Effect<PelWorkspaceGrantV1, RunFailure, RunJournal | PelRuntime>;
     /** Promote only the durable winner, using its original implementation reservation. */

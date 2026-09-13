@@ -180,9 +180,12 @@ const trackedReleasePolicy = readFileSync(trackedReleasePolicyPath);
     "graph-evaluation.js",
     "graph-store.js",
     "graphify-qualification.js",
+    "install.js",
     "lane-queue.js",
     "lane-round.js",
     "lane-supervise.js",
+    "pel-package.js",
+    "pel-simplification.js",
     "release-admission.js",
     "release-authority.js",
     "release-coverage.js",
@@ -205,205 +208,14 @@ const tmpB = mkdtempSync(join(tmpdir(), "foreman-build-b-"));
 try {
   const a = await buildTo({ runtimeRoot: tmpA });
   const b = await buildTo({ runtimeRoot: tmpB });
-  const aGuard = readFileSync(join(tmpA, "dist/destruction-guard.js"));
-  const bGuard = readFileSync(join(tmpB, "dist/destruction-guard.js"));
-  const aApplianceDoctor = readFileSync(
-    join(tmpA, "dist/appliance-doctor.js"),
-  );
-  const bApplianceDoctor = readFileSync(
-    join(tmpB, "dist/appliance-doctor.js"),
-  );
-  const aGraphifyQualification = readFileSync(
-    join(tmpA, "dist/graphify-qualification.js"),
-  );
-  const bGraphifyQualification = readFileSync(
-    join(tmpB, "dist/graphify-qualification.js"),
-  );
-  const aGraphContext = readFileSync(join(tmpA, "dist/graph-context.js"));
-  const bGraphContext = readFileSync(join(tmpB, "dist/graph-context.js"));
-  const aGraphEvaluation = readFileSync(
-    join(tmpA, "dist/graph-evaluation.js"),
-  );
-  const bGraphEvaluation = readFileSync(
-    join(tmpB, "dist/graph-evaluation.js"),
-  );
-  const aPolicy = readFileSync(join(tmpA, "dist/architecture-policy.js"));
-  const bPolicy = readFileSync(join(tmpB, "dist/architecture-policy.js"));
-  const aEndstop = readFileSync(join(tmpA, "dist/execution-guard.js"));
-  const bEndstop = readFileSync(join(tmpB, "dist/execution-guard.js"));
-  const aQueue = readFileSync(join(tmpA, "dist/lane-queue.js"));
-  const bQueue = readFileSync(join(tmpB, "dist/lane-queue.js"));
-  const aRound = readFileSync(join(tmpA, "dist/lane-round.js"));
-  const bRound = readFileSync(join(tmpB, "dist/lane-round.js"));
-  const aSupervise = readFileSync(join(tmpA, "dist/lane-supervise.js"));
-  const bSupervise = readFileSync(join(tmpB, "dist/lane-supervise.js"));
-  const aPreflight = readFileSync(join(tmpA, "dist/vendor-preflight.js"));
-  const bPreflight = readFileSync(join(tmpB, "dist/vendor-preflight.js"));
-  const aFmSession = readFileSync(join(tmpA, "dist/fm-session.js"));
-  const bFmSession = readFileSync(join(tmpB, "dist/fm-session.js"));
-  const aTier2Collect = readFileSync(join(tmpA, "dist/tier2-collect.js"));
-  const bTier2Collect = readFileSync(join(tmpB, "dist/tier2-collect.js"));
-  const aTier2Compare = readFileSync(join(tmpA, "dist/tier2-compare.js"));
-  const bTier2Compare = readFileSync(join(tmpB, "dist/tier2-compare.js"));
-  const aToolCheck = readFileSync(join(tmpA, "dist/tool-check.js"));
-  const bToolCheck = readFileSync(join(tmpB, "dist/tool-check.js"));
-  const aDependencyDrift = readFileSync(join(tmpA, "dist/dependency-drift.js"));
-  const bDependencyDrift = readFileSync(join(tmpB, "dist/dependency-drift.js"));
-  const aForemanSetup = readFileSync(join(tmpA, "dist/foreman-setup.js"));
-  const bForemanSetup = readFileSync(join(tmpB, "dist/foreman-setup.js"));
-  const aSecretScan = readFileSync(join(tmpA, "dist/secret-scan.js"));
-  const bSecretScan = readFileSync(join(tmpB, "dist/secret-scan.js"));
-  const aCredentialProfile = readFileSync(
-    join(tmpA, "dist/credential-profile.js"),
-  );
-  const bCredentialProfile = readFileSync(
-    join(tmpB, "dist/credential-profile.js"),
-  );
-  const aCredentialProfileLane = readFileSync(
-    join(tmpA, "dist/credential-profile-lane.js"),
-  );
-  const bCredentialProfileLane = readFileSync(
-    join(tmpB, "dist/credential-profile-lane.js"),
-  );
-  const aGraphStore = readFileSync(join(tmpA, "dist/graph-store.js"));
-  const bGraphStore = readFileSync(join(tmpB, "dist/graph-store.js"));
-  const aForemanLaunch = readFileSync(join(tmpA, "dist/foreman-launch.js"));
-  const bForemanLaunch = readFileSync(join(tmpB, "dist/foreman-launch.js"));
-  const aReleaseAdmission = readFileSync(
-    join(tmpA, "dist/release-admission.js"),
-  );
-  const bReleaseAdmission = readFileSync(
-    join(tmpB, "dist/release-admission.js"),
-  );
-  const aReleaseAuthority = readFileSync(
-    join(tmpA, "dist/release-authority.js"),
-  );
-  const bReleaseAuthority = readFileSync(
-    join(tmpB, "dist/release-authority.js"),
-  );
-  const aReleaseCoverage = readFileSync(
-    join(tmpA, "dist/release-coverage.js"),
-  );
-  const bReleaseCoverage = readFileSync(
-    join(tmpB, "dist/release-coverage.js"),
-  );
-  const aReleasePolicy = readFileSync(join(tmpA, "dist/release-policy.js"));
-  const bReleasePolicy = readFileSync(join(tmpB, "dist/release-policy.js"));
-  if (!bytesEqual(aApplianceDoctor, bApplianceDoctor)) {
-    fail("non-deterministic appliance-doctor");
-  }
-  if (!bytesEqual(aGraphifyQualification, bGraphifyQualification)) {
-    fail("non-deterministic graphify-qualification");
-  }
-  if (!bytesEqual(aGraphContext, bGraphContext)) {
-    fail("non-deterministic graph-context");
-  }
-  if (!bytesEqual(aGraphEvaluation, bGraphEvaluation)) {
-    fail("non-deterministic graph-evaluation");
-  }
-  if (!bytesEqual(aGuard, bGuard)) fail("non-deterministic destruction-guard");
-  if (!bytesEqual(aPolicy, bPolicy)) fail("non-deterministic architecture-policy");
-  if (!bytesEqual(aEndstop, bEndstop)) fail("non-deterministic execution-guard");
-  if (!bytesEqual(aQueue, bQueue)) fail("non-deterministic lane-queue");
-  if (!bytesEqual(aRound, bRound)) fail("non-deterministic lane-round");
-  if (!bytesEqual(aSupervise, bSupervise)) fail("non-deterministic lane-supervise");
-  if (!bytesEqual(aPreflight, bPreflight)) {
-    fail("non-deterministic vendor-preflight");
-  }
-  if (!bytesEqual(aFmSession, bFmSession)) fail("non-deterministic fm-session");
-  if (!bytesEqual(aTier2Collect, bTier2Collect))
-    fail("non-deterministic tier2-collect");
-  if (!bytesEqual(aTier2Compare, bTier2Compare))
-    fail("non-deterministic tier2-compare");
-  if (!bytesEqual(aToolCheck, bToolCheck)) {
-    fail("non-deterministic tool-check");
-  }
-  if (!bytesEqual(aDependencyDrift, bDependencyDrift)) {
-    fail("non-deterministic dependency-drift");
-  }
-  if (!bytesEqual(aForemanSetup, bForemanSetup)) {
-    fail("non-deterministic foreman-setup");
-  }
-  if (!bytesEqual(aSecretScan, bSecretScan)) {
-    fail("non-deterministic secret-scan");
-  }
-  if (!bytesEqual(aCredentialProfile, bCredentialProfile)) {
-    fail("non-deterministic credential-profile");
-  }
-  if (!bytesEqual(aCredentialProfileLane, bCredentialProfileLane)) {
-    fail("non-deterministic credential-profile-lane");
-  }
-  if (!bytesEqual(aGraphStore, bGraphStore)) {
-    fail("non-deterministic graph-store");
-  }
-  if (!bytesEqual(aForemanLaunch, bForemanLaunch)) {
-    fail("non-deterministic foreman-launch");
-  }
-  if (!bytesEqual(aReleaseAdmission, bReleaseAdmission)) {
-    fail("non-deterministic release-admission");
-  }
-  if (!bytesEqual(aReleaseAuthority, bReleaseAuthority)) {
-    fail("non-deterministic release-authority");
-  }
-  if (!bytesEqual(aReleaseCoverage, bReleaseCoverage)) {
-    fail("non-deterministic release-coverage");
-  }
-  if (!bytesEqual(aReleasePolicy, bReleasePolicy)) {
-    fail("non-deterministic release-policy");
-  }
-  if (!bytesEqual(aApplianceDoctor, trackedApplianceDoctor)) {
-    fail("appliance-doctor drift");
-  }
-  if (!bytesEqual(aGraphifyQualification, trackedGraphifyQualification)) {
-    fail("graphify-qualification drift");
-  }
-  if (!bytesEqual(aGraphContext, trackedGraphContext)) {
-    fail("graph-context drift");
-  }
-  if (!bytesEqual(aGraphEvaluation, trackedGraphEvaluation)) {
-    fail("graph-evaluation drift");
-  }
-  if (!bytesEqual(aGuard, trackedGuard)) fail("destruction-guard drift");
-  if (!bytesEqual(aPolicy, trackedPolicy)) fail("architecture-policy drift");
-  if (!bytesEqual(aEndstop, trackedEndstop)) fail("execution-guard drift");
-  if (!bytesEqual(aQueue, trackedQueue)) fail("lane-queue drift");
-  if (!bytesEqual(aRound, trackedRound)) fail("lane-round drift");
-  if (!bytesEqual(aSupervise, trackedSupervise)) fail("lane-supervise drift");
-  if (!bytesEqual(aPreflight, trackedPreflight)) fail("vendor-preflight drift");
-  if (!bytesEqual(aFmSession, trackedFmSession)) fail("fm-session drift");
-  if (!bytesEqual(aToolCheck, trackedToolCheck)) fail("tool-check drift");
-  if (!bytesEqual(aDependencyDrift, trackedDependencyDrift)) {
-    fail("dependency-drift drift");
-  }
-  if (!bytesEqual(aForemanSetup, trackedForemanSetup)) {
-    fail("foreman-setup drift");
-  }
-  if (!bytesEqual(aSecretScan, trackedSecretScan)) {
-    fail("secret-scan drift");
-  }
-  if (!bytesEqual(aCredentialProfile, trackedCredentialProfile)) {
-    fail("credential-profile drift");
-  }
-  if (!bytesEqual(aCredentialProfileLane, trackedCredentialProfileLane)) {
-    fail("credential-profile-lane drift");
-  }
-  if (!bytesEqual(aGraphStore, trackedGraphStore)) {
-    fail("graph-store drift");
-  }
-  if (!bytesEqual(aForemanLaunch, trackedForemanLaunch)) {
-    fail("foreman-launch drift");
-  }
-  if (!bytesEqual(aReleaseAdmission, trackedReleaseAdmission)) {
-    fail("release-admission drift");
-  }
-  if (!bytesEqual(aReleaseAuthority, trackedReleaseAuthority)) {
-    fail("release-authority drift");
-  }
-  if (!bytesEqual(aReleaseCoverage, trackedReleaseCoverage)) {
-    fail("release-coverage drift");
-  }
-  if (!bytesEqual(aReleasePolicy, trackedReleasePolicy)) {
-    fail("release-policy drift");
+  // Every declared entry, including adoption commands and the authoring
+  // snapshot, must rebuild to identical bytes in both isolated directories.
+  for (const artifact of trackedCheck.artifacts) {
+    const original = readFileSync(join(trackedRuntime, artifact.relativePath));
+    const first = readFileSync(join(tmpA, artifact.relativePath));
+    const second = readFileSync(join(tmpB, artifact.relativePath));
+    if (!bytesEqual(first, second)) fail("non-deterministic " + artifact.relativePath);
+    if (!bytesEqual(first, original)) fail("runtime drift: " + artifact.relativePath);
   }
   if (!bytesEqual(readFileSync(a.manifestPath), trackedManifest)) {
     fail("manifest drift");

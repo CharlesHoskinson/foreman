@@ -59,3 +59,7 @@ tests/.check-inventory.tsv
 
 # Compiled Pel conformance test output
 packages/*/dist-test/
+
+# M6 distribution data copied from tracked sources by build-runtime.ts
+skills/foreman/runtime/assets/pel/research/
+skills/foreman/runtime/assets/pel/migration/

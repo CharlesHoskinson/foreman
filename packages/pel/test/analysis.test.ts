@@ -194,3 +194,10 @@ test('bounded race and retry expose their ordinary success shapes to downstream 
   const missing = checked('(fm/race :tasks [(lambda [] [:candidate "artifact:approved-spec"]) (lambda [] [:other 1])] :winner "first-valid") |> (^ :at \':value) |> (^ :at \':candidate) |> (^ 1)');
   assert.equal(missing.tag, 'invalid');
 });
+
+test('research bundle identities remain inside the finite read policy',()=>{
+ const base=snapshot(),built=createAuthoringSnapshotV1({...base,policy:{...base.policy,resourceEnvelope:{...base.policy.resourceEnvelope,reads:[...new Set([...base.policy.resourceEnvelope.reads,'bundle:release-sources'])]}}});assert.ok(built.ok);
+ const accepted=checkPel({source:Buffer.from('(fm/research :id "r" :query "q" :bundle "bundle:release-sources")'),snapshot:built.value});
+ assert.equal(accepted.tag,'ok');if(accepted.tag==='ok')assert.ok(accepted.checked.analysis.effects[0]!.resources.reads.includes('bundle:release-sources'));
+ const refused=checkPel({source:Buffer.from('(fm/research :id "r" :query "q" :bundle "bundle:unregistered")'),snapshot:built.value});assert.equal(refused.tag,'invalid');
+});

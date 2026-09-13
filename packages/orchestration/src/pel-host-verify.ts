@@ -2,7 +2,7 @@
 import { Effect } from 'effect';
 import { canonicalize } from '@foreman/core';
 import { getHostDescriptor, isPelDataValue, type PelDataValue, type HostRequestV1 } from '@foreman/pel';
-import { PelRuntime, type HostContextV1, type PelArtifactRefV1, type PelGateBindingV1, type PelPreparedHandlerV1, type RunFailure, type PelReservationTokenV1, type PelHostEffectFailureV1 } from './pel-run-contract.js';
+import { PelRuntime, decodePelArtifactRefV1, type HostContextV1, type PelArtifactRefV1, type PelGateBindingV1, type PelPreparedHandlerV1, type RunFailure, type PelReservationTokenV1, type PelHostEffectFailureV1 } from './pel-run-contract.js';
 import { appendPelRecord, pelFailure, pelHash, PEL_MAX_ARTIFACT_BYTES, readPelRecords, replayPelRun } from './pel-journal.js';
 import { readPelArtifactJson } from './pel-recovery.js';
 import { validateReservationToken } from './pel-effects.js';
@@ -37,6 +37,22 @@ function args(request: HostRequestV1) {
     const { id, input, gate } = request.boundArguments;
     return id?.tag === 'string' && gate?.tag === 'string' && input && isPelDataValue(input) ? { id: id.value, input, gate: gate.value } : null;
 }
+function verificationDigest(key: PelVerificationKeyV1, observationDigest: string, refreshOf?: PelArtifactRefV1) {
+    return pelHash({ ...key, observationDigest, ...(refreshOf ? { refreshOf } : {}) });
+}
+function decodePreparedInput(value: unknown, context: HostContextV1) {
+    return Effect.gen(function* () {
+        if (!value || typeof value !== 'object' || Array.isArray(value) || !('id' in value) || typeof value.id !== 'string' || !('gate' in value) || typeof value.gate !== 'string' || !('input' in value) || !isPelDataValue(value.input) || !['gate,id,input', 'gate,id,input,refreshOf'].includes(Object.keys(value).sort().join(',')))
+            return yield* Effect.fail(pelFailure('binding-mismatch', 'Invalid verification preparation.'));
+        if (!('refreshOf' in value)) return { id: value.id, gate: value.gate, input: value.input };
+        const ref = decodePelArtifactRefV1(value.refreshOf);
+        if (!ref.ok) return yield* Effect.fail(pelFailure('binding-mismatch', 'Invalid verification refresh anchor.'));
+        const prior = decodeVerificationReceiptV1(yield* readPelArtifactJson(context.binding.runId, ref.value));
+        if (!prior.ok || pelHash(prior.value.effect.attempt) !== pelHash(context.effect.attempt))
+            return yield* Effect.fail(pelFailure('binding-mismatch', 'The verification refresh anchor is outside this run.'));
+        return { id: value.id, gate: value.gate, input: value.input, refreshOf: ref.value };
+    });
+}
 export function makePelVerifyHandler(ports: PelVerificationPorts): PelPreparedHandlerV1 {
     const resolve = (inputValue: PelDataValue, gateId: string, context: HostContextV1) => Effect.gen(function* () {
         const input = yield* ports.resolveInput(inputValue, context), gate = context.project.gates[gateId], policy = yield* ports.policy(context);
@@ -61,23 +77,26 @@ export function makePelVerifyHandler(ports: PelVerificationPorts): PelPreparedHa
             const decoded = args(request); if (!decoded) return yield* Effect.fail(pelFailure('binding-mismatch', 'Invalid verification arguments.'));
             const resolved = yield* resolve(decoded.input, decoded.gate, context), runtime = yield* PelRuntime;
             const prior = yield* ports.findVerification(resolved.key, context), now = yield* runtime.clock.now;
-            if (prior && decodeVerificationReceiptV1(prior.receipt).ok && pelHash(prior.receipt.candidateRef) === pelHash(resolved.input.candidateRef) && pelHash(prior.receipt.candidate) === pelHash(candidateIdentity(resolved.input.candidate)) && prior.receipt.gateId === decoded.gate && prior.receipt.gateDigest === resolved.key.gateDigest && prior.receipt.environmentDigest === resolved.key.environmentDigest && prior.receipt.policyDigest === resolved.key.policyDigest && pelHash(prior.receipt.effect.attempt) === pelHash(context.effect.attempt) && prior.receipt.observedAt <= now && now - prior.receipt.observedAt <= resolved.policy.maxAgeMs) {
+            let refreshOf: PelArtifactRefV1 | undefined;
+            if (prior && decodeVerificationReceiptV1(prior.receipt).ok && pelHash(prior.receipt.candidateRef) === pelHash(resolved.input.candidateRef) && pelHash(prior.receipt.candidate) === pelHash(candidateIdentity(resolved.input.candidate)) && prior.receipt.gateId === decoded.gate && prior.receipt.gateDigest === resolved.key.gateDigest && prior.receipt.environmentDigest === resolved.key.environmentDigest && prior.receipt.policyDigest === resolved.key.policyDigest && pelHash(prior.receipt.effect.attempt) === pelHash(context.effect.attempt)) {
                 const stored = yield* readPelArtifactJson(context.binding.runId, prior.ref);
                 if (pelHash(stored) !== pelHash(prior.receipt)) return yield* Effect.fail(pelFailure('binding-mismatch', 'The verification receipt artifact changed.'));
                 yield* runtime.artifacts.get(context.binding.runId, prior.receipt.reportRef, PEL_MAX_ARTIFACT_BYTES);
-                return { kind: 'read-result' as const, value: result(resolved.input, prior.receipt, prior.ref), sources: [prior.ref, prior.receipt.reportRef, prior.receipt.candidateRef] };
+                if (prior.receipt.observedAt <= now && now - prior.receipt.observedAt <= resolved.policy.maxAgeMs)
+                    return { kind: 'read-result' as const, value: result(resolved.input, prior.receipt, prior.ref), sources: [prior.ref, prior.receipt.reportRef, prior.receipt.candidateRef] };
+                // A fresh execution must not reuse the prior ledger command identity. Retain this anchor across recovery.
+                refreshOf = prior.ref;
             }
             const descriptor = getHostDescriptor(context.checked.snapshot.registry, request.registryId); if (!descriptor) return yield* Effect.fail(pelFailure('binding-mismatch', 'The verification descriptor is absent.'));
-            const inputs = yield* put(decoded, context);
+            const inputs = yield* put({ ...decoded, ...(refreshOf ? { refreshOf } : {}) }, context);
             const actionAuthority = yield* (ports.actionAuthority?.(resolved.input.candidate, context) ?? Effect.succeed(undefined));
-            return { kind: 'dispatch' as const, operationDigest: pelHash({ ...resolved.key, observationDigest: resolved.input.observationDigest }), action: 'verify' as const, inputs, candidate: candidateIdentity(resolved.input.candidate), resources: yield* runtime.resources.resolve(descriptor, request, context), ...(actionAuthority ? { actionAuthority } : {}) };
+            return { kind: 'dispatch' as const, operationDigest: verificationDigest(resolved.key, resolved.input.observationDigest, refreshOf), action: 'verify' as const, inputs, candidate: candidateIdentity(resolved.input.candidate), resources: yield* runtime.resources.resolve(descriptor, request, context), ...(actionAuthority ? { actionAuthority } : {}) };
         }),
         dispatch: (prepared, token, context) => Effect.gen(function* () {
             const valid = validateReservationToken(prepared, token, context); if (!valid.ok) return yield* Effect.fail(valid.error);
-            const stored = yield* readPelArtifactJson(context.binding.runId, prepared.inputs);
-            if (!stored || typeof stored !== 'object' || Array.isArray(stored) || Object.keys(stored).sort().join(',') !== 'gate,id,input' || !('gate' in stored) || typeof stored.gate !== 'string' || !('input' in stored) || !isPelDataValue(stored.input)) return yield* Effect.fail(pelFailure('binding-mismatch', 'Invalid verification preparation.'));
+            const stored = yield* decodePreparedInput(yield* readPelArtifactJson(context.binding.runId, prepared.inputs), context);
             const resolved = yield* resolve(stored.input, stored.gate, context);
-            if (prepared.operationDigest !== pelHash({ ...resolved.key, observationDigest: resolved.input.observationDigest })) return yield* Effect.fail(pelFailure('binding-mismatch', 'Verification bindings changed after reservation.'));
+            if (prepared.operationDigest !== verificationDigest(resolved.key, resolved.input.observationDigest, stored.refreshOf)) return yield* Effect.fail(pelFailure('binding-mismatch', 'Verification bindings changed after reservation.'));
             const execution = yield* ports.executeGate(resolved.gate, resolved.input, context);
             const reportCheck = decodePelGateExecution(execution, resolved.gate.maxOutputBytes); if (!reportCheck.ok) return yield* Effect.fail(reportCheck.error);
             if (execution.beforeIdentityDigest !== resolved.input.observationDigest || execution.afterIdentityDigest !== resolved.input.observationDigest || execution.gateDigest !== resolved.key.gateDigest || execution.environmentDigest !== resolved.key.environmentDigest || execution.passed !== (execution.exitCode === 0)) return yield* Effect.fail(candidateChanged('Gate evidence does not bind the verified candidate.'));
@@ -96,12 +115,11 @@ export function makePelVerifyHandler(ports: PelVerificationPorts): PelPreparedHa
                 if (Object.keys(value).sort().join(',') !== 'inputs,observedAt,reportRef,stage,token' || !('inputs' in value) || pelHash(value.inputs) !== pelHash(prepared.inputs) || !('token' in value) || pelHash(value.token) !== pelHash(token) || !('observedAt' in value) || typeof value.observedAt !== 'number' || !Number.isSafeInteger(value.observedAt) || !('reportRef' in value)) return yield* Effect.fail(pelFailure('binding-mismatch', 'Recovered gate evidence changed.'));
                 const reportRef = value.reportRef as PelArtifactRefV1;
                 const report = yield* readPelArtifactJson(context.binding.runId, reportRef);
-                const stored = yield* readPelArtifactJson(context.binding.runId, prepared.inputs);
-                if (!stored || typeof stored !== 'object' || !('input' in stored) || !isPelDataValue(stored.input) || !('gate' in stored) || typeof stored.gate !== 'string') return yield* Effect.fail(pelFailure('binding-mismatch', 'Recovered gate preparation is invalid.'));
+                const stored = yield* decodePreparedInput(yield* readPelArtifactJson(context.binding.runId, prepared.inputs), context);
                 const resolved = yield* resolve(stored.input, stored.gate, context), decoded = decodePelGateExecution(report, resolved.gate.maxOutputBytes);
                 if (!decoded.ok) return yield* Effect.fail(decoded.error);
                 const execution = decoded.value;
-                if (prepared.operationDigest !== pelHash({ ...resolved.key, observationDigest: resolved.input.observationDigest }) || execution.beforeIdentityDigest !== resolved.input.observationDigest || execution.afterIdentityDigest !== resolved.input.observationDigest || execution.gateDigest !== resolved.key.gateDigest || execution.environmentDigest !== resolved.key.environmentDigest || execution.passed !== (execution.exitCode === 0)) return yield* Effect.fail(candidateChanged('Recovered gate evidence differs from the exact candidate.'));
+                if (prepared.operationDigest !== verificationDigest(resolved.key, resolved.input.observationDigest, stored.refreshOf) || execution.beforeIdentityDigest !== resolved.input.observationDigest || execution.afterIdentityDigest !== resolved.input.observationDigest || execution.gateDigest !== resolved.key.gateDigest || execution.environmentDigest !== resolved.key.environmentDigest || execution.passed !== (execution.exitCode === 0)) return yield* Effect.fail(candidateChanged('Recovered gate evidence differs from the exact candidate.'));
                 return yield* finish(resolved.input, stored.gate, resolved.key.policyDigest, execution, reportRef, token, value.observedAt, context);
             }
             return null;

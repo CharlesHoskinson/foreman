@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # @description Decision-lineage emission helpers (S4a / decision-lineage-emission).
-#   Shared by audit-run.sh, gate-eval.sh and lane-run.sh. Does NOT touch
+#   Shared by gate evaluation and historical execution controllers. Does NOT touch
 #   eventlog.sh's frozen signature — only builds payload JSON for el_emit.
 #   Observational only (D7): every caller MUST guard el_emit failures so
 #   telemetry never changes a gate/round outcome.

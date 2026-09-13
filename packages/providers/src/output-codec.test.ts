@@ -7,7 +7,7 @@ test('T-M3-028 admitted custom schemas still reject unsupported endpoint structu
  const data:PelDataSchemaV1={type:'data',maxDepth:2,maxBytes:100};
  const list:PelDataSchemaV1={type:'list',minItems:0,maxItems:257,items:{type:'boolean'}};
  const number:PelDataSchemaV1={type:'number',integer:true,minimum:0,maximum:1};
- for(const [content,subset] of [[optional,providerSchemaSubset('openai-responses')],[data,providerSchemaSubset('google-interactions')],[list,providerSchemaSubset('xai-responses')],[number,{...providerSchemaSubset('openai-responses'),supportsNumericBounds:false,weakenings:[]}]] as const){
+ for(const [content,subset] of [[optional,providerSchemaSubset('openai-responses')],[data,providerSchemaSubset('google-interactions')],[list,{...providerSchemaSubset('xai-responses'),weakenings:['utf8-maxBytes']}],[number,{...providerSchemaSubset('openai-responses'),supportsNumericBounds:false,weakenings:[]}]] as const){
  const result=lowerProviderSchema({id:'custom',content},subset,{custom:content});assert.equal(result.ok,false);if(!result.ok){assert.equal(result.error._tag,'UnsupportedCapability');assert.notEqual(result.error.fieldPath,'outputSchema.id');}
  }
 });

@@ -31,7 +31,7 @@ function selection(v: unknown, predicate = false): boolean {
 }
 export function decodeForemanProjectV1(value: unknown): Decoded<ForemanProjectV1> {
   const fields = ['schemaVersion', 'projectId', 'repository', 'stateRoot', 'authorityRefs', 'executionContractTemplate', 'authoringSnapshot', 'runtimeHandlerVersion', 'limits', 'requiredMilestones', 'workspaces', 'gates', 'destinations', 'roleBindings', 'taskActions', 'nlConditionProfile', 'dependencyMode', 'resultContract'];
-  if (!record(value) || !exact(value, fields) || value.schemaVersion !== 1 || !text(value.projectId) || !decodePelRepositoryIdentityV1(value.repository).ok || !path(value.stateRoot) || !text(value.runtimeHandlerVersion)) return bad('project');
+  if (!record(value) || !exact(value, [...fields,...(Object.hasOwn(value,'researchBundles')?['researchBundles']:[])]) || value.schemaVersion !== 1 || !text(value.projectId) || !decodePelRepositoryIdentityV1(value.repository).ok || !path(value.stateRoot) || !text(value.runtimeHandlerVersion)) return bad('project');
   const repository = decodePelRepositoryIdentityV1(value.repository); if (!repository.ok) return repository;
   if (!array(value.authorityRefs) || !value.authorityRefs.length || !value.authorityRefs.every(a => decodePelAuthorityBindingV1(a).ok) || !decodePelArtifactRefV1(value.executionContractTemplate).ok || !decodePelArtifactRefV1(value.authoringSnapshot).ok) return bad('project.authority');
   const authorities = value.authorityRefs.map(a => hashAuthoringContent(a));
@@ -56,6 +56,7 @@ export function decodeForemanProjectV1(value: unknown): Decoded<ForemanProjectV1
     const old = d.expectedOldObject;
     if (!(old.kind === 'absent' && exact(old, ['kind'])) && !(old.kind === 'exact' && exact(old, ['kind', 'oid']) && oid(old.oid))) return bad('project.destinations.expectedOldObject');
   }
+  if(value.researchBundles!==undefined&&(!map(value.researchBundles)||Object.keys(value.researchBundles).length>64||!Object.entries(value.researchBundles).every(([id,ref])=>{const decoded=decodePelArtifactRefV1(ref);return /^bundle:[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(id)&&Buffer.byteLength(id)<=256&&decoded.ok&&decoded.value.artifactId===`sha256-${decoded.value.sha256}`&&decoded.value.byteLength<=1048576;})))return bad('project.researchBundles');
   if (!map(value.roleBindings) || !Object.entries(value.roleBindings).every(([key, v]) => key.startsWith('role:') && selection(v)) || !map(value.taskActions) || !Object.values(value.taskActions).every(a => a === 'implement' || a === 'correct')) return bad('project.roles');
   if ((value.nlConditionProfile !== null && !selection(value.nlConditionProfile, true)) || !['ordered', 'automatic'].includes(value.dependencyMode as string) || !decodePelResultContractV1(value.resultContract).ok) return bad('project.options');
   return { ok: true, value: structuredClone(value) as unknown as ForemanProjectV1 };
@@ -73,7 +74,7 @@ export function configurePelSnapshot(base: AuthoringSnapshotV1, project: Foreman
     roleBindings: project.roleBindings, nlConditionProfile: project.nlConditionProfile,
     dependencyMode: project.dependencyMode, resultContract: project.resultContract.schemaId,
     narrowingLimits: project.limits.pel,
-    narrowingBudgets: { maxEffects: Math.min(base.policy.maxEffects, project.limits.execution.totalActions), maxElapsedMs: Math.min(base.policy.maxElapsedMs, project.limits.execution.wallTimeMs) },
+    narrowingBudgets: { maxEffects: base.policy.maxEffects, maxElapsedMs: Math.min(base.policy.maxElapsedMs, project.limits.execution.wallTimeMs) },
   });
   return configured.ok ? configured : bad('project.selection');
 }

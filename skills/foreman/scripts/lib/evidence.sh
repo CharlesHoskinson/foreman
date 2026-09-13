@@ -446,7 +446,7 @@ evidence_records_to() {
 }
 
 # three-outcome-verdicts: this is the ONE place tree_sha256 is computed.
-# audit-run.sh and the later gate-eval.sh/checks-run.sh/docs-check.sh dispatches
+# the historical controller and the later gate-eval.sh/checks-run.sh/docs-check.sh dispatches
 # all call this function so the harness has exactly one implementation.
 # @description Compute the evaluated-tree identity from the HEAD tree and the worktree content digest; fail closed when either identity cannot be established.
 # @arg $1 root git work tree

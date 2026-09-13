@@ -1,0 +1,50 @@
+[
+  {
+    "status": "fulfilled",
+    "value": {
+      "id": "foredi-01-pel-language",
+      "exitCode": 0,
+      "output": "Change 'foredi-01-pel-language' is valid\n"
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "id": "foredi-02-plan-authoring",
+      "exitCode": 0,
+      "output": "Change 'foredi-02-plan-authoring' is valid\n"
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "id": "foredi-03-model-adapters",
+      "exitCode": 0,
+      "output": "Change 'foredi-03-model-adapters' is valid\n"
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "id": "foredi-04-durable-execution",
+      "exitCode": 0,
+      "output": "Change 'foredi-04-durable-execution' is valid\n"
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "id": "foredi-05-task-delivery",
+      "exitCode": 0,
+      "output": "Change 'foredi-05-task-delivery' is valid\n"
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "id": "foredi-06-adoption",
+      "exitCode": 0,
+      "output": "Change 'foredi-06-adoption' is valid\n"
+    }
+  }
+]

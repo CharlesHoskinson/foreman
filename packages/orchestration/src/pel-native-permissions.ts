@@ -4,6 +4,7 @@ import {Effect} from 'effect';
 import {canonicalize,sha256Hex} from '@foreman/core';
 import {resolveProfile,type HostPermissionPort,type ProviderRequestV1,type ProviderFailure,type ToolRequestV1} from '@foreman/providers';
 import type {HostContextV1} from './pel-run-contract.js';
+import type {PelNativePermissionScopeV1} from './pel-native-scope.js';
 import {canonicalWorkspacePath} from './pel-resource-scope.js';
 import type {PelToolExecutorV1} from './pel-provider-tools.js';
 const denied=():ProviderFailure=>({_tag:'UnsupportedCapability',retryClass:'never',message:'The native permission request is outside its original effect, provider, writable paths or finite method set.'});
@@ -12,7 +13,7 @@ const paths=new Set(['path','file_path','filePath','cwd','workingDirectory','wor
 const method=(transport:string,name:string)=>transport==='codex-app-server'?['item/fileChange/requestApproval','item/commandExecution/requestApproval'].includes(name):transport==='grok-acp'&&['read','edit','delete','move','search','execute'].includes(name);
 const writes=(name:string)=>['edit','delete','move','item/fileChange/requestApproval'].includes(name);
 /** Registration and the enforcing launcher supply this callback. Pel and provider data cannot install it. */
-export function makePelNativePermissionAuthorizer(request:ProviderRequestV1,context:HostContextV1):HostPermissionPort['authorize'] {
+export function makePelNativePermissionAuthorizer(request:ProviderRequestV1,context:PelNativePermissionScopeV1):HostPermissionPort['authorize'] {
  return (identity,tool,policy)=>Effect.gen(function*(){
   const profile=resolveProfile(request.profileId);
   if(request.effectId!==context.effect.effectId||request.toolPolicy.mode!=='native-coding'||policy.mode!=='native-coding'||canonicalize(policy)!==canonicalize(request.toolPolicy)||policy.workspaceGrantId!==context.workspace.grantId||!policy.permissionGrantIds.length||!policy.hostPermissionPortRef||request.limits.deadline<=Date.now()||request.limits.maxToolCalls<=0||identity.kind!=='native'||!profile.ok||identity.provider!==profile.value.provider||identity.profileId!==request.profileId||identity.transportId!==request.transportId||identity.credentialProfileRef!==request.credentialProfileRef||identity.model!==undefined&&identity.model!==profile.value.exactModel||!method(request.transportId,tool.name)||!tool.callId||tool.callId.length>1024)return yield* Effect.fail(denied());

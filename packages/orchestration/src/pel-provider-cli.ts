@@ -3,7 +3,7 @@ import { isCoreFailure, parseJsonRejectDuplicateKeys } from '@foreman/core';
 import { listProviderCells, resolveProfile, resolveControls, qualificationBounds, type ProviderFailure, type QualificationReportV1, type QualificationBindingV1, type ProviderLimitsV1, type ProviderControlsV1, type ProfileId, type TransportId, type Capability } from '@foreman/providers';
 import { authoringFailure, type AuthoringServices, type AuthoringFailure, type CliResult } from './pel-authoring-contract.js';
 export type ProviderCommandOutcome = 'success' | 'failed' | 'invalid' | 'needs-action' | 'cancelled';
-export function commandExitCode(command: 'list' | 'qualify', outcome: ProviderCommandOutcome): 0 | 1 | 2 | 3 | 4 {
+export function commandExitCode(command: 'list' | 'qualify' | 'version' | 'rollback' | 'support' | 'migrate' | 'research-query' | 'research-status' | 'research-refresh' | 'simplification' | 'package', outcome: ProviderCommandOutcome): 0 | 1 | 2 | 3 | 4 {
     if (command === 'list' && (outcome === 'needs-action' || outcome === 'cancelled'))
         return 1;
     return ({ success: 0, failed: 1, invalid: 2, 'needs-action': 3, cancelled: 4 } as const)[outcome];

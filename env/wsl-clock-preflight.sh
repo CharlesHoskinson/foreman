@@ -18,7 +18,7 @@
 #
 # Fully injectable clock seam for deterministic testing (see
 # tests/wsl-clock-preflight.bats, which mocks a skewed clock without ever
-# touching the real system clock) -- same family as watch.sh's own
+# touching the real system clock) -- same family as the historical controller's own
 # WATCH_CLOCK_CMD/WATCH_SLEEP_CMD seam (tests/helpers.bash's vtick_init):
 #   WSL_CLOCK_CMD    - command whose stdout is the WSL/guest epoch-seconds
 #                       reading (default: "date +%s")
@@ -79,7 +79,7 @@ CLOCK_RESYNC_CMD="${CLOCK_RESYNC_CMD:-hwclock -s}"
 # @description Read one clock source's epoch-seconds value, stripped of any
 #   CRLF a Windows-side command (e.g. powershell.exe) may emit, and of any
 #   other stray non-digit noise. Invokes its argument unquoted (word-split)
-#   -- same convention as watch.sh's own `$WATCH_CLOCK_CMD` -- so a
+#   -- same convention as the historical controller's own `$WATCH_CLOCK_CMD` -- so a
 #   multi-word override like "bash /path/to/script.sh" resolves correctly.
 # @arg $1 the clock-source command string (e.g. "date +%s", "hwclock -r",
 #   or a bare function name such as default_host_clock)

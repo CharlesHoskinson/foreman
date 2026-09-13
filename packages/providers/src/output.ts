@@ -13,6 +13,7 @@ export interface ProviderSchemaSubsetV1 {
     readonly supportsNumericBounds: boolean;
     readonly supportsArrayBounds: boolean;
     readonly weakenings: readonly ('utf8-maxBytes' | 'numeric-bounds' | 'array-bounds')[];
+    /** Server-enforced threshold. Larger accepted bounds need explicit host enforcement. */
     readonly maxArrayBound?: number;
     readonly maxOptionalFields?: number;
     readonly maxUnions?: number;
@@ -22,7 +23,15 @@ export interface ProviderSchemaSubsetV1 {
 export function providerSchemaSubset(transportId: string): ProviderSchemaSubsetV1 {
     if (!['openai-responses', 'codex-app-server', 'anthropic-messages', 'claude-code', 'xai-responses', 'grok-acp', 'google-interactions', 'gemini-cli'].includes(transportId))
         return { endpointSupported: false, supportsAnyOf: false, supportsOptionalFields: false, supportsNumericBounds: false, supportsArrayBounds: false, weakenings: [] };
-    return { enforceOpenAIComplexity: ['openai-responses','codex-app-server'].includes(transportId), supportsAnyOf: true, supportsOptionalFields: !['openai-responses', 'codex-app-server'].includes(transportId), supportsNumericBounds: !['anthropic-messages', 'claude-code'].includes(transportId), supportsArrayBounds: !['anthropic-messages', 'claude-code'].includes(transportId), weakenings: ['utf8-maxBytes', ...(['anthropic-messages', 'claude-code'].includes(transportId) ? ['numeric-bounds', 'array-bounds'] as const : [])], ...(['xai-responses', 'grok-acp'].includes(transportId) ? { maxArrayBound: 256 } : {}), ...(['anthropic-messages', 'claude-code'].includes(transportId) ? { maxOptionalFields: 24, maxUnions: 16 } : {}) };
+    const anthropic = ['anthropic-messages', 'claude-code'].includes(transportId);
+    const openai = ['openai-responses', 'codex-app-server'].includes(transportId);
+    const xai = ['xai-responses', 'grok-acp'].includes(transportId);
+    // xAI accepts bounds above 256 but does not guarantee their enforcement.
+    // Keep those bounds on the wire and enforce the original schema in decodeProviderOutput.
+    return { enforceOpenAIComplexity: openai, supportsAnyOf: true, supportsOptionalFields: !openai,
+        supportsNumericBounds: !anthropic, supportsArrayBounds: !anthropic,
+        weakenings: ['utf8-maxBytes', ...(anthropic ? ['numeric-bounds', 'array-bounds'] as const : xai ? ['array-bounds'] as const : [])],
+        ...(xai ? { maxArrayBound: 256 } : {}), ...(anthropic ? { maxOptionalFields: 24, maxUnions: 16 } : {}) };
 }
 export interface LoweredProviderSchemaV1 {
     readonly jsonSchema: JsonValue;
@@ -66,7 +75,7 @@ export function lowerProviderSchema(output: OutputSchemaInput, subset: ProviderS
                         return reject(`${path}.minimum`);
                     return { type: s.integer ? 'integer' : 'number', ...(subset.supportsNumericBounds ? { minimum: s.minimum, maximum: s.maximum } : {}) };
                 case 'list':
-                    if ((!subset.supportsArrayBounds && !subset.weakenings.includes('array-bounds')) || (subset.maxArrayBound !== undefined && s.maxItems > subset.maxArrayBound))
+                    if ((!subset.supportsArrayBounds || (subset.maxArrayBound !== undefined && s.maxItems > subset.maxArrayBound)) && !subset.weakenings.includes('array-bounds'))
                         return reject(`${path}.maxItems`);
                     return { type: 'array', items: lower(s.items, `${path}.items`), ...(subset.supportsArrayBounds ? { minItems: s.minItems, maxItems: s.maxItems } : {}) };
                 case 'pair': return { type: 'object', properties: { [s.key]: lower(s.value, `${path}.${s.key}`) }, required: [s.key], additionalProperties: false };

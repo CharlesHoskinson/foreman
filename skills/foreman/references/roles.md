@@ -24,8 +24,7 @@
 
 **Who:** A *different* vendor’s coding CLI (or agent that shells out to it).
 
-**Soft mode:** `grok-implementer` or `codex-implementer` (Claude agents that drive
-external CLIs). Hard mode: containerized CLI via `worker-run.sh`.
+Use `fm/task` through the installed compiled runtime and an exact registered model/transport. Legacy agent recipes are not substitutes for host admission.
 
 Stateful/live targets (external node_modules, running services, live
 endpoints) bypass worktree fan-out entirely — see
@@ -34,7 +33,7 @@ endpoints) bypass worktree fan-out entirely — see
 **Owns:**
 
 - Implementing exactly the five-part spec
-- Committing work in the worktree (hard mode)
+- Editing only the admitted worktree paths; the host captures immutable candidate content while preserving branch and index
 - Returning a structured report (soft mode)
 
 **Does not:**
@@ -69,7 +68,7 @@ CLI, **read-only** sandbox. Must be a **different vendor** than the worker
 **Owns:**
 
 - Cold review of unified diff + acceptance criteria only (no worker chat history)
-- Schema-forced verdict: `APPROVED` | `WARNING` | `BLOCKED` + findings
+- Schema-validated review verdict and findings, bound by the host to candidate and verification evidence
 - Proving it did not mutate the working tree
 
 **Does not:**

@@ -1,4 +1,9 @@
+import {decodePelResearchFixture,makePelResearchFixtureServices} from './pel-cli-research-fixture.js';
 import {decodePelDeliveryFixture,makePelDeliveryFixtureServices} from './pel-cli-delivery-fixture.js';
+import {makePelMigrationServices} from './pel-migration-live.js';
+import {decodePelLegacyCommandBindingV1,readPelLegacyRunObservation} from './pel-migration.js';
+import {makeLiveRunJournalLayer} from '@foreman/event-log';
+import {Either} from 'effect';
 import { Effect, Stream } from "effect";
 import { createHash } from "node:crypto";
 import { lstat, realpath } from "node:fs/promises";
@@ -432,7 +437,7 @@ function readAsset(root: string, path: string, maxBytes: number) {
   });
 }
 
-function loadAssets(assetRoot: string, expectedDigest: string) {
+function loadAssets(assetRoot: string, expectedDigest: string, manifestFile: 'manifest.json'|'fixture-assets.json' = 'manifest.json') {
   return Effect.gen(function* () {
     if (
       !isAbsolute(assetRoot) ||
@@ -464,7 +469,7 @@ function loadAssets(assetRoot: string, expectedDigest: string) {
           assetRoot,
         ),
       );
-    const bytes = yield* readAsset(assetRoot, "manifest.json", 1024 * 1024);
+    const bytes = yield* readAsset(assetRoot, manifestFile, 1024 * 1024);
     if (sha256(bytes) !== expectedDigest)
       return yield* Effect.fail(
         authoringFailure(
@@ -575,7 +580,7 @@ export function runPelCliFixture(
       !record(manifest.fixtures) ||
       !Array.isArray(manifest.fixtures.responses) ||
       Object.keys(manifest.fixtures).some(
-        (key) => !["responses", "providers", "execution", "delivery"].includes(key),
+        (key) => !["responses", "providers", "execution", "delivery", "research"].includes(key),
       ) ||
       !("assetRoot" in manifest) ||
       typeof manifest.assetRoot !== "string" ||
@@ -589,6 +594,7 @@ export function runPelCliFixture(
             "fixtures",
             "assetRoot",
             "assetManifestSha256",
+            "assetManifestFile",
           ].includes(k),
       )
     )
@@ -609,13 +615,26 @@ export function runPelCliFixture(
         ),
       );
     const assetRoot = manifest.assetRoot;
-    const assets = yield* loadAssets(assetRoot, manifest.assetManifestSha256);
+    const assetManifestFile='assetManifestFile' in manifest?manifest.assetManifestFile:undefined;
+    if(assetManifestFile!==undefined&&assetManifestFile!=='fixture-assets.json')return yield* Effect.fail(authoringFailure('PEL_SCHEMA','Invalid bounded fixture asset manifest file.'));
+    const assets = yield* loadAssets(assetRoot, manifest.assetManifestSha256,assetManifestFile==='fixture-assets.json'?'fixture-assets.json':'manifest.json');
     if(manifest.fixtures.execution!==undefined&&manifest.fixtures.delivery!==undefined)return yield* Effect.fail(authoringFailure('PEL_SCHEMA','Execution and delivery fixtures are mutually exclusive.'));
+    if(manifest.fixtures.research!==undefined&&(manifest.fixtures.execution!==undefined||manifest.fixtures.delivery!==undefined))return yield* Effect.fail(authoringFailure('PEL_SCHEMA','Research and other execution fixtures are mutually exclusive.'));
+    const research=manifest.fixtures.research===undefined?undefined:yield* decodePelResearchFixture(manifest.fixtures.research,assetRoot);
     const delivery=manifest.fixtures.delivery===undefined?undefined:yield* decodePelDeliveryFixture(manifest.fixtures.delivery,assetRoot);
     const execution=manifest.fixtures.execution===undefined?undefined:yield* decodePelExecutionFixture(manifest.fixtures.execution,assetRoot);
-    const parsedSnapshot=execution||delivery?validateAuthoringSnapshotV1(JSON.parse(Buffer.from(assets.get(join(assetRoot,snapshotPath))!).toString())):undefined;
+    const parsedSnapshot=execution||delivery||research?validateAuthoringSnapshotV1(JSON.parse(Buffer.from(assets.get(join(assetRoot,snapshotPath))!).toString())):undefined;
     if(parsedSnapshot&&!parsedSnapshot.ok)return yield* Effect.fail(authoringFailure('PEL_SCHEMA','Fixture execution snapshot is invalid.'));
-    const lifecycle=parsedSnapshot?.ok?(execution?yield* makePelExecutionFixtureServices(execution,parsedSnapshot.value,sha256(bytes),bytes):delivery?yield* makePelDeliveryFixtureServices(delivery,parsedSnapshot.value,sha256(bytes),bytes,assets.get(join(assetRoot,'fixtures/pel-adoption/project-settings.json'))??new Uint8Array()):undefined):undefined;
+    const migrationCase=delivery?.fixtureId==='m6-migration-implement-verify-review'?'implement-verify-review':delivery?.fixtureId==='m6-migration-bounded-rework'?'bounded-rework':undefined;
+    const migrationContract=migrationCase?assets.get(join(assetRoot,`fixtures/pel-migration/${migrationCase}/contract-v1.json`)):undefined;
+    if(migrationCase&&!migrationContract)return yield* Effect.fail(authoringFailure('PEL_SCHEMA','The migration fixture contract is absent.'));
+    const lifecycle=parsedSnapshot?.ok?(research?yield* makePelResearchFixtureServices(research,parsedSnapshot.value,sha256(bytes),bytes,assetRoot,assets):execution?yield* makePelExecutionFixtureServices(execution,parsedSnapshot.value,sha256(bytes),bytes):delivery?yield* makePelDeliveryFixtureServices(delivery,parsedSnapshot.value,sha256(bytes),bytes,assets.get(join(assetRoot,'fixtures/pel-adoption/project-settings.json'))??new Uint8Array(),migrationContract):undefined):undefined;
+    const migration=migrationCase&&delivery?makePelMigrationServices({resolve:input=>Effect.gen(function*(){
+      const bytes=assets.get(join(assetRoot,`runtime/assets/pel/migration/${migrationCase}/registered-command-bindings.json`));
+      const decoded=bytes?decodePelLegacyCommandBindingV1(parseJsonRejectDuplicateKeys(new TextDecoder('utf-8',{fatal:true}).decode(bytes))):undefined;
+      if(!decoded||Either.isLeft(decoded))return yield* Effect.fail({code:'UnsupportedLegacyConstruct' as const,exitCode:2 as const,locator:'fixture-binding',field:'$',message:'The closed migration binding is absent.'});
+      return {bindings:[decoded.right],legacyState:yield* readPelLegacyRunObservation(input.round.runId).pipe(Effect.provide(makeLiveRunJournalLayer(delivery.stateRoot)))};
+    })}):undefined;
     const command = argv.slice(2);
     const providerFixtures =
       manifest.fixtures.providers === undefined
@@ -634,6 +653,7 @@ export function runPelCliFixture(
     let at = 0;
     return yield* runPelAuthoringMain(command, {
       ...(lifecycle?{lifecycle}:{}),
+      ...(migration?{migration}:{}),
       ...(providerFixtures
         ? {
             providers: fixtureProviderServices(providerFixtures, sha256(bytes)),

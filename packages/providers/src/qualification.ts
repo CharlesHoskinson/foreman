@@ -11,6 +11,7 @@ import type {
   ProviderLimitsV1,
   ProviderRequestV1,
   ProviderTransport,
+  ToolRequestV1,
   CancellationObservationV1,
 } from "./contract.js";
 import type { ProviderFailure } from "./errors.js";
@@ -73,6 +74,11 @@ export interface QualificationReportV1 {
 export interface QualificationPortsV1 {
   readonly transport: ProviderTransport;
   readonly now: () => number;
+  /** The original host retains authorization and a durable result before acknowledging this request. */
+  readonly onToolRequest?: (
+    event: {readonly providerIdentity: ProviderIdentityV1; readonly request: ToolRequestV1},
+    request: ProviderRequestV1,
+  ) => Effect.Effect<void, ProviderFailure>;
   /** Explicit additional assertions must inspect recorded observations; the harness never assumes permission or cancellation support. */
   readonly assess?: (
     capability: Capability,
@@ -183,6 +189,7 @@ export function runQualification(
       let failure: ProviderFailure | undefined;
       let textBytes = 0;
       let toolCalls = 0;
+      let terminalSeen = false;
       let cancellation: CancellationObservationV1 | undefined;
       let observedUsage: ProviderUsageV1 | undefined;
       const observed = yield* Effect.gen(function* () {
@@ -225,6 +232,12 @@ export function runQualification(
               identity = event.providerIdentity;
               events.push(event);
               const payload = event.payload;
+              if (payload.type === 'tool-request' && terminalSeen)
+                return yield* Effect.fail({
+                  _tag:'MalformedEvent',retryClass:'never',
+                  message:'Qualification received a tool request after a terminal observation.',
+                } as const);
+              if (['completed','refused','cancelled','failed'].includes(payload.type)) terminalSeen = true;
               if (
                 payload.type === "completed" &&
                 (payload.result.schemaId !== request.outputSchema.id ||
@@ -281,6 +294,14 @@ export function runQualification(
                   message:
                     "Qualification exhausted its admitted token or cost bound",
                 } as const);
+              if (payload.type === 'tool-request') {
+                if (request.toolPolicy.mode === 'none' || !ports.onToolRequest)
+                  return yield* Effect.fail({
+                    _tag: 'UnsupportedCapability', retryClass: 'never',
+                    message: 'Qualification has no admitted host tool handler for this request.',
+                  } as const);
+                yield* ports.onToolRequest({providerIdentity:event.providerIdentity,request:payload.request},request);
+              }
             }),
           ),
         );

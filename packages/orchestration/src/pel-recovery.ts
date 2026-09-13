@@ -1,3 +1,4 @@
+import {settlePelKnownRaceLoser} from './pel-control-functions.js';
 /** Recover immutable M1 state under the existing run owner. */
 import { executePelProviderRequest, projectPelProviderUsage } from './pel-provider-tools.js';
 import { loadOriginalPelProviderRequest } from './pel-execution-provider-live.js';
@@ -224,9 +225,9 @@ export function resumeProgram(runId: RunId, context: PelOwnedRunContextV1, optio
         if (previous && previous.programDigest === binding.checkedProgramDigest && (previous.state === 'succeeded' || previous.state === 'cancelled' || previous.state === 'failed' && !options.revision || previous.state === 'needs-action' && previous.resumeMode === 'final-value'))
             return yield* Effect.fail(pelFailure('terminal-run', 'The admitted run has a terminal result.'));
         const journal = yield* RunJournal;
-        yield* journal.reserveResumeAttempt(binding.attempt, binding.limits.execution.resumeAttempts).pipe(Effect.mapError(() => pelFailure('budget-exhausted', 'The original resume allowance is exhausted.')));
         if (options.revision)
             return yield* revisePelRun(recovered, options.revision.source, options.revision.decision);
+        yield* journal.reserveResumeAttempt(binding.attempt, binding.limits.execution.resumeAttempts).pipe(Effect.mapError(() => pelFailure('budget-exhausted', 'The original resume allowance is exhausted.')));
         if (recovered.activation.kind === 'fresh' || recovered.activation.kind === 'evaluated') {
             const { drivePelRun } = yield* Effect.promise(() => import('./pel-runner.js'));
             return yield* drivePelRun(recovered.activation, recovered.context);
@@ -313,10 +314,12 @@ export function resumeProgram(runId: RunId, context: PelOwnedRunContextV1, optio
                     continue;
             }
             else {
-                const local = yield* recoverPelHostOperation(pending.context, pending.observationOnly);
+                const settledLoser=pending.observationOnly?yield* settlePelKnownRaceLoser(pending.request,pending.context,recovered.replay.observations.get(effectId)):undefined;
+                if(settledLoser)receipt=settledLoser;
+                const local = receipt?null:yield* recoverPelHostOperation(pending.context, pending.observationOnly);
                 if (local?.kind === 'settled') receipt = { requestId: intent.effect.requestId, outcome: local.outcome };
                 const observation = recovered.replay.observations.get(effectId);
-                if (observation?.externalOutcome === 'none' && observation.providerIdentity === null) {
+                if (!receipt && observation?.externalOutcome === 'none' && observation.providerIdentity === null) {
                     const evidence = yield* readPelArtifactJson(runId, observation.observationRef);
                     if (evidence !== null && typeof evidence === 'object' && !Array.isArray(evidence) && Object.keys(evidence).length === 3 && 'stage' in evidence && evidence.stage === 'provider-resolution' && 'confirmedNoDispatch' in evidence && evidence.confirmedNoDispatch === true && 'providerFailure' in evidence) {
                         if (!pending.observationOnly) continue;
@@ -330,7 +333,8 @@ export function resumeProgram(runId: RunId, context: PelOwnedRunContextV1, optio
                             return yield* Effect.fail(pelFailure('binding-mismatch', 'Provider observation changed its exact identity.'));
                         const observationRef = yield* runtime.artifacts.put(runId, Buffer.from(canonicalize(observed.right)), PEL_MAX_ARTIFACT_BYTES, 'ordinary');
                         yield* appendPelRecord(binding, 'pel.effect.observed.v1', { effectId, observationRef, providerIdentity: observation.providerIdentity, externalOutcome: observed.right.status === 'completed' ? 'confirmed-complete' : observed.right.status === 'cancelled' ? 'confirmed-cancelled' : 'unknown' });
-                        if (observed.right.status === 'completed') {
+                        if (observed.right.status === 'completed' && pending.observationOnly) receipt=yield* settlePelKnownRaceLoser(pending.request,pending.context,{effectId,observationRef,providerIdentity:observation.providerIdentity,externalOutcome:'confirmed-complete'});
+                        if (observed.right.status === 'completed' && !pending.observationOnly) {
                             const schemaId = yield* originalPelProviderSchema(pending.context, pending.request.expectedResultSchemaId), schema = recovered.context.registry.dataSchemas[schemaId];
                             if (!schema || observed.right.result.schemaId !== schemaId || observed.right.result.schemaSha256 !== pelHash(schema) || observed.right.result.byteLength > binding.limits.maxOutputBytes || !validateDataSchema(observed.right.result.value, schema))
                                 return yield* Effect.fail(pelFailure('binding-mismatch', 'Observed provider result violates the original schema.'));
@@ -539,6 +543,9 @@ function revisePelRun(recovered: PelRecoveredRunV1, source: Uint8Array, decision
         const binding = recovered.activation.binding, runtime = yield* PelRuntime;
         yield* runtime.validateDecisionAuthority(decision.authorityReceipt, binding, 'revision', decision);
         const prepared = yield* preparePelRunRevision(recovered, source, decision);
+        const admit=Effect.gen(function*(){
+        const journal=yield* RunJournal;
+        yield* journal.reserveResumeAttempt(binding.attempt,binding.limits.execution.resumeAttempts).pipe(Effect.mapError(()=>pelFailure('budget-exhausted','The original resume allowance is exhausted.')));
         const decisionRef = yield* runtime.artifacts.put(binding.runId, Buffer.from(canonicalize(decision)), PEL_MAX_ARTIFACT_BYTES, 'ordinary');
         const sourceRef = yield* runtime.artifacts.put(binding.runId, source, PEL_MAX_ARTIFACT_BYTES, 'ordinary');
         const mappingRef = yield* runtime.artifacts.put(binding.runId, Buffer.from(canonicalize({ ...prepared.mapping, decisionRef })), PEL_MAX_ARTIFACT_BYTES, 'ordinary');
@@ -546,6 +553,9 @@ function revisePelRun(recovered: PelRecoveredRunV1, source: Uint8Array, decision
         const revisedBinding: ExecutionBindingV1 = { ...binding, checkedProgramDigest: prepared.checked.bindingDigest, revisionDigest: prepared.checked.sourceDigest, sourceDigest: prepared.checked.sourceDigest, artifacts: { ...binding.artifacts, source: sourceRef }, options: prepared.options, optionsDigest: prepared.optionsDigest };
         const bindingRef = yield* runtime.artifacts.put(binding.runId, Buffer.from(canonicalize(revisedBinding)), PEL_MAX_ARTIFACT_BYTES, 'ordinary');
         yield* appendPelRecord(binding, 'pel.revision.v1', { decisionRef, bindingRef });
+        return revisedBinding;
+        });
+        const revisedBinding=yield* runtime.admission?runtime.admission(admit):admit;
         const { drivePelRun } = yield* Effect.promise(() => import('./pel-runner.js'));
         return yield* drivePelRun({ kind: 'evaluated', checked: prepared.checked, binding: revisedBinding, step: prepared.step, children: [] }, { ...recovered.context, binding: revisedBinding });
     });

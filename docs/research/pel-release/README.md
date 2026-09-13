@@ -1,7 +1,8 @@
 # Return of the ForeDi release research
 
 The user selected **adopt and extend Pel** to simplify orchestration planning and execution.
-This branch contains research and a proposed release sequence. It does not implement a Pel runtime.
+The branch now contains the M1–M5 implementation and continuing M6 adoption work.
+The dated [implementation observation](IMPLEMENTATION-PROGRESS.md) links committed evidence and its limits.
 
 Start with the [release design](../../releases/return-of-the-foredi/research-design.md) and [release plan](../../releases/return-of-the-foredi/research-plan.md).
 

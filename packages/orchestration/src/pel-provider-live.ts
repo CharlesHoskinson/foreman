@@ -149,7 +149,7 @@ export function makeLiveProviderCliServices(context: LiveProviderContext = defau
             if (selection.binding.kind !== 'qualification')
                 return yield* Effect.fail(failure('UnsupportedCapability', 'Product qualification requires a product binding'));
             if (selection.requiredCapabilities.some(c => c === 'codingTask' || c === 'tools' || c === 'permissionBoundary' || c === 'workspaceBoundary'))
-                return yield* Effect.fail(failure('CapabilityUnverified', 'Coding qualification requires the run host and its disposable workspace grants'));
+                return yield* Effect.promise(()=>import('./pel-native-qualification.js')).pipe(Effect.flatMap(module=>module.runNativeCodingQualification(selection,context)));
             yield* makeLiveProviderCredentials(context, selection.transportId).resolve(selection.credentialProfileRef).pipe(Effect.mapError(() => failure('UnsupportedCapability', 'The explicitly selected credential account is unavailable before qualification')));
             const prepared = makeQualificationRequest(selection);
             const transport = yield* makeLiveProviderTransport(prepared, context);

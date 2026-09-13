@@ -1,0 +1,26 @@
+✔ T-M6-010 metric collection reads exact Git bytes and records generated/test/archive totals separately (187.12485ms)
+✔ T-M6-010 known instruction membership excludes implementation source and marks the missing startup trace (1.93515ms)
+✔ T-M6-010 metric CLI preserves a missed-target report and exits 1 (4.984509ms)
+✔ T-M6-010 invalid metric arguments or changed baseline exit 2 without a success report (2.717941ms)
+✔ T-M6-010 metric CLI forwards the explicit startup trace without changing source selection (0.446201ms)
+✔ T-M6-010 actual M4 standard start captures Grok launcher and RPC instruction bytes without external provider (2175.606758ms)
+✔ T-M6-010 repeated standard startup produces the same instruction corpus despite distinct run IDs (3736.218187ms)
+✔ T-M6-010 complete deterministic startup trace preserves transmitted bytes and fixture identity (2.172955ms)
+✔ T-M6-010 incomplete, changed, forged-shape, and cross-candidate startup traces are refused (0.507603ms)
+✔ T-M6-010 fixed manifest rejects changed membership, tokenizer, counts and rules (15.807618ms)
+✔ T-M6-010 candidate union counts new research and other moved production, full residual files once (1.126371ms)
+✔ T-M6-011 valid missed targets remain measured failures; full surviving instructions are counted (487.261474ms)
+✔ T-M6-010 corrupt original bytes and missing mandatory instruction carriers fail comparison (351.346081ms)
+✔ T-M6-010 an arbitrary sources directory cannot hide added production (0.204506ms)
+✔ T-M6-010 duplicate baseline keys are invalid even when their values agree (0.315265ms)
+✔ T-M6-010 a generated directory name cannot hide new TypeScript implementation (0.145655ms)
+✔ T-M6-011 incomplete startup instructions retain production counts without inventing a reduction (318.871902ms)
+✔ T-M6-010 rendered startup bytes add instruction tokens without changing production totals (438.90182ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7480.946542

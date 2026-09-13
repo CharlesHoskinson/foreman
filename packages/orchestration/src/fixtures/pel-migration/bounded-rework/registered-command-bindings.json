@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "kind": "foreman.legacy-command-binding.v1",
+  "template": "bounded-rework",
+  "contractSha256": "f044249837ab3d2b254ad866e81ad0cc6ac2eb5e694b5aa32f6b8dd5b5f50a6c",
+  "commandArgv": [
+    "grok",
+    "--prompt-file",
+    {
+      "placeholder": "promptPath",
+      "type": "path"
+    },
+    "-m",
+    "grok-4.6",
+    "--allow",
+    "Write",
+    "--allow",
+    "Edit",
+    "--output-format",
+    "plain",
+    "--cwd",
+    {
+      "placeholder": "workspaceRoot",
+      "type": "path"
+    },
+    "--no-leader"
+  ],
+  "values": {
+    "promptPath": "bounded-rework.md",
+    "workspaceRoot": "/legacy/workspace"
+  },
+  "input": {
+    "artifactId": "artifact:approved-spec",
+    "sha256": "a3913bb5c13e01826b85c8556d44969af50ae59495ae8bbfeef3c393836446aa"
+  },
+  "workspace": {
+    "grantId": "delivery-workspace",
+    "immutableBase": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "writablePaths": [
+      "src"
+    ]
+  },
+  "implementer": {
+    "profileId": "grok-4.6",
+    "transportId": "grok-acp",
+    "credentialProfileRef": "account:test"
+  },
+  "reviewer": {
+    "profileId": "gpt-5.6-sol",
+    "transportId": "codex-app-server",
+    "credentialProfileRef": "account:test"
+  },
+  "gate": {
+    "id": "candidate-full",
+    "legacyCommand": "/usr/bin/git -c core.fsmonitor=false diff --no-ext-diff --no-textconv --check",
+    "argv": [
+      "/usr/bin/git",
+      "-c",
+      "core.fsmonitor=false",
+      "diff",
+      "--no-ext-diff",
+      "--no-textconv",
+      "--check"
+    ],
+    "argvSha256": "fa96b8212e9d98bbe38c2862dd580e7e8439a31f50d3c414a955784fe9952295"
+  },
+  "report": {
+    "path": "reports/bounded-rework.md",
+    "baseline": "absent"
+  },
+  "correctionLimit": 1,
+  "publication": "disabled"
+}

@@ -13,6 +13,11 @@ export async function buildPelTestFixture(): Promise<void> {
   await mkdir(dirname(outfile), { recursive: true });
   const assetRoot = join(dirname(outfile), "assets");
   const assets = [
+    ...['implement-verify-review', 'bounded-rework'].flatMap(name => [
+      {source: `packages/orchestration/src/fixtures/pel-migration/${name}/contract-v1.json`, relativePath: `fixtures/pel-migration/${name}/contract-v1.json`},
+      {source: `packages/orchestration/src/fixtures/pel-migration/${name}/registered-command-bindings.json`, relativePath: `runtime/assets/pel/migration/${name}/registered-command-bindings.json`},
+    ]),
+    ...['research-bundle.json', 'pel-paper.json', 'model-evidence.json', 'paper.md', 'models.md'].map(name => ({source: `packages/orchestration/src/fixtures/pel-research/${name}`, relativePath: `fixtures/pel-research/${name}`})),
     {source:'packages/orchestration/src/fixtures/pel-adoption/project-settings.json',relativePath:'fixtures/pel-adoption/project-settings.json'},
     {
       source:
@@ -25,6 +30,15 @@ export async function buildPelTestFixture(): Promise<void> {
       "parallel-read.pel",
       "repair.pel",
       "repair-and-publish.pel",
+      "research-prepare.pel",
+      "race-cancel.pel",
+      "resume-checkpoint.pel",
+      "profiles/gpt-6-astra.pel",
+      "profiles/gpt-5.6-sol.pel",
+      "profiles/claude-opus-5.pel",
+      "profiles/claude-fable-5-1.pel",
+      "profiles/grok-4.6.pel",
+      "profiles/gemini-3.8-flash.pel",
     ].map((name) => ({
       source: `examples/pel/${name}`,
       relativePath: `examples/pel/${name}`,

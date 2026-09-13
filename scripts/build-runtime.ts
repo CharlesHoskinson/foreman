@@ -1,6 +1,6 @@
 import * as esbuild from "esbuild";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, readdirSync, lstatSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -14,6 +14,11 @@ import { createDefaultAuthoringSnapshotV1 } from "../packages/orchestration/src/
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const ENTRIES = [
+  ...[
+    ['install', 'pel-install-main.ts'],
+    ['pel-package', 'pel-package-main.ts'],
+    ['pel-simplification', 'pel-simplification-main.ts'],
+  ].map(([id, source]) => ({id: id!, entry: join(root, 'packages/orchestration/src', source!), relativePath: `dist/${id}.js`, injectCapabilities: false})),
   {
     id: "foreman",
     entry: join(root, "packages/orchestration/src/pel-authoring-main.ts"),
@@ -287,6 +292,30 @@ export async function buildTo(paths: BuildPaths): Promise<{
     byteLength: snapshotBytes.length,
   });
 
+  // The M6 package manifest binds these complete data assets. The older runtime
+  // manifest retains its existing closed compiled-entry/default-snapshot contract.
+  const copyData = (source: string, target: string): void => {
+    const info = lstatSync(source);
+    if (info.isSymbolicLink()) throw new Error('Package data cannot contain symlinks');
+    if (info.isDirectory()) {
+      mkdirSync(target, {recursive: true});
+      for (const name of readdirSync(source).sort()) copyData(join(source, name), join(target, name));
+    } else {
+      if (!info.isFile() || info.size > 32 * 1024 * 1024) throw new Error('Package data exceeds its file bound');
+      mkdirSync(dirname(target), {recursive: true});
+      writeFileSync(target, readFileSync(source));
+    }
+  };
+  // These two directories contain only generated copies owned by this build.
+  // Remove prior copies so a retired source cannot survive in a later archive.
+  for (const name of ['research', 'migration']) {
+    rmSync(join(paths.runtimeRoot, 'assets/pel', name), { recursive: true, force: true });
+  }
+  copyData(join(root, 'docs/research/pel-release'), join(paths.runtimeRoot, 'assets/pel/research'));
+  for (const name of ['implement-verify-review', 'bounded-rework']) {
+    copyData(join(root, 'packages/orchestration/src/fixtures/pel-migration', name, 'registered-command-bindings.json'), join(paths.runtimeRoot, 'assets/pel/migration', name, 'registered-command-bindings.json'));
+  }
+
   for (const e of ENTRIES) {
     const bundlePath = join(paths.runtimeRoot, e.relativePath);
     mkdirSync(dirname(bundlePath), { recursive: true });
@@ -303,7 +332,6 @@ export async function buildTo(paths: BuildPaths): Promise<{
       logLevel: "silent",
       packages: "bundle",
       absWorkingDir: root,
-      ...(e.id === "foreman" ? { banner: { js: "#!/usr/bin/env node" } } : {}),
     };
     if (e.injectCapabilities) {
       // Inject only into vendor-preflight. Other artifacts stay free of the table.

@@ -91,7 +91,7 @@ archive_worktree_reports() {
 #   confirmed (tests/foreman-cleanup.bats) that plain SIGINT delivery to a
 #   non-launcher-wrapped process is unreliable on this Windows/MSYS host --
 #   a bounded grace wait, escalating to SIGKILL if still alive, mirroring
-#   lane-run.sh's own kill_cmd_bounded discipline (never an unbounded wait).
+#   the historical controller's own kill_cmd_bounded discipline (never an unbounded wait).
 #   Silently tolerant of a missing event log, an absent jq, or an
 #   already-dead pid.
 #
@@ -102,12 +102,12 @@ archive_worktree_reports() {
 #   also sweeps the WHOLE subtree: on Windows, `taskkill //T` against the
 #   recorded pid's real Windows PID (translated via
 #   `${WT_CLEANUP_PROC_ROOT:-/proc}/<pid>/winpid`, the exact same trick
-#   lane-run.sh's own kill_cmd_bounded uses, and the same test-only knob
+#   the historical controller's own kill_cmd_bounded uses, and the same test-only knob
 #   pattern as its LANE_PROC_ROOT -- pointing it at a controlled directory
 #   makes the winpid resolution deterministic in tests instead of racing
 #   the real /proc entry's lifetime); on POSIX, signals the process GROUP
 #   (`kill -- -PID`, negative pid) instead of the bare pid -- this codebase's
-#   convention throughout (e.g. lane-run.sh's kill_launcher_bounded POSIX
+#   convention throughout (e.g. the historical controller's kill_launcher_bounded POSIX
 #   branch) is that a recorded pid is also its own pgid via setsid. Runs
 #   AFTER, not instead of, the single-pid INT/KILL above (that ordering
 #   still matters for the common single-process case); this is best-effort,
@@ -148,7 +148,7 @@ wtc_sigint_worktree() {
   # single-pid signal above could never reach does not survive it. Windows:
   # translate check_pid's real Windows PID via /proc/<pid>/winpid (present
   # while the process was recently alive, even seconds after it has been
-  # signaled dead -- same empirical basis lane-run.sh's kill_cmd_bounded
+  # signaled dead -- same empirical basis the historical controller's kill_cmd_bounded
   # relies on) and taskkill //T the whole tree. POSIX (no winpid file):
   # signal the process GROUP instead of the bare pid.
   local proc_root="${WT_CLEANUP_PROC_ROOT:-/proc}" winpid=""

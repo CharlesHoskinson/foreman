@@ -1,18 +1,19 @@
 /** Attach lifecycle commands to the existing journal, ledger and single run owner. */
+import type {PelLegacyStatusV1} from './pel-legacy-status.js';
 import {randomUUID} from 'node:crypto';
 import {join} from 'node:path';
 import {projectPelDeliveryResult,formatPelDeliveryResultJson,formatPelDeliveryResultText} from './pel-delivery-result.js';
-import {Effect,type Layer,type Scope} from 'effect';
+import {Effect,type Layer,Scope} from 'effect';
 import {RunJournal,type RunId,type LaneId,type AttemptIdentity} from '@foreman/event-log';
 import {canonicalAuthoringJson,checkPel,hashAuthoringContent,parseAuthoringSnapshotV1,type AuthoringSnapshotV1,type CheckedProgramV1} from '@foreman/pel';
 import {authoringFailure,type AuthoringFailure} from './pel-authoring-contract.js';
 import {configurePelSnapshot,deriveExecutionBinding,type PelValidatedAuthorityV1} from './pel-project-config.js';
 import {decodeExecutionBindingV1,decodePelContractJson,decodePelRecoveryDecisionV1,decodePelRevisionDecisionV1,PelRuntime,type PelArtifactRefV1,type ForemanProjectV1,type RunFailure,type RunServices,type ExecutionBindingV1} from './pel-run-contract.js';
 import {appendPelRecord,pelBytesHash,pelFailure,readPelRecords,PEL_MAX_ARTIFACT_BYTES} from './pel-journal.js';
-import {drivePelRun,withPelRunOwner} from './pel-runner.js';
+import {drivePelRun,withPelRunOwner,acquirePelRunOwner} from './pel-runner.js';
 import {resumeProgram,type PelResumeOptionsV1} from './pel-recovery.js';
 import {pelStatus,cancelPelRun,readPelExecutionBinding} from './pel-run-status.js';
-import type {PelLifecycleCliServices} from './pel-lifecycle-cli.js';
+import type {PelLifecycleCliServices,PelLifecycleNeedsActionV1} from './pel-lifecycle-cli.js';
 import {parsePelInputJson} from './pel-runtime-inputs.js';
 import type {PelOwnedRunContextV1,PelRecoveryDecisionV1,PelRevisionDecisionV1} from './pel-run-contract.js';
 
@@ -24,6 +25,8 @@ export interface PelLoadedProjectV1 {
   readonly retainedInputs:readonly {readonly ref:PelArtifactRefV1;readonly bytes:Uint8Array}[];
 }
 export interface PelLifecycleBackend {
+  /** Reads only the registered root and historical journal; null selects normal Pel status. */
+  readonly legacyStatus?:(runId:RunId,stateRoot?:string)=>Effect.Effect<PelLegacyStatusV1|null,AuthoringFailure>;
   readonly runtimeVersion:string;
   readonly evidenceKind:ExecutionBindingV1['evidenceKind'];
   readonly now:Effect.Effect<number>;
@@ -50,6 +53,10 @@ const bytes=(value:unknown)=>Buffer.from(canonicalAuthoringJson(value));
 const reference=(data:Uint8Array)=>{const sha256=pelBytesHash(data);return {artifactId:`sha256-${sha256}`,byteLength:data.byteLength,sha256};};
 
 export function makePelLifecycleServices(backend:PelLifecycleBackend):PelLifecycleCliServices {
+  const refuseLegacy=(runId:RunId,stateRoot?:string)=>Effect.gen(function*(){
+    const legacy=backend.legacyStatus?yield* backend.legacyStatus(runId,stateRoot):null;
+    if(legacy){const refused:PelLifecycleNeedsActionV1={_tag:'AuthoringFailure',code:'ActiveLegacyRun',message:'The legacy run retains its original controller and history. A verified original controller executable is unavailable; this runtime cannot resume or cancel that work.',exitCode:3};return yield* Effect.fail(refused);}
+  });
   return {
     configure:backend.configure,
     renderResult:(result,format,stateRoot)=>Effect.gen(function*(){
@@ -85,8 +92,10 @@ export function makePelLifecycleServices(backend:PelLifecycleBackend):PelLifecyc
       const binding=derived.value.binding;
       for(const retained of loaded.retainedInputs)if(hashAuthoringContent(reference(retained.bytes))!==hashAuthoringContent(retained.ref))return yield* Effect.fail(authoringFailure('binding-mismatch','A retained authority input differs from its validated reference.'));
       if(override?.ok&&hashAuthoringContent(override.value)!==hashAuthoringContent(binding))return yield* Effect.fail(authoringFailure('binding-mismatch','Explicit binding expands or changes the derived run.'));
-      return yield* withPelRunOwner(binding,owner=>Effect.gen(function*(){
-        const journal=yield* RunJournal,runtime=yield* PelRuntime;
+      return yield* Effect.scoped(Effect.gen(function*(){
+        const journal=yield* RunJournal,runtime=yield* PelRuntime,runScope=yield* Scope.Scope;
+        const admit=Effect.gen(function*(){
+        const owner=yield* acquirePelRunOwner(binding).pipe(Scope.extend(runScope));
         if((yield* readPelRecords(runId)).length)return yield* Effect.fail(pelFailure('binding-mismatch','This run ID already has durable history.'));
         const allocated=yield* journal.allocate(runId,attempt.laneId).pipe(Effect.mapError(()=>pelFailure('journal-write-failed','The run attempt could not be allocated.')));
         if(hashAuthoringContent(allocated)!==hashAuthoringContent(attempt))return yield* Effect.fail(pelFailure('binding-mismatch','Allocated attempt differs from admission.'));
@@ -98,11 +107,15 @@ export function makePelLifecycleServices(backend:PelLifecycleBackend):PelLifecyc
         const bindingRef=yield* runtime.artifacts.put(runId,bytes(binding),PEL_MAX_ARTIFACT_BYTES,'ordinary');
         const context=yield* runtime.loadRunInputs(binding);
         yield* appendPelRecord(binding,'pel.run.v1',{bindingRef});
+        return {...context,owner};
+        });
+        const context=yield* runtime.admission?runtime.admission(admit):admit;
         yield* input.started(runId).pipe(Effect.mapError(()=>pelFailure('journal-write-failed','The run ID could not be written to the operator stream.')));
-        return yield* drivePelRun({kind:'fresh',checked,binding},{...context,owner});
+        return yield* drivePelRun({kind:'fresh',checked,binding},context);
       })).pipe(Effect.mapError(failure),Effect.provide(backend.services(loaded,input.outputMode)));
     }),
     resume:input=>Effect.gen(function*(){
+      yield* refuseLegacy(input.runId,input.stateRoot);
       const services=yield* backend.servicesForRun(input.runId,input.stateRoot,input.outputMode);
       let options:PelResumeOptionsV1={};
       let unsigned:unknown;
@@ -132,7 +145,7 @@ export function makePelLifecycleServices(backend:PelLifecycleBackend):PelLifecyc
         }));
       }).pipe(Effect.mapError(failure),Effect.provide(services));
     }),
-    status:(runId,stateRoot)=>Effect.gen(function*(){const services=yield* backend.servicesForRun(runId,stateRoot);return yield* pelStatus(runId).pipe(Effect.mapError(failure),Effect.provide(services));}),
-    cancel:(runId,stateRoot)=>Effect.gen(function*(){const services=yield* backend.servicesForRun(runId,stateRoot);return yield* cancelPelRun(runId).pipe(Effect.mapError(failure),Effect.provide(services));}),
+    status:(runId,stateRoot)=>Effect.gen(function*(){const legacy=backend.legacyStatus?yield* backend.legacyStatus(runId,stateRoot):null;if(legacy)return legacy;const services=yield* backend.servicesForRun(runId,stateRoot);return yield* pelStatus(runId).pipe(Effect.mapError(failure),Effect.provide(services));}),
+    cancel:(runId,stateRoot)=>Effect.gen(function*(){yield* refuseLegacy(runId,stateRoot);const services=yield* backend.servicesForRun(runId,stateRoot);return yield* cancelPelRun(runId).pipe(Effect.mapError(failure),Effect.provide(services));}),
   };
 }

@@ -1,11 +1,12 @@
 /** Linux mount and process isolation for existing native provider adapters. */
-import {lstat,realpath,stat} from 'node:fs/promises';
+import {lstat,realpath,stat,unlink} from 'node:fs/promises';
+import {randomBytes} from 'node:crypto';
 import {dirname,isAbsolute,join,resolve,sep,basename} from 'node:path';
 import {Effect} from 'effect';
 import type {Scope} from 'effect';
 import {createNativeProcessPort,type NativeProcessPort,type ProviderFailure,type HostPermissionPort,type ProviderRequestV1} from '@foreman/providers';
 import type {PelExecutionNativeBoundaryV1,PelExecutionTransportOptions} from './pel-execution-provider-live.js';
-import type {HostContextV1} from './pel-run-contract.js';
+import type {PelNativeScopeV1} from './pel-native-scope.js';
 import {ProcessExec,liveProcessExec} from './queue-services.js';
 const denied=():ProviderFailure=>({_tag:'UnsupportedCapability',retryClass:'never',message:'The native execution boundary is unavailable or differs from its admitted filesystem, process, or permission scope.'});
 const within=(root:string,path:string)=>path===root||path.startsWith(root+sep);
@@ -23,6 +24,8 @@ export interface PelNativeBoundaryOptions {
  readonly permissions:HostPermissionPort;
  readonly identityRevisionByTransport:Readonly<Record<string,string>>;
  readonly transportVersionByTransport:Readonly<Record<string,string>>;
+ /** Qualification probes the actual write mounts before any provider launch. */
+ readonly probeWriteBoundary?:boolean;
 }
 const attempt=<A>(f:()=>Promise<A>)=>Effect.tryPromise({try:f,catch:denied});
 function noToolArguments(request:ProviderRequestV1,cmd:readonly string[]):boolean {
@@ -32,7 +35,7 @@ function noToolArguments(request:ProviderRequestV1,cmd:readonly string[]):boolea
  return request.transportId==='claude-code'&&cmd.includes('--restricted')&&cmd.includes('--safe-mode')&&cmd.includes('--strict-mcp-config')&&cmd[cmd.indexOf('--mcp-config')+1]==='{"mcpServers":{}}'&&cmd[cmd.indexOf('--setting-sources')+1]==='';
 }
 /** Configuration comes from registered host state. Provider or Pel data cannot construct it. */
-export function makePelNativeBoundary(options:PelNativeBoundaryOptions):NonNullable<PelExecutionTransportOptions['nativeBoundary']>{
+export function makePelNativeBoundary(options:PelNativeBoundaryOptions):(request:ProviderRequestV1,context:PelNativeScopeV1)=>Effect.Effect<PelExecutionNativeBoundaryV1,ProviderFailure,Scope.Scope>{
  return (request,context)=>Effect.gen(function*(){
   const coding=request.toolPolicy.mode==='native-coding';
   if(process.platform!=='linux'||!process.geteuid||!(coding?supportedCoding:supportedNone).includes(request.transportId)||options.transportVersionByTransport[request.transportId]!==request.transportVersion||!options.identityRevisionByTransport[request.transportId]||!Number.isFinite(request.limits.deadline)||request.limits.deadline<=Date.now())return yield* Effect.fail(denied());
@@ -63,6 +66,16 @@ export function makePelNativeBoundary(options:PelNativeBoundaryOptions):NonNulla
   const environment={PATH:[dirname(admitted.executable),...runtimeDirectories,'/usr/bin','/bin'].join(':'),LANG:'C.UTF-8',HOME:'/tmp/foreman-native-home',TMPDIR:'/tmp/foreman-native-tmp'};
   // Run the actual namespace/mount operation before reporting enforcement.
   yield* Effect.gen(function*(){const proc=yield* ProcessExec;const result=yield* proc.runCaptured({command:admitted.bwrap,args:[...flags,'/usr/bin/true'],env:environment,maxOutputBytes:16384,timeoutMs:Math.min(3000,request.limits.deadline-Date.now())});if(result.exitCode!==0)return yield* Effect.fail(denied());}).pipe(Effect.provide(liveProcessExec),Effect.mapError(denied));
+  if(options.probeWriteBoundary){
+   if(!coding||admitted.writeRoots.length!==1)return yield* Effect.fail(denied());
+   const probe=`.foreman-qualification-${randomBytes(16).toString('hex')}`;
+   const attempts=[{path:join(admitted.root,probe),allowed:false},{path:join(context.binding.repository.gitCommonDir,probe),allowed:false},{path:join(admitted.writeRoots[0]!,probe),allowed:true}];
+   yield* Effect.gen(function*(){const proc=yield* ProcessExec;
+    for(const attempt of attempts){const result=yield* proc.runCaptured({command:admitted.bwrap,args:[...flags,'/usr/bin/touch','--',attempt.path],env:environment,maxOutputBytes:4096,timeoutMs:Math.min(3000,request.limits.deadline-Date.now())});
+     if((result.exitCode===0)!==attempt.allowed)return yield* Effect.fail(denied());
+    }
+   }).pipe(Effect.provide(liveProcessExec),Effect.mapError(denied),Effect.ensuring(Effect.promise(async()=>{for(const attempt of attempts)await unlink(attempt.path).catch(error=>{if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;});})));
+  }
   const native=createNativeProcessPort();
   const nativePort:NativeProcessPort={open:launch=>Effect.gen(function*(){
    if(launch.cwd!==admitted.root||!launch.cmd.length||![admitted.executable,options.executableByTransport[request.transportId],basename(options.executableByTransport[request.transportId]!),({'grok-acp':'grok','codex-app-server':'codex','claude-code':'claude'} as Record<string,string>)[request.transportId]!].includes(launch.cmd[0]!)||launch.deadline>request.limits.deadline||launch.maxOutputBytes>Math.min(64*1024*1024,request.limits.maxOutputBytes+1024*1024)||!noToolArguments(request,launch.cmd))return yield* Effect.fail(denied());

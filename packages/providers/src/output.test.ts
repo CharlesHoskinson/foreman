@@ -5,6 +5,19 @@ import type { PelDataSchemaV1 } from '@foreman/pel';
 import { decodeProviderOutput, lowerProviderSchema, providerSchemaSubset } from './output.js';
 const content: PelDataSchemaV1 = { type: 'association', additionalKeys: false, fields: [{ key: 'Z', required: true, schema: { type: 'nil' } }, { key: 'a', required: true, schema: { type: 'number', integer: true, minimum: 0, maximum: 3 } }] };
 const schema = { id: 'test', content };
+test('xAI accepted array bounds above its guaranteed threshold retain exact host validation', () => {
+    const content: PelDataSchemaV1 = { type: 'list', minItems: 0, maxItems: 1000, items: { type: 'boolean' } };
+    const output = { id: 'candidate-path-bound', content };
+    for (const transport of ['xai-responses', 'grok-acp']) {
+        const subset = providerSchemaSubset(transport);
+        const lowered = lowerProviderSchema(output, subset, { [output.id]: content });
+        assert.equal(lowered.ok, true);
+        if (lowered.ok) assert.equal(JSON.stringify(lowered.value.jsonSchema).includes('"maxItems":1000'), true);
+        assert.equal(decodeProviderOutput(JSON.stringify({ value: Array(1000).fill(true) }), output).ok, true);
+        assert.equal(decodeProviderOutput(JSON.stringify({ value: Array(1001).fill(true) }), output).ok, false);
+        assert.equal(lowerProviderSchema(output, { ...subset, weakenings: ['utf8-maxBytes'] }, { [output.id]: content }).ok, false);
+    }
+});
 test('T-M3-009 canonical schema order and exact closed decoding', () => {
     const a = decodeProviderOutput('{"a":2,"Z":null}', schema);
     const b = decodeProviderOutput('{"Z":null,"a":2}', schema);

@@ -28,7 +28,6 @@ import {
 } from "@foreman/event-log";
 import { absentReportSnapshot, type RoundPlanV1 } from "./round-contract.js";
 import { makeStubWorktreeRestore } from "./resume-worktree-restore.js";
-import { makeStubQueueSubmitter } from "./resume-queue-execution.js";
 import {
   ResumeLockProbe,
   ResumeProcessProbe,
@@ -202,10 +201,7 @@ function stubServices(opts: {
         });
       },
     }),
-    makeStubQueueSubmitter({
-      submit: (_g, commandArgv) =>
-        Effect.succeed({ _tag: "Ready", commandArgv }),
-    }),
+
   );
 }
 
@@ -364,8 +360,6 @@ describe("runSupervisorCli", () => {
           ],
           cap.io,
           {
-            shellBinary: "bash",
-            laneRunScript: "/s/lane-run.sh",
             provideServices: (e) =>
               e.pipe(Effect.provide(layer)) as Effect.Effect<
                 readonly import("./supervisor.js").SupervisorRunResultV1[]
@@ -382,7 +376,7 @@ describe("runSupervisorCli", () => {
     }
   });
 
-  it("Ready submission prints JSON argv on stdout", async () => {
+  it("legacy resume emits needs-action without a command vector", async () => {
     const stateRoot = mkdtempSync(join(tmpdir(), "cli-ready-"));
     try {
       const layer = stubServices({
@@ -394,8 +388,6 @@ describe("runSupervisorCli", () => {
           ["--state-root", stateRoot, "--once", String(runId)],
           cap.io,
           {
-            shellBinary: "bash",
-            laneRunScript: "/s/lane-run.sh",
             provideServices: (e) =>
               e.pipe(Effect.provide(layer)) as Effect.Effect<
                 readonly import("./supervisor.js").SupervisorRunResultV1[]
@@ -403,14 +395,9 @@ describe("runSupervisorCli", () => {
           },
         ),
       );
-      assert.equal(code, EXIT_OK);
-      assert.match(cap.stderr, /ready-to-run|resumed/);
-      const line = cap.stdout.trim();
-      assert.ok(line.length > 0);
-      const parsed = JSON.parse(line) as string[];
-      assert.ok(Array.isArray(parsed));
-      assert.ok(parsed.includes("--round"));
-      assert.ok(parsed.includes("impl"));
+      assert.equal(code, 3);
+      assert.match(cap.stderr, /ActiveLegacyRun/);
+      assert.equal(cap.stdout, "");
     } finally {
       rmSync(stateRoot, { recursive: true, force: true });
     }
@@ -427,8 +414,6 @@ describe("runSupervisorCli", () => {
           cap.io,
           {
             skillRoot: stateRoot,
-            shellBinary: "bash",
-            laneRunScript: join(stateRoot, "lane-run.sh"),
           },
         ),
       );
@@ -438,7 +423,7 @@ describe("runSupervisorCli", () => {
     }
   });
 
-  it("ExecutionFailed lane action exits EXIT_FAIL with diagnostics", async () => {
+  it("legacy refusal does not consume resume budget", async () => {
     const stateRoot = mkdtempSync(join(tmpdir(), "cli-execfail-"));
     try {
       const reserveCalls: string[] = [];
@@ -453,8 +438,6 @@ describe("runSupervisorCli", () => {
           ["--state-root", stateRoot, "--once", String(runId)],
           cap.io,
           {
-            shellBinary: "bash",
-            laneRunScript: "/s/lane-run.sh",
             provideServices: (e) =>
               e.pipe(Effect.provide(layer)) as Effect.Effect<
                 readonly import("./supervisor.js").SupervisorRunResultV1[]
@@ -462,9 +445,9 @@ describe("runSupervisorCli", () => {
           },
         ),
       );
-      assert.equal(code, EXIT_FAIL);
-      assert.match(cap.stderr, /execution failed/);
-      assert.deepEqual(reserveCalls, ["reserve"]);
+      assert.equal(code, 3);
+      assert.match(cap.stderr, /ActiveLegacyRun/);
+      assert.deepEqual(reserveCalls, []);
     } finally {
       rmSync(stateRoot, { recursive: true, force: true });
     }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Effect, Stream } from "effect";
+import { Deferred, Effect, Stream } from "effect";
 import { canonicalize, sha256Hex } from "@foreman/core";
 import { runQualification, qualificationBounds } from "./qualification.js";
 import { PROVIDER_PROFILES } from "./profiles.js";
@@ -8,6 +8,7 @@ import type {
   ProviderRequestV1,
   ProviderTransport,
   ProviderIdentityV1,
+  ProviderEventV1,
 } from "./contract.js";
 const p = PROVIDER_PROFILES.find((p) => p.id === "gpt-6-astra")!;
 const identity: ProviderIdentityV1 = {
@@ -43,6 +44,30 @@ const request: ProviderRequestV1 = {
     spendReservationRef: "reservation",
   },
 };
+test('qualification awaits the bounded host tool callback and never approves without one', async () => {
+  for (const scenario of ['allowed', 'missing', 'none', 'exhausted', 'after-terminal'] as const) {
+    const gate = await Effect.runPromise(Deferred.make<void>());
+    let acknowledged = 0;
+    const codingRequest: ProviderRequestV1 = {...request, toolPolicy: scenario === 'none' ? {mode:'none'} : {mode:'native-coding',workspaceGrantId:'disposable',permissionGrantIds:['grant'],hostPermissionPortRef:'host'}, limits:{...request.limits,deadline:1000,maxToolCalls:scenario==='exhausted'?0:1}};
+    const tool: ProviderEventV1 = {schemaVersion:1,effectId:request.effectId,providerIdentity:identity,payload:{type:'tool-request',request:{callId:'one',name:'edit',arguments:{path:'src/value.txt'},authorizationBinding:'grant'}}};
+    const complete: ProviderEventV1 = {schemaVersion:1,effectId:request.effectId,providerIdentity:identity,payload:{type:'completed',result:{value:{tag:'boolean',value:true},json:true,schemaId:request.outputSchema.id,schemaSha256:sha256Hex(canonicalize(request.outputSchema.content)),byteLength:4}}};
+    const transport: ProviderTransport = {
+      id:request.transportId,version:'1',
+      probe:()=>Effect.fail({_tag:'ProbeUnknown',retryClass:'never',message:'unused'}),
+      start:()=>Effect.succeed(scenario==='after-terminal'?Stream.make(complete,tool):Stream.concat(Stream.succeed(tool),Stream.fromEffect(Deferred.await(gate).pipe(Effect.as(complete))))),
+      sendToolResult:()=>Effect.void,
+      cancel:()=>Effect.succeed({requested:true,acknowledged:true,localCleanup:'complete',remoteOutcome:'cancelled'}),
+      observe:()=>Effect.succeed({status:'unsupported',providerIdentity:identity,reason:'unused'}),
+      resume:()=>Effect.fail({_tag:'ResumeUnavailable',retryClass:'never',message:'unused'}),
+    };
+    const report=await Effect.runPromise(runQualification({request:codingRequest,requiredCapabilities:['generation'],binding:{kind:'qualification-fixture',fixtureManifestHash:'manifest',endpointIdentity:'fake://tools',evidenceRef:'fixture:tools',expiresAt:1000000}},
+      {transport,now:()=>100,...(scenario==='missing'?{}:{onToolRequest:()=>Effect.sync(()=>{acknowledged++;}).pipe(Effect.zipRight(Deferred.succeed(gate,undefined)),Effect.asVoid)})}));
+    assert.equal(acknowledged,scenario==='allowed'?1:0);
+    assert.equal(report.outcome,scenario==='allowed'?'success':'cancelled');
+    if(scenario!=='allowed')assert.equal(report.failure?._tag,scenario==='exhausted'?'OutputIncomplete':scenario==='after-terminal'?'MalformedEvent':'UnsupportedCapability');
+    assert.equal(report.evidence.length,scenario==='allowed'?1:0);
+  }
+});
 test("T-M3-017 bounded injected qualification retains fixture provenance and never invents optional evidence", async () => {
   let calls = 0;
   let observed: ProviderRequestV1 | undefined;

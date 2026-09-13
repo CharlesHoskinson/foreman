@@ -122,7 +122,7 @@ Trace comparison ignores documented transport timing and compares required host 
 Use historical fixtures for existing formats and fake providers for candidate execution.
 Reuse original event records rather than rewriting history into a new schema.
 
-An active legacy run keeps its current controller.
+An active legacy run keeps its current controller. The new supervisor does not restart RoundPlanV1 work: it returns ActiveLegacyRun before reservation, worktree restoration, or queue submission. It retains historical status and the Pel held-owner recovery branch. Existing legacy ownership records contain no verified original controller executable or build, so the diagnostic reports that controller location as unavailable rather than supplying a new-runtime restart command. Automatic legacy restart parity is not claimed. Earlier v0.5.0 historical decoding, owner exclusion, checkpoint identity, and budget-history obligations remain; unsupported legacy workflow recovery stays open.
 Migration returns `ActiveLegacyRun` with the current owner and a supported completion or recovery route.
 The migration tool cannot transfer an active lease to the Pel runtime.
 Historical status remains readable after old execution code is removed.
@@ -219,11 +219,16 @@ Store no hidden reasoning in the research bundle or vault export.
 `PackageSupportV1` records the selected release name/version, candidate, runtime schemas and exact model/transport evidence.
 Do not claim a transport works because its fixture suite passes.
 Include documentation, examples and support matrix from the same candidate.
+Read research and migration bytes from tracked candidate sources, not ignored generated caches.
+Bind their original source identity in the archive manifest.
 Retain unresolved v0.5 obligations and their source references in release notes.
 Assign the numerical version only after the existing release program reconciles it.
 
 `foreman support export --run <id> --out <bundle>` produces reproducible, redacted context.
 Include installed version, platform, exact provider identities, safe error codes and relevant event IDs.
+Include evidenceKind from the validated immutable execution binding: product or test-fixture.
+Use unknown when that binding is unavailable or belongs to a legacy run.
+Package identity must not change the evidence kind.
 Exclude credentials, bearer tokens, environment secret values, hidden reasoning and sensitive prompt payloads.
 Use existing redaction policy and test malicious field names and nested provider errors.
 
@@ -288,8 +293,8 @@ required milestones, gate argv registry, destination descriptors, workspace gran
 Bare `foreman run` uses M4's pure configuration-plus-CheckedProgramV1 derivation.
 Missing or invalid configuration exits 2 before reservation or dispatch.
 
-The installation state registry is `<prefix>/state-roots.json` with schemaVersion 1 and canonical stateRoots/repositoryBinding entries.
-Project configure registers the configured state root through this installed host service.
+Use the existing `<foremanHome>/projects.json` registry and its canonical project/store associations.
+Project configure uses the existing registration service. Installation adds no second state-root registry.
 Rollback checks every registered state root and refuses unreadable or incompatible active state.
 `foreman install rollback --to <buildId>` validates hashes and schema ranges before changing current.
 A compatible switch preserves journals, checkpoints and source artifacts byte-for-byte.
@@ -386,7 +391,7 @@ Runtime fixture commands invoke `node packages/orchestration/dist-test/pel-cli-f
 The manifest requires assetRoot and assetManifestSha256, bound to the copied installation prefix/current.
 Resolve snapshots from assetRoot/runtime/assets/pel and examples from assetRoot/examples/pel.
 Reject missing manifest, mismatched asset hashes or an absent copied asset root with exit 2.
-The installation state-roots.json file is a projection of the existing project registry, not execution authority.
+The existing project registry supplies rollback's complete registered-state inventory. An unreadable association is a needs-action result, not an empty inventory.
 
 ## Command outcomes
 
@@ -418,7 +423,10 @@ Include that exact target in test:adoption and the existing root orchestration t
 ## Executable research examples
 
 M2 owns the declaration and schema in packages/orchestration/src/pel-host-descriptors.ts.
-M6 adds the handler in packages/orchestration/src/pel-research-host.ts without changing that declaration digest.
+M6 adds the handler in packages/orchestration/src/pel-research-host.ts.
+The inspected M2 research declaration used different fields and enums from this controlling contract.
+M6 corrects that one canonical declaration and regenerates its snapshot before admission.
+The corrected digest is then frozen. Runtime code does not define a second result schema.
 Register ordinary host function fm/research with named arguments id, query, bundle and limit.
 The first three are required bounded strings. Limit defaults to 5 and must be an integer from 1 through 20.
 Bundle is an admitted immutable research-bundle reference, not a filesystem path supplied by a note.
@@ -426,6 +434,24 @@ Its capability is research.read. A bundle that includes an external vault additi
 The resolver returns canonical read resources for the bundle index and its admitted source roots, with writes empty.
 M4 preparation returns read-result containing the validated Pel value, immutable source references/hashes and preparation digest.
 This requires no previous receipt, provider request, external-action reservation or filesystem mutation.
+
+The optional project.researchBundles map binds each exact bundle identifier to one immutable index artifact.
+The index owns source paths, raw and clean hashes, capture dates, claim classes, and coverage metadata.
+Project configuration does not duplicate source metadata or grant a filesystem root.
+Admission retains the index and each bound source through the existing project and run artifact ports.
+Runtime resolves the bundle to exact canonical artifact read identities through the existing resource lock service.
+The original project configuration and run-owned artifact copies remain the inputs on resume.
+An index with external-vault-derived content requires vault.read even after immutable capture.
+This refines source-root reads into immutable artifact reads and adds no external runtime filesystem authority.
+The existing effect observation records the read preparation digest, source references, and result hash before its receipt.
+A replay with a different digest or source set fails without an external reservation.
+CLI refresh handles source changes separately and never changes an admitted execution snapshot.
+
+The default portable bundle is runtime/assets/pel/research relative to the installed package.
+CLI refresh stores one derived snapshot at foremanHome/research/snapshot.json.
+That snapshot retains the explicitly selected canonical sourceRoot and its bounded index.
+No separate selection store is required. An interrupted refresh keeps the previous snapshot readable and stale.
+Research claim excerpts can select a bounded UTF-8 byte range while retaining the full clean-source hash.
 
 The result schema is schema:research-result-v1, an ordered association with status then results.
 Status is the enum string complete or stale.
@@ -488,9 +514,9 @@ The measurement fixture proves both rules and rejects a changed baseline member 
 Installed run/resume overrides must already match a canonical project-registry stateRoot/repository association and authority.
 An unregistered override exits 2 before dispatch and directs the user to one-time project configure.
 The explicit flag never registers an arbitrary root implicitly.
-Installed configuration projects registered roots to prefix/state-roots.json before execution and rollback.
-Resolve that prefix from the installed manifest. Checkout execution has no installation prefix requirement.
-Fixture execution additionally matches its manifest stateRoot and skips installation projection when no installed manifest exists.
+Installed execution and rollback read the same existing project registry. Do not create a second installation projection.
+Resolve package identity from the installed manifest. Checkout execution has no installation prefix requirement.
+Fixture execution additionally matches its manifest stateRoot.
 Rollback still validates every registered root for an installed release, including roots selected through explicit overrides.
 
 The research descriptor bounds id and bundle to 256 UTF-8 bytes each and query to 4096 UTF-8 bytes.
@@ -510,3 +536,7 @@ T-M6-009 requires zero live references in every named scope and passing retained
 pretest:adoption invokes M2's test:pel-fixture-build before runtime acceptance.
 The shared root pretest invokes the same builder before npm test and therefore before verify's test stage.
 No manual esbuild command or test-module CLI side effect is required on a clean checkout.
+
+### Installed runtime compatibility
+
+The install payload includes `runtimeCompatibility` with exact `runtimeVersion` and `runtimeHandlerVersion` strings. Its default authoring snapshot also binds the registry digest and language profile digest. Rollback compares these identities with each active run's immutable execution binding, in addition to journal, checkpoint, and continuation schema ranges. Equal numeric schema versions do not establish registry compatibility. A mismatch returns needs-action before the current symlink changes. The original retained package remains available for its controller and history.

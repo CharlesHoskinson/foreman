@@ -567,7 +567,7 @@ export function analyzePel(input: AnalysisInputV1): PelAnalysisV1 {
       if (!v) continue;
       const value = text(v);
       if (value) {
-        if (value.startsWith("workspace:") || value.startsWith("source:"))
+        if (value.startsWith("workspace:") || value.startsWith("source:") || value.startsWith("bundle:"))
           reads.add(value);
         if (value.startsWith("artifact:")) {
           if (!s.policy.artifactConstraints.allowedIds.includes(value))

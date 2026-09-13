@@ -40,18 +40,6 @@ import {
   PelSupervisorRecovery,
 } from "./supervisor.js";
 import {
-  makeLiveWorktreeRestore,
-  WorktreeRestore,
-} from "./resume-worktree-restore.js";
-import {
-  makeLiveQueueSubmitter,
-  QueueSubmitter,
-} from "./resume-queue-execution.js";
-import {
-  liveProcessExec,
-  liveQueueServices,
-} from "./queue-services.js";
-import {
   liveResumeSafetyServices,
   ResumeLockProbe,
   ResumeProcessProbe,
@@ -61,8 +49,6 @@ export type LiveSupervisorContext = {
   /** Preflighted absolute state root (FOREMAN_HOME equivalent). */
   readonly stateRoot: string;
   readonly env?: NodeJS.ProcessEnv;
-  readonly shellBinary?: string;
-  readonly laneRunScript?: string;
   /** Registered Pel recovery under the same canonical root and held owner. */
   readonly pelRecovery?: (stateRoot: string) => Layer.Layer<PelSupervisorRecovery>;
 };
@@ -682,9 +668,7 @@ export type SupervisorLiveLayer = Layer.Layer<
   | RunDiscovery
   | TypedJournalReader
   | RunLease
-  | WorktreeRestore
   | RunJournal
-  | QueueSubmitter
   | ResumeProcessProbe
   | ResumeLockProbe
 >;
@@ -709,33 +693,12 @@ export function makeLiveSupervisorServices(
   const journal = makeLiveRunJournalLayer(stateRoot);
   const safety = liveResumeSafetyServices;
 
-  const restore = makeLiveWorktreeRestore({
-    env: ctx.env ?? process.env,
-  }).pipe(Layer.provide(liveProcessExec));
-
-  const queue = makeLiveQueueSubmitter().pipe(
-    Layer.provide(liveQueueServices),
-  );
-
   return Layer.mergeAll(
     discovery,
     journalReader,
     lease,
     journal,
     safety,
-    restore,
-    queue,
     ...(ctx.pelRecovery ? [ctx.pelRecovery(stateRoot)] : []),
   ) as SupervisorLiveLayer;
-}
-
-/** Default shell and lane-run paths for the installed skill layout. */
-export function defaultSupervisorPaths(skillRoot: string): {
-  readonly shellBinary: string;
-  readonly laneRunScript: string;
-} {
-  return {
-    shellBinary: process.platform === "win32" ? "bash" : "/bin/bash",
-    laneRunScript: join(skillRoot, "scripts", "lane-run.sh"),
-  };
 }

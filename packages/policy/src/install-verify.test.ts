@@ -70,20 +70,24 @@ const trackedCredentialProfileLane = join(
 const trackedGraphStore = join(trackedRuntime, "dist/graph-store.js");
 const trackedForemanLaunch = join(trackedRuntime, "dist/foreman-launch.js");
 const trackedFmSession = join(trackedRuntime, "dist/fm-session.js");
-const trackedReleaseRuntimeArtifacts = [
-  "release-admission.js",
-  "release-authority.js",
-  "release-coverage.js",
-  "release-policy.js",
-] as const;
-const trackedFixtureRuntimeArtifacts = [
-  "foreman.js",
-  "appliance-doctor.js",
-  "graph-context.js",
-  "graph-evaluation.js",
-  "graphify-qualification.js",
-  ...trackedReleaseRuntimeArtifacts,
-] as const;
+// Baseline memory fixtures follow the actual manifest. Explicit nodes below retain
+// their identity-change hooks; only the remaining declared bundles are seeded here.
+const trackedDistArtifacts = (JSON.parse(readFileSync(trackedManifest, "utf8")) as {
+  readonly artifacts: readonly { readonly relativePath: string }[];
+}).artifacts
+  .map(artifact => artifact.relativePath)
+  .filter(path => path.startsWith("dist/"))
+  .map(path => path.slice("dist/".length));
+const explicitlySeededRuntimeArtifacts = new Set([
+  trackedGuard, trackedPolicy, trackedEndstop, trackedQueue, trackedRound,
+  trackedSupervise, trackedPreflight, trackedToolCheck, trackedTier2Collect,
+  trackedTier2Compare, trackedSetup, trackedDependencyDrift, trackedRepoHygiene,
+  trackedSecretScan, trackedCredentialProfile, trackedCredentialProfileLane,
+  trackedGraphStore, trackedForemanLaunch, trackedFmSession,
+].map(path => path.slice(join(trackedRuntime, "dist").length + 1)));
+const trackedFixtureRuntimeArtifacts = trackedDistArtifacts.filter(
+  name => !explicitlySeededRuntimeArtifacts.has(name),
+);
 
 function releaseRuntimeMemoryNodes(
   dist: string,
@@ -654,33 +658,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
         {
           kind: "dir" as const,
           identity: dirIdentity({ ino: "12" }),
-          names: [
-              "appliance-doctor.js",
-              "graph-context.js",
-              "graph-evaluation.js",
-              "graphify-qualification.js",
-              "architecture-policy.js",
-              "credential-profile-lane.js",
-              "credential-profile.js",
-              "dependency-drift.js",
-              "destruction-guard.js",
-              "execution-guard.js",
-              "fm-session.js",
-              "foreman-launch.js",
-              "foreman.js",
-              "foreman-setup.js",
-              "graph-store.js",
-              "lane-queue.js",
-              "lane-round.js",
-              "lane-supervise.js",
-              ...trackedReleaseRuntimeArtifacts,
-              "repo-hygiene.js",
-              "secret-scan.js",
-              "tier2-collect.js",
-              "tier2-compare.js",
-              "tool-check.js",
-              "vendor-preflight.js",
-            ],
+          names: [...trackedDistArtifacts],
         },
       ],
       [
@@ -1022,33 +1000,7 @@ describe("runtime plugin-drift", () => {
           {
             kind: "dir",
             identity: dirIdentity({ ino: prefix + "-dist" }),
-            names: [
-              "appliance-doctor.js",
-              "graph-context.js",
-              "graph-evaluation.js",
-              "graphify-qualification.js",
-              "architecture-policy.js",
-              "credential-profile-lane.js",
-              "credential-profile.js",
-              "dependency-drift.js",
-              "destruction-guard.js",
-              "execution-guard.js",
-              "fm-session.js",
-              "foreman-launch.js",
-              "foreman.js",
-              "foreman-setup.js",
-              "graph-store.js",
-              "lane-queue.js",
-              "lane-round.js",
-              "lane-supervise.js",
-              ...trackedReleaseRuntimeArtifacts,
-              "repo-hygiene.js",
-              "secret-scan.js",
-              "tier2-collect.js",
-              "tier2-compare.js",
-              "tool-check.js",
-              "vendor-preflight.js",
-            ],
+            names: [...trackedDistArtifacts],
           },
         ],
         [
@@ -1389,33 +1341,7 @@ describe("skill-root and directory stability seams", () => {
     const distDir: MemoryNode = {
       kind: "dir",
       identity: dirIdentity({ ino: opts?.distIno ?? "12" }),
-      names: [
-              "appliance-doctor.js",
-              "graph-context.js",
-              "graph-evaluation.js",
-              "graphify-qualification.js",
-              "architecture-policy.js",
-              "credential-profile-lane.js",
-              "credential-profile.js",
-              "dependency-drift.js",
-              "destruction-guard.js",
-              "execution-guard.js",
-              "fm-session.js",
-              "foreman-launch.js",
-              "foreman.js",
-              "foreman-setup.js",
-              "graph-store.js",
-              "lane-queue.js",
-              "lane-round.js",
-              "lane-supervise.js",
-              ...trackedReleaseRuntimeArtifacts,
-              "repo-hygiene.js",
-              "secret-scan.js",
-              "tier2-collect.js",
-              "tier2-compare.js",
-              "tool-check.js",
-              "vendor-preflight.js",
-            ],
+      names: [...trackedDistArtifacts],
       lstatCount: { count: 0 },
       ...(opts?.distIdentityAfter !== undefined
         ? {
@@ -1854,33 +1780,7 @@ describe("memory InstallFs path separator seam", () => {
         {
           kind: "dir",
           identity: dirIdentity({ ino: "12" }),
-          names: [
-            "appliance-doctor.js",
-            "graph-context.js",
-            "graph-evaluation.js",
-            "graphify-qualification.js",
-            "architecture-policy.js",
-            "credential-profile-lane.js",
-            "credential-profile.js",
-            "dependency-drift.js",
-            "destruction-guard.js",
-            "execution-guard.js",
-            "fm-session.js",
-            "foreman-launch.js",
-              "foreman.js",
-            "foreman-setup.js",
-            "graph-store.js",
-            "lane-queue.js",
-            "lane-round.js",
-            "lane-supervise.js",
-            ...trackedReleaseRuntimeArtifacts,
-            "repo-hygiene.js",
-            "secret-scan.js",
-              "tier2-collect.js",
-              "tier2-compare.js",
-            "tool-check.js",
-            "vendor-preflight.js",
-          ],
+          names: [...trackedDistArtifacts],
         },
       ],
       [

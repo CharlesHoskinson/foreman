@@ -1,6 +1,6 @@
 # Return of the ForeDi
 
-Status: M1–M5 are implemented. M6 and final release qualification remain open. See the [M1 report](m1-implementation.md), [M2 report](m2-implementation.md), [M3 report](m3-implementation.md), [M4 report](m4-implementation.md), [M5 report](m5-implementation.md), and [live qualification matrix](m3-live-qualification.md).
+Status: M1–M5 are implemented. M6 implementation review and final release qualification remain open. See the [M1 report](m1-implementation.md), [M2 report](m2-implementation.md), [M3 report](m3-implementation.md), [M4 report](m4-implementation.md), [M5 report](m5-implementation.md), [M6 progress](m6-implementation.md), and [latest live qualification observations](m6-live-qualification.md).
 
 Pel is the common language for Foreman planning and execution. A person or model writes one program. Foreman checks the program, explains its effects, and runs it through the existing host authority. The release replaces duplicate planning and execution machinery.
 
@@ -29,7 +29,7 @@ M2 owns the minimal provider package and generation port. M3 extends that packag
 - [EARS method](EARS-METHOD.md): requirement syntax, identifiers, and coverage rules.
 - [Audit report](AUDIT.md): three Opus reviews, findings, and their resolution.
 
-Each OpenSpec `catalog.json` owns its milestone records. The release catalog combines those records without changing their identifiers or wording. Requirement text in the catalog matches the corresponding OpenSpec requirement. M1–M4 have executable acceptance tests linked in their coverage matrices. M5 final evidence is in progress. M6 test records describe future implementation acceptance.
+Each OpenSpec `catalog.json` owns its milestone records. The release catalog combines those records without changing their identifiers or wording. Requirement text in the catalog matches the corresponding OpenSpec requirement. M1–M5 have executable acceptance tests linked in their coverage matrices. M6 tests cover adoption behavior. Final candidate validation and numerical reduction acceptance remain open.
 
 ## Keep the implementation small
 

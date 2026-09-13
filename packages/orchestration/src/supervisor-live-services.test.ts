@@ -24,7 +24,6 @@ import { describe, it, afterEach } from "node:test";
 import { Effect } from "effect";
 import { decodeRunId, type RunId } from "@foreman/event-log";
 import {
-  defaultSupervisorPaths,
   directoryIdentityAnchorSupported,
   makeLiveRunDiscovery,
   makeLiveRunLease,
@@ -1168,13 +1167,7 @@ describe("makeLiveSupervisorServices", () => {
   });
 });
 
-describe("defaultSupervisorPaths", () => {
-  it("resolves lane-run.sh under skill root", () => {
-    const p = defaultSupervisorPaths("/skill");
-    assert.equal(p.laneRunScript, join("/skill", "scripts", "lane-run.sh"));
-    assert.ok(typeof p.shellBinary === "string" && p.shellBinary.length > 0);
-  });
-});
+
 
 describe("directoryIdentityAnchorSupported", () => {
   it("reports a boolean without throwing", () => {

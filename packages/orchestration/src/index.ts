@@ -614,26 +614,8 @@ export {
   type WorktreeRestoreSeams,
 } from "./resume-worktree-restore.js";
 
-export {
-  QUEUE_SUBMIT_FAILURE_BRAND,
-  queueSubmitFailure,
-  isQueueSubmitFailure,
-  QueueSubmitter,
-  buildLaneRunRoundVector,
-  RESUME_QUEUE_EXECUTION_FAILURE_BRAND,
-  resumeQueueExecutionFailure,
-  isResumeQueueExecutionFailure,
-  runResumeQueueExecution,
-  makeLiveQueueSubmitter,
-  makeStubQueueSubmitter,
-  type QueueSubmissionV1,
-  type QueueSubmitFailureReason,
-  type QueueSubmitFailure,
-  type ResumeQueueExecutionResultV1,
-  type ResumeQueueExecutionFailureReason,
-  type ResumeQueueExecutionFailure,
-  type RunResumeQueueExecutionInput,
-  type LiveQueueSubmitterOptions,
+export { activeLegacyRun, runResumeQueueExecution,
+ type ActiveLegacyRun, type RunResumeQueueExecutionInput, type PelResumeQueueExecutionInput,
 } from "./resume-queue-execution.js";
 
 export {
@@ -657,7 +639,6 @@ export {
   makeLiveRunDiscovery,
   makeLiveRunLease,
   makeLiveSupervisorServices,
-  defaultSupervisorPaths,
   type LiveSupervisorContext,
   type SupervisorLiveLayer,
 } from "./supervisor-live-services.js";

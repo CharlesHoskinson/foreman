@@ -86,7 +86,7 @@ if [[ ! "$N" =~ ^[0-9]+$ || "$N" -lt 1 ]]; then
 fi
 
 # @description Map a vendor id to its per-lane config-dir env-var name,
-#   mirroring lane-run.sh's own lane_vendor_env_var for the vendors this
+#   mirroring the historical controller's own lane_vendor_env_var for the vendors this
 #   protocol covers (grok/codex; claude included for reference-only rows --
 #   see the results doc). Any other vendor id falls back to a generic
 #   <UPPER(VENDOR)>_HOME rather than hard-failing.

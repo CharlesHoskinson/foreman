@@ -1,0 +1,2 @@
+(fm/task :id "implement" :model "gpt-5.6-sol" :transport "codex-app-server"
+  :input "artifact:approved-spec" :output "schema:candidate-v1")

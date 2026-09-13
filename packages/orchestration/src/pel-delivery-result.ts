@@ -9,6 +9,7 @@ import {readPelHostEvidenceRecords,loadPelHostEvidence} from './pel-host-evidenc
 import {readPelArtifactJson} from './pel-recovery.js';
 import {pelFailure,pelHash} from './pel-journal.js';
 import {decodeRunResultV1} from './pel-run-result.js';
+import {readPelCandidateScopes} from './pel-host-candidate-scope.js';
 export interface PelDeliveryProviderV1 {readonly kind:'api'|'native';readonly provider:string;readonly profileId:string;readonly transportId:string;readonly model?:string}
 export type DeliveryResultV1=RunResultV1 & {
  readonly evidenceKind:HostContextV1['binding']['evidenceKind'];
@@ -27,7 +28,13 @@ export function projectPelDeliveryResult(result:RunResultV1,context:Pick<HostCon
   if(!decoded.ok||result.runId!==context.binding.runId||result.programDigest!==context.binding.checkedProgramDigest||!same(result.attempt,context.binding.attempt))return yield* Effect.fail(pelFailure('binding-mismatch','The delivery result differs from its original run binding.'));
   const {entries,replay}=yield* readPelHostEvidenceRecords(context);
   let candidate:DeliveryResultV1['candidate']=null,checks:DeliveryResultV1['checks']=null,review:DeliveryResultV1['review']=null,publication:DeliveryResultV1['publication']=null,findings:readonly string[]=[];
-  const implementationEntry=[...entries].reverse().find(entry=>entry.kind==='implementation');
+  const scopes=yield* readPelCandidateScopes(context);
+  const implementationEntry=[...entries].reverse().find(entry=>{
+   if(entry.kind!=='implementation')return false;
+   const requestId=replay.intents.get(entry.effectId)?.effect.requestId;
+   const lineage=scopes.lineage(requestId?scopes.owners.get(requestId):undefined);
+   return lineage!==null&&!lineage.some(child=>child.childKind==='race'&&scopes.winners.get(child.parentRequestId)!==child.index);
+  });
   if(implementationEntry){
    const implementation=yield* loadPelHostEvidence(implementationEntry.ref,'implementation',context);
    if(implementation.kind!=='implementation')return yield* Effect.fail(pelFailure('binding-mismatch','The implementation receipt has the wrong kind.'));
