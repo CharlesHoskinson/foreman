@@ -56,7 +56,7 @@ The Foreman vault has a dated implementation update with twelve immutable eviden
 The [transaction receipt](evidence/m6/vault-progress.json) lists all 22 changed paths.
 Operation `foreman-foredi-implementation-progress-20260913` completed successfully.
 The [read-only lint receipt](evidence/m6/vault-lint.json) records zero issues across 28 pages and 262 links.
-The final candidate graph remains pending.
+The [f734 source-candidate graph](m6-graph-coverage.md) is complete. Later source changes require a new extraction.
 
 Support export projects closed safe fields from existing records.
 Its evidence kind comes from a validated immutable execution binding.
@@ -111,4 +111,4 @@ The [M6 verification record](m6-verification.json) retains the final source-test
 Full verification passes with 3,202 passed tests, seven skipped tests, and no failures.
 The adoption suite passes all 139 tests.
 Runtime build, reproducibility, installation integrity, and all six strict OpenSpec validations pass.
-Archive acceptance, candidate-bound simplification, final graph extraction, and numerical release reconciliation remain open.
+The [first candidate acceptance](m6-candidate-acceptance.md) records passing archive checks and failed simplification targets. Subsequent instruction changes require new candidate measurements. Numerical release reconciliation remains open.

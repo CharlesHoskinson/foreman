@@ -109028,6 +109028,71 @@ import { basename as basename11 } from "node:path";
 
 // packages/orchestration/src/pel-authoring-cli.ts
 init_esm();
+
+// packages/orchestration/src/pel-plan-render.ts
+init_src();
+init_pel();
+function renderPelPlan(preview, registry, file2) {
+  const schemaNames = /* @__PURE__ */ new Map();
+  for (const [id5, schema] of Object.entries(registry).sort(([a], [b2]) => a.localeCompare(b2, "en"))) if (!schemaNames.has(canonicalize(schema))) schemaNames.set(canonicalize(schema), id5);
+  const definitions = [];
+  const schemaName = (schema, id5) => {
+    if (id5) return id5;
+    if (!schema) return "unspecified schema";
+    const body = canonicalize(schema), existing = schemaNames.get(body);
+    if (existing) return existing;
+    const name3 = `S${definitions.length + 1}`;
+    definitions.push({ name: name3, body });
+    schemaNames.set(body, name3);
+    return name3;
+  };
+  const span8 = (value4) => `${value4.line}:${value4.column}-${value4.endLine}:${value4.endColumn}`;
+  const spans = (values3) => values3.map(span8).join(", ") || "unknown location";
+  const summary6 = (value4) => value4.kind === "known" ? formatPel(value4.value) : value4.kind === "callable" ? `callable ${value4.codeReferences.join(", ")}; remaining ${value4.remainingArguments.join(", ") || "none"}` : `unresolved ${schemaName(value4.schema, value4.schemaId)}: ${value4.reason} (at ${spans(value4.originSpans)})`;
+  const effectNames = new Map(preview.effects.map((effect7, index) => [effect7.effectId, `E${index + 1}`])), regionNames = new Map(preview.dynamicRegions.map((region, index) => [region.regionId, `R${index + 1}`]));
+  const alias = (id5) => effectNames.get(id5) ?? regionNames.get(id5) ?? id5;
+  const list7 = (values3) => values3.length ? values3.join(", ") : "none";
+  const lines = [`Plan ${JSON.stringify(file2)}: ${preview.status}`, `Binding ${preview.bindingDigest}`, `Source ${preview.binding.sourceDigest}; policy ${preview.binding.policyDigest}`, `Result: ${summary6(preview.finalValueSummary)}`, ""];
+  for (const effect7 of preview.effects) {
+    lines.push(`${effectNames.get(effect7.effectId)} ${effect7.registryId} at ${span8(effect7.span)}${effect7.branch ? `; branch ${effect7.branch}` : ""}${effect7.regionId ? `; region ${alias(effect7.regionId)}` : ""}`);
+    lines.push(`  Arguments: ${Object.entries(effect7.arguments).map(([name3, value4]) => `${name3}=${summary6(value4)}`).join("; ") || "none"}`);
+    if (effect7.model) lines.push(`  Model: ${effect7.model.profileId} via ${effect7.model.transportId}; credential ${effect7.model.credentialProfileRef}; controls ${effect7.controlsSource}: ${canonicalize(effect7.model.controls)}`);
+    else lines.push("  Model: none (host operation)");
+    lines.push(`  Capabilities: ${list7(effect7.capabilities)}; gates: ${list7(effect7.gates)}`);
+    lines.push(`  Reads: ${list7(effect7.resources.reads)}; writes: ${list7(effect7.resources.writes)}${effect7.resources.unknown ? "; unknown resource scope (resolve within the admitted envelope before dispatch)" : ""}`);
+  }
+  lines.push("", "Dependencies:");
+  const dependencies = /* @__PURE__ */ new Map();
+  for (const edge of preview.dependencies) {
+    const key = `${alias(edge.from)} -> ${alias(edge.to)}`, values3 = dependencies.get(key) ?? [];
+    values3.push(`${edge.kind}: ${edge.reason}`);
+    dependencies.set(key, values3);
+  }
+  if (!dependencies.size) lines.push("  none");
+  else for (const [key, values3] of dependencies) lines.push(`  ${key}: ${values3.join("; ")}`);
+  if (preview.dynamicRegions.length) {
+    lines.push("", "Bounded dynamic regions (not a complete static execution graph):");
+    for (const region of preview.dynamicRegions) {
+      lines.push(`  ${regionNames.get(region.regionId)} at ${spans(region.spans)}: ${region.reason}; possible effects ${list7(region.possibleRegistryIds)}`);
+      lines.push(`    Models: ${region.models.map((model) => `${model.profileId}/${model.transportId}`).join(", ") || "none"}; capabilities: ${list7(region.capabilities)}`);
+      lines.push(`    Reads: ${list7(region.resources.reads)}; writes: ${list7(region.resources.writes)}`);
+      lines.push(`    Bounds: maxIterations=${region.maxIterations}, maxCalls=${region.maxCalls}, maxOutputBytes=${region.maxOutputBytes}, maxCostUnits=${region.maxCostUnits}, maxElapsedMs=${region.maxElapsedMs}; result ${schemaName(region.resultSchema)}`);
+      for (const requirement of region.deferredRequirements) lines.push(`    Required before dispatch: ${requirement}`);
+    }
+  }
+  if (definitions.length) {
+    lines.push("", "Inline schema definitions:");
+    for (const definition of definitions) lines.push(`  Schema ${definition.name}: ${definition.body}`);
+  }
+  if (preview.diagnostics.length) {
+    lines.push("", "Diagnostics:");
+    for (const diagnostic4 of preview.diagnostics) lines.push(`  ${diagnostic4.severity} ${diagnostic4.code} at ${span8(diagnostic4.span)}: ${diagnostic4.message}; ${canonicalize({ relatedSpans: diagnostic4.relatedSpans, expectedForms: diagnostic4.expectedForms, ...diagnostic4.signature ? { signature: diagnostic4.signature } : {}, ...diagnostic4.help ? { help: diagnostic4.help } : {}, ...diagnostic4.bound ? { bound: diagnostic4.bound } : {}, ...diagnostic4.consumed !== void 0 ? { consumed: diagnostic4.consumed } : {} })}`);
+  }
+  lines.push("", `Global limits: ${canonicalize(preview.limits)}`, `Analysis consumed: ${canonicalize(preview.consumed)}`, "Plan constraints do not dispatch work or establish provider readiness. Use --json for complete schemas, bindings and effect identities.");
+  return lines.join("\n") + "\n";
+}
+
+// packages/orchestration/src/pel-authoring-cli.ts
 init_src();
 init_pel();
 
@@ -110070,7 +110135,7 @@ ${new TextDecoder().decode(draft.source())}`
         if (args6.command === "plan") {
           const preview = planPel(result4.checked);
           yield* services.output.stdout(
-            JSON.stringify(preview, null, args6.json ? void 0 : 2) + "\n"
+            args6.json ? JSON.stringify(preview) + "\n" : renderPelPlan(preview, result4.checked.snapshot.registry.dataSchemas, file2)
           );
         } else
           yield* services.output.stdout(

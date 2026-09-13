@@ -1,109 +1,16 @@
 # Roles
 
-## Orchestrator (Architect)
+| Role | Responsibility |
+| --- | --- |
+| Orchestrator | Define the objective, scope, acceptance checks, and existing authority. Select exact qualified profiles and inspect host evidence. |
+| Implementer | Execute the approved task inside admitted paths. Report gaps and return the required candidate report without expanding scope. |
+| Reviewer | Inspect the immutable candidate, acceptance criteria, and host verification with read-only tools. Return a schema-valid verdict and grounded findings. |
+| Advisor | Provide optional research or design judgment. Advice cannot approve execution, suppress dissent, or replace independent review. |
 
-**Who:** The CLI session that invoked `/foreman` (Claude Code, Codex, or Grok).
+Bind implementation and review roles in project settings. The defaults are Grok 4.6 through `grok-acp` and GPT 5.6 Sol through `codex-app-server`. The host requires different observed vendors for independent review. Select another qualified reviewer if the implementer uses OpenAI. No model substitution is implicit.
 
-**Owns:**
+Give providers the approved artifacts and relevant constraints. Do not supply credentials, unrelated conversation history, or authority beyond the registered scope. Keep review independent of implementation discussion. The host verifies that review did not change the candidate.
 
-- Requirements and acceptance criteria
-- Decomposition into tasks
-- Five-part specs
-- Lane routing (soft) or worker vendor selection (hard)
-- Independent verification of checks
-- Audit judgment (or dispatch of audit)
-- Gate decision and PR intent
+Search and planning are read-only unless separately authorized. They can run concurrently when their inputs are independent. Writing tasks use the admitted worktrees described in [parallel worktrees](parallel-worktrees.md).
 
-**Does not:**
-
-- Type routine implementation when a worker lane is available
-- Trust worker self-reports as evidence
-- Share unredacted secrets with workers beyond the single vendor key hard mode injects
-
-## Worker (Implementer)
-
-**Who:** A *different* vendor’s coding CLI (or agent that shells out to it).
-
-Use `fm/task` through the installed compiled runtime and an exact registered model/transport. Legacy agent recipes are not substitutes for host admission.
-
-Stateful/live targets (external node_modules, running services, live
-endpoints) bypass worktree fan-out entirely — see
-`references/parallel-worktrees.md` § Stateful / live-target profile.
-
-**Owns:**
-
-- Implementing exactly the five-part spec
-- Editing only the admitted worktree paths; the host captures immutable candidate content while preserving branch and index
-- Returning a structured report (soft mode)
-
-**Does not:**
-
-- Change architecture or expand scope without reporting a gap
-- Edit tests / CI / lockfiles when forbidden (hard gate enforces)
-- Receive orchestrator chat history (context-free handoff only)
-
-## Search (parallel recon)
-
-**Who:** `foreman-search` — cheap, read-only, **worktree-isolated**.
-
-**Owns:** Codebase map, symbol hits, evidence quotes; writes `FOREMAN_REPORT.md`
-in its worktree for consolidate.
-
-**Does not:** Implement product code; write outside its worktree.
-
-## Plan (parallel design)
-
-**Who:** `foreman-plan` — judgment-capable, read-only/plan tools, **worktree-isolated**.
-
-**Owns:** Ordered tasks, risks, five-part-spec-ready breakdowns; report in tree.
-
-**Does not:** Implement product code; ship without architect consolidate.
-
-## Auditor (Cold-diff review)
-
-**Who:** Default soft/hard auditor is **`codex-auditor`** — GPT-5.6 Sol via Codex
-CLI, **read-only** sandbox. Must be a **different vendor** than the worker
-(default: Grok worker → Codex auditor).
-
-**Owns:**
-
-- Cold review of unified diff + acceptance criteria only (no worker chat history)
-- Schema-validated review verdict and findings, bound by the host to candidate and verification evidence
-- Proving it did not mutate the working tree
-
-**Does not:**
-
-- Implement, patch, or expand scope
-- Audit its own family’s implementation (if worker was Codex, pick another auditor)
-- Replace the architect’s ship decision (verdict is gate input, not a final order)
-
-## Advisor (Judgment)
-
-**Who:** `foreman-advisor` — Claude Fable 5.1 (`claude-fable-5-1`), with
-read-only tools and an exact-model canary.
-
-**Owns:**
-
-- Verdicts at commitment boundaries (architecture, migrations, API shapes, stuck work)
-- Short, decisive recommendations (≤ ~300 words)
-
-**Does not:**
-
-- Implement, edit files, or rubber-stamp weak plans
-- Replace the Codex auditor for routine post-diff review (different job: strategy vs. cold-diff QA)
-
-## High-judgment reviewer
-
-**Who:** GPT-6 Astra (`gpt-6-astra`) through an exact-model canary and a
-read-only lane.
-
-**Owns:**
-
-- Primary judgment for costly architecture and release decisions
-- High-judgment review in a configured Council profile
-
-**Does not:**
-
-- Implement routine work
-- Replace the independent Codex Sol audit
-- Approve a gate or suppress Council dissent
+Worker claims, advisor recommendations, and review verdicts are evidence inputs. The host captures candidate identity, runs the registered verification, and enforces publication authority. The orchestrator makes the release decision from that evidence. Retained Council workflows keep their own quorum and dissent rules.

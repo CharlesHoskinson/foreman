@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "release": "Return of the ForeDi",
+  "baselineCommit": "f734d99caf17c3ac5e958a161627eecdc6e43494",
+  "measuredAt": "2026-09-13T13:55:01.697Z",
+  "nodeVersion": "v24.18.1",
+  "sourceBoundary": "Verified working tree before instruction improvement commit. Actual complete startup measurement follows that commit.",
+  "tests": 3212,
+  "passed": 3205,
+  "failed": 0,
+  "skipped": 7,
+  "checks": [
+    {
+      "id": "workspace-verification-instructions",
+      "command": "npm run verify",
+      "exitCode": 0,
+      "path": "docs/releases/return-of-the-foredi/evidence/m6/workspace-verification-instructions.txt",
+      "sha256": "0fd7c3419753d00d9c08d9c889d52ac62a513583543edc6febef25765e110dc7"
+    },
+    {
+      "id": "runtime-build-instructions",
+      "command": "npm run build",
+      "exitCode": 0,
+      "path": "docs/releases/return-of-the-foredi/evidence/m6/runtime-build-instructions.txt",
+      "sha256": "65467e9227f0a0e568bc3035eb4ea303cca3041dc226d9b058ee70ecba74fd73"
+    },
+    {
+      "id": "human-plan-regression",
+      "command": "node --import tsx --test packages/orchestration/src/pel-plan-render.test.ts packages/orchestration/src/pel-authoring-cli.test.ts",
+      "exitCode": 0,
+      "path": "docs/releases/return-of-the-foredi/evidence/m6/human-plan-regression.txt",
+      "sha256": "9b524a440a851c728bdd3affba0a1e481bff37887cda8ebf3547e0238add07d8"
+    },
+    {
+      "id": "instruction-openspec",
+      "command": "openspec validate foredi-06-adoption --strict",
+      "exitCode": 0,
+      "path": "docs/releases/return-of-the-foredi/evidence/m6/instruction-openspec.txt",
+      "sha256": "a82c87be756a256a5ceb9ad0e10479f4ef2ad950209870a160ccd88767d067f6"
+    }
+  ],
+  "sourceHashes": [
+    {
+      "path": "packages/orchestration/src/pel-plan-render.ts",
+      "sha256": "dd97024d597def97821163440555ae2c979fe7657b3498e5c543fa91ce49fa87"
+    },
+    {
+      "path": "packages/orchestration/src/pel-authoring-cli.ts",
+      "sha256": "bf244f253e0c04ad6ff103be48aa76258ae3496fe2dec4dbb3106b0489c585f4"
+    },
+    {
+      "path": "skills/foreman/references/roles.md",
+      "sha256": "133813b886e891266a6fec2c522e4fb3be2439241fc04ccc41c327338580379c"
+    },
+    {
+      "path": "skills/foreman/references/parallel-worktrees.md",
+      "sha256": "94136c27c13d081c3e2acb199c3201c90ff27729694143f55683497e264af35f"
+    },
+    {
+      "path": "docs/guides/pel/quickstart.md",
+      "sha256": "dc2d2abf975924a22cbe044033190a46b541efa6de2f6bb8c51225960df3b9de"
+    },
+    {
+      "path": "skills/foreman/runtime/dist/foreman.js",
+      "sha256": "6f6b5f60cbb11efebc9c539645ff3d65f312c9276e8e29283e3fbb1ad4409a5a"
+    }
+  ],
+  "changes": [
+    "Default file plan renders a concise human view. Exact --json PlanPreviewV1 is unchanged.",
+    "Mandatory role and worktree notes replace obsolete shell choreography and remove duplicate instructions.",
+    "The metric cohort, tokenizer, trace recipe and40/50percent thresholds are unchanged."
+  ],
+  "instructionTarget": null,
+  "productionTarget": false
+}

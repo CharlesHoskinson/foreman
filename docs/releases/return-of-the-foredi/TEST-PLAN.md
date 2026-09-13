@@ -1053,7 +1053,7 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 - Level: integration.
 - Target: `packages/orchestration/src/pel-simplification.test.ts`.
 - Fixture: Spec-fixed 15-file production cohort and five instruction files at baseline 441c3fb9f6acb2656760d03cc79e7c706fb8b7dd, js-tiktoken1.0.21/cl100k_base and candidate revision. Candidate includes a newly added pel-research-host.ts and surviving full baseline instruction files.
-- Action: node skills/foreman/runtime/dist/pel-simplification.js --baseline <manifest> --candidate <revision>.
+- Action: Collect a candidate-bound standard-start trace, then run node skills/foreman/runtime/dist/pel-simplification.js --baseline <manifest> --candidate <revision> --startup-trace <trace>.
 - Expected: Report includes old and replacement production lines, generated/test/archive exclusions, command count, instruction tokens, owners and total production growth with file hashes. Changed cohort membership or tokenizer identity fails comparison. Build manifest contains the named metric bundle. Valid passing comparison exits 0. Changed membership/tokenizer exits 2. A valid report with missed acceptance targets exits 1 and remains available. Research/install/metrics source is included under the exact path-and-change union. Residual instruction files count in full, not selected paragraphs.
 
 ### T-M6-011

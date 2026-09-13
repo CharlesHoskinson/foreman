@@ -1,4 +1,5 @@
 import { Effect } from "effect";
+import {renderPelPlan} from './pel-plan-render.js';
 import { parseJsonRejectDuplicateKeys, isCoreFailure } from "@foreman/core";
 import {
   checkPel,
@@ -528,7 +529,7 @@ export function makeForemanCli(services: AuthoringServices): ForemanCli {
         if (args.command === "plan") {
           const preview = planPel(result.checked);
           yield* services.output.stdout(
-            JSON.stringify(preview, null, args.json ? undefined : 2) + "\n",
+            args.json ? JSON.stringify(preview) + "\n" : renderPelPlan(preview, result.checked.snapshot.registry.dataSchemas, file),
           );
         } else
           yield* services.output.stdout(

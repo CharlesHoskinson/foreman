@@ -588,3 +588,9 @@ test("T-M2-013 all four packaged examples check and plan under Node 24", async (
     "PEL_ARGUMENT_MODE",
   );
 });
+
+test('human plan summarizes execution constraints while --json preserves the exact preview contract',async()=>{
+ const {readFile}=await import('node:fs/promises'),{checkPel,planPel}=await import('@foreman/pel');const source=await readFile('examples/pel/implement-verify-review.pel','utf8'),human=fixture(source),machine=fixture(source);
+ assert.equal((await Effect.runPromise(human.cli.run(['plan','input.pel']))).exitCode,0);const text=human.out.join('');assert.match(text,/^Plan "input.pel": bounded-dynamic/u);assert.match(text,/fm\/task/u);assert.match(text,/fm\/verify/u);assert.match(text,/fm\/review/u);assert.match(text,/controls default/u);assert.match(text,/unknown resource scope/u);assert.match(text,/maxCalls=/u);assert.match(text,/serialization/u);assert.match(text,/schema:review-result-v1/u);
+ assert.equal((await Effect.runPromise(machine.cli.run(['plan','input.pel','--json']))).exitCode,0);const checked=checkPel({source:Buffer.from(source),snapshot:createDefaultAuthoringSnapshotV1()});assert.equal(checked.tag,'ok');if(checked.tag==='ok')assert.equal(machine.out.join(''),JSON.stringify(planPel(checked.checked))+'\n');assert.deepEqual(human.err,[]);assert.deepEqual(machine.err,[]);
+});

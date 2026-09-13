@@ -14,7 +14,7 @@ See docs/releases/return-of-the-foredi/m6-implementation.md and m6-ears-coverage
 - [x] Write `docs/guides/pel/quickstart.md` with explicit credential and admission prerequisites.
 - [x] Implement `packages/orchestration/src/pel-adoption.ts` for installed feature metadata.
 - [x] Implement T-M6-001 through T-M6-003 in the catalog's TypeScript test files.
-- [ ] Assert the clean installation works without checkout files, global TypeScript tools or an external vault.
+- [x] Assert the clean installation works without checkout files, global TypeScript tools or an external vault.
 - [x] Assert one `foreman run` command starts the admitted standard workflow.
 
 ## 2. F-M6-02 usable examples
@@ -51,7 +51,7 @@ See docs/releases/return-of-the-foredi/m6-implementation.md and m6-ears-coverage
 - [x] Count the exact full-file candidate union, including every added or modified production path, and report total growth.
 - [x] Implement T-M6-010 through T-M6-012 in the simplification and host-verification test files.
 - [ ] Measure at least 40 percent net glue reduction and 50 percent required instruction reduction.
-- [ ] Report raw counts, exclusions and failed targets without relabeling them as completed.
+- [x] Report raw counts, exclusions and failed targets without relabeling them as completed.
 - [x] Assert matching verification bindings reuse one result and changed bindings force verification.
 
 ## 5. F-M6-05 research usability
@@ -75,8 +75,8 @@ See docs/releases/return-of-the-foredi/m6-implementation.md and m6-ears-coverage
 - [x] Implement T-M6-016 through T-M6-018 in the package, adoption, and support test files.
 - [x] Add the planned `test:adoption` script using exact catalog test targets.
 - [x] Run `npm run typecheck`, `npm run test:adoption` and `npm run build`.
-- [ ] Run `npm run verify-runtime`, `npm run verify` and applicable architecture/install checks.
-- [ ] Assert copied installation artifacts match the unchanged candidate.
+- [x] Run `npm run verify-runtime`, `npm run verify` and applicable architecture/install checks.
+- [x] Assert copied installation artifacts match the unchanged candidate.
 - [x] Assert rollback preserves history and rejects incompatible active checkpoints.
 - [x] Assert support export contains reproducible safe context without credentials or hidden reasoning.
 
@@ -123,7 +123,7 @@ See docs/releases/return-of-the-foredi/m6-implementation.md and m6-ears-coverage
 - [x] Add pel-package-main.ts, its runtime bundle entry and package:pel npm script.
 - [x] Pin tar 7.5.22 for deterministic TypeScript archive production.
 - [x] Implement ManifestPayloadV1 canonical hashing and artifacts/foredi/<buildId>.tar.gz output.
-- [ ] Implement T-M6-023 and make T-M6-001 install the archive produced by T-M6-016.
+- [x] Implement T-M6-023 and make T-M6-001 install the archive produced by T-M6-016.
 - [x] Extend T-M6-010 to count a new research file and full residual instruction files under the exact membership rule.
 - [x] Search packages, components/council, skills/foreman, scripts, env and .github for all deleted paths and basenames.
 - [x] Migrate retained Council shared-entry callers to existing compiled interfaces before deleting their dependencies.

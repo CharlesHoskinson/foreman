@@ -1,6 +1,6 @@
 # Return of the ForeDi
 
-Status: M1–M5 are implemented. M6 implementation review and final release qualification remain open. See the [M1 report](m1-implementation.md), [M2 report](m2-implementation.md), [M3 report](m3-implementation.md), [M4 report](m4-implementation.md), [M5 report](m5-implementation.md), [M6 progress](m6-implementation.md), and [latest live qualification observations](m6-live-qualification.md).
+Status: M1–M5 are implemented. The M6 source candidate passes implementation review and verification. Simplification acceptance and final release qualification remain open. See the [M1 report](m1-implementation.md), [M2 report](m2-implementation.md), [M3 report](m3-implementation.md), [M4 report](m4-implementation.md), [M5 report](m5-implementation.md), [M6 progress](m6-implementation.md), and [latest live qualification observations](m6-live-qualification.md).
 
 Pel is the common language for Foreman planning and execution. A person or model writes one program. Foreman checks the program, explains its effects, and runs it through the existing host authority. The release replaces duplicate planning and execution machinery.
 
@@ -50,3 +50,11 @@ The [PixelRAG reading record](../../research/pel-release/sources/pel/pixelrag-re
 The previous P0–P6 research sequence is covered here: baseline reconciliation belongs to M6 migration, language compatibility to M1, pure preview to M2, adapters to M3, the durable vertical slice to M4–M5, and deletion plus distribution to M6. Baseline reconciliation occurs before a migration changes existing behavior. It does not postpone language development.
 
 The [release graph coverage](GRAPH-COVERAGE.md) describes the updated advisory graph at `graphify-out/foredi-release/`. It combines the earlier code and source extraction with these OpenSpecs and exact feature → requirement → planned test links. Planned test paths are references, not claims that tests exist. The [portable graph archive](graph-artifacts.tar.gz) restores that graph from the repository root. M6 defines repeatable graph and vault refresh as an adoption feature.
+
+## Candidate acceptance
+
+The [M6 source candidate](m6-candidate-acceptance.md) passes verification and actual archive installation.
+Both measured simplification targets fail at `f734d99`.
+The release remains unaccepted while instruction simplification and the source-complexity scope decision are open.
+
+The [M6 candidate graph](m6-graph-coverage.md) covers the committed implementation and captured sources with explicit extraction limits.

@@ -45,6 +45,8 @@ foreman run implement-verify-review.pel --json
 
 After installation, credentials, qualification, and project configuration exist, one `run` command starts the standard workflow. Read the returned run ID and status. Candidate capture, host verification, and independent review produce immutable evidence references.
 
+The default plan is a human summary. Add `--json` for complete machine-readable schemas and bindings.
+
 A successful check means that the source is valid. Product admission still checks the current project and exact transport evidence before effects. Invalid admission exits 2. A required unresolved action exits 3 and includes its next action. Neither result is a successful delivery.
 
 ## Inspect and recover

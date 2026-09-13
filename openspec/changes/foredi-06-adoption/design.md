@@ -360,6 +360,19 @@ Pin its npm integrity in the baseline and lockfile.
 The selected package version is published in the [npm registry metadata](https://registry.npmjs.org/js-tiktoken/1.0.21).
 Its integrity is sha512-biOj/6M5qdgx5TKjDnFT1ymSpM5tbd3ylwDtrQvFQSu0Z7bBYko2dF+W/aUkXUPuk6IVpRxk/3Q2sHOzGlS36g==.
 T-M6-010 rejects changed membership, counting rules or tokenizer identity.
+
+Collect the complete standard-start instruction trace from the clean release checkout:
+
+```text
+node --import tsx scripts/collect-pel-startup-trace.ts --candidate FULL_COMMIT --repo REPOSITORY --out NEW_TRACE
+node skills/foreman/runtime/dist/pel-simplification.js --baseline docs/release-metrics/foredi-baseline.json --candidate FULL_COMMIT --repo REPOSITORY --startup-trace NEW_TRACE
+```
+
+The collector uses the actual adapter serializer with a finite process fixture through the first standard-task prompt.
+The trace records its fixture identity and binds every source input.
+It does not establish live-account qualification.
+Without that trace, required instruction totals remain unknown and acceptance fails.
+The release-checkout collector does not add a TypeScript dependency to the installed product.
 These choices fix the measurement method. They do not report measured reductions.
 
 ## Fixture launcher and canonical package examples

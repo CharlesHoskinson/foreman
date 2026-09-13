@@ -1,0 +1,876 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "f734d99caf17c3ac5e958a161627eecdc6e43494",
+  "candidateStatus": "M6 source candidate; no release-acceptance claim",
+  "graphifyVersion": "graphify 0.9.61",
+  "trackedEntries": 2639,
+  "totalSourceBytes": 176919945,
+  "astAttemptedFiles": 931,
+  "astEntitySourcePaths": 832,
+  "codePathsWithAst": 783,
+  "codePathsWithoutObservedAst": 218,
+  "structuralMarkdownFiles": 964,
+  "markdownHeadings": 12180,
+  "explicitMarkdownLinks": 4667,
+  "rawNodes": 27571,
+  "rawEdges": 58964,
+  "nodes": 27375,
+  "edges": 57075,
+  "communities": 1984,
+  "confidence": {
+    "EXTRACTED": 56829,
+    "INFERRED": 246
+  },
+  "rawUnresolvedReferenceNodes": 327,
+  "unresolvedOrExternalDocumentReferences": 3079,
+  "finalDanglingEdges": 0,
+  "rawSameEndpointCollapse": 1693,
+  "rawExactDuplicateEdges": 88,
+  "finalReadOnlyRebuildSimulation": {
+    "nodes": 27291,
+    "edges": 56991
+  },
+  "semantic": {
+    "retainedNodes": 83,
+    "retainedEdges": 125,
+    "omittedNodes": 23,
+    "omittedEdges": 35,
+    "omittedHyperedges": 2,
+    "sourcePairs": [
+      {
+        "id": "architecture-hypothesis",
+        "raw": {
+          "path": "docs/research/pel-release/ARCHITECTURE-AND-DELETION-MAP.md",
+          "sha256": "104dd92c31cb5aec58442450ee9f0091022fe86b94839e84eef82614b35a3433",
+          "byteLength": 14641
+        },
+        "clean": {
+          "path": "docs/research/pel-release/ARCHITECTURE-AND-DELETION-MAP.md",
+          "sha256": "104dd92c31cb5aec58442450ee9f0091022fe86b94839e84eef82614b35a3433",
+          "byteLength": 14641
+        }
+      },
+      {
+        "id": "pel-paper",
+        "raw": {
+          "path": "docs/research/pel-release/sources/pel/arxiv-2505.13453v2.pdf",
+          "sha256": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+          "byteLength": 226986
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/pel/arxiv-2505.13453v2.txt",
+          "sha256": "b96d8a8b8d6c55266253977913ebb1364b05fa36fde544881db00b67a3ffa924",
+          "byteLength": 56590
+        }
+      },
+      {
+        "id": "models-openai-astra",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/openai-astra.raw.md",
+          "sha256": "f45ae813c3f69708e2576328056de14cdf71fec174c875f4b81d236105545625",
+          "byteLength": 3812
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/openai-astra.md",
+          "sha256": "1d09b307bd5e35d053259394d440f7070b3f010369920f02c414bda15ee0b0ab",
+          "byteLength": 3995
+        }
+      },
+      {
+        "id": "models-openai-sol",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/openai-sol.raw.md",
+          "sha256": "23f4ff2c236486d42145e21693f450bfcac272c37ee839a5ee6f9455cd1d8b7b",
+          "byteLength": 3991
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/openai-sol.md",
+          "sha256": "c173973d0f65522083fdf15a2234805b2729400764facbac82d14ce68a374804",
+          "byteLength": 4174
+        }
+      },
+      {
+        "id": "models-openai-astra-guide",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/openai-astra-guide.raw.md",
+          "sha256": "aac7e7e1b0bf90b346f5fc4ffd523902279841c60c3adf572452a529bd5b1e5e",
+          "byteLength": 16592
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/openai-astra-guide.md",
+          "sha256": "fb6b0321f445837901e886f30328bbf0aaaa6dc95fd12acfc68f4c2bb4d5cf3c",
+          "byteLength": 16795
+        }
+      },
+      {
+        "id": "models-openai-structured",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/openai-structured.raw.md",
+          "sha256": "09aa3814251cf168070294ace79d677091de04b330055048392548d604aa7104",
+          "byteLength": 136333
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/openai-structured.md",
+          "sha256": "372ccd37007610513f34d6f7d53533444dd4cf856ef5ccc0569ad011e4b1cd9e",
+          "byteLength": 136434
+        }
+      },
+      {
+        "id": "models-openai-tools",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/openai-tools.raw.md",
+          "sha256": "078619f5bb7196abc4b162e23be8427b1243a8431aa4d14d3d869a8cd93ccc0b",
+          "byteLength": 75013
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/openai-tools.md",
+          "sha256": "7489e1a3e3f14160e8250c4e741b24b1caddce18184e6f26e3f5291c2720432d",
+          "byteLength": 75164
+        }
+      },
+      {
+        "id": "models-openai-reasoning",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/openai-reasoning.raw.md",
+          "sha256": "91604df954335250d16e33f3b07ebbfa3e6e2b7f821f0722ad7a69b9d586719a",
+          "byteLength": 70253
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/openai-reasoning.md",
+          "sha256": "ce7ca8601f0d5f7e52eb9f65c934178d1c183a50814ba803fefb6f70a197c744",
+          "byteLength": 70425
+        }
+      },
+      {
+        "id": "models-openai-background",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/openai-background.raw.md",
+          "sha256": "9aa2b715e56683ea0132db81e46cb8e9f654de2fb3d94635218762c10d68ba09",
+          "byteLength": 19966
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/openai-background.md",
+          "sha256": "59d7b4dc485502f1ba03e5391ed6451a4950cae7e4fc3aea6af506c7d558765c",
+          "byteLength": 20149
+        }
+      },
+      {
+        "id": "models-openai-streaming",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/openai-streaming.raw.md",
+          "sha256": "7e147ae8c9e2ef2a30ecd7f3502a4c350e929487c7e51643cef2e4fb66281f7f",
+          "byteLength": 7108
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/openai-streaming.md",
+          "sha256": "d930c016fa3762f1bbd42cdf9fe9a509e2b68c52cd717fd94efbd3ffe3b16c83",
+          "byteLength": 7292
+        }
+      },
+      {
+        "id": "models-openai-state",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/openai-state.raw.md",
+          "sha256": "c38bcd32ee9ff9904746a5a092c020e30d647d1598418bea93e949cce5021e14",
+          "byteLength": 28787
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/openai-state.md",
+          "sha256": "df4ae06ef0dd2ad9308a9947798b54cd6bd6bc4ae27240787d6f860a1a24979a",
+          "byteLength": 28963
+        }
+      },
+      {
+        "id": "models-openai-cache",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/openai-cache.raw.md",
+          "sha256": "ecced3016c57dcef3115dbda6f73ba6f153f99856f1dadac46d165c12611ab44",
+          "byteLength": 45605
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/openai-cache.md",
+          "sha256": "1eeb6fae3f27f6f0ceb75ac90ffee725888417222d890c4bcb44f22a21fc9a1d",
+          "byteLength": 45600
+        }
+      },
+      {
+        "id": "models-codex-headless",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/codex-headless.raw.html",
+          "sha256": "93873b28dab00271fc75307fcdca892281473a65942536f500f7fdc7731b88c8",
+          "byteLength": 410257
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/codex-headless.md",
+          "sha256": "9a4585423738e708a5ca6d42e0301cff4025caa9eb42d203f5413a3fe5ab657b",
+          "byteLength": 14846
+        }
+      },
+      {
+        "id": "models-codex-app-server",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/codex-app-server.raw.html",
+          "sha256": "bf2a08c96b07da95b22e3c690c9cbde0e53c067d35617466d27d7523a7dc8a73",
+          "byteLength": 905529
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/codex-app-server.md",
+          "sha256": "1317f4eeeb57245d8095a507d45a7530b235358fafe7d83506a732ba574b1b96",
+          "byteLength": 99227
+        }
+      },
+      {
+        "id": "models-claude-opus",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/claude-opus.raw.html",
+          "sha256": "3319e2af4ab69a14850a131867361564ea303cc50485a9623be83e23727a369b",
+          "byteLength": 426402
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/claude-opus.md",
+          "sha256": "78764802454a8b786e3e7c0095a7e4f4e10ee18bc55f3da13cb8fc44a79fa234",
+          "byteLength": 5207
+        }
+      },
+      {
+        "id": "models-claude-fable",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/claude-fable.raw.html",
+          "sha256": "6b222f897c04da0f41ea1a0bb6a863677eb7fd52e74f696c40e87b37f93bef21",
+          "byteLength": 435531
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/claude-fable.md",
+          "sha256": "f6c44d844d8bb26b7a610e6033a26bc1910522d293f9c588b0839ab6b1fc84cf",
+          "byteLength": 6979
+        }
+      },
+      {
+        "id": "models-claude-structured",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/claude-structured.raw.html",
+          "sha256": "5d88f665771a2fe2b658ed68aca9baeec16adb459f82ae92482e1f71c2535c33",
+          "byteLength": 1628489
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/claude-structured.md",
+          "sha256": "164e24424198eaa326e29760e2b98225eb919aee2d766215d501b3a517a29ea8",
+          "byteLength": 25347
+        }
+      },
+      {
+        "id": "models-claude-thinking",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/claude-thinking.raw.html",
+          "sha256": "d3f0936c0772f8036241a18506276d2833e40ea8100895355bc14da800bfed35",
+          "byteLength": 767505
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/claude-thinking.md",
+          "sha256": "0695857a0754ad854947fb1df567d1e2c7d1ad4f0a2faff043b3cb7c75389c1c",
+          "byteLength": 16633
+        }
+      },
+      {
+        "id": "models-claude-effort",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/claude-effort.raw.html",
+          "sha256": "a261dcec954db011d1cde90e2632ef41c6a85338fb32bd2b8550712f514b64d2",
+          "byteLength": 654714
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/claude-effort.md",
+          "sha256": "797f5c5afaf12f0619867fece3b8140b1dfb0a6d0122ae2791fbbfe47e5362a2",
+          "byteLength": 18735
+        }
+      },
+      {
+        "id": "models-claude-tools",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/claude-tools.raw.html",
+          "sha256": "401f8e4f886d7d3f38e3c1d9809011397ee1274dec6d9578ab0d8bdf9a0091e5",
+          "byteLength": 730986
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/claude-tools.md",
+          "sha256": "0e4c5c20cb07a4f65f99363a660e312c43fdb6563506f72709d502e4fff1e781",
+          "byteLength": 16109
+        }
+      },
+      {
+        "id": "models-claude-cache",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/claude-cache.raw.html",
+          "sha256": "8c67441e4a1037e8b142b387e8a4a905d3ae63fcefc274aa309d8620e2118c7f",
+          "byteLength": 1703688
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/claude-cache.md",
+          "sha256": "e55f77736efc697780ea67b2608ca008bc124b3820b86a30c3745ded678a8b3d",
+          "byteLength": 65488
+        }
+      },
+      {
+        "id": "models-claude-streaming",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/claude-streaming.raw.html",
+          "sha256": "b4cc3a0559318dec0e0e25df850b77f3dc9394461074ccff9e973472b9a5035c",
+          "byteLength": 1248409
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/claude-streaming.md",
+          "sha256": "3c2ce3a8a09ae7e58e5fb51a12a3a2e6347ab4a1d4d55ef60bc9fbe16e27deb7",
+          "byteLength": 24400
+        }
+      },
+      {
+        "id": "models-claude-headless",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/claude-headless.raw.html",
+          "sha256": "2d59bf1524fc4fd7d5cbdc92de466119dec436e883b17c86c77cf169966d0529",
+          "byteLength": 638086
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/claude-headless.md",
+          "sha256": "0b2189a1c1c759fdc1deea7ab4ad4b56f030d77d75ec614655b0c68d41ff0d2c",
+          "byteLength": 29779
+        }
+      },
+      {
+        "id": "models-claude-cli",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/claude-cli.raw.html",
+          "sha256": "cf111677619fc853b001283e0573830ee172c10ccacc1412d93ad8798a89507a",
+          "byteLength": 484170
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/claude-cli.md",
+          "sha256": "7fe89299b56b301c641df3215dea9fb74f9a5777d0b50d4488b6c7d7fee0b791",
+          "byteLength": 43812
+        }
+      },
+      {
+        "id": "models-claude-fable-card",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/claude-fable-card.raw.pdf",
+          "sha256": "b0d59edc7a60eef32a879c13d713cce60c3fefd7e6b5183afdc8b835af3c8c39",
+          "byteLength": 16397488
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/claude-fable-card.md",
+          "sha256": "974af1cc2108e085e4d7b9429d943d34c35f08a95b78c50969ef9fced69b6b9b",
+          "byteLength": 418550
+        }
+      },
+      {
+        "id": "models-grok-model",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/grok-model.raw.html",
+          "sha256": "7cd9efb154e413fe33c6d7139ed679d3f0f96d50a64b2bbb146b82a99251e18a",
+          "byteLength": 413235
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/grok-model.md",
+          "sha256": "809aa581bbee88796089c2df06d495540ca8b2b5bee1dc99a3a3429b51e1d347",
+          "byteLength": 4824
+        }
+      },
+      {
+        "id": "models-grok-pricing",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/grok-pricing.raw.html",
+          "sha256": "a657afde242ef1424ade199433e578083ee1836d76d2f69fd5fa157216f8e967",
+          "byteLength": 408988
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/grok-pricing.md",
+          "sha256": "39392e712c6bf3451010c95797cea755563376eac7cb598f8164b701f06c7661",
+          "byteLength": 4364
+        }
+      },
+      {
+        "id": "models-grok-reasoning",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/grok-reasoning.raw.html",
+          "sha256": "e9848d08f6b7dc45fdfdecc522fc1744ff5891fbb74ae856c1a6b43ee92860fa",
+          "byteLength": 510309
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/grok-reasoning.md",
+          "sha256": "30a2f3e25046a3dd2841c2651fa21e7637d79d7c2627a0db97e5a6ab9c91d994",
+          "byteLength": 10160
+        }
+      },
+      {
+        "id": "models-grok-structured",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/grok-structured.raw.html",
+          "sha256": "1e6a97a17d8a185f0642e7773985b51842e635796a8fda1d41c4623572633c74",
+          "byteLength": 978661
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/grok-structured.md",
+          "sha256": "70aa6887803ed1ca418400e738ecaff8f9edbaa6abbfe43d103a21e9ef3513bb",
+          "byteLength": 33764
+        }
+      },
+      {
+        "id": "models-grok-tools",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/grok-tools.raw.html",
+          "sha256": "b06bda37ba908d1030f98043f6da95df79ae51ac249a626f433698267c7a6a54",
+          "byteLength": 680662
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/grok-tools.md",
+          "sha256": "56fce6d805d7d70d63be403460f98cfc42d073a915c771af846d87239fccbabc",
+          "byteLength": 15369
+        }
+      },
+      {
+        "id": "models-grok-responses",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/grok-responses.raw.html",
+          "sha256": "2817ac11f3a3c7ce4f8f3ad03080248109ed254df9551fcb9c64af362d9d409d",
+          "byteLength": 950131
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/grok-responses.md",
+          "sha256": "c8bab6a237a273e9edb7282f30c83eb9762118e2ee737678f228747a53d5d62e",
+          "byteLength": 7557
+        }
+      },
+      {
+        "id": "models-grok-cache",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/grok-cache.raw.html",
+          "sha256": "04732312819b2a880cf6f2302f74f780302ad667f4bf426d84fc9f98e833b6b0",
+          "byteLength": 469089
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/grok-cache.md",
+          "sha256": "3c6c15590e0b077d66d8d67247a41a482592d20b02097d4957f04e8864b431d3",
+          "byteLength": 5312
+        }
+      },
+      {
+        "id": "models-grok-text",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/grok-text.raw.html",
+          "sha256": "d32b758e1b1507ae32d7617497594dd7b4867c26a8080c40cf3c7375332184f7",
+          "byteLength": 790677
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/grok-text.md",
+          "sha256": "bf5c338bdb4ac6aa480d823a2a095b95c51eacd86cb2b95402a2846f97f75982",
+          "byteLength": 25060
+        }
+      },
+      {
+        "id": "models-grok-announcement",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/grok-announcement.raw.html",
+          "sha256": "754414e8a2650bb1f37f77a9b132b3adcb381e68caf7d7687363de79af05f0ff",
+          "byteLength": 244256
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/grok-announcement.md",
+          "sha256": "908753cde93ee38d61f029e143f5937d93f92d4b9721fdcbfe498548354a6c38",
+          "byteLength": 6238
+        }
+      },
+      {
+        "id": "models-gemini-model",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/gemini-model.raw.html",
+          "sha256": "7cf926de01cde01eea9c080fc001dfcb0ac978bbb4f257677a72f8e9229c4dc4",
+          "byteLength": 102783
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/gemini-model.md",
+          "sha256": "a9a8aec603ee09753c17d8916378f83073653f13a0be4644ead20bd273773175",
+          "byteLength": 3691
+        }
+      },
+      {
+        "id": "models-gemini-card",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/gemini-card.raw.html",
+          "sha256": "1c79de893104f601f8dd2dde77a1138f03d6f5fd673db541c775b6a2c4c5e6d1",
+          "byteLength": 155540
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/gemini-card.md",
+          "sha256": "d8045f2843c0d80e1c3fc29894a12a968266c79113305a6aa56dcc60a753a0b3",
+          "byteLength": 13452
+        }
+      },
+      {
+        "id": "models-gemini-thinking",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/gemini-thinking.raw.html",
+          "sha256": "d3c523594e7b58ba51a8209f832deda908b619f269a74cc65c8b0d664a3ecf00",
+          "byteLength": 200801
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/gemini-thinking.md",
+          "sha256": "3926c729b4e48744f6b1d2a44cdf71f4cf6dd4fa8c25cd581528ea210814bb6d",
+          "byteLength": 23082
+        }
+      },
+      {
+        "id": "models-gemini-structured",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/gemini-structured.raw.html",
+          "sha256": "a8beb23a81eb2022f9465331915ca32c9865521f5eb206c00a69417ddb12d8c5",
+          "byteLength": 259937
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/gemini-structured.md",
+          "sha256": "dd022beeb11a12cb6d3e14ac95dceb8e74277f41b5c06fe5d1f2a18c47ebc655",
+          "byteLength": 33670
+        }
+      },
+      {
+        "id": "models-gemini-tools",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/gemini-tools.raw.html",
+          "sha256": "079b5bd4a18853223c21786f3f398066c0f2ceb90d14bfebec8e111ed0f30d73",
+          "byteLength": 582891
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/gemini-tools.md",
+          "sha256": "d58dc5c60e1405c1d02dbf7ebbaddf443d6994091e06906195b931644b3b2c6f",
+          "byteLength": 75197
+        }
+      },
+      {
+        "id": "models-gemini-signatures",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/gemini-signatures.raw.html",
+          "sha256": "e29e3839b6ff536ee9cb3dfc8426441c5e557de34d75379902669432b0e1a749",
+          "byteLength": 86765
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/gemini-signatures.md",
+          "sha256": "c6b7cbb354b925b661f0859ec126efb75b7c0aa4e13b7034208f213c28f37ce1",
+          "byteLength": 1536
+        }
+      },
+      {
+        "id": "models-gemini-cache",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/gemini-cache.raw.html",
+          "sha256": "a753a1d417f6e9e1065f75f54648295fe1ef8a604619c72847daa62066659218",
+          "byteLength": 88955
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/gemini-cache.md",
+          "sha256": "36c58a0493bf82d47ecb3e6b4c1b6c3c13762b858fcfe2318e34f9f75b20c938",
+          "byteLength": 2998
+        }
+      },
+      {
+        "id": "models-gemini-pricing",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/gemini-pricing.raw.html",
+          "sha256": "de14934921d54c599e6fe0b5cd9fa14f72e5dd81be1da59467ad97d3b4891b16",
+          "byteLength": 241799
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/gemini-pricing.md",
+          "sha256": "ceb9594eeb19c6019ce4211c75b77ce2add6b2df305c606de5162dc70a05cc48",
+          "byteLength": 63862
+        }
+      },
+      {
+        "id": "models-gemini-text",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/gemini-text.raw.html",
+          "sha256": "0ebba78f5f25167c309c30f64c28031e744f244b48e81d28e4da8f5f4f097a4d",
+          "byteLength": 251976
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/gemini-text.md",
+          "sha256": "b492d5ff625b0068523e0ad92d3ab4936035d2745f9081ca6c5a2e5916ee8fe1",
+          "byteLength": 27551
+        }
+      },
+      {
+        "id": "models-gemini-headless",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/gemini-headless.raw.html",
+          "sha256": "26caf47715778284640274391535969cae6ab4403587372272e73903473f7da0",
+          "byteLength": 100700
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/gemini-headless.md",
+          "sha256": "6793b84029a3b7cd790ce95f25ff19d0254b38c6b236a97f0f102a8662a755ea",
+          "byteLength": 2145
+        }
+      },
+      {
+        "id": "models-gemini-cli",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/gemini-cli.raw.html",
+          "sha256": "e520589f601e2e4923a1eee5e0e1381ff15fd120cf644e2bf47530461284c423",
+          "byteLength": 507462
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/gemini-cli.md",
+          "sha256": "3aa8ad8176e8af2398c8b5f5b4eb8a848b50ab9ed2decc228c48d6e40649ad50",
+          "byteLength": 99497
+        }
+      },
+      {
+        "id": "models-claude-fable-changes",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/claude-fable-changes.raw.html",
+          "sha256": "7671406cef235df211032b98172b687405da662e549cb5f41e02cd0deccc581d",
+          "byteLength": 591048
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/claude-fable-changes.md",
+          "sha256": "2f69b8c500dad3f8977d15820e4d0b49f45c5eb37c394c9cfbc788f632799ab8",
+          "byteLength": 24524
+        }
+      },
+      {
+        "id": "models-claude-opus-card",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/claude-opus-card.raw.pdf",
+          "sha256": "0950dae1ba6b341e4f1a009e535e0f025625efeca21bd043a9a5ae148a3f2e6b",
+          "byteLength": 16281258
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/claude-opus-card.md",
+          "sha256": "561e693b5ab924c0c7f823207a2b169f025bc38a165739970670cec7ddb92e30",
+          "byteLength": 373637
+        }
+      },
+      {
+        "id": "models-grok-headless",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/grok-headless.raw.html",
+          "sha256": "91dfd9859a24264d1623e7b6093d4ad3f2d95e202fc31dfff8b520411ec30901",
+          "byteLength": 347149
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/grok-headless.md",
+          "sha256": "237c5652ddb76ba33a6383496311c6a53ff36d35be979226aea612b9ce550fde",
+          "byteLength": 5387
+        }
+      },
+      {
+        "id": "models-grok-cli",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/grok-cli.raw.html",
+          "sha256": "2c16b4f9955d2875432ced23307416e4bc8fd0a9af35a2cc782f79479a2879b9",
+          "byteLength": 272880
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/grok-cli.md",
+          "sha256": "b5f06e453818a1b949adc8921e6c353fe96599059b37de38c7bf56851bfbc592",
+          "byteLength": 4313
+        }
+      },
+      {
+        "id": "models-grok-card",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/grok-card.raw.pdf",
+          "sha256": "1fbb3ab6d7c572720e05d501eab8f11052b32db8d5936e66802c5c49b2261f4f",
+          "byteLength": 540844
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/grok-card.md",
+          "sha256": "0e9bb1d8eafe8b99357c1e8dfbc278a6f7518d6c3a12f8eb8efff637fb668ef8",
+          "byteLength": 64927
+        }
+      },
+      {
+        "id": "models-openai-astra-card",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/openai-astra-card.raw.pdf",
+          "sha256": "b9a50c7ea88fb2e24bf750a13f36840af239ada39ec63b7fc38320c76f3b977a",
+          "byteLength": 9655714
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/openai-astra-card.md",
+          "sha256": "3615f9e77e7dae95072878d327a51426438c79eb2336a54e269d610528433baa",
+          "byteLength": 248775
+        }
+      },
+      {
+        "id": "models-openai-sol-card",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/openai-sol-card.raw.html",
+          "sha256": "89fe54adca69f36469ddb0e887f4301a6b81c04b012a424633421670987d8d84",
+          "byteLength": 948987
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/openai-sol-card.md",
+          "sha256": "b5c04377a83d9e5409603b96949b2c96fc9ff9a2f80bf23fc6eb63862620c020",
+          "byteLength": 153943
+        }
+      },
+      {
+        "id": "models-gemini-background",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/gemini-background.raw.html",
+          "sha256": "0757e2fba7d1664aca1b83ba1a2435b074ab341793cceb4a5057584ed9270522",
+          "byteLength": 194212
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/gemini-background.md",
+          "sha256": "5488b680763f715342343d758e6799e888f3140e8fda13d9f77a9afb8c217d91",
+          "byteLength": 20562
+        }
+      },
+      {
+        "id": "models-gemini-interactions",
+        "raw": {
+          "path": "docs/research/pel-release/sources/models/gemini-interactions.raw.html",
+          "sha256": "9e4722b2beb2f404d2894727629cd60d7e73c86d620881e7ee03dba3c515cbbe",
+          "byteLength": 104692
+        },
+        "clean": {
+          "path": "docs/research/pel-release/sources/models/gemini-interactions.md",
+          "sha256": "26ce5a7b9e7c5757a0510ba879d2fbba10bfd24a7f38361ad370d983d621a843",
+          "byteLength": 12356
+        }
+      }
+    ],
+    "reason": "filtered historical fragments",
+    "historicalInputTokens": null,
+    "historicalOutputTokens": null
+  },
+  "archiveTransformCount": 4,
+  "canonicalBefore": [
+    {
+      "path": "graphify-out/graph.json",
+      "sha256": "4bb79ce1662263945e332a5ba346177d353646f55bd59bc9dc00adc68eb7c429"
+    },
+    {
+      "path": "graphify-out/refresh-meta.json",
+      "sha256": "68f98b775a71a724903eb2158a927f5eb6bfaaa54705b0be8547cc8db0896e3e"
+    }
+  ],
+  "canonicalAfter": [
+    {
+      "path": "graphify-out/graph.json",
+      "sha256": "4bb79ce1662263945e332a5ba346177d353646f55bd59bc9dc00adc68eb7c429"
+    },
+    {
+      "path": "graphify-out/refresh-meta.json",
+      "sha256": "68f98b775a71a724903eb2158a927f5eb6bfaaa54705b0be8547cc8db0896e3e"
+    }
+  ],
+  "modelCalls": "none in this driver; historical fragment input/output usage is unknown",
+  "artifacts": [
+    {
+      "path": "candidate.tar",
+      "byteLength": 179302400,
+      "sha256": "77fc0477168b83644c5fa3fe07ce528706bf59c4701c7bd6b82627f331efdacc"
+    },
+    {
+      "path": "source-files.json",
+      "byteLength": 947035,
+      "sha256": "d38a306a0383122704656d56e9a9bc56350c990a47882ad29746be4b0591c755"
+    },
+    {
+      "path": "coverage.json",
+      "byteLength": 39643,
+      "sha256": "18ae04966851cc34da0fb386c3f90bfac6bd35e93e30f3bd952df224091c77d8"
+    },
+    {
+      "path": "historical-input.json",
+      "byteLength": 617018,
+      "sha256": "517f4814832f0d29f4b0b3cedb228e43ce2374dd4ba6c2e51d686fe7318772b8"
+    },
+    {
+      "path": "duplicate-node-ids.json",
+      "byteLength": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "combined/raw-extraction.json",
+      "byteLength": 36379478,
+      "sha256": "1b83eed6eef7d66ad1701ad8d7d025f4cf5204a42e352671e46d3b94322ec4ed"
+    },
+    {
+      "path": "combined/graphify-out/graph.json",
+      "byteLength": 41050948,
+      "sha256": "92aca127de80aad5df5f55fd6ffc46ca436bed51540f07d044adbe0c4b170dfb"
+    },
+    {
+      "path": "combined/graphify-out/graph.html",
+      "byteLength": 931917,
+      "sha256": "94cc94e1e05202a217cd092c62a45c8f0cb8f4e07d4bf5ce25372ca93470396c"
+    },
+    {
+      "path": "combined/graphify-out/GRAPH_REPORT.md",
+      "byteLength": 412467,
+      "sha256": "979288e96400d1ce57548233737aaceae9e64814dcdd6b23abf15c1bcc16a3e9"
+    },
+    {
+      "path": "combined/graphify-out/GRAPHIFY_TOOL_REPORT.md",
+      "byteLength": 411984,
+      "sha256": "de3e5e482ccd7ffb0e4ce12e1d40c338179a3ad08a5bd78d7560aa4dd6f99eb4"
+    },
+    {
+      "path": "combined/graphify-out/.graphify_analysis.json",
+      "byteLength": 2146180,
+      "sha256": "4b0bb411f9a67fa9720409432f87c766915a25043302dd93c05c529e78dd061a"
+    },
+    {
+      "path": "command-1.json",
+      "byteLength": 244,
+      "sha256": "f13675042a39b6eb5523166040fd3aebb05ee581251c19bed1c5fdf46d4efe0f"
+    },
+    {
+      "path": "command-2.json",
+      "byteLength": 361,
+      "sha256": "5a9453719f25a53d9a0c1bf5c2a372e4b00e72d417e0f832dc723bc743cc691c"
+    },
+    {
+      "path": "command-3.json",
+      "byteLength": 318039,
+      "sha256": "271cbb97a5351a01a12053db2bae6c426ac62376139d8efa087355cfa6ae27c1"
+    },
+    {
+      "path": "command-4.json",
+      "byteLength": 436,
+      "sha256": "1bf5a166558ab9c7db6b5b6dde3903be229d3d60438df72159bd26977842108c"
+    },
+    {
+      "path": "command-5.json",
+      "byteLength": 480,
+      "sha256": "522f898a4953fba19edd3d08172b451ea162628a5e1b59563d211ade3bf91f08"
+    },
+    {
+      "path": "command-6.json",
+      "byteLength": 2249,
+      "sha256": "dfd7cd204d88c512d69ee858e275513c33bfce470dea9f069a1405d1b0d7acfd"
+    },
+    {
+      "path": "command-7.json",
+      "byteLength": 11259,
+      "sha256": "75e52a6a23ff1b52801ba3d61388bf8963320d3fa4bccc6772f0b88a7e3bd8dc"
+    },
+    {
+      "path": "command-8.json",
+      "byteLength": 884,
+      "sha256": "cbbf36e49e722c149264b183731bfddb56190bbbf5ec2cf9807bc15c7a4014cc"
+    },
+    {
+      "path": "command-9.json",
+      "byteLength": 618,
+      "sha256": "22ac6220084ce87c169f4fee9008134f4e143f6034327196d782e41c97bc0628"
+    },
+    {
+      "path": "command-10.json",
+      "byteLength": 4180,
+      "sha256": "bc02b0ff9e32337e791f93116ac2385888a728876f302b20c55e6632967f3c65"
+    }
+  ]
+}
