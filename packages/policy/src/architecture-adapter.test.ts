@@ -8,6 +8,18 @@ import { inspectLegacyAdapter } from "./architecture-adapter.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const PINNED_LEGACY_MIGRATION_PATHS = [
+  "skills/foreman/scripts/adapters/agy.sh",
+  "skills/foreman/scripts/adapters/claude.sh",
+  "skills/foreman/scripts/adapters/codex.sh",
+  "skills/foreman/scripts/adapters/grok.sh",
+  "skills/foreman/scripts/audit-run.sh",
+  "skills/foreman/scripts/lane-run.sh",
+  "skills/foreman/scripts/lane-supervise.sh",
+  "skills/foreman/scripts/lib/worker-cmd.sh",
+  "skills/foreman/scripts/resume.sh",
+  "skills/foreman/scripts/vendor-multiround.sh",
+  "skills/foreman/scripts/watch.sh",
+  "skills/foreman/scripts/worker-run.sh",
   "skills/foreman/scripts/gate-eval.sh",
   "skills/foreman/scripts/lib/lock.sh",
   "skills/foreman/scripts/lib/release-policy.sh",

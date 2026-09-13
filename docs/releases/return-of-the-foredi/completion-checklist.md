@@ -53,8 +53,12 @@ Its shared gate failed: Bats reported 520 passes, 237 failures, and 19 skips; Ma
 The documentation repair subsequently passed the complete local documentation gate.
 The diagnostic review attributes 232 Bats failures to deleted controllers, one to CI registry drift, and four to WSL Setup.
 The registry data and WSL readiness fixture repairs pass all five independent cases locally.
-The combined affected-family check reports 25 passes and one failure because `lane-run.sh` is still absent.
-The [controller restoration proposal](legacy-restoration-proposal.md) includes exact historical file hashes and a narrowly scoped policy exception. It remains unapplied.
+The combined affected-family check reported 25 passes and one failure because `lane-run.sh` was then absent.
+The user approved the [controller restoration](legacy-restoration-proposal.md) on 2026-09-13, and it is now applied.
+Twelve historical controllers are restored byte-for-byte from `6c1515e` at mode `100755`, admitted by a temporary fail-closed exact-body exception whose migration owner is `lane-runtime-typescript`.
+The exception covers only those twelve path and SHA-256 pairs; mutation, relocation, and all other added shell source stay rejected, and the debt remains until TypeScript parity lands.
+The focused architecture adapter suite passes 48 of 48 against the restored tree.
+Bats has not been rerun since the restoration, so the counts above stand as the last measured result, not a current one.
 
 The archive built from `caae6c2` passed 19 isolated installation checks.
 Its fresh required-instruction count was 8,125 against the frozen 16,502 baseline: a 50.76 percent reduction.

@@ -1,6 +1,26 @@
 # Retained legacy controller restoration proposal
 
-Status: **PROPOSED. No controller source or architecture exception has been applied.**
+Status: **APPROVED AND APPLIED on 2026-09-13.** The user authorized the exact patch below.
+The twelve historical controllers are restored byte-for-byte and the narrowly scoped architecture exception is in place.
+
+## Applied scope
+
+The authorization covers exactly this patch and nothing wider.
+
+- Restored the twelve files listed below from `6c1515ecf3d28ccbea6205731e9142aede7a8110` at their original paths with mode `100755`. No restored byte was edited.
+- Added the twelve exact path and SHA-256 pairs to `LEGACY_MIGRATION_BODY_SHA256` in `packages/policy/src/architecture-adapter.ts`.
+- Added the twelve paths to the existing mutation and relocation loop in `packages/policy/src/architecture-adapter.test.ts`.
+- The admission suspends both the added-shell prohibition and the thin-adapter limit, for those exact path and body pairs only.
+- The admission fails closed. Changed bytes, relocation, and all other added shell source stay rejected.
+- The admission is temporary. It records debt rather than parity. Migration owner: `lane-runtime-typescript`. The debt remains until TypeScript parity lands and these pins are removed.
+- Node.js 24 TypeScript remains required for new executable code. The retained proof, live-provider, and release obligations and the original metrics are unchanged.
+
+The matching requirement is recorded in the [runtime specification](../../../openspec/changes/node-typescript-runtime/specs/runtime/spec.md).
+This repository has no `openspec/specs/` catalog mirror; per-change `specs/` folders are the only spec location, so no mirror was written.
+
+## Prior evidence
+
+The findings below are the pre-approval record. They are retained as past evidence and were not rewritten by the approval.
 
 Hosted run `34772006971` passed the root Node workspace, native-boundary, architecture, Council, and existing formal checks.
 The legacy Bats suite reported 520 passed, 237 failed, and 19 skipped tests.
@@ -13,14 +33,14 @@ The WSL fixture now answers the current Grok readiness canary. All four independ
 The combined local check reports 25 passes and one failure: the WSL assertion that reads the absent `lane-run.sh`.
 The full Bats suite has not been rerun after these repairs. The expected remaining 232 controller failures are a diagnostic count, not a fresh full-suite result.
 
-## Concrete candidate
+## Restored files
 
-Restore the twelve files below byte-for-byte from `6c1515ecf3d28ccbea6205731e9142aede7a8110`, with their original modes.
-The prepared patch applies to recovery candidate `caae6c2d2c2b8d6b3dc6b8c8109bb1353292306d`.
-The patch and full blob manifest are saved with that candidate’s external evidence under `legacy-restoration.patch` and `legacy-restoration.json`.
-The proposed exact pins and extensions to the existing mutation/relocation test loop are in `legacy-restoration-policy.patch`.
-`legacy-restoration-combined.patch` contains both changes and passes `git apply --check`. No patch has been applied.
-No new shell behavior is proposed. The separate cleanup release retains the production-reduction obligation.
+The twelve files below are restored byte-for-byte from `6c1515ecf3d28ccbea6205731e9142aede7a8110`, with their original mode `100755`.
+The applied patch and full blob manifest are saved with recovery candidate `caae6c2d2c2b8d6b3dc6b8c8109bb1353292306d`'s external evidence under `legacy-restoration.patch` and `legacy-restoration.json`.
+The exact pins and the extensions to the existing mutation/relocation test loop are in `legacy-restoration-policy.patch`.
+`legacy-restoration-combined.patch` contains both changes. It passed `git apply --check` and was applied unmodified.
+The policy comment subsequently changed from proposed to user-approved. No pin, test assertion, or restored body changed.
+No new shell behavior was introduced. The separate cleanup release retains the production-reduction obligation.
 
 Paths below are relative to `skills/foreman/scripts/`.
 
@@ -39,27 +59,36 @@ Paths below are relative to `skills/foreman/scripts/`.
 | `watch.sh` | 1291 | `6ee0c22f756bf7395c93ff1876d42a877e0c7a0e091b06fe592d23a5b320ff14` |
 | `worker-run.sh` | 391 | `359d694a836c722ff9bb9fca243bdcce24188bef62046c8f9a66d78b456bf480` |
 
-## Policy conflict
+## Policy conflict and the resolving exception
 
 The [runtime specification](../../../openspec/changes/node-typescript-runtime/specs/runtime/spec.md) rejects added shell source against the merge base.
 [AGENTS.md](../../../AGENTS.md) also requires new executable source to use Node.js 24 and TypeScript.
-All twelve paths are absent at the current merge base. None has an existing exact-body admission pin.
-The current gate therefore rejects their restoration, even though the bytes come from repository history.
+All twelve paths were absent at the merge base. None had an existing exact-body admission pin.
+The gate therefore rejected their restoration, even though the bytes come from repository history.
 The runtime specification also limits compatibility adapters to forwarding into TypeScript. These historical controllers contain domain logic and exceed that limit.
 
-The proposed exception would admit only these exact path/body pairs through the existing pinned-legacy mechanism.
-Changed bytes, relocation, and all other added shell source would remain rejected.
-This exception covers both the added-shell prohibition and the thin-adapter limit for those exact bodies.
-It requires a scope decision, not a claim that the original deletion passed parity.
+The approved exception admits only these exact path/body pairs through the existing pinned-legacy mechanism.
+Changed bytes, relocation, and all other added shell source remain rejected.
+The exception covers both the added-shell prohibition and the thin-adapter limit for those exact bodies.
+It was a scope decision, not a claim that the original deletion passed parity.
+The broad AGENTS.md rule is unchanged and governs all other work.
 
-## Required checks if approved
+## Checks
 
-- Verify original blob hashes and modes before restoration.
-- Prove the exact restored bodies pass the existing policy mechanism and that mutations or relocation fail.
+Completed with this application:
+
+- Verified the original blob hashes, SHA-256 digests, and modes against `6c1515e` before and after restoration.
+- Proved the exact restored bodies pass the existing policy mechanism and that mutation and relocation fail: `tsx scripts/run-tests.ts packages/policy/src/architecture-adapter.test.ts` reported 48 passes and 0 failures, including the twelve new fail-closed cases.
+
+Still owed before this candidate is final:
+
 - Re-run every affected Bats family without deleting tests, lowering pass baselines, or increasing skip budgets.
 - Run full Node verification and hosted CI against the resulting candidate.
 - Obtain an independent review of the restoration and narrowly scoped policy change.
 - Rebuild the archive and remeasure the retained instruction target on the final clean candidate.
+
+The research source inventory records baseline commit `441c3fb9f6acb2656760d03cc79e7c706fb8b7dd`.
+Its historical runtime-spec digest remains unchanged. It does not describe the current candidate.
 
 A full TypeScript compatibility migration is the alternative. It requires preservation of the old command and durable-state contracts before caller retirement.
 The existing Pel tests do not establish that parity for these deleted controllers.

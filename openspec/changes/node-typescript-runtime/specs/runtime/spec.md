@@ -43,6 +43,32 @@ limit that file to a thin adapter for one compiled TypeScript entry point.
   remediation branch
 - THEN the architecture policy gate fails and identifies the forbidden logic.
 
+### Requirement: twelve restored controllers hold a temporary exact-body admission
+
+WHILE the retained legacy controller callers await TypeScript parity, Foreman
+SHALL admit the twelve exact historical bodies from
+`6c1515ecf3d28ccbea6205731e9142aede7a8110` only at their original paths.
+The restoration SHALL preserve their original mode `100755`.
+
+- This admission is a user authorization recorded on 2026-09-13. It suspends
+  both the added-shell prohibition and the thin-adapter limit for exactly
+  those path and SHA-256 pairs, and for nothing else.
+- These controllers contain domain logic. The admission records that debt. It
+  does not certify parity. The migration owner is `lane-runtime-typescript`,
+  and the debt remains until that parity lands and the pins are removed.
+- The admission SHALL fail closed for changed or relocated historical bodies.
+  Existing exact-body pins and the closed thin-adapter grammar retain their
+  prior scope. This exception admits no other shell source.
+- No other requirement relaxes. Node.js 24 TypeScript remains required for new
+  executable code, and the retained proof, live-provider, and release
+  obligations are unchanged.
+
+#### Scenario: an admitted controller body is mutated or relocated
+
+- WHEN the architecture policy gate reads an admitted controller whose bytes
+  differ by any amount, or reads those exact bytes at a different path
+- THEN the gate fails and names the path, exactly as for unpinned shell source.
+
 ### Requirement: Effect has a bounded role
 
 WHEN a TypeScript module owns fallible effects or resource lifetimes, Foreman

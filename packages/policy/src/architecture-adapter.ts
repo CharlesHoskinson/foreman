@@ -51,6 +51,19 @@ const DENY = "legacy_adapter_domain_logic" as const;
 // M6 adds exact reviewed comment-cleanup bodies; executable bytes match committed HEAD.
 // These pins permit no additional mutation or relocation.
 const LEGACY_MIGRATION_BODY_SHA256 = new Map<string, string>([
+  // User-approved exact historical restoration. Migration owner: lane-runtime-typescript.
+  ["skills/foreman/scripts/adapters/agy.sh", "ae4440daacdff5edee6174844bed7af932792d4b58cf5c9528561c9f179210be"],
+  ["skills/foreman/scripts/adapters/claude.sh", "5ab6b2a7e152154d53533cfe4cfeed7d8c46d8664d90fed99ad969b461a4f652"],
+  ["skills/foreman/scripts/adapters/codex.sh", "cbfaf8ee7e40ce54e2ca0788a08a59c5dc3e8d380b5ed98c5be67179c96452eb"],
+  ["skills/foreman/scripts/adapters/grok.sh", "6dcf82398b49681f66129e38f52e7b8c5a70257044028ee1ed7b6381ff3a4232"],
+  ["skills/foreman/scripts/audit-run.sh", "0cc03c9c20a103d591413fc576619235077ff41c00e8766e6b5d186a4a5e8263"],
+  ["skills/foreman/scripts/lane-run.sh", "5368260642cac6d0ff9d38a45597dc359e6c5a0b9a008f49dee3383bc7f16110"],
+  ["skills/foreman/scripts/lane-supervise.sh", "a09929d92ce817fc861800b38529300889a62b8324fc67fea9a305ea32ac7062"],
+  ["skills/foreman/scripts/lib/worker-cmd.sh", "47deb36862a7bda1c9a174caf215667378e2d03d0ee9796abd81b2f7e364f508"],
+  ["skills/foreman/scripts/resume.sh", "8509bacc869c9c06d26030eeef6abe8cd61fa326fe307ef7bf7c6be7af16fe97"],
+  ["skills/foreman/scripts/vendor-multiround.sh", "07686f1cad9d660d1b62ccb34de6e0d5171f75a648b1f8fdb6cf380fc917f406"],
+  ["skills/foreman/scripts/watch.sh", "6ee0c22f756bf7395c93ff1876d42a877e0c7a0e091b06fe592d23a5b320ff14"],
+  ["skills/foreman/scripts/worker-run.sh", "359d694a836c722ff9bb9fca243bdcce24188bef62046c8f9a66d78b456bf480"],
   [
     "skills/foreman/scripts/gate-eval.sh",
     "bd0a5e404cb97dfe356084764f797a2852b8a6d84862e038aaecad085f70b546",
