@@ -35,3 +35,10 @@ The design follows Moriarty's distinction between specified semantics, actual tr
 The selected starting point is [K v7.1.337](https://github.com/runtimeverification/k/releases/tag/v7.1.337). Exact tool and backend hashes must be recorded before the future compile/run tests. K's [user manual](https://kframework.org/docs/user_manual/) and [configuration tutorial](https://kframework.org/k-distribution/k-tutorial/1_basic/15_configurations/) describe the underlying definition structure. No K implementation is shipped by this planning update.
 
 The first implementation task is a pinned compile-and-run smoke test, independent source parsing and distinguishing numeric cases. Later tasks add the full profile, abstract effects, continuations and differential corpus. The existing M6 production-reduction failure and unresolved numerical-release obligations remain unchanged.
+
+## Full release plan
+
+The [full K release program](../../../openspec/changes/pel-k-release-program/proposal.md) now specifies the implementation sequence and release evidence.
+It contains ten required K1 work packages and a separate K2 source-certification track.
+K1 targets the complete executable profile, tested runtime correspondence, and ten scoped K proofs.
+K2 plans the stronger proof tied to the actual TypeScript source. Both tracks remain proposed and unimplemented.

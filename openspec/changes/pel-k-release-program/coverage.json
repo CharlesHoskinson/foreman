@@ -1,0 +1,3197 @@
+{
+  "schema": "foreman.pel-k-release-plan.v1",
+  "status": "proposed",
+  "baselineCommit": "a73562b64c900c6042d592823493f8accce58254",
+  "profile": "pel-paper-v2-foreman-1",
+  "executedKCases": 0,
+  "provedClaims": 0,
+  "sourceSha256": {
+    "packages/pel/src/ast.ts": "38ab396c45fdf7ec2d603d084fadbff94a04b5c9634b03210e8ec87a6394fab4",
+    "packages/pel/src/tokenizer.ts": "6d621e7f33ed79986985e9d2ff8d782e7e272cacbbf95162285b169ea32cb5c4",
+    "packages/pel/src/parser.ts": "cbebfc2b3597e68a70b1134c0e9f2818066d5a43dc5fbc437e51d623fb409dd4",
+    "packages/pel/src/types.ts": "d544452c6423a2cbcfd7760dca7daedebfaf0ef645cd3afb57db888ef59deca5",
+    "packages/pel/src/profile.ts": "50ece61e97a24f64eb9258589a29a711157fac3f99d655dbc37fdd2dbdf881ad",
+    "packages/pel/src/builtins.ts": "a527dd9a0f6525bb958e73436a3c1f4be7bf3cc224bfff73d4ceca9bac53978f",
+    "packages/pel/src/arguments.ts": "63873552587acc34d4026e42072860e24caa09c18764a3c374785964b94a4ef7",
+    "packages/pel/src/evaluator.ts": "1d6d9e7252e44b303066f2a3db85a9faf6ead824b65e2ccf571b4346f86b7c07",
+    "packages/pel/src/dependencies.ts": "e2b8007995aebab8e49a9c2001169d2a8a729a9c7c0fd86ed21dd05cf25b4fbe",
+    "packages/pel/src/host-contract.ts": "af7c9d478167023201024be1cbbc987ece3ba8257c200c3d169354d9c60525bb",
+    "packages/pel/src/host-arguments.ts": "32d34305c6def74db55cfd2c312cd2d7f63c087e2770a75fd1cbb920b59863c5",
+    "packages/pel/src/continuation.ts": "d2c59a667e27d8114a0062fa42b51ff6981bcc2b1e536fb1e0bb3253989bbcd1",
+    "packages/pel/src/revision.ts": "3621ada004d7300cd1ab329e97781205166c6daaa86546814f882e72bd0bd646",
+    "packages/pel/src/runtime-validation.ts": "2e9bdf67a099207a40bba31a8d676cb77e765dd10fe93eb76b16fa32ad639b54",
+    "packages/pel/src/values.ts": "2f939270169278ed1fd663dcd58dc1c3a9d0904751d6ed8ba62ed42edad6fffd",
+    "packages/pel/src/diagnostics.ts": "a1aba48340de54d0d742cf325eba1e81f8250c0b1403ce66cfa2f0507ac33d9e",
+    "packages/pel/test/fixtures/paper-v2.json": "485e875cb7b1fdcbc73f82889db1df779191e61260c946e0209f57dc8c2c3ece",
+    "docs/reference/pel/compatibility.md": "b2ed3eda0b6ce4ae92dfb24c38e21546d6cb05a17c930fb51ff0bb27e7da501f",
+    "docs/reference/pel/extensions.md": "bff8500028b6fd1b3d430afc721a4b22718a0efc3b096f3cb3adae24162bb34f"
+  },
+  "programRequirements": [
+    "KGP-001",
+    "KGP-002",
+    "KGP-003",
+    "KGP-004",
+    "KGP-005",
+    "KGP-006"
+  ],
+  "packages": [
+    {
+      "id": "pel-k-foundation",
+      "track": "K1",
+      "requiredForK1": true,
+      "dependsOn": [],
+      "requirements": [
+        "K01-001",
+        "K01-002",
+        "K01-003",
+        "K01-004",
+        "K01-005"
+      ],
+      "spec": "../pel-k-foundation/specs/pel-k-foundation/spec.md",
+      "tasks": "../pel-k-foundation/tasks.md",
+      "additionalSpecs": [
+        "../pel-k-foundation/specs/runtime/spec.md"
+      ]
+    },
+    {
+      "id": "pel-k-syntax-values",
+      "track": "K1",
+      "requiredForK1": true,
+      "dependsOn": [
+        "pel-k-foundation"
+      ],
+      "requirements": [
+        "K02-001",
+        "K02-002",
+        "K02-003",
+        "K02-004"
+      ],
+      "spec": "../pel-k-syntax-values/specs/pel-k-syntax-values/spec.md",
+      "tasks": "../pel-k-syntax-values/tasks.md"
+    },
+    {
+      "id": "pel-k-evaluation",
+      "track": "K1",
+      "requiredForK1": true,
+      "dependsOn": [
+        "pel-k-syntax-values",
+        "pel-k-host"
+      ],
+      "requirements": [
+        "K03-001",
+        "K03-002",
+        "K03-003",
+        "K03-004"
+      ],
+      "spec": "../pel-k-evaluation/specs/pel-k-evaluation/spec.md",
+      "tasks": "../pel-k-evaluation/tasks.md"
+    },
+    {
+      "id": "pel-k-scheduling",
+      "track": "K1",
+      "requiredForK1": true,
+      "dependsOn": [
+        "pel-k-evaluation"
+      ],
+      "requirements": [
+        "K04-001",
+        "K04-002",
+        "K04-003",
+        "K04-004"
+      ],
+      "spec": "../pel-k-scheduling/specs/pel-k-scheduling/spec.md",
+      "tasks": "../pel-k-scheduling/tasks.md"
+    },
+    {
+      "id": "pel-k-host",
+      "track": "K1",
+      "requiredForK1": true,
+      "dependsOn": [
+        "pel-k-syntax-values"
+      ],
+      "requirements": [
+        "K05-001",
+        "K05-002",
+        "K05-003",
+        "K05-004"
+      ],
+      "spec": "../pel-k-host/specs/pel-k-host/spec.md",
+      "tasks": "../pel-k-host/tasks.md"
+    },
+    {
+      "id": "pel-k-continuations",
+      "track": "K1",
+      "requiredForK1": true,
+      "dependsOn": [
+        "pel-k-scheduling",
+        "pel-k-host"
+      ],
+      "requirements": [
+        "K06-001",
+        "K06-002",
+        "K06-003",
+        "K06-004"
+      ],
+      "spec": "../pel-k-continuations/specs/pel-k-continuations/spec.md",
+      "tasks": "../pel-k-continuations/tasks.md"
+    },
+    {
+      "id": "pel-k-conformance",
+      "track": "K1",
+      "requiredForK1": true,
+      "dependsOn": [
+        "pel-k-continuations"
+      ],
+      "requirements": [
+        "K07-001",
+        "K07-002",
+        "K07-003",
+        "K07-004"
+      ],
+      "spec": "../pel-k-conformance/specs/pel-k-conformance/spec.md",
+      "tasks": "../pel-k-conformance/tasks.md"
+    },
+    {
+      "id": "pel-k-proofs",
+      "track": "K1",
+      "requiredForK1": true,
+      "dependsOn": [
+        "pel-k-continuations"
+      ],
+      "requirements": [
+        "K08-001",
+        "K08-002",
+        "K08-003",
+        "K08-004"
+      ],
+      "spec": "../pel-k-proofs/specs/pel-k-proofs/spec.md",
+      "tasks": "../pel-k-proofs/tasks.md"
+    },
+    {
+      "id": "pel-k-runtime-correspondence",
+      "track": "K1",
+      "requiredForK1": true,
+      "dependsOn": [
+        "pel-k-conformance",
+        "pel-k-proofs"
+      ],
+      "requirements": [
+        "K09-001",
+        "K09-002",
+        "K09-003",
+        "K09-004"
+      ],
+      "spec": "../pel-k-runtime-correspondence/specs/pel-k-runtime-correspondence/spec.md",
+      "tasks": "../pel-k-runtime-correspondence/tasks.md"
+    },
+    {
+      "id": "pel-k-release",
+      "track": "K1",
+      "requiredForK1": true,
+      "dependsOn": [
+        "pel-k-runtime-correspondence"
+      ],
+      "requirements": [
+        "K10-001",
+        "K10-002",
+        "K10-003",
+        "K10-004",
+        "K10-005"
+      ],
+      "spec": "../pel-k-release/specs/pel-k-release/spec.md",
+      "tasks": "../pel-k-release/tasks.md"
+    },
+    {
+      "id": "pel-k-certified-correspondence",
+      "track": "K2",
+      "requiredForK1": false,
+      "dependsOn": [
+        "pel-k-runtime-correspondence"
+      ],
+      "requirements": [
+        "K11-001",
+        "K11-002",
+        "K11-003",
+        "K11-004"
+      ],
+      "spec": "../pel-k-certified-correspondence/specs/pel-k-certified-correspondence/spec.md",
+      "tasks": "../pel-k-certified-correspondence/tasks.md"
+    }
+  ],
+  "m7Owners": {
+    "R-M7-001": [
+      "pel-k-foundation"
+    ],
+    "R-M7-017": [
+      "pel-k-foundation",
+      "pel-k-conformance"
+    ],
+    "R-M7-002": [
+      "pel-k-syntax-values"
+    ],
+    "R-M7-003": [
+      "pel-k-syntax-values"
+    ],
+    "R-M7-004": [
+      "pel-k-syntax-values"
+    ],
+    "R-M7-005": [
+      "pel-k-evaluation"
+    ],
+    "R-M7-006": [
+      "pel-k-evaluation"
+    ],
+    "R-M7-007": [
+      "pel-k-scheduling"
+    ],
+    "R-M7-008": [
+      "pel-k-scheduling"
+    ],
+    "R-M7-009": [
+      "pel-k-scheduling"
+    ],
+    "R-M7-010": [
+      "pel-k-host"
+    ],
+    "R-M7-011": [
+      "pel-k-host"
+    ],
+    "R-M7-012": [
+      "pel-k-host"
+    ],
+    "R-M7-013": [
+      "pel-k-continuations"
+    ],
+    "R-M7-014": [
+      "pel-k-continuations"
+    ],
+    "R-M7-015": [
+      "pel-k-continuations"
+    ],
+    "R-M7-016": [
+      "pel-k-conformance"
+    ],
+    "R-M7-018": [
+      "pel-k-conformance"
+    ],
+    "R-M7-019": [
+      "pel-k-proofs"
+    ],
+    "R-M7-020": [
+      "pel-k-release"
+    ]
+  },
+  "requiredK1Claims": [
+    "K-P01",
+    "K-P02",
+    "K-P03",
+    "K-P04",
+    "K-P05",
+    "K-P06",
+    "K-P07",
+    "K-P08",
+    "K-P09",
+    "K-P10"
+  ],
+  "inventory": [
+    {
+      "kind": "paper-decision",
+      "id": "PV2-001",
+      "m7": [
+        "R-M7-002",
+        "R-M7-007"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-scheduling"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-001-P",
+        "PV2-001-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-002",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-002-P",
+        "PV2-002-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-003",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-003-P",
+        "PV2-003-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-004",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-004-P",
+        "PV2-004-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-005",
+      "m7": [
+        "R-M7-002",
+        "R-M7-003"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-005-P",
+        "PV2-005-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-006",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-006-P",
+        "PV2-006-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-007",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-007-P",
+        "PV2-007-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-008",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-008-P",
+        "PV2-008-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-009",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-009-P",
+        "PV2-009-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-010",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-010-P",
+        "PV2-010-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-011",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-011-P",
+        "PV2-011-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-012",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-012-P",
+        "PV2-012-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-013",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-013-P",
+        "PV2-013-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-014",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-014-P",
+        "PV2-014-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-015",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-015-P",
+        "PV2-015-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-016",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-016-P",
+        "PV2-016-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-017",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-017-P",
+        "PV2-017-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-018",
+      "m7": [
+        "R-M7-005",
+        "R-M7-007"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-scheduling"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-018-P",
+        "PV2-018-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-019",
+      "m7": [
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-019-P",
+        "PV2-019-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-020",
+      "m7": [
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-020-P",
+        "PV2-020-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-021",
+      "m7": [
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-021-P",
+        "PV2-021-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-022",
+      "m7": [
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-022-P",
+        "PV2-022-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-023",
+      "m7": [
+        "R-M7-005",
+        "R-M7-009"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-scheduling"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-023-P",
+        "PV2-023-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-024",
+      "m7": [
+        "R-M7-005",
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-024-P",
+        "PV2-024-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-025",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-025-P",
+        "PV2-025-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-026",
+      "m7": [
+        "R-M7-002",
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-026-P",
+        "PV2-026-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-027",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-027-P",
+        "PV2-027-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-028",
+      "m7": [
+        "R-M7-005",
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-028-P",
+        "PV2-028-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-029",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-029-P",
+        "PV2-029-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-030",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-030-P",
+        "PV2-030-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-031",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-031-P",
+        "PV2-031-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-032",
+      "m7": [
+        "R-M7-006",
+        "R-M7-010",
+        "R-M7-011"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-host"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-032-P",
+        "PV2-032-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-033",
+      "m7": [
+        "R-M7-006",
+        "R-M7-008"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-scheduling"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-033-P",
+        "PV2-033-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-034",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-034-P",
+        "PV2-034-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-035",
+      "m7": [
+        "R-M7-006",
+        "R-M7-007"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-scheduling"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-035-P",
+        "PV2-035-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-036",
+      "m7": [
+        "R-M7-005",
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-036-P",
+        "PV2-036-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-037",
+      "m7": [
+        "R-M7-007"
+      ],
+      "owners": [
+        "pel-k-scheduling"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-037-P",
+        "PV2-037-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-038",
+      "m7": [
+        "R-M7-007"
+      ],
+      "owners": [
+        "pel-k-scheduling"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-038-P",
+        "PV2-038-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-039",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-039-P",
+        "PV2-039-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-040",
+      "m7": [
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-040-P",
+        "PV2-040-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-041",
+      "m7": [
+        "R-M7-003",
+        "R-M7-004",
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-041-P",
+        "PV2-041-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-042",
+      "m7": [
+        "R-M7-005",
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-042-P",
+        "PV2-042-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-043",
+      "m7": [
+        "R-M7-004",
+        "R-M7-010",
+        "R-M7-011"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-host"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-043-P",
+        "PV2-043-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-044",
+      "m7": [
+        "R-M7-005",
+        "R-M7-010"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-host"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-044-P",
+        "PV2-044-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-045",
+      "m7": [
+        "R-M7-004",
+        "R-M7-012"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-host"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-045-P",
+        "PV2-045-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-046",
+      "m7": [
+        "R-M7-002",
+        "R-M7-003"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-046-P",
+        "PV2-046-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-047",
+      "m7": [
+        "R-M7-008",
+        "R-M7-010",
+        "R-M7-011"
+      ],
+      "owners": [
+        "pel-k-scheduling",
+        "pel-k-host"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-047-P",
+        "PV2-047-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-048",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-048-P",
+        "PV2-048-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-049",
+      "m7": [
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-049-P",
+        "PV2-049-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-050",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-050-P",
+        "PV2-050-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-051",
+      "m7": [
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-051-P",
+        "PV2-051-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-052",
+      "m7": [
+        "R-M7-005",
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-052-P",
+        "PV2-052-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-053",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-053-P",
+        "PV2-053-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-054",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-054-P",
+        "PV2-054-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-055",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-055-P",
+        "PV2-055-N"
+      ]
+    },
+    {
+      "kind": "paper-decision",
+      "id": "PV2-056",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned",
+      "fixtures": [
+        "PV2-056-P",
+        "PV2-056-N"
+      ]
+    },
+    {
+      "kind": "ast",
+      "id": "number",
+      "m7": [
+        "R-M7-002",
+        "R-M7-003"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "ast",
+      "id": "string",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "ast",
+      "id": "boolean",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "ast",
+      "id": "nil",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "ast",
+      "id": "key",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "ast",
+      "id": "symbol",
+      "m7": [
+        "R-M7-002",
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "ast",
+      "id": "caret",
+      "m7": [
+        "R-M7-002",
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "ast",
+      "id": "pair",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "ast",
+      "id": "list",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "ast",
+      "id": "call",
+      "m7": [
+        "R-M7-002",
+        "R-M7-005",
+        "R-M7-006",
+        "R-M7-010"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation",
+        "pel-k-host"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "ast",
+      "id": "quote",
+      "m7": [
+        "R-M7-002",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "ast",
+      "id": "pipe",
+      "m7": [
+        "R-M7-002",
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "def",
+      "m7": [
+        "R-M7-005",
+        "R-M7-007"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "lambda",
+      "m7": [
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "+",
+      "m7": [
+        "R-M7-003",
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "-",
+      "m7": [
+        "R-M7-003",
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "*",
+      "m7": [
+        "R-M7-003",
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "/",
+      "m7": [
+        "R-M7-003",
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "pow",
+      "m7": [
+        "R-M7-003",
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "gt",
+      "m7": [
+        "R-M7-003",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "lt",
+      "m7": [
+        "R-M7-003",
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "eq",
+      "m7": [
+        "R-M7-004",
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "concat",
+      "m7": [
+        "R-M7-004",
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "sqrt",
+      "m7": [
+        "R-M7-003",
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "not",
+      "m7": [
+        "R-M7-004",
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "len",
+      "m7": [
+        "R-M7-004",
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "if",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "case",
+      "m7": [
+        "R-M7-006",
+        "R-M7-010"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-host"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "for",
+      "m7": [
+        "R-M7-006",
+        "R-M7-008"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "do",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "do/async",
+      "m7": [
+        "R-M7-006",
+        "R-M7-007"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "list",
+      "m7": [
+        "R-M7-004",
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "print",
+      "m7": [
+        "R-M7-005",
+        "R-M7-010"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-host"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "builtins",
+      "id": "pel/nl-condition",
+      "m7": [
+        "R-M7-006",
+        "R-M7-010",
+        "R-M7-011"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-host"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_LEX",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_PARSE",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_UNBOUND_SYMBOL",
+      "m7": [
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_UNINITIALIZED_BINDING",
+      "m7": [
+        "R-M7-005",
+        "R-M7-007"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_DUPLICATE_BINDING",
+      "m7": [
+        "R-M7-005",
+        "R-M7-007"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_TYPE",
+      "m7": [
+        "R-M7-004",
+        "R-M7-005",
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_ARGUMENT_MODE",
+      "m7": [
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_ARGUMENT_NAME",
+      "m7": [
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_ARITY",
+      "m7": [
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_INDEX",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_NUMERIC_DOMAIN",
+      "m7": [
+        "R-M7-003"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_CARET_SCOPE",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_DEPENDENCY_CYCLE",
+      "m7": [
+        "R-M7-007"
+      ],
+      "owners": [
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_LIMIT",
+      "m7": [
+        "R-M7-008"
+      ],
+      "owners": [
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_HOST_RESULT",
+      "m7": [
+        "R-M7-011"
+      ],
+      "owners": [
+        "pel-k-host"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_HOST_FAILURE",
+      "m7": [
+        "R-M7-010"
+      ],
+      "owners": [
+        "pel-k-host"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_REGISTRY",
+      "m7": [
+        "R-M7-010",
+        "R-M7-011"
+      ],
+      "owners": [
+        "pel-k-host"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "diagnostics",
+      "id": "PEL_CONTINUATION_MISMATCH",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "eval",
+      "m7": [
+        "R-M7-004",
+        "R-M7-005",
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "collect",
+      "m7": [
+        "R-M7-004",
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-syntax-values",
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "pair",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "pipe",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "pipe-head",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "pass",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "bind",
+      "m7": [
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "invoke",
+      "m7": [
+        "R-M7-005",
+        "R-M7-010"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-host"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "define",
+      "m7": [
+        "R-M7-005",
+        "R-M7-007"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "lambda",
+      "m7": [
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "if",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "case-start",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "case",
+      "m7": [
+        "R-M7-006",
+        "R-M7-010"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-host"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "for-start",
+      "m7": [
+        "R-M7-006"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "for",
+      "m7": [
+        "R-M7-006",
+        "R-M7-008"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "block",
+      "m7": [
+        "R-M7-006",
+        "R-M7-007"
+      ],
+      "owners": [
+        "pel-k-evaluation",
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "operations",
+      "id": "host",
+      "m7": [
+        "R-M7-010",
+        "R-M7-011"
+      ],
+      "owners": [
+        "pel-k-host"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "version",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "sourceDigest",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "profileDigest",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "registryDigest",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "optionsDigest",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "program",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "registry",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "options",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "limits",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "environments",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "tasks",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "root",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "pending",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "completed",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "counters",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "nextId",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "mergedChildren",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "replayPhase",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "runnable",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "continuation-field",
+      "id": "failure (optional)",
+      "m7": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "owners": [
+        "pel-k-continuations"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "token",
+      "id": "number",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "token",
+      "id": "string",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "token",
+      "id": "boolean",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "token",
+      "id": "nil",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "token",
+      "id": "key",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "token",
+      "id": "symbol",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "token",
+      "id": "caret",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "token",
+      "id": "open-call",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "token",
+      "id": "close-call",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "token",
+      "id": "open-list",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "token",
+      "id": "close-list",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "token",
+      "id": "quote",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "token",
+      "id": "pipe",
+      "m7": [
+        "R-M7-002"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "value-tag",
+      "id": "number",
+      "m7": [
+        "R-M7-003"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "value-tag",
+      "id": "string",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "value-tag",
+      "id": "boolean",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "value-tag",
+      "id": "nil",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "value-tag",
+      "id": "key",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "value-tag",
+      "id": "pair",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "value-tag",
+      "id": "list",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "value-tag",
+      "id": "symbol",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "value-tag",
+      "id": "syntax",
+      "m7": [
+        "R-M7-004"
+      ],
+      "owners": [
+        "pel-k-syntax-values"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "value-tag",
+      "id": "closure",
+      "m7": [
+        "R-M7-005"
+      ],
+      "owners": [
+        "pel-k-evaluation"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "limit",
+      "id": "maxSourceBytes",
+      "m7": [
+        "R-M7-008"
+      ],
+      "owners": [
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "limit",
+      "id": "maxTokens",
+      "m7": [
+        "R-M7-008"
+      ],
+      "owners": [
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "limit",
+      "id": "maxAstNodes",
+      "m7": [
+        "R-M7-008"
+      ],
+      "owners": [
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "limit",
+      "id": "maxSyntaxDepth",
+      "m7": [
+        "R-M7-008"
+      ],
+      "owners": [
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "limit",
+      "id": "maxReductions",
+      "m7": [
+        "R-M7-008"
+      ],
+      "owners": [
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "limit",
+      "id": "maxIterations",
+      "m7": [
+        "R-M7-008"
+      ],
+      "owners": [
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "limit",
+      "id": "maxCallDepth",
+      "m7": [
+        "R-M7-008"
+      ],
+      "owners": [
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "limit",
+      "id": "maxValueBytes",
+      "m7": [
+        "R-M7-008"
+      ],
+      "owners": [
+        "pel-k-scheduling"
+      ],
+      "status": "planned"
+    },
+    {
+      "kind": "regression-file",
+      "id": "acceptance.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "analysis.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "arguments.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "binding.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "children.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "closures.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "continuation.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "control.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "dependencies.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "host-arguments.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "host-contract.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "limits.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "preview.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "profile.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "registry.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "replay-boundary.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "review-regressions.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "revision.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "runtime-validation.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "snapshot.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "syntax.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    },
+    {
+      "kind": "regression-file",
+      "id": "values.test.ts",
+      "m7": [
+        "R-M7-016"
+      ],
+      "owners": [
+        "pel-k-conformance"
+      ],
+      "status": "planned",
+      "classification": "scenario-level-classification-required",
+      "executedCases": 0
+    }
+  ],
+  "m7ScenarioBindings": [
+    {
+      "id": "T-M7-001",
+      "requirements": [
+        "R-M7-001"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/toolchain.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/foundation.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-foundation"
+    },
+    {
+      "id": "T-M7-002",
+      "requirements": [
+        "R-M7-002"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/syntax.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/syntax-values.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-syntax-values"
+    },
+    {
+      "id": "T-M7-003",
+      "requirements": [
+        "R-M7-003"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/values.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/syntax-values.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-syntax-values"
+    },
+    {
+      "id": "T-M7-004",
+      "requirements": [
+        "R-M7-004"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/values.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/syntax-values.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-syntax-values"
+    },
+    {
+      "id": "T-M7-005",
+      "requirements": [
+        "R-M7-005"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/closures.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/evaluation.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-evaluation"
+    },
+    {
+      "id": "T-M7-006",
+      "requirements": [
+        "R-M7-006"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/control.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/evaluation.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-evaluation"
+    },
+    {
+      "id": "T-M7-007",
+      "requirements": [
+        "R-M7-007"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/scheduling.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/scheduling.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-scheduling"
+    },
+    {
+      "id": "T-M7-008",
+      "requirements": [
+        "R-M7-008"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/limits.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/scheduling.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-scheduling"
+    },
+    {
+      "id": "T-M7-009",
+      "requirements": [
+        "R-M7-009"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/diagnostics.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/scheduling.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-scheduling"
+    },
+    {
+      "id": "T-M7-010",
+      "requirements": [
+        "R-M7-010"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/host.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/host.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-host"
+    },
+    {
+      "id": "T-M7-011",
+      "requirements": [
+        "R-M7-011"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/host.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/host.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-host"
+    },
+    {
+      "id": "T-M7-012",
+      "requirements": [
+        "R-M7-012"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/host.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/host.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-host"
+    },
+    {
+      "id": "T-M7-013",
+      "requirements": [
+        "R-M7-013"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/continuation.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/continuations.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-continuations"
+    },
+    {
+      "id": "T-M7-014",
+      "requirements": [
+        "R-M7-014"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/replay.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/continuations.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-continuations"
+    },
+    {
+      "id": "T-M7-015",
+      "requirements": [
+        "R-M7-015"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/children.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/continuations.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-continuations"
+    },
+    {
+      "id": "T-M7-016",
+      "requirements": [
+        "R-M7-016"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/differential.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/conformance.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-conformance"
+    },
+    {
+      "id": "T-M7-017",
+      "requirements": [
+        "R-M7-017"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/harness.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/foundation.test.ts",
+        "packages/pel/test/k/conformance.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-conformance"
+    },
+    {
+      "id": "T-M7-018",
+      "requirements": [
+        "R-M7-018"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/mutations.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/conformance.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-conformance"
+    },
+    {
+      "id": "T-M7-019",
+      "requirements": [
+        "R-M7-019"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/claims.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/proofs.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-proofs"
+    },
+    {
+      "id": "T-M7-020",
+      "requirements": [
+        "R-M7-020"
+      ],
+      "originalPlannedTarget": "packages/pel/test/k/status.test.ts",
+      "canonicalPlannedTargets": [
+        "packages/pel/test/k/release.test.ts"
+      ],
+      "fixturePolicy": "preserve-original-fixture-action-and-expected-outcome",
+      "status": "planned",
+      "executionOwner": "pel-k-release"
+    }
+  ],
+  "m7ExecutionOwners": {
+    "R-M7-001": "pel-k-foundation",
+    "R-M7-017": "pel-k-conformance",
+    "R-M7-002": "pel-k-syntax-values",
+    "R-M7-003": "pel-k-syntax-values",
+    "R-M7-004": "pel-k-syntax-values",
+    "R-M7-005": "pel-k-evaluation",
+    "R-M7-006": "pel-k-evaluation",
+    "R-M7-007": "pel-k-scheduling",
+    "R-M7-008": "pel-k-scheduling",
+    "R-M7-009": "pel-k-scheduling",
+    "R-M7-010": "pel-k-host",
+    "R-M7-011": "pel-k-host",
+    "R-M7-012": "pel-k-host",
+    "R-M7-013": "pel-k-continuations",
+    "R-M7-014": "pel-k-continuations",
+    "R-M7-015": "pel-k-continuations",
+    "R-M7-016": "pel-k-conformance",
+    "R-M7-018": "pel-k-conformance",
+    "R-M7-019": "pel-k-proofs",
+    "R-M7-020": "pel-k-release"
+  }
+}
