@@ -1,0 +1,3017 @@
+{
+  "schema": "foreman.foredi-feature-catalog.v1",
+  "release": "Return of the ForeDi",
+  "status": "specified-not-implemented",
+  "milestones": [
+    {
+      "milestone": "M1",
+      "change": "foredi-01-pel-language",
+      "title": "Return of the ForeDi: Pel language",
+      "depends_on": [],
+      "features": [
+        {
+          "id": "F-M1-01",
+          "title": "Published grammar and source locations",
+          "description": "Parse the paper syntax with exact source spans.",
+          "requirements": [
+            "R-M1-001",
+            "R-M1-002",
+            "R-M1-019"
+          ]
+        },
+        {
+          "id": "F-M1-02",
+          "title": "Values and callable lists",
+          "description": "Preserve Pel values with an explicit one-based list profile.",
+          "requirements": [
+            "R-M1-003",
+            "R-M1-004",
+            "R-M1-018"
+          ]
+        },
+        {
+          "id": "F-M1-03",
+          "title": "Closures and argument binding",
+          "description": "Implement lexical closures, defaults, and partial application.",
+          "requirements": [
+            "R-M1-005",
+            "R-M1-006"
+          ]
+        },
+        {
+          "id": "F-M1-04",
+          "title": "Pipes and native control flow",
+          "description": "Compose values through native pipes and selective control flow.",
+          "requirements": [
+            "R-M1-007",
+            "R-M1-008",
+            "R-M1-009"
+          ]
+        },
+        {
+          "id": "F-M1-05",
+          "title": "Diagnostics and evaluation limits",
+          "description": "Report source errors and stop evaluation at finite bounds.",
+          "requirements": [
+            "R-M1-010",
+            "R-M1-011"
+          ]
+        },
+        {
+          "id": "F-M1-06",
+          "title": "Host suspension and recovery data",
+          "description": "Suspend host calls and resume with ordinary validated Pel values.",
+          "requirements": [
+            "R-M1-012",
+            "R-M1-013",
+            "R-M1-014",
+            "R-M1-015",
+            "R-M1-016",
+            "R-M1-017",
+            "R-M1-020"
+          ]
+        }
+      ],
+      "requirements": [
+        {
+          "id": "R-M1-001",
+          "feature": "F-M1-01",
+          "pattern": "event",
+          "text": "When Pel source is parsed, the Foreman Pel parser SHALL produce the profile-defined AST with exact source spans.",
+          "tests": [
+            "T-M1-001"
+          ]
+        },
+        {
+          "id": "R-M1-002",
+          "feature": "F-M1-01",
+          "pattern": "unwanted",
+          "text": "If source violates the lexical or grammar profile, then the Foreman Pel parser SHALL return source-located diagnostics without an executable program.",
+          "tests": [
+            "T-M1-002"
+          ]
+        },
+        {
+          "id": "R-M1-003",
+          "feature": "F-M1-02",
+          "pattern": "event",
+          "text": "When Pel values are evaluated or formatted, the Foreman Pel evaluator SHALL preserve their profile-defined types and ordered pair structure.",
+          "tests": [
+            "T-M1-003"
+          ]
+        },
+        {
+          "id": "R-M1-004",
+          "feature": "F-M1-02",
+          "pattern": "event",
+          "text": "When a list is called, the Foreman Pel evaluator SHALL apply one-based indexing, inclusive slicing, and ordered key selection.",
+          "tests": [
+            "T-M1-004"
+          ]
+        },
+        {
+          "id": "R-M1-005",
+          "feature": "F-M1-03",
+          "pattern": "event",
+          "text": "When a lambda is created or invoked, the Foreman Pel evaluator SHALL preserve lexical capture and profile-defined default evaluation.",
+          "tests": [
+            "T-M1-005"
+          ]
+        },
+        {
+          "id": "R-M1-006",
+          "feature": "F-M1-03",
+          "pattern": "event",
+          "text": "When a closure receives arguments, the Foreman Pel evaluator SHALL bind named or positional arguments under its fixed argument specification.",
+          "tests": [
+            "T-M1-006"
+          ]
+        },
+        {
+          "id": "R-M1-007",
+          "feature": "F-M1-04",
+          "pattern": "event",
+          "text": "When a pipe is evaluated, the Foreman Pel evaluator SHALL insert its once-evaluated input at profile-defined caret positions.",
+          "tests": [
+            "T-M1-007"
+          ]
+        },
+        {
+          "id": "R-M1-008",
+          "feature": "F-M1-04",
+          "pattern": "event",
+          "text": "When native conditional or loop functions are evaluated, the Foreman Pel evaluator SHALL select only required expressions and preserve result order.",
+          "tests": [
+            "T-M1-008"
+          ]
+        },
+        {
+          "id": "R-M1-009",
+          "feature": "F-M1-04",
+          "pattern": "event",
+          "text": "When do or do/async evaluates a sequence, the Foreman Pel evaluator SHALL return the last source expression after required dependencies complete.",
+          "tests": [
+            "T-M1-009"
+          ]
+        },
+        {
+          "id": "R-M1-010",
+          "feature": "F-M1-05",
+          "pattern": "event",
+          "text": "When evaluation fails, the Foreman Pel evaluator SHALL return a stable error code, precise source span, and applicable function signature.",
+          "tests": [
+            "T-M1-010",
+            "T-M1-021"
+          ]
+        },
+        {
+          "id": "R-M1-011",
+          "feature": "F-M1-05",
+          "pattern": "unwanted",
+          "text": "If an evaluation bound would be exceeded, then the Foreman Pel evaluator SHALL stop before the next expression emits a host request.",
+          "tests": [
+            "T-M1-011"
+          ]
+        },
+        {
+          "id": "R-M1-012",
+          "feature": "F-M1-06",
+          "pattern": "event",
+          "text": "When a fully applied host function is reached, the Foreman Pel evaluator SHALL suspend and resume through validated ordinary Pel data.",
+          "tests": [
+            "T-M1-012"
+          ]
+        },
+        {
+          "id": "R-M1-013",
+          "feature": "F-M1-06",
+          "pattern": "event",
+          "text": "When case reaches a literal string condition, the Foreman Pel evaluator SHALL request a typed natural-language predicate result through host suspension.",
+          "tests": [
+            "T-M1-013"
+          ]
+        },
+        {
+          "id": "R-M1-014",
+          "feature": "F-M1-06",
+          "pattern": "event",
+          "text": "When a continuation is encoded and restored, the Foreman Pel evaluator SHALL preserve lexical data, pending request identities, and consumed limits.",
+          "tests": [
+            "T-M1-014"
+          ]
+        },
+        {
+          "id": "R-M1-015",
+          "feature": "F-M1-06",
+          "pattern": "event",
+          "text": "When a valid host failure receipt arrives, the Foreman Pel evaluator SHALL preserve its typed failure and stop releasing new requests.",
+          "tests": [
+            "T-M1-015"
+          ]
+        },
+        {
+          "id": "R-M1-016",
+          "feature": "F-M1-06",
+          "pattern": "event",
+          "text": "When a host-library closure is evaluated, the Foreman Pel evaluator SHALL bind nested requests and consumed counters to its unique child invocation identity.",
+          "tests": [
+            "T-M1-016"
+          ]
+        },
+        {
+          "id": "R-M1-017",
+          "feature": "F-M1-06",
+          "pattern": "event",
+          "text": "When a host registry is constructed, the Foreman Pel evaluator SHALL validate its names, argument specifications, data schemas, and canonical digest.",
+          "tests": [
+            "T-M1-017"
+          ]
+        },
+        {
+          "id": "R-M1-018",
+          "feature": "F-M1-02",
+          "pattern": "event",
+          "text": "When Pel data is encoded, the Foreman Pel evaluator SHALL produce the canonical tagged JSON representation and deterministic source formatting.",
+          "tests": [
+            "T-M1-018"
+          ]
+        },
+        {
+          "id": "R-M1-019",
+          "feature": "F-M1-01",
+          "pattern": "event",
+          "text": "When compatibility fixtures are validated, the Foreman Pel conformance suite SHALL cover every classified profile decision with its declared positive and negative cases.",
+          "tests": [
+            "T-M1-019"
+          ]
+        },
+        {
+          "id": "R-M1-020",
+          "feature": "F-M1-06",
+          "pattern": "event",
+          "text": "When a revised program preserves its completed prefix, the Foreman Pel evaluator SHALL validate old-to-new call mappings before fresh replay.",
+          "tests": [
+            "T-M1-020"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "T-M1-001",
+          "requirements": [
+            "R-M1-001"
+          ],
+          "level": "unit",
+          "fixture": "Calls (+ 1 2), lists [1 (+ 2 3)], nil, pair presence [:x] versus [:x #nil], quoted keys, ASCII |> pipes, corrected PDF KEY characters *, <, >, and escaped Unicode.",
+          "action": "parsePel each fixture with pel-paper-v2-foreman-1.",
+          "expected": "AST tags and UTF-8 spans match the profile. Pair AST valuePresent distinguishes required parameters from explicit nil defaults. ASCII |> parses and quoted keys remain data. A nonempty program returns its last source top-level expression value, after all required expressions complete.",
+          "target": "packages/pel/test/syntax.test.ts"
+        },
+        {
+          "id": "T-M1-002",
+          "requirements": [
+            "R-M1-002"
+          ],
+          "level": "unit",
+          "fixture": "Unmatched call/list delimiters, extracted ^> pipe, malformed escapes, #true, invalid UTF-8, 1e5, out-of-range decimals, a>b, >b, and x U+25B7 (f).",
+          "action": "parsePel each invalid lexical or grammar fixture.",
+          "expected": "Unmatched delimiters return PEL_PARSE. All listed invalid tokens return PEL_LEX with exact spans. U+25B7 gives the hint use |>. No invalid parse returns a program.",
+          "target": "packages/pel/test/syntax.test.ts"
+        },
+        {
+          "id": "T-M1-003",
+          "requirements": [
+            "R-M1-003"
+          ],
+          "level": "unit",
+          "fixture": "[1 \"two\" #t #nil :a 1 :flag], quoted symbols and expressions, duplicate keys, Unicode strings, and numeric boundary fixtures.",
+          "action": "startPel each fixture and formatPel its result.",
+          "expected": "Types and ordered pairs remain distinct. Formatting and JSON encoding round-trip Unicode and nil. Safe integers retain value. Unsafe or nonfinite arithmetic returns PEL_NUMERIC_DOMAIN.",
+          "target": "packages/pel/test/values.test.ts"
+        },
+        {
+          "id": "T-M1-004",
+          "requirements": [
+            "R-M1-004"
+          ],
+          "level": "unit",
+          "fixture": "([5 6 7 8] 1), ([5 6 7 8] () 1 3), ([:a 1 :b 2] :at [':b ':a]), missing keys, zero/fractional/out-of-range indices.",
+          "action": "startPel the callable-list fixture matrix.",
+          "expected": "Results are 5, [5 6 7], [2 1], and nil respectively. Invalid indices return PEL_INDEX. Mixed at and slice selectors return PEL_ARGUMENT_MODE.",
+          "target": "packages/pel/test/values.test.ts"
+        },
+        {
+          "id": "T-M1-005",
+          "requirements": [
+            "R-M1-005"
+          ],
+          "level": "unit",
+          "fixture": "((lambda [:x] x)), ((lambda [:x #nil] x)), defaults [:x :y 3] and [:x 1 :y], lexical capture, and recursive factorial.",
+          "action": "startPel closure fixtures.",
+          "expected": "The required-x zero-argument call returns a partial closure. The nil-default call returns nil. The two parameter matrices bind declared defaults and required values exactly. Factorial 5 returns 120.",
+          "target": "packages/pel/test/closures.test.ts"
+        },
+        {
+          "id": "T-M1-006",
+          "requirements": [
+            "R-M1-006"
+          ],
+          "level": "unit",
+          "fixture": "(def name) partial def, partial lambda, (+ :x 1 :y 2), ((+ 5) 4), (+ [1 2]), ((+ 5) [1 2]), mixed modes, duplicate/unknown names, and excess arguments. Rebinding :x on an already x-bound partial closure.",
+          "action": "startPel argument fixtures with a host-call spy.",
+          "expected": "Partial constructors do not bind or evaluate missing bodies. Numeric results are 3, 9, and 3. Partial binary plus with list returns PEL_TYPE. Mode/name/count errors are PEL_ARGUMENT_MODE, PEL_ARGUMENT_NAME, and PEL_ARITY. Partial rebinding returns PEL_ARGUMENT_NAME.",
+          "target": "packages/pel/test/closures.test.ts"
+        },
+        {
+          "id": "T-M1-007",
+          "requirements": [
+            "R-M1-007"
+          ],
+          "level": "contract",
+          "fixture": "A once-only host input with repeated carets, the page-17 case pipe chain, 7 |> (case ^ [(gt ^ 5) \"big\" #t \"small\"]), an aliased case, and (+ 1 2) |> (def z ^).",
+          "action": "startPel and resumePel once with test/once returning 5.",
+          "expected": "Repeated insertion emits one host call. The pipe-chain and nested/aliased case fixtures return \"big\". Def piping returns 3 and binds z. Quotes and nested case scopes retain their declared owners.",
+          "target": "packages/pel/test/control.test.ts"
+        },
+        {
+          "id": "T-M1-008",
+          "requirements": [
+            "R-M1-008"
+          ],
+          "level": "unit",
+          "fixture": "(if #f (test/denied) 7), (case 7 [(gt ^ 5) \"big\" #t \"small\"]), (case (test/once) [(gt 2) 1 #t 0]), a symbol-valued string condition, per-iteration def, and def inside if.",
+          "action": "startPel each native-control fixture.",
+          "expected": "The false branch emits no request. Case returns \"big\" and evaluates test/once exactly once. Nonliteral string conditions return PEL_TYPE. Per-iteration definitions return [1 2] without collision. Selected if definitions bind the caller scope.",
+          "target": "packages/pel/test/control.test.ts"
+        },
+        {
+          "id": "T-M1-009",
+          "requirements": [
+            "R-M1-009"
+          ],
+          "level": "contract",
+          "fixture": "Sequential do, empty blocks, do/async requests A then B, a forward dependency, and a cycle. Also (test/a) (test/b) without do/async under explicit ordered and automatic PelRunOptionsV1.",
+          "action": "startPel with explicit options, then resumePel(program,registry,continuation,[receiptB],options) for the asynchronous fixture, followed by receiptA.",
+          "expected": "Initial ready is [A:false,B:false]. After only B returns, suspend.ready is [A:true] with no newly emitted request. After A returns, done contains B value. Source-order dependencies wait and cycles return PEL_DEPENDENCY_CYCLE. Ordered top-level mode initially releases only A, automatic releases both, and both return the last source value after required work completes.",
+          "target": "packages/pel/test/control.test.ts"
+        },
+        {
+          "id": "T-M1-010",
+          "requirements": [
+            "R-M1-010"
+          ],
+          "level": "unit",
+          "fixture": "A two-line program with (print [\"hello\" name] :sep \" \") on line 2 and a registered print signature.",
+          "action": "startPel then renderPelDiagnostic.",
+          "expected": "PEL_ARGUMENT_MODE identifies line 2, marks the complete call, prints the registered signature, and supplies a named-argument example without unrelated environment data.",
+          "target": "packages/pel/test/limits.test.ts"
+        },
+        {
+          "id": "T-M1-011",
+          "requirements": [
+            "R-M1-011"
+          ],
+          "level": "contract",
+          "fixture": "(for [1 2 3] i (test/echo i)) with maxIterations=2, recursive fuel exhaustion, oversized input, deep nesting, and continuation resumes.",
+          "action": "startPel then resume valid receipts until the first bound failure.",
+          "expected": "Exactly two loop requests can occur. The third body emits none. PEL_LIMIT names the bound and consumed count. Resume retains previous counters.",
+          "target": "packages/pel/test/limits.test.ts"
+        },
+        {
+          "id": "T-M1-012",
+          "requirements": [
+            "R-M1-012"
+          ],
+          "level": "contract",
+          "fixture": "createHostRegistry fixture descriptors and schemas, then (test/flag) |> (if :cond ^ :then (for [1 2] i (* i 2)) :else []), plus an incomplete host closure.",
+          "action": "createPelEnvironment, startPel, then resumePel(program,registry,continuation,[successful Boolean receipt]).",
+          "expected": "One ready request appears and true yields [2 4]. The incomplete host closure emits no request. Changed registry content fails PEL_CONTINUATION_MISMATCH and schema-invalid values fail PEL_HOST_RESULT.",
+          "target": "packages/pel/test/host-contract.test.ts"
+        },
+        {
+          "id": "T-M1-013",
+          "requirements": [
+            "R-M1-013"
+          ],
+          "level": "contract",
+          "fixture": "(case [:tier \"premium\"] [\"is premium\" 1 #t 0]) with nlConditionProfile={profileId:\"gpt-5.6-sol\",transportId:\"openai-responses\",controls:fixtureControls,credentialProfileRef:\"account:test\",outputSchemaId:\"schema:pel-boolean-v1\"}. The selection and its digest are supplied through PelRunOptionsV1, with a null-selection counterfixture.",
+          "action": "startPel with explicit options and resumePel with matching options and Boolean or invalid receipts.",
+          "expected": "The request carries declared selection and selectionDigest fields plus scrutinee and literal condition. Boolean receipts return 1 or 0. Null selection returns PEL_REGISTRY before release. A string receipt returns PEL_HOST_RESULT.",
+          "target": "packages/pel/test/host-contract.test.ts"
+        },
+        {
+          "id": "T-M1-014",
+          "requirements": [
+            "R-M1-014"
+          ],
+          "level": "contract",
+          "fixture": "A partially complete do/async with a captured closure, one completed receipt, pending requests, changed digest, and duplicate receipt. Change dependencyMode, predicate selection, or replay options independently.",
+          "action": "Encode/decode PelContinuationV1, resumePel with the supplied program and registry, then try changed source, changed registry, and duplicate receipts.",
+          "expected": "Matching restoration returns the same value without repeated calls. Changed source or registry returns PEL_CONTINUATION_MISMATCH. Duplicate and unknown receipts return PEL_HOST_RESULT. Every changed optionsDigest returns PEL_CONTINUATION_MISMATCH.",
+          "target": "packages/pel/test/host-contract.test.ts"
+        },
+        {
+          "id": "T-M1-015",
+          "requirements": [
+            "R-M1-015"
+          ],
+          "level": "contract",
+          "fixture": "do/async with A failing while B remains pending, and a retry child returning a registered provider failure.",
+          "action": "resumePel with A failure, inspect failed continuation, then merge the final child failure.",
+          "expected": "PelStep.failed contains PEL_HOST_FAILURE and identical hostFailure code/message/cause. B remains pending for host reconciliation. No new request is emitted. Merged child failure preserves counters.",
+          "target": "packages/pel/test/host-contract.test.ts"
+        },
+        {
+          "id": "T-M1-016",
+          "requirements": [
+            "R-M1-016"
+          ],
+          "level": "contract",
+          "fixture": "The same closure evaluated under parent p at retry attempts 1 and 2, race contenders 1 and 2, and an abandoned losing child. A recursively captured closure whose canonical node table contains a cycle.",
+          "action": "extractClosureEnvironment, evaluateClosure per context, then merge counters and try an attempt-1 receipt in attempt 2. Encode/decode HostArgumentsEncodingV1 and hash the whole digest-free environment node/reference table.",
+          "expected": "Nested request IDs differ across attempts and contenders. A foreign receipt returns PEL_HOST_RESULT. Winning, failed, and abandoned child counters are charged once. Closure return data is rejected at the host-library boundary. Recursive closure argument bytes and digest remain stable without recursive environment hashing.",
+          "target": "packages/pel/test/host-contract.test.ts"
+        },
+        {
+          "id": "T-M1-017",
+          "requirements": [
+            "R-M1-017"
+          ],
+          "level": "contract",
+          "fixture": "Duplicate host names, unknown schema references, a maxItems=4 list schema, an association with duplicate keys, and changed descriptor content. Change only the resolverCatalog.",
+          "action": "createHostRegistry(descriptors,dataSchemas,failureSchemas,resolverCatalog), then decode fixture receipts.",
+          "expected": "Invalid registries return PEL_REGISTRY. The bounded schema permits four values and rejects five. Association duplicates fail PEL_HOST_RESULT. Descriptor changes change the registry digest. Resolver changes alter registryDigest.",
+          "target": "packages/pel/test/host-contract.test.ts"
+        },
+        {
+          "id": "T-M1-018",
+          "requirements": [
+            "R-M1-018"
+          ],
+          "level": "property",
+          "fixture": "Nil, pair :a 1, list [':a 1], negative zero, Unicode string, nested data, and a closure.",
+          "action": "Encode, canonicalize, SHA-256 hash, decode, and formatPel each fixture.",
+          "expected": "Round-trips preserve data. Equal values have identical digests. Pair and list hashes differ. Negative zero encodes as zero. Closure formatting is explicitly non-executable.",
+          "target": "packages/pel/test/values.test.ts"
+        },
+        {
+          "id": "T-M1-019",
+          "requirements": [
+            "R-M1-019"
+          ],
+          "level": "contract",
+          "fixture": "The corrected PDF-backed profile matrix with extension rows separate from pure paper baseline rows, positive/negative fixtures through PV2-056, and a deliberately wrong locator/classification.",
+          "action": "Run packages/pel/test/profile.test.ts through scripts/run-tests.ts.",
+          "expected": "Complete fixtures and exact matrix metadata pass. Missing cases, wrong stored metadata, or unclassified rows fail. PixelRAG page-image spot checks establish p12 nil/pairs, p14 argument modes, p17 if/case, and p11 keyword rules. Print routing is an extension.",
+          "target": "packages/pel/test/profile.test.ts"
+        },
+        {
+          "id": "T-M1-020",
+          "requirements": [
+            "R-M1-020"
+          ],
+          "level": "contract",
+          "fixture": "Two completed host calls, recorded prefix reductions 10, latest durable failed-step reductions 14, and a revised pure suffix consuming 3 reductions. Counterfixtures change a completed argument or lower committedCounters.",
+          "action": "validateRevisionPrefix, startPel with completed-prefix replay options containing recordedCounters and committedCounters, then supply mapped receipts.",
+          "expected": "Both host results reuse receipts without dispatch. Replay consumes separate bounded fuel. New ordinary reductions total 17, including failed suffix work. Changed completed arguments or reduced committed counters fail before dispatch; original limits remain enforced.",
+          "target": "packages/pel/test/host-contract.test.ts"
+        },
+        {
+          "id": "T-M1-021",
+          "requirements": [
+            "R-M1-010"
+          ],
+          "level": "unit",
+          "fixture": "Parser-valid bare caret, :a^b, lone minus, Infinity, :a>, and every stable diagnostic enum member.",
+          "action": "parsePel first, then startPel with default explicit options for parse-valid programs and enumerate diagnostic rendering.",
+          "expected": "Parsing accepts standalone caret syntax and symbol tokens. Evaluation raises PEL_CARET_SCOPE for demanded unbound carets, returns a subtraction closure for minus, and raises PEL_UNBOUND_SYMBOL for Infinity. :a> remains a keyword. Stable diagnostics include PEL_HOST_FAILURE and PEL_REGISTRY.",
+          "target": "packages/pel/test/limits.test.ts"
+        }
+      ],
+      "source": "openspec/changes/foredi-01-pel-language/catalog.json",
+      "spec": "openspec/changes/foredi-01-pel-language/specs/foredi-01-pel-language/spec.md"
+    },
+    {
+      "milestone": "M2",
+      "change": "foredi-02-plan-authoring",
+      "title": "Return of the ForeDi: Pel plan authoring",
+      "depends_on": [
+        "M1"
+      ],
+      "features": [
+        {
+          "id": "F-M2-01",
+          "title": "Source checking",
+          "description": "Check Pel source and surface errors before execution.",
+          "requirements": [
+            "R-M2-001",
+            "R-M2-002"
+          ]
+        },
+        {
+          "id": "F-M2-02",
+          "title": "Pure effect previews",
+          "description": "Explain source behavior without dispatching host effects.",
+          "requirements": [
+            "R-M2-003",
+            "R-M2-004"
+          ]
+        },
+        {
+          "id": "F-M2-03",
+          "title": "Capability and dynamic-region analysis",
+          "description": "Constrain unresolved effects with finite checked envelopes.",
+          "requirements": [
+            "R-M2-005",
+            "R-M2-006"
+          ]
+        },
+        {
+          "id": "F-M2-04",
+          "title": "Exact preview binding",
+          "description": "Bind derived previews to exact source and environment digests.",
+          "requirements": [
+            "R-M2-007",
+            "R-M2-014"
+          ]
+        },
+        {
+          "id": "F-M2-05",
+          "title": "Bounded natural-language generation",
+          "description": "Generate locally checked Pel through an explicit capped repair loop.",
+          "requirements": [
+            "R-M2-008",
+            "R-M2-009",
+            "R-M2-010",
+            "R-M2-015"
+          ]
+        },
+        {
+          "id": "F-M2-06",
+          "title": "Operator diagnostics and draft editing",
+          "description": "Provide useful examples, precise diagnostics, and bounded draft revision tools.",
+          "requirements": [
+            "R-M2-011",
+            "R-M2-012",
+            "R-M2-013"
+          ]
+        }
+      ],
+      "requirements": [
+        {
+          "id": "R-M2-001",
+          "feature": "F-M2-01",
+          "pattern": "event",
+          "text": "When an operator checks a Pel file, the Foreman authoring service SHALL report source validity against the selected immutable authoring snapshot.",
+          "tests": [
+            "T-M2-001",
+            "T-M2-016"
+          ]
+        },
+        {
+          "id": "R-M2-002",
+          "feature": "F-M2-01",
+          "pattern": "unwanted",
+          "text": "If a selected authoring input is unavailable or invalid, then the Foreman authoring service SHALL return an input diagnostic without probing external services.",
+          "tests": [
+            "T-M2-002"
+          ]
+        },
+        {
+          "id": "R-M2-003",
+          "feature": "F-M2-02",
+          "pattern": "event",
+          "text": "When a Pel file is previewed, the Foreman authoring service SHALL derive host-effect descriptions without executing those effects.",
+          "tests": [
+            "T-M2-003"
+          ]
+        },
+        {
+          "id": "R-M2-004",
+          "feature": "F-M2-02",
+          "pattern": "event",
+          "text": "When preview values remain unresolved, the Foreman authoring service SHALL preserve native control-flow alternatives and explain their dependencies.",
+          "tests": [
+            "T-M2-004"
+          ]
+        },
+        {
+          "id": "R-M2-005",
+          "feature": "F-M2-03",
+          "pattern": "unwanted",
+          "text": "If a reachable effect violates the authoring snapshot, then the Foreman authoring service SHALL reject it with the source location and violated constraint.",
+          "tests": [
+            "T-M2-005"
+          ]
+        },
+        {
+          "id": "R-M2-006",
+          "feature": "F-M2-03",
+          "pattern": "event",
+          "text": "When future effects depend on unresolved values, the Foreman authoring service SHALL require finite capability, resource, model, and resource-consumption envelopes.",
+          "tests": [
+            "T-M2-006"
+          ]
+        },
+        {
+          "id": "R-M2-007",
+          "feature": "F-M2-04",
+          "pattern": "event",
+          "text": "When any source or environment binding changes, the Foreman authoring service SHALL require a newly checked preview.",
+          "tests": [
+            "T-M2-007"
+          ]
+        },
+        {
+          "id": "R-M2-008",
+          "feature": "F-M2-05",
+          "pattern": "event",
+          "text": "When an operator requests natural-language generation, the Foreman authoring service SHALL produce locally checked Pel through the selected exact model and transport.",
+          "tests": [
+            "T-M2-008"
+          ]
+        },
+        {
+          "id": "R-M2-009",
+          "feature": "F-M2-05",
+          "pattern": "unwanted",
+          "text": "If three generated candidates fail local validation, then the Foreman authoring service SHALL stop with all attempt diagnostics and no accepted plan.",
+          "tests": [
+            "T-M2-009"
+          ]
+        },
+        {
+          "id": "R-M2-010",
+          "feature": "F-M2-05",
+          "pattern": "unwanted",
+          "text": "If generation exceeds its limits or encounters a fatal provider failure, then the Foreman authoring service SHALL stop without further repair calls.",
+          "tests": [
+            "T-M2-010"
+          ]
+        },
+        {
+          "id": "R-M2-011",
+          "feature": "F-M2-06",
+          "pattern": "event",
+          "text": "When an operator receives a diagnostic, the Foreman authoring service SHALL show the source range, cause, and applicable registered usage.",
+          "tests": [
+            "T-M2-011"
+          ]
+        },
+        {
+          "id": "R-M2-012",
+          "feature": "F-M2-06",
+          "pattern": "event",
+          "text": "When an operator edits an interactive draft, the Foreman authoring service SHALL preserve bounded revision history and recheck each source revision.",
+          "tests": [
+            "T-M2-012"
+          ]
+        },
+        {
+          "id": "R-M2-013",
+          "feature": "F-M2-06",
+          "pattern": "event",
+          "text": "When built authoring examples are checked and previewed, the Foreman authoring service SHALL produce their documented native Pel outcomes.",
+          "tests": [
+            "T-M2-013"
+          ]
+        },
+        {
+          "id": "R-M2-014",
+          "feature": "F-M2-04",
+          "pattern": "event",
+          "text": "When an authoring snapshot is loaded, the Foreman authoring service SHALL validate its full content and exact model selections against their canonical digests.",
+          "tests": [
+            "T-M2-014"
+          ]
+        },
+        {
+          "id": "R-M2-015",
+          "feature": "F-M2-05",
+          "pattern": "event",
+          "text": "When a generation attempt is admitted, the Foreman authoring service SHALL supply a complete provider request context within its separate generation budget.",
+          "tests": [
+            "T-M2-015"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "T-M2-001",
+          "requirements": [
+            "R-M2-001"
+          ],
+          "level": "acceptance",
+          "fixture": "Valid arithmetic source, unmatched delimiter, unknown symbol, mixed argument call, and quoted unknown symbol. Branch-introduced definitions use the T-M2-016 definite-binding matrix.",
+          "action": "foreman check <fixture.pel> --context fixtures/authoring-snapshot.json --json.",
+          "expected": "Valid and quoted-data fixtures exit 0. Invalid fixtures exit 2 with the expected PEL_PARSE, PEL_UNBOUND_SYMBOL, or PEL_ARGUMENT_MODE span.",
+          "target": "packages/orchestration/src/pel-authoring-cli.test.ts"
+        },
+        {
+          "id": "T-M2-002",
+          "requirements": [
+            "R-M2-002"
+          ],
+          "level": "acceptance",
+          "fixture": "Missing source, oversized snapshot, mismatched registry content/digest, missing default snapshot, and unsupported profile with provider/network/process/write spies.",
+          "action": "foreman check <fixture.pel> --context <snapshot.json> --json.",
+          "expected": "Input failures exit 2 and name the failing input. Full snapshot digest mismatch is rejected. All external probe, provider, process, write, and reservation counts remain zero.",
+          "target": "packages/orchestration/src/pel-authoring-cli.test.ts"
+        },
+        {
+          "id": "T-M2-003",
+          "requirements": [
+            "R-M2-003"
+          ],
+          "level": "acceptance",
+          "fixture": "Canonical implement-verify-review.pel with role bindings to grok-4.6/grok-acp and gpt-5.6-sol/codex-app-server, plus an exact-profile call with two transports and no selector. Registry declarations come only from M2 pel-host-descriptors.ts without M4/M5 implementation imports.",
+          "action": "foreman plan examples/pel/implement-verify-review.pel --context fixtures/authoring-snapshot.json --json.",
+          "expected": "The preview shows three ordered effects, concrete transport IDs, resolved controls, capabilities, and gates. Ambiguous transport selection fails PEL_PROFILE_UNSUPPORTED. All external effect counts remain zero.",
+          "target": "packages/orchestration/src/pel-authoring-cli.test.ts"
+        },
+        {
+          "id": "T-M2-004",
+          "requirements": [
+            "R-M2-004"
+          ],
+          "level": "unit",
+          "fixture": "Unknown Boolean verification association with required :passed, list schema maxItems=4, overlapping writes, and a literal case string with admitted gpt-5.6-sol/openai-responses nlConditionProfile.",
+          "action": "checkPel then planPel using schema-constrained host descriptors.",
+          "expected": "Both conditional branches remain visible. The loop bound is four. Overlapping writes have a serialization edge. The predicate effect shows exact gpt-5.6-sol/openai-responses controls. Missing predicate selection fails PEL_PROFILE_UNSUPPORTED.",
+          "target": "packages/pel/test/preview.test.ts"
+        },
+        {
+          "id": "T-M2-005",
+          "requirements": [
+            "R-M2-005"
+          ],
+          "level": "unit",
+          "fixture": "Calls to known descriptors with denied capability, unsupported effect kind, unavailable exact model/transport pair, and invalid output schema.",
+          "action": "checkPel each hostile fixture.",
+          "expected": "PEL_CAPABILITY_DENIED, PEL_UNSUPPORTED_EFFECT, PEL_PROFILE_UNSUPPORTED, or PEL_SCHEMA identifies the offending call. No alternate model is substituted.",
+          "target": "packages/pel/test/analysis.test.ts"
+        },
+        {
+          "id": "T-M2-006",
+          "requirements": [
+            "R-M2-006"
+          ],
+          "level": "unit",
+          "fixture": "Unknown path constrained to workspace A, list schema maxItems=4, unknown callable with two registered alternatives, and variants missing these content bounds.",
+          "action": "checkPel then planPel each dynamic fixture.",
+          "expected": "Bounded fixtures derive their envelopes from actual snapshot schemas and policy. The loop bound is four. Missing bounds or arbitrary unknown callables fail PEL_DYNAMIC_EFFECT_UNBOUNDED.",
+          "target": "packages/pel/test/analysis.test.ts"
+        },
+        {
+          "id": "T-M2-007",
+          "requirements": [
+            "R-M2-007"
+          ],
+          "level": "contract",
+          "fixture": "One checked preview followed by independent changes to whitespace, language, registry, provider controls, role bindings, nlConditionProfile, policy, and artifact digest. Change dependencyMode or effective project selection.",
+          "action": "Compute PlanBindingV1 and validate each mutated exported preview against the current snapshot.",
+          "expected": "Every content change invalidates snapshot or source binding. Equivalent ASTs with different source bytes have different source digests. Edited capability or profile JSON is rejected. The optionsDigest and effective snapshotDigest change together.",
+          "target": "packages/pel/test/binding.test.ts"
+        },
+        {
+          "id": "T-M2-008",
+          "requirements": [
+            "R-M2-008"
+          ],
+          "level": "integration",
+          "fixture": "Fixture generation for gpt-6-astra/openai-responses with controls from snapshot, grammar mode auto without qualified grammar, returning {pelSource:\"(+ 1 2)\"}.",
+          "action": "Run plan --prompt with selected credential profile in default and --json modes, and counterfixtures with unknown control keys or unsupported effort.",
+          "expected": "Successful default and JSON modes exit 0. Default stdout is exact Pel source. JSON stdout has preview.finalValueSummary.kind=\"known\" and preview.finalValueSummary.value={tag:\"number\",value:3}. One complete envelope request occurs. Invalid controls fail locally. No execution ledger or generated operation runs.",
+          "target": "packages/orchestration/src/pel-generation.test.ts"
+        },
+        {
+          "id": "T-M2-009",
+          "requirements": [
+            "R-M2-009"
+          ],
+          "level": "integration",
+          "fixture": "Fixture provider returns malformed Pel on attempt 0, a forbidden capability on attempt 1, and an unbounded dynamic call on attempt 2.",
+          "action": "Run generatePelPlan with maxRepairs=2 and a finite generation budget.",
+          "expected": "Exactly three generation calls have attempt IDs 0, 1, and 2. PEL_GENERATION_EXHAUSTED carries all diagnostics and cumulative usage. CLI exits 1 and dispatch count is zero.",
+          "target": "packages/orchestration/src/pel-generation.test.ts"
+        },
+        {
+          "id": "T-M2-010",
+          "requirements": [
+            "R-M2-010"
+          ],
+          "level": "integration",
+          "fixture": "Fake-clock deadlines, generation budget exhaustion, cancellation, refusal, and one fixture for every canonical ProviderFailure tag. Every tag uses the shared _tag,message,retryClass record and optional requestId,usage,fieldPath,providerIdentity,retryAfterMs fields.",
+          "action": "Run generatePelPlan under an Effect scope and advance the fixture clock to each boundary.",
+          "expected": "The Effect scope closes with no later request. Exhaustive tag handling preserves typed causes and usage. Fatal failures exit 1, cancellation exits 4, and local invalid selections exit 2.",
+          "target": "packages/orchestration/src/pel-generation.test.ts"
+        },
+        {
+          "id": "T-M2-011",
+          "requirements": [
+            "R-M2-011"
+          ],
+          "level": "acceptance",
+          "fixture": "Mixed positional/named fm/task call, unsupported model, unresolved branch, and unknown symbol near a registered function name.",
+          "action": "Render human and JSON check/plan output for each fixture.",
+          "expected": "Human output includes filename, line, column, caret range, cause, and useful signature. JSON preserves structured fields and unresolved reasons without invented success.",
+          "target": "packages/orchestration/src/pel-authoring-cli.test.ts"
+        },
+        {
+          "id": "T-M2-012",
+          "requirements": [
+            "R-M2-012"
+          ],
+          "level": "integration",
+          "fixture": "A draft session uses replace-expression, replace-suffix, replace-program, history, undo, completion, export, abort, and a run-bound continuation input.",
+          "action": "Drive pel-draft-session through fixture readline input, including 101 small revisions and a large revision sequence.",
+          "expected": "Each replacement creates a new digest, undo restores exact bytes, history stays within 100 revisions and 16 MiB, export writes source, and run-bound input returns PEL_DRAFT_EXECUTED.",
+          "target": "packages/orchestration/src/pel-draft-session.test.ts"
+        },
+        {
+          "id": "T-M2-013",
+          "requirements": [
+            "R-M2-013"
+          ],
+          "level": "acceptance",
+          "fixture": "M2-built checkout foreman.js and generated snapshot assets, implement-verify-review.pel, conditional.pel, parallel-read.pel, repair.pel, and separate repair-invalid.pel. No installer or M4/M5/M6 implementation is present.",
+          "action": "Build M1/M2 and run node skills/foreman/runtime/dist/foreman.js check and plan for each checkout example.",
+          "expected": "Valid examples exit 0 using the M2 declaration module. The negative repair fixture exits 2 with PEL_ARGUMENT_MODE. No provider or host handler executes, and installation is not required.",
+          "target": "packages/orchestration/src/pel-authoring-cli.test.ts"
+        },
+        {
+          "id": "T-M2-014",
+          "requirements": [
+            "R-M2-014"
+          ],
+          "level": "contract",
+          "fixture": "Installed default snapshot with complete registry/schema/provider/policy content, roleBindings, nlConditionProfile, and one altered content field without a changed digest. The effective selection overrides base role/predicate defaults within admitted bounds, and a mismatch counterfixture uses a different effective digest.",
+          "action": "buildEffectiveAuthoringSnapshotV1, regenerate default snapshot from pel-host-descriptors.ts, and check role and predicate examples.",
+          "expected": "Valid snapshot resolves exact profile, transport, controls, account reference, and finite schemas. Altered content fails with exit 2 before any provider or execution action. Generated snapshot bytes match the packaged asset. Configured check and run use one effective digest, while mismatched selections fail exit 2 before dispatch. Narrowed limits are identical in check, plan, and run, and attempted widening is rejected.",
+          "target": "packages/orchestration/src/pel-authoring-cli.test.ts"
+        },
+        {
+          "id": "T-M2-015",
+          "requirements": [
+            "R-M2-015"
+          ],
+          "level": "contract",
+          "fixture": "Prompt digest, snapshot digest, session nonce, attempt 1, account:test, no-tools policy, artifact references, and a GenerationBudgetPort reservation.",
+          "action": "Construct GenerationRequest and lower through the fixture ProviderGenerationPort.",
+          "expected": "Effect ID ends /attempt/1. Exact controls, credential reference, pinned template, artifacts, token/deadline limits, and generation reservation are present. Execution ledger call count is zero.",
+          "target": "packages/orchestration/src/pel-generation.test.ts"
+        },
+        {
+          "id": "T-M2-016",
+          "requirements": [
+            "R-M2-001"
+          ],
+          "level": "unit",
+          "fixture": "Unknown Boolean c with (if c (def x 1) (def x 2)) x, (if c (def x 1) 7) x, and known #t with (if #t (def x 1) 7) x.",
+          "action": "checkPel each branch-definition fixture and render its command result.",
+          "expected": "Both-branch definitions pass with exit 0 and a numeric summary. A one-branch definition followed by use returns PEL_CONDITIONAL_BINDING and exit 2 with branch spans. A provably selected definition passes with known value 1.",
+          "target": "packages/pel/test/analysis.test.ts"
+        }
+      ],
+      "source": "openspec/changes/foredi-02-plan-authoring/catalog.json",
+      "spec": "openspec/changes/foredi-02-plan-authoring/specs/foredi-02-plan-authoring/spec.md"
+    },
+    {
+      "milestone": "M3",
+      "change": "foredi-03-model-adapters",
+      "title": "Exact model profiles and shared provider adapters",
+      "depends_on": [
+        "M1",
+        "M2"
+      ],
+      "features": [
+        {
+          "id": "F-M3-01",
+          "title": "Exact model profiles",
+          "description": "Resolve six exact profiles across four provider families without silent substitution.",
+          "requirements": [
+            "R-M3-001",
+            "R-M3-002",
+            "R-M3-003",
+            "R-M3-021",
+            "R-M3-025"
+          ]
+        },
+        {
+          "id": "F-M3-02",
+          "title": "API and native coding transports",
+          "description": "Encode direct inference and native coding requests through explicit transport capabilities.",
+          "requirements": [
+            "R-M3-004",
+            "R-M3-005",
+            "R-M3-006",
+            "R-M3-019",
+            "R-M3-024",
+            "R-M3-027"
+          ]
+        },
+        {
+          "id": "F-M3-03",
+          "title": "Semantic events and tool exchange",
+          "description": "Preserve event meaning and validate tool and final results before host use.",
+          "requirements": [
+            "R-M3-007",
+            "R-M3-008",
+            "R-M3-009",
+            "R-M3-020",
+            "R-M3-028"
+          ]
+        },
+        {
+          "id": "F-M3-04",
+          "title": "Continuation and lifecycle",
+          "description": "Preserve opaque provider state and report cancellation and resume outcomes truthfully.",
+          "requirements": [
+            "R-M3-010",
+            "R-M3-011",
+            "R-M3-012",
+            "R-M3-022"
+          ]
+        },
+        {
+          "id": "F-M3-05",
+          "title": "Readiness and authentication diagnostics",
+          "description": "Distinguish authentication, discovery, model identity and capability evidence.",
+          "requirements": [
+            "R-M3-013",
+            "R-M3-014",
+            "R-M3-015",
+            "R-M3-023"
+          ]
+        },
+        {
+          "id": "F-M3-06",
+          "title": "Contract fixtures and live qualification",
+          "description": "Qualify exact model and transport combinations with reproducible bounded tests.",
+          "requirements": [
+            "R-M3-016",
+            "R-M3-017",
+            "R-M3-018",
+            "R-M3-026"
+          ]
+        }
+      ],
+      "requirements": [
+        {
+          "id": "R-M3-001",
+          "feature": "F-M3-01",
+          "pattern": "ubiquitous",
+          "text": "The Foreman provider registry SHALL define the six exact model profiles and four provider families listed in the design.",
+          "tests": [
+            "T-M3-001"
+          ]
+        },
+        {
+          "id": "R-M3-002",
+          "feature": "F-M3-01",
+          "pattern": "unwanted",
+          "text": "If requested reasoning controls violate a model profile, then the Foreman provider adapter SHALL return UnsupportedCapability before transport dispatch.",
+          "tests": [
+            "T-M3-002"
+          ]
+        },
+        {
+          "id": "R-M3-003",
+          "feature": "F-M3-01",
+          "pattern": "event",
+          "text": "When a provider request resolves, the Foreman provider registry SHALL bind its profile hash, transport version, source manifest hash and capability evidence.",
+          "tests": [
+            "T-M3-003"
+          ]
+        },
+        {
+          "id": "R-M3-004",
+          "feature": "F-M3-02",
+          "pattern": "ubiquitous",
+          "text": "The Foreman provider adapter SHALL keep API request identities separate from native coding session identities.",
+          "tests": [
+            "T-M3-004"
+          ]
+        },
+        {
+          "id": "R-M3-005",
+          "feature": "F-M3-02",
+          "pattern": "event",
+          "text": "When a native transport receives a prompt, the Foreman provider adapter SHALL deliver its exact bytes through a declared prompt channel.",
+          "tests": [
+            "T-M3-005"
+          ]
+        },
+        {
+          "id": "R-M3-006",
+          "feature": "F-M3-02",
+          "pattern": "unwanted",
+          "text": "If a transport lacks a requested capability, then the Foreman provider adapter SHALL reject dispatch without changing model, permissions or output behavior.",
+          "tests": [
+            "T-M3-006"
+          ]
+        },
+        {
+          "id": "R-M3-007",
+          "feature": "F-M3-03",
+          "pattern": "event",
+          "text": "When a provider event arrives, the Foreman provider adapter SHALL emit a normalized event with its provider identity and original semantic status.",
+          "tests": [
+            "T-M3-007"
+          ]
+        },
+        {
+          "id": "R-M3-008",
+          "feature": "F-M3-03",
+          "pattern": "event",
+          "text": "When a provider requests a tool, the Foreman provider adapter SHALL preserve its call identifier and submit the bounded host-resolved result payload.",
+          "tests": [
+            "T-M3-008"
+          ]
+        },
+        {
+          "id": "R-M3-009",
+          "feature": "F-M3-03",
+          "pattern": "unwanted",
+          "text": "If final output violates the host schema, then the Foreman provider adapter SHALL return OutputInvalid without producing a completed result.",
+          "tests": [
+            "T-M3-009"
+          ]
+        },
+        {
+          "id": "R-M3-010",
+          "feature": "F-M3-04",
+          "pattern": "event",
+          "text": "When a continuation is emitted or resumed, the Foreman provider adapter SHALL preserve opaque reasoning bytes and their originating model, transport and prefix binding.",
+          "tests": [
+            "T-M3-010"
+          ]
+        },
+        {
+          "id": "R-M3-011",
+          "feature": "F-M3-04",
+          "pattern": "event",
+          "text": "When cancellation is requested, the Foreman provider adapter SHALL report request, acknowledgement, local cleanup and observed remote outcome separately.",
+          "tests": [
+            "T-M3-011"
+          ]
+        },
+        {
+          "id": "R-M3-012",
+          "feature": "F-M3-04",
+          "pattern": "unwanted",
+          "text": "If continuation retention expired or remote outcome is unknown, then the Foreman provider adapter SHALL return ResumeUnavailable or OutcomeUnknown without automatic redispatch.",
+          "tests": [
+            "T-M3-012"
+          ]
+        },
+        {
+          "id": "R-M3-013",
+          "feature": "F-M3-05",
+          "pattern": "event",
+          "text": "When readiness is inspected, the Foreman provider adapter SHALL report discovery, authentication, currency, model identity and capabilities as separate evidence-bearing facts.",
+          "tests": [
+            "T-M3-013"
+          ]
+        },
+        {
+          "id": "R-M3-014",
+          "feature": "F-M3-05",
+          "pattern": "unwanted",
+          "text": "If an authentication probe times out or cannot parse its response, then the Foreman provider adapter SHALL report unknown without a login instruction.",
+          "tests": [
+            "T-M3-014"
+          ]
+        },
+        {
+          "id": "R-M3-015",
+          "feature": "F-M3-05",
+          "pattern": "event",
+          "text": "When observed model identity differs from the requested profile, the Foreman provider adapter SHALL return ModelMismatch and retain both identities.",
+          "tests": [
+            "T-M3-015"
+          ]
+        },
+        {
+          "id": "R-M3-016",
+          "feature": "F-M3-06",
+          "pattern": "ubiquitous",
+          "text": "The Foreman provider contract suite SHALL exercise each advertised model and transport combination with provider-specific positive and negative fixtures.",
+          "tests": [
+            "T-M3-016"
+          ]
+        },
+        {
+          "id": "R-M3-017",
+          "feature": "F-M3-06",
+          "pattern": "event",
+          "text": "When an authorized live qualification runs, the Foreman provider adapter SHALL enforce its explicit account, model, transport, time and spend bounds.",
+          "tests": [
+            "T-M3-017"
+          ]
+        },
+        {
+          "id": "R-M3-018",
+          "feature": "F-M3-06",
+          "pattern": "event",
+          "text": "When provider support is displayed, the Foreman provider registry SHALL distinguish documented capabilities from fixture-tested and live-qualified capabilities.",
+          "tests": [
+            "T-M3-018"
+          ]
+        },
+        {
+          "id": "R-M3-019",
+          "feature": "F-M3-02",
+          "pattern": "event",
+          "text": "When Pel generation is requested, the Foreman provider adapter SHALL perform one exact-profile generation attempt using the selected grammar capability or structured envelope.",
+          "tests": [
+            "T-M3-019"
+          ]
+        },
+        {
+          "id": "R-M3-020",
+          "feature": "F-M3-03",
+          "pattern": "event",
+          "text": "When usage or a request limit is observed, the Foreman provider adapter SHALL preserve accounting dimensions and enforce the stricter admitted limit.",
+          "tests": [
+            "T-M3-020"
+          ]
+        },
+        {
+          "id": "R-M3-021",
+          "feature": "F-M3-01",
+          "pattern": "event",
+          "text": "When provider controls resolve, the Foreman provider adapter SHALL validate closed typed controls and preserve the exact admitted defaults or explicit values.",
+          "tests": [
+            "T-M3-021"
+          ]
+        },
+        {
+          "id": "R-M3-022",
+          "feature": "F-M3-04",
+          "pattern": "event",
+          "text": "When remote work is observed, the Foreman provider adapter SHALL return a typed observation for the existing identity without redispatch.",
+          "tests": [
+            "T-M3-022"
+          ]
+        },
+        {
+          "id": "R-M3-023",
+          "feature": "F-M3-05",
+          "pattern": "event",
+          "text": "When a product request is admitted, the Foreman provider registry SHALL require current live evidence for every required capability.",
+          "tests": [
+            "T-M3-023"
+          ]
+        },
+        {
+          "id": "R-M3-024",
+          "feature": "F-M3-02",
+          "pattern": "event",
+          "text": "When a task transport resolves, the Foreman provider registry SHALL select one admitted transport and require native coding capability for file-writing tasks.",
+          "tests": [
+            "T-M3-024"
+          ]
+        },
+        {
+          "id": "R-M3-025",
+          "feature": "F-M3-01",
+          "pattern": "ubiquitous",
+          "text": "The Foreman provider contract SHALL expose one exhaustive failure union with a fixed retry classification for every tag.",
+          "tests": [
+            "T-M3-025"
+          ]
+        },
+        {
+          "id": "R-M3-026",
+          "feature": "F-M3-06",
+          "pattern": "event",
+          "text": "When a provider subcommand terminates, the Foreman CLI SHALL return the exit code assigned to its command outcome in the shared command table.",
+          "tests": [
+            "T-M3-026"
+          ]
+        },
+        {
+          "id": "R-M3-027",
+          "feature": "F-M3-02",
+          "pattern": "ubiquitous",
+          "text": "The Foreman provider package SHALL resolve opaque credential references through an injected port without importing orchestration.",
+          "tests": [
+            "T-M3-027"
+          ]
+        },
+        {
+          "id": "R-M3-028",
+          "feature": "F-M3-03",
+          "pattern": "event",
+          "text": "When provider JSON is decoded, the Foreman provider adapter SHALL construct schema-ordered Pel values before validating the original output schema.",
+          "tests": [
+            "T-M3-028"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "T-M3-001",
+          "requirements": [
+            "R-M3-001"
+          ],
+          "level": "unit",
+          "fixture": "Six-profile registry fixture and an unrecognized model alias.",
+          "action": "resolveProfile for every declared ID and the alias.",
+          "expected": "Exactly six profiles map to xai, anthropic, openai or google. The alias returns ModelUnavailable without dispatch.",
+          "target": "packages/providers/src/profiles.test.ts"
+        },
+        {
+          "id": "T-M3-002",
+          "requirements": [
+            "R-M3-002"
+          ],
+          "level": "unit",
+          "fixture": "Each declared effort outside the profile allowed set: Grok none/max, Opus none, Fable none, Astra none, Gemini none/xhigh/max. Sol accepts all declared efforts. Gemini minimal is an invalid enum decode case. Add prior thinking/sampling/tool-choice restrictions and nested unknown keys.",
+          "action": "validateRequest for each invalid request and valid adjacent controls.",
+          "expected": "Each rejected field returns UnsupportedCapability with exact fieldPath and zero dispatch. Minimal/unknown fields report decode stage in the safe message; valid-enum profile rejections report profile-validation. Defaults and explicit valid controls stay unchanged.",
+          "target": "packages/providers/src/profiles.test.ts"
+        },
+        {
+          "id": "T-M3-003",
+          "requirements": [
+            "R-M3-003"
+          ],
+          "level": "unit",
+          "fixture": "A sourced profile with supported, unsupported, unknown and verified capability fields.",
+          "action": "resolveRequest for an explicit model and transport.",
+          "expected": "Resolved request retains all evidence identities and unknown fields. Unverified required capabilities return CapabilityUnverified.",
+          "target": "packages/providers/src/registry.test.ts"
+        },
+        {
+          "id": "T-M3-004",
+          "requirements": [
+            "R-M3-004"
+          ],
+          "level": "contract",
+          "fixture": "All four API and four native transport fixtures, including an equal textual response ID and session ID.",
+          "action": "encodeRequest and decodeIdentity for each fixture.",
+          "expected": "Discriminated identities retain provider, exact model, transport and API revision or CLI version. Equal strings do not compare as equal identities.",
+          "target": "packages/providers/src/transport-contract.test.ts"
+        },
+        {
+          "id": "T-M3-005",
+          "requirements": [
+            "R-M3-005"
+          ],
+          "level": "contract",
+          "fixture": "UTF-8 prompt containing newlines, quotes, dollar signs and 128 KiB content. Fixtures declare stdin, file or protocol input.",
+          "action": "start each native fake process or protocol peer and capture delivered bytes.",
+          "expected": "Prompt hashes match for each channel. Stdin bytes reach the launcher. An unsupported channel returns PromptChannelUnsupported before spawn.",
+          "target": "packages/providers/src/native-prompt.test.ts"
+        },
+        {
+          "id": "T-M3-006",
+          "requirements": [
+            "R-M3-006"
+          ],
+          "level": "contract",
+          "fixture": "Native fixture lacks permission round trips or schema output. API fixture lacks grammar support.",
+          "action": "start with each required capability and inspect captured process/API calls.",
+          "expected": "UnsupportedCapability reports the missing field and zero dispatches. No headless, weaker schema or alternate model fallback occurs.",
+          "target": "packages/providers/src/transport-contract.test.ts"
+        },
+        {
+          "id": "T-M3-007",
+          "requirements": [
+            "R-M3-007"
+          ],
+          "level": "contract",
+          "fixture": "Per-transport started, text, tool, usage, checkpoint, completion, refusal, truncation, malformed and duplicate event fixtures.",
+          "action": "decodeEvents with fragmented byte chunks and repeated cursors.",
+          "expected": "Events use the shared vocabulary. Refusal remains refused, truncation becomes failed/OutputIncomplete, and duplicates retain deduplication identity without another tool dispatch.",
+          "target": "packages/providers/src/events.test.ts"
+        },
+        {
+          "id": "T-M3-008",
+          "requirements": [
+            "R-M3-008"
+          ],
+          "level": "contract",
+          "fixture": "Host journal fixtures pel.tool.intent.v1/result.v1 and provider.cursor.v1 keyed by effectId, full identity and callId; two calls, denied/invalid calls and crash after result append.",
+          "action": "Decode tool requests, persist bounded result payload, crash, load recorded cursor and resend ToolResultV1 content through sendToolResult.",
+          "expected": "One committed tool effect occurs. The recorded payload is resent with its exact callId/content hash. Invalid and denied calls perform zero effects. Adapter storage I/O count is zero.",
+          "target": "packages/providers/src/tools.test.ts"
+        },
+        {
+          "id": "T-M3-009",
+          "requirements": [
+            "R-M3-009"
+          ],
+          "level": "contract",
+          "fixture": "OutputSchemaV1 with immutable id and PelDataSchemaV1 content, reversed JSON field order, duplicate/unknown keys, missing required fields, null, numeric bounds and union variants. Include pelSource association and Boolean value envelope.",
+          "action": "lowerProviderSchema for each profile subset, parse duplicate-aware raw JSON, decode in schema field order and validate against original Pel schema.",
+          "expected": "Reversed JSON keys yield identical canonical association order and pass. Duplicate/unknown keys and invalid numbers fail OutputInvalid with fieldPath. Null becomes nil. Generation and Boolean envelopes round-trip. Unsupported required schema structure fails before dispatch.",
+          "target": "packages/providers/src/output.test.ts"
+        },
+        {
+          "id": "T-M3-010",
+          "requirements": [
+            "R-M3-010"
+          ],
+          "level": "contract",
+          "fixture": "OpenAI reasoning items, xAI encrypted thinking, Fable thinking blocks and Gemini Interactions thought steps with exact byte hashes.",
+          "action": "encodeContinuation then resume with matching and changed model, transport and prefix.",
+          "expected": "Matching round trips preserve hashes and tool IDs. Changed bindings return ContinuationMismatch. No opaque reasoning appears in text events or research exports. Opaque checkpoints emit bounded bytes/cursor to M4 and perform zero direct storage I/O.",
+          "target": "packages/providers/src/continuation.test.ts"
+        },
+        {
+          "id": "T-M3-011",
+          "requirements": [
+            "R-M3-011"
+          ],
+          "level": "contract",
+          "fixture": "OpenAI and Gemini asynchronous cancellation, xAI unverified remote cancellation, Claude SIGTERM versus interrupt, and a native process tree.",
+          "action": "cancel under Effect scope with a fake clock, then observe terminal events.",
+          "expected": "Local children exit within the configured cleanup bound. Remote outcome remains pending, unknown or unsupported until observed. No local signal fabricates remote cancelled.",
+          "target": "packages/providers/src/lifecycle.test.ts"
+        },
+        {
+          "id": "T-M3-012",
+          "requirements": [
+            "R-M3-012"
+          ],
+          "level": "contract",
+          "fixture": "Expired API ID, interrupted stream before receipt, Gemini in_progress interaction, and missing native session.",
+          "action": "Observe existing identities, then resume only supported pending streams with their journal cursors.",
+          "expected": "Expired state returns ResumeUnavailable. Completed observation carries validated result and terminal cursor. Not-found and unsupported remain OutcomeUnknown to the host. In-progress Google work is observed before chaining. New dispatch count is zero.",
+          "target": "packages/providers/src/lifecycle.test.ts"
+        },
+        {
+          "id": "T-M3-013",
+          "requirements": [
+            "R-M3-013"
+          ],
+          "level": "contract",
+          "fixture": "Installed old CLI, authenticated account, unavailable exact model and unknown permission capability.",
+          "action": "probe using read-only fake commands and metadata endpoints.",
+          "expected": "Each fact has independent value, evidence kind, observation time and safe diagnostic. No update, login or model workload runs in a metadata-only probe.",
+          "target": "packages/providers/src/readiness.test.ts"
+        },
+        {
+          "id": "T-M3-014",
+          "requirements": [
+            "R-M3-014"
+          ],
+          "level": "contract",
+          "fixture": "Timeout, network failure, changed banner, explicit signed-out response and explicit signed-in response.",
+          "action": "probe and render diagnostic for each fixture.",
+          "expected": "Uncertain responses report unknown. Only explicit signed-out evidence reports not-authenticated and login remediation. Secrets are absent from diagnostics.",
+          "target": "packages/providers/src/readiness.test.ts"
+        },
+        {
+          "id": "T-M3-015",
+          "requirements": [
+            "R-M3-015"
+          ],
+          "level": "contract",
+          "fixture": "A native CLI routes gpt-6-astra to another model, or provides no trustworthy identity metadata.",
+          "action": "qualifyIdentity using protocol metadata rather than generated answer text.",
+          "expected": "Mismatch returns ModelMismatch. Missing metadata remains unknown and unusable for exact-model qualification. No self-reported answer establishes identity.",
+          "target": "packages/providers/src/readiness.test.ts"
+        },
+        {
+          "id": "T-M3-016",
+          "requirements": [
+            "R-M3-016"
+          ],
+          "level": "contract",
+          "fixture": "Six profiles on each family API/native protocol, with codingTask unsupported on APIs and explicit negative fixtures for unsupported cells.",
+          "action": "npm run test:providers after wiring the planned script to scripts/run-tests.ts.",
+          "expected": "Fixture report covers every declared cell, chunk boundaries, limits, tools, refusal, malformed output, continuity and cancellation. Unsupported cells have negative tests. Typechecking and dependency lint assert no providers-to-orchestration or Pel-to-providers import. CLI tests reside in orchestration.",
+          "target": "packages/providers/src/conformance.test.ts"
+        },
+        {
+          "id": "T-M3-017",
+          "requirements": [
+            "R-M3-017"
+          ],
+          "level": "acceptance",
+          "fixture": "M2 fixture manifest template packages/providers/src/fixtures/qualification/fixture-manifest.json copied to temporary storage with assetRoot/assetManifestSha256, fake credential port, protocol peers and qualification bounds. No live account is selected.",
+          "action": "node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> providers qualify --profile <exact-id> --transport <id> --limits qualification.json",
+          "expected": "Report records observed identity, versions, source/profile hashes, requested and observed lifecycle outcomes, usage and failures. Cap exhaustion stops the cell without widening limits. Successful qualification exits 0. Invalid selected account/profile/controls/limits exits 2. A completed failed capability check exits 1. Admitted remote uncertainty exits 3. Confirmed cancellation exits 4. Every credential access uses the injected fake port. Any network or live-account access fails the deterministic test. Real qualification is outside npm test.",
+          "target": "packages/orchestration/src/pel-provider-qualification.test.ts"
+        },
+        {
+          "id": "T-M3-018",
+          "requirements": [
+            "R-M3-018"
+          ],
+          "level": "contract",
+          "fixture": "Documented-only, fixture-only, current live-qualified, expired and changed-version evidence records.",
+          "action": "node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> providers list --json, then admitCell through injected services",
+          "expected": "Only exact current live evidence labels a product capability live-qualified. Documented-only, fixture-only, expired and mismatched evidence fail product admission. Test-layer cells display test-fixture, never live-qualified. Successful listing exits 0 even when it displays unavailable or stale cells. Invalid registry schema exits 2 and registry read/output failure exits 1.",
+          "target": "packages/orchestration/src/pel-provider-list.test.ts"
+        },
+        {
+          "id": "T-M3-019",
+          "requirements": [
+            "R-M3-019"
+          ],
+          "level": "contract",
+          "fixture": "M2 GenerationRequest with generationId, attempt, credentialProfileRef, generationBudgetReservationRef, exact modelProfileId/transportId/controls, grammar selection, pinned prompt template, catalog and bounded artifacts.",
+          "action": "ProviderGenerationPort.generate with supported grammar, envelope-only, invalid envelope and 1 MiB overflow fixtures.",
+          "expected": "One request per call uses effectId generationId/attempt/attempt-index, original reservation, toolPolicy/toolChoice none and validated envelope. No adapter repair/execution occurs. Unsupported grammar fails explicitly. ProviderRequestV1 includes opaque credentialProfileRef and outputSchema {id,content}; no secret bytes or execution-ledger call occurs.",
+          "target": "packages/providers/src/generation.test.ts"
+        },
+        {
+          "id": "T-M3-020",
+          "requirements": [
+            "R-M3-020"
+          ],
+          "level": "contract",
+          "fixture": "Each profile has cache-read/write counters, dated pricing metadata, long-context thresholds and missing cost fields. Requests exhaust tokens, time and tool bounds.",
+          "action": "Normalize usage and run each bounded stream under a fake clock and recording host reservation port.",
+          "expected": "Observed counters and price identity survive normalization. Unknown cost remains unknown with conservative reservation. Limits stop the stream without widening budget or silently retrying.",
+          "target": "packages/providers/src/usage.test.ts"
+        },
+        {
+          "id": "T-M3-021",
+          "requirements": [
+            "R-M3-021"
+          ],
+          "level": "contract",
+          "fixture": "Every profile with omitted controls and explicit overrides, invalid nested keys, and unsupported background/store settings.",
+          "action": "resolveControls then encodeRequest and inspect preview/request bindings.",
+          "expected": "Resolved controls contain all five closed fields. Defaults match design.md. Invalid combinations fail before dispatch and controls cannot silently change.",
+          "target": "packages/providers/src/controls.test.ts"
+        },
+        {
+          "id": "T-M3-022",
+          "requirements": [
+            "R-M3-022"
+          ],
+          "level": "contract",
+          "fixture": "OpenAI background completion, pending Google interaction, cancelled native turn, missing identity and unsupported xAI reconcile fixtures.",
+          "action": "observe(identity), then deliver resulting events to a recording host.",
+          "expected": "Results are pending, completed with validated payload, cancelled, not-found or unsupported. Late cancellation can be observed. No start call occurs.",
+          "target": "packages/providers/src/observation.test.ts"
+        },
+        {
+          "id": "T-M3-023",
+          "requirements": [
+            "R-M3-023"
+          ],
+          "level": "contract",
+          "fixture": "Required identity/tool/schema/cancellation capability set with documented-only, fixture-only, matching live, expired live and test-fixture evidence.",
+          "action": "admitCell under product and TestFixtureProviderLayer bindings.",
+          "expected": "Product admission accepts only matching current live evidence. Explicit test bindings may accept matching fixtures but never emit live-qualified evidence or product authority.",
+          "target": "packages/providers/src/admission.test.ts"
+        },
+        {
+          "id": "T-M3-024",
+          "requirements": [
+            "R-M3-024"
+          ],
+          "level": "contract",
+          "fixture": "Eight canonical transport IDs, one profile with two allowed mappings, an explicit selector, API coding request and native review lacking tool denial.",
+          "action": "resolveTransport and validate ToolPolicyV1 before task/review dispatch.",
+          "expected": "Unselected ambiguous mapping fails. Explicit mapping stays exact. API coding and unenforceable native review fail without fallback. Native coding carries workspace and permission grants.",
+          "target": "packages/providers/src/transport-selection.test.ts"
+        },
+        {
+          "id": "T-M3-025",
+          "requirements": [
+            "R-M3-025"
+          ],
+          "level": "contract",
+          "fixture": "M2 generation and provider retry consumers compile against one ProviderFailure record: required _tag/message/retryClass and optional requestId/usage/fieldPath/providerIdentity/retryAfterMs. Retry arguments include quoted data keys, quoted whole-list syntax and unquoted nil-pair lists.",
+          "action": "Compile shared error-record fixtures, exhaustively classify tags and decode :on [':rate-limited ':transport-disconnected].",
+          "expected": "Only RateLimited and TransportDisconnected are transient. Quoted key values decode correctly; whole-list syntax and nil-pair lists fail before retry-body evaluation. M2 alone creates errors.ts, all consumers use the same optional fields.",
+          "target": "packages/providers/src/errors.test.ts"
+        },
+        {
+          "id": "T-M3-026",
+          "requirements": [
+            "R-M3-026"
+          ],
+          "level": "acceptance",
+          "fixture": "Table-driven provider list and qualification cases from design.md Command outcomes, with recorded services, invalid inputs, failed assertions, remote uncertainty and confirmed cancellation.",
+          "action": "node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> providers <list-or-qualify> with injected recorded services for every outcome",
+          "expected": "List with unavailable rows exits 0. Invalid input exits 2, failed qualification 1, uncertain admitted remote work 3 and confirmed cancellation 4. No final pending 5 or fabricated live evidence appears.",
+          "target": "packages/orchestration/src/pel-provider-cli.test.ts"
+        },
+        {
+          "id": "T-M3-027",
+          "requirements": [
+            "R-M3-027"
+          ],
+          "level": "contract",
+          "fixture": "Fake CredentialPort with scoped redacted material and exact credentialProfileRef on start/resume/observe identities.",
+          "action": "Run credential-port fixtures, source dependency lint and npm run typecheck.",
+          "expected": "All requests use the selected reference without secret serialization. Credential scopes release leases. Providers never imports orchestration and Pel never imports providers.",
+          "target": "packages/providers/src/credentials.test.ts"
+        },
+        {
+          "id": "T-M3-028",
+          "requirements": [
+            "R-M3-028"
+          ],
+          "level": "contract",
+          "fixture": "Immutable schema ID/content pairs, provider subset fixtures and reordered/duplicate/malformed output envelopes.",
+          "action": "lowerProviderSchema then decodeProviderOutput and validateFinal.",
+          "expected": "Canonical schema order is stable across JSON key order. Invalid keys/types/bounds fail with field paths. Unsupported required schema structure performs zero dispatch.",
+          "target": "packages/providers/src/output-codec.test.ts"
+        }
+      ],
+      "source": "openspec/changes/foredi-03-model-adapters/catalog.json",
+      "spec": "openspec/changes/foredi-03-model-adapters/specs/foredi-03-model-adapters/spec.md"
+    },
+    {
+      "milestone": "M4",
+      "change": "foredi-04-durable-execution",
+      "title": "Execute and recover Pel programs",
+      "depends_on": [
+        "M1",
+        "M2",
+        "M3"
+      ],
+      "features": [
+        {
+          "id": "F-M4-01",
+          "title": "Start and inspect a durable run",
+          "description": "Run an admitted Pel program with one Effect owner and truthful status.",
+          "requirements": [
+            "R-M4-001",
+            "R-M4-002",
+            "R-M4-019"
+          ]
+        },
+        {
+          "id": "F-M4-02",
+          "title": "Resume recorded host results",
+          "description": "Persist suspension and effect receipts in the existing journal and recover without duplicate completed work.",
+          "requirements": [
+            "R-M4-003",
+            "R-M4-004",
+            "R-M4-005",
+            "R-M4-017",
+            "R-M4-018",
+            "R-M4-022"
+          ]
+        },
+        {
+          "id": "F-M4-03",
+          "title": "Execute bounded native concurrency",
+          "description": "Use native sequencing and concurrency with host resource conflicts and isolated races.",
+          "requirements": [
+            "R-M4-006",
+            "R-M4-007",
+            "R-M4-008"
+          ]
+        },
+        {
+          "id": "F-M4-04",
+          "title": "Control retries and timeouts",
+          "description": "Apply declared retry categories, persistent budgets, deadlines, and cancellation confirmation.",
+          "requirements": [
+            "R-M4-009",
+            "R-M4-010",
+            "R-M4-011"
+          ]
+        },
+        {
+          "id": "F-M4-05",
+          "title": "Recover unknown outcomes and revisions",
+          "description": "Reconcile external uncertainty and validate checkpoints or source revisions against completed work.",
+          "requirements": [
+            "R-M4-012",
+            "R-M4-013",
+            "R-M4-014"
+          ]
+        },
+        {
+          "id": "F-M4-06",
+          "title": "Explain run outcomes",
+          "description": "Provide stable JSON and text results with evidence, unknown cost, and next actions.",
+          "requirements": [
+            "R-M4-015",
+            "R-M4-016",
+            "R-M4-020",
+            "R-M4-021",
+            "R-M4-023"
+          ]
+        }
+      ],
+      "requirements": [
+        {
+          "id": "R-M4-001",
+          "feature": "F-M4-01",
+          "pattern": "event",
+          "text": "When an admitted run starts, the Foreman runtime SHALL bind one exclusive Effect owner to its checked program and execution contract.",
+          "tests": [
+            "T-M4-001"
+          ]
+        },
+        {
+          "id": "R-M4-002",
+          "feature": "F-M4-01",
+          "pattern": "unwanted",
+          "text": "If a resolved host request exceeds its checked envelope, then the Foreman runtime SHALL reject that request before reservation or dispatch.",
+          "tests": [
+            "T-M4-002"
+          ]
+        },
+        {
+          "id": "R-M4-003",
+          "feature": "F-M4-02",
+          "pattern": "event",
+          "text": "When a host call suspends evaluation, the Foreman runtime SHALL persist its bound intent before dispatch and its validated result before continuation.",
+          "tests": [
+            "T-M4-003"
+          ]
+        },
+        {
+          "id": "R-M4-004",
+          "feature": "F-M4-02",
+          "pattern": "unwanted",
+          "text": "If execution stops between reservation and result persistence, then the Foreman runtime SHALL recover its existing reservation and classify the external outcome.",
+          "tests": [
+            "T-M4-004"
+          ]
+        },
+        {
+          "id": "R-M4-005",
+          "feature": "F-M4-02",
+          "pattern": "unwanted",
+          "text": "If duplicate result receipts conflict, then the Foreman runtime SHALL reject recovery with journal-corrupt and preserve the conflicting evidence.",
+          "tests": [
+            "T-M4-005"
+          ]
+        },
+        {
+          "id": "R-M4-006",
+          "feature": "F-M4-03",
+          "pattern": "event",
+          "text": "When native do or do/async evaluates host expressions, the Foreman runtime SHALL preserve Pel result semantics within admitted concurrency and resource limits.",
+          "tests": [
+            "T-M4-006"
+          ]
+        },
+        {
+          "id": "R-M4-007",
+          "feature": "F-M4-03",
+          "pattern": "state",
+          "text": "While host requests have overlapping write resources, the Foreman runtime SHALL serialize those requests under the same canonical resource identity.",
+          "tests": [
+            "T-M4-007"
+          ]
+        },
+        {
+          "id": "R-M4-008",
+          "feature": "F-M4-03",
+          "pattern": "event",
+          "text": "When fm/race selects a winner, the Foreman runtime SHALL preserve isolated contender artifacts and record one winner with truthful loser cancellation.",
+          "tests": [
+            "T-M4-008"
+          ]
+        },
+        {
+          "id": "R-M4-009",
+          "feature": "F-M4-04",
+          "pattern": "event",
+          "text": "When fm/retry receives a declared transient failure, the Foreman runtime SHALL reserve each retry within the original action, cost, and deadline limits.",
+          "tests": [
+            "T-M4-009"
+          ]
+        },
+        {
+          "id": "R-M4-010",
+          "feature": "F-M4-04",
+          "pattern": "event",
+          "text": "When an effect timeout expires, the Foreman runtime SHALL interrupt local work and record the observed remote cancellation state.",
+          "tests": [
+            "T-M4-010"
+          ]
+        },
+        {
+          "id": "R-M4-011",
+          "feature": "F-M4-04",
+          "pattern": "event",
+          "text": "When an operator requests cancellation, the Foreman runtime SHALL persist an idempotent request and report cancelled only after required cancellation confirmation.",
+          "tests": [
+            "T-M4-011"
+          ]
+        },
+        {
+          "id": "R-M4-012",
+          "feature": "F-M4-05",
+          "pattern": "event",
+          "text": "When fm/checkpoint completes, the Foreman runtime SHALL record a versioned data-only continuation bound to its program, attempt, and consumed limits.",
+          "tests": [
+            "T-M4-012"
+          ]
+        },
+        {
+          "id": "R-M4-013",
+          "feature": "F-M4-05",
+          "pattern": "unwanted",
+          "text": "If an external outcome remains unknown, then the Foreman runtime SHALL require bound reconciliation evidence before continuing or repeating that effect.",
+          "tests": [
+            "T-M4-013"
+          ]
+        },
+        {
+          "id": "R-M4-014",
+          "feature": "F-M4-05",
+          "pattern": "event",
+          "text": "When an operator submits a source revision, the Foreman runtime SHALL preserve the completed prefix, authority, and consumed limits before resuming.",
+          "tests": [
+            "T-M4-014"
+          ]
+        },
+        {
+          "id": "R-M4-015",
+          "feature": "F-M4-06",
+          "pattern": "event",
+          "text": "When an operator requests run status, the Foreman runtime SHALL derive outcome, evidence, usage bounds, and next action from the existing journal.",
+          "tests": [
+            "T-M4-015"
+          ]
+        },
+        {
+          "id": "R-M4-016",
+          "feature": "F-M4-06",
+          "pattern": "unwanted",
+          "text": "If recovery history is corrupt, incompatible, or owned by another active process, then the Foreman runtime SHALL refuse continuation with an actionable diagnostic.",
+          "tests": [
+            "T-M4-016"
+          ]
+        },
+        {
+          "id": "R-M4-017",
+          "feature": "F-M4-02",
+          "pattern": "event",
+          "text": "When a run resumes, the Foreman runtime SHALL reconstruct its checked program from immutable source and snapshot artifacts referenced by its journal.",
+          "tests": [
+            "T-M4-017"
+          ]
+        },
+        {
+          "id": "R-M4-018",
+          "feature": "F-M4-02",
+          "pattern": "event",
+          "text": "When a provider repeats a recorded host-tool request, the Foreman runtime SHALL resend its durable result without repeating the tool effect.",
+          "tests": [
+            "T-M4-018"
+          ]
+        },
+        {
+          "id": "R-M4-019",
+          "feature": "F-M4-01",
+          "pattern": "event",
+          "text": "When host preparation selects an external operation, the Foreman runtime SHALL reserve its declared ledger action exactly once before dispatch.",
+          "tests": [
+            "T-M4-019"
+          ]
+        },
+        {
+          "id": "R-M4-020",
+          "feature": "F-M4-06",
+          "pattern": "event",
+          "text": "When a registered print or natural-language predicate executes, the Foreman runtime SHALL persist its bounded output or Boolean result through the host journal.",
+          "tests": [
+            "T-M4-020"
+          ]
+        },
+        {
+          "id": "R-M4-021",
+          "feature": "F-M4-06",
+          "pattern": "unwanted",
+          "text": "If a production invocation supplies fixture-backed binding data, then the Foreman runtime SHALL reject admission without creating live-qualified evidence.",
+          "tests": [
+            "T-M4-021"
+          ]
+        },
+        {
+          "id": "R-M4-022",
+          "feature": "F-M4-02",
+          "pattern": "event",
+          "text": "When durable Pel payloads exceed journal metadata bounds, the Foreman runtime SHALL persist hash-bound immutable artifacts before appending their journal references.",
+          "tests": [
+            "T-M4-022"
+          ]
+        },
+        {
+          "id": "R-M4-023",
+          "feature": "F-M4-06",
+          "pattern": "event",
+          "text": "When evaluation returns a final value, the Foreman runtime SHALL validate its bound result contract and host milestones before choosing the run outcome.",
+          "tests": [
+            "T-M4-023"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "T-M4-001",
+          "requirements": [
+            "R-M4-001"
+          ],
+          "level": "integration",
+          "fixture": "A configured temporary Git repository has Git-common-dir/foreman/project.json with existing fixture authority, exact role pairs, finite limits, and a deterministic host program. The checkout has no installation prefix. Variants change project role/predicate selections, provide a stale checked effective snapshot, alter one executable descriptor, or supply an unregistered --state-root.",
+          "action": "Invoke node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest fixture-manifest.json run fixture.pel --json without --binding or --state-root. Start a competing owner for its emitted run ID. Repeat with missing and invalid settings.",
+          "expected": "Derived binding matches project, repository, snapshot, authority, paths, limits, gates, roles, and required milestones. One owner dispatches once. Competing owner and missing/invalid settings exit 2 with zero competing dispatch. The attached run emits run-started on stderr before dispatch and one final result on stdout. Check/plan/run derive one effective snapshot from the same base and project selection. Exact roles, predicate and narrowing limits agree. Stale contexts or descriptor digest mismatches exit 2 before dispatch. Configure requires no M6 prefix. Unregistered run/resume root overrides exit 2.",
+          "target": "packages/orchestration/src/pel-runner.test.ts"
+        },
+        {
+          "id": "T-M4-002",
+          "requirements": [
+            "R-M4-002"
+          ],
+          "level": "integration",
+          "fixture": "A checked conditional supplies a path whose resolveResources output escapes its finite admitted workspace, despite a valid static descriptor.",
+          "action": "Resume the evaluator and inspect ledger and provider invocation spies.",
+          "expected": "resource-denied identifies the source span and actual canonical resolver output. No action reservation or provider call occurs. Symlink alias and replaced-parent variants also fail containment.",
+          "target": "packages/orchestration/src/pel-effects.test.ts"
+        },
+        {
+          "id": "T-M4-003",
+          "requirements": [
+            "R-M4-003"
+          ],
+          "level": "integration",
+          "fixture": "A host result is an association list. Automatic pel.suspension.v1 persisted its continuation and counters before dispatch, without an explicit fm/checkpoint. Stop after result append.",
+          "action": "Execute, restart from the same journal, and evaluate the next native pipe expression.",
+          "expected": "Pel records are suspension, combined intent containing preparation digest and existing reservation reference, observation, result. The existing ledger reservation precedes intent but is not a separate Pel record. Read-only reuse has suspension/result. Recoverable needs-action has suspension/observation and remains pending. Decoder enumerates all declared types including output and child records. Recovery returns identical Pel data with one dispatch and unchanged committed counters.",
+          "target": "packages/orchestration/src/pel-journal.test.ts"
+        },
+        {
+          "id": "T-M4-004",
+          "requirements": [
+            "R-M4-004"
+          ],
+          "level": "integration",
+          "fixture": "Table fixtures stop before reservation, after reservation, after dispatch without provider ID, after external completion, during fake verification, and during cleanup.",
+          "action": "For each fixture run resumeProgram with observed-complete, confirmed-no-dispatch, or unavailable provider reconciliation.",
+          "expected": "Budgets never increase. No completed receipt is re-executed. Reservation-without-intent reuses its stable key. Missing external evidence yields needs-action with unknown outcome, even without provider identity. Saved reduction/iteration counters restore exactly at the durable boundary.",
+          "target": "packages/orchestration/src/pel-recovery.test.ts"
+        },
+        {
+          "id": "T-M4-005",
+          "requirements": [
+            "R-M4-005"
+          ],
+          "level": "unit",
+          "fixture": "One journal repeats an identical result. Another repeats its effect identity with a different canonical result hash.",
+          "action": "Call replayPelRun on both journals.",
+          "expected": "Identical delivery yields one result. Conflicting delivery returns journal-corrupt before continuation or provider dispatch.",
+          "target": "packages/orchestration/src/pel-journal.test.ts"
+        },
+        {
+          "id": "T-M4-006",
+          "requirements": [
+            "R-M4-006"
+          ],
+          "level": "integration",
+          "fixture": "Source order contains three do/async expressions with completion barriers in reverse order and a concurrency limit of two. A second program uses do.",
+          "action": "Evaluate both programs with the instrumented host registry.",
+          "expected": "do dispatches in source order. do/async never exceeds two active effects and returns the last source expression result. After a partial receipt, alreadyEmitted requests join pending effects without duplicate dispatch. Aggregate counters include all child work.",
+          "target": "packages/orchestration/src/pel-resource-scope.test.ts"
+        },
+        {
+          "id": "T-M4-007",
+          "requirements": [
+            "R-M4-007"
+          ],
+          "level": "integration",
+          "fixture": "Independent symbols write one worktree through its real path and a symlink alias. Additional requests declare read/read and unknown resources.",
+          "action": "Evaluate native do/async and record acquisition intervals.",
+          "expected": "Conflicting writes and unknown workspace effects never overlap. Independent reads can overlap. All permits release after failure.",
+          "target": "packages/orchestration/src/pel-resource-scope.test.ts"
+        },
+        {
+          "id": "T-M4-008",
+          "requirements": [
+            "R-M4-008"
+          ],
+          "level": "integration",
+          "fixture": "Two fm/task closures have finite M2 effect envelopes and a workspace pool with two grants. They complete on one clock tick. A loser reports unsupported remote cancellation. A negative fixture writes a shared external path. Crash while a contender is suspended, and again after contender one completes but before winner decision. Run another variant with maxConcurrentEffects equal to one.",
+          "action": "Invoke fm/race with first-valid policy through the fixture host registry. Inspect resolver output, allocation events, result value, child counters, and cancellation after its observation window.",
+          "expected": "Both canonical worktree IDs are distinct before provider dispatch. Ties select source index one. Result keys are exactly winner-index,value,losers with no duplicates. Each child request includes parent/race/index. Losing counters are charged once. Shared external writes reject before provider calls. Unknown loser outcome remains visible and its artifacts cannot become winner inputs. Child continuation, worktree grant, tranche/debit, canonical closure-argument digest and pending receipt IDs restore exactly. Resume allocates zero replacement worktrees, does not repeat completed effects, and commits one durable race decision. Wrapper holds no concurrency permit while children run, so concurrency one terminates.",
+          "target": "packages/orchestration/src/pel-control-functions.test.ts"
+        },
+        {
+          "id": "T-M4-009",
+          "requirements": [
+            "R-M4-009"
+          ],
+          "level": "integration",
+          "fixture": "The canonical ProviderFailure union is table-driven. RateLimited fails first and succeeds next under fm/retry :attempts 2 :on [':rate-limited ':transport-disconnected]. Restart after attempt one. Counterfixtures exhaust the bound, report AuthenticationRequired, or fail with an ordinary Pel diagnostic. Add two nested effects, crash during attempt two suspension, and pass syntax-valued and nil-pair :on lists to the host decoder.",
+          "action": "Evaluate the retry closure and inspect child request IDs, effect IDs, tagged PEL_HOST_FAILURE causes, reservation action kinds, and cumulative counters. Compile exhaustive union switches.",
+          "expected": "Only RateLimited and safely reconcilable TransportDisconnected can retry. Child IDs parent/retry/1 and parent/retry/2 and their nested effect IDs differ. Attempt one receipt cannot complete attempt two. Retry charges provider_retry once and does not recharge implement. Authentication and language failures get zero retries. Exhaustion is failed exit 1 with original deadlines/counters preserved. Accepted selectors are evaluated lists of quoted keys. Syntax and nil-pair lists return capability-denied before body execution. RetryContext carries attempt index and a logical key excluding the parent /retry/N segment. Each matching nested key charges provider_retry on attempt two only. Child continuation, pending requests, tranches and stable closure digest recover without duplicate dispatch.",
+          "target": "packages/orchestration/src/pel-control-functions.test.ts"
+        },
+        {
+          "id": "T-M4-010",
+          "requirements": [
+            "R-M4-010"
+          ],
+          "level": "integration",
+          "fixture": "A scoped child process stalls. Its provider accepts cancellation but reports no terminal outcome.",
+          "action": "Advance the injected clock beyond the admitted timeout and await local cleanup.",
+          "expected": "After finite observation-window expiry and confirmed local cleanup, state is exactly needs-action, exit 3, with externalOutcome unknown. Unsupported xAI-style cancellation has the same result and cannot remain pending indefinitely. A local-only cancellation confirms cancelled after cleanup.",
+          "target": "packages/orchestration/src/pel-runner.test.ts"
+        },
+        {
+          "id": "T-M4-011",
+          "requirements": [
+            "R-M4-011"
+          ],
+          "level": "acceptance",
+          "fixture": "An attached fixture run emits its run-started stderr event before provider work completes. The provider yields requested, acknowledged, then confirmed-cancelled under barriers. A second provider remains unsupported through the finite observation window.",
+          "action": "Read runId from the startup event, invoke the compiled fixture cancel command twice and status concurrently, then release confirmation or advance the observation clock.",
+          "expected": "The attached run remains active until the result. One cancellation intent exists. Pending status/cancel exit 5. Confirmed cleanup/cancellation exits 4. Unsupported outcome after the window exits 3 with unknown outcome. Final stdout is one JSON result containing the same runId.",
+          "target": "packages/orchestration/src/pel-authoring-cli.test.ts"
+        },
+        {
+          "id": "T-M4-012",
+          "requirements": [
+            "R-M4-012"
+          ],
+          "level": "integration",
+          "fixture": "A closure captures a list, completes one host effect, checkpoints, and stops before the next expression.",
+          "action": "Decode the stored checkpoint and call resumeProgram using the same runtime and profile.",
+          "expected": "The list and closure capture survive as AST/environment data. Prior receipts replay without calls. All budget counters match their previous values.",
+          "target": "packages/orchestration/src/pel-recovery.test.ts"
+        },
+        {
+          "id": "T-M4-013",
+          "requirements": [
+            "R-M4-013"
+          ],
+          "level": "integration",
+          "fixture": "A fake OpenAI background response completes before receipt append. observe returns completed with validated content. A second xAI fixture returns unsupported and a third returns not-found.",
+          "action": "Resume with ProviderTransport.observe using the existing identity only. For unsupported and not-found cases submit matching and mismatching PelRecoveryDecisionV1 evidence.",
+          "expected": "Completed observation records one result receipt with zero redispatch. Unsupported and not-found stay needs-action exit 3 without inferring no dispatch. Mismatched evidence fails. Valid bound evidence resolves only its effect and preserves reservations. Unknown outcomes never supply a terminal M1 receipt. The request remains pending. accept-result drives the evaluator to done with zero redispatch; confirm-no-dispatch uses its existing reservation; abandon supplies a terminal reconciliation-abandoned receipt.",
+          "target": "packages/orchestration/src/pel-recovery.test.ts"
+        },
+        {
+          "id": "T-M4-014",
+          "requirements": [
+            "R-M4-014"
+          ],
+          "level": "integration",
+          "fixture": "Immutable source has one completed whole top-level form and one unexecuted suffix. Revision variants change only the suffix, change completed arguments, or edit inside a partially completed form. A pure failed suffix consumes four reductions after a completed prefix consuming ten, and its failed-step record is durable.",
+          "action": "Validate PelRevisionDecisionV1 and PelRevisionMappingV1, then re-evaluate revised immutable source from the start and supply mapped old receipts under new request IDs.",
+          "expected": "Valid suffix revision persists old-to-new request/node aliases while retaining parent effect IDs and reservations. Completed dispatch count stays one and prefix counters match the recorded boundary. New suffix gets new IDs. Changed completed arguments or partial-form edits fail continuation-incompatible, exit 2, before dispatch. PelRunOptions carries prefix recordedCounters and total committedCounters. Replay validates the prefix separately, then starts revised suffix charged fourteen reductions, including the failed work. New suffix work adds to that total under original limits. A failed form without completed external effects can be replaced; a form with completed effects cannot.",
+          "target": "packages/orchestration/src/pel-recovery.test.ts"
+        },
+        {
+          "id": "T-M4-015",
+          "requirements": [
+            "R-M4-015"
+          ],
+          "level": "acceptance",
+          "fixture": "Table journals cover every M4 base and registered M5 failure code, every M3 provider failure tag, all ordinary needs-action results, missing admission inputs, and pending/confirmed cancellation. Delivery result-contract cases include valid correction-limit data without audit/publication milestones, malformed duplicate/extra-key lookalikes, approved data with missing host evidence, and a generic-bound status-like list.",
+          "action": "Run product-router status text/JSON projections with provider calls forbidden and table-test run/resume admission plus post-admission mapping.",
+          "expected": "Each state and exact exit matches the normative failure tables: 0 success,1 failed,2 invalid,3 needs-action,4 cancelled,5 pending. Text/JSON agree on source span, evidence, reserved usage, unknown cost, and next action. No provider call or secret disclosure occurs. Valid delivery-needs-action exits 3 even without audit/publication milestones. Malformed bound final values fail final-result-invalid exit 1. Approved data with an unmet host milestone exits 3. Generic-bound data is not classified by a status-like key.",
+          "target": "packages/orchestration/src/pel-authoring-cli.test.ts"
+        },
+        {
+          "id": "T-M4-016",
+          "requirements": [
+            "R-M4-016"
+          ],
+          "level": "integration",
+          "fixture": "Fixtures contain unordered sequence, wrong attempt, changed runtime profile, incompatible continuation, and live foreign owner lease.",
+          "action": "Call resumeProgram for each fixture and collect result diagnostics.",
+          "expected": "Each fails before host dispatch with journal-corrupt, binding-mismatch, continuation-incompatible, or owner-busy and a source or evidence reference.",
+          "target": "packages/orchestration/src/pel-recovery.test.ts"
+        },
+        {
+          "id": "T-M4-017",
+          "requirements": [
+            "R-M4-017"
+          ],
+          "level": "integration",
+          "fixture": "Start a fixture run, then edit its source file and replace the installed default snapshot. Other variants remove or alter the journal-bound source or registry artifact.",
+          "action": "Resume without an explicit checkpoint using saved pel.suspension.v1 and later result receipts.",
+          "expected": "Working-file and default-snapshot edits do not change the resumed program. Missing or mismatched bound artifacts return binding-mismatch exit 2 before dispatch. Saved counters match the durable boundary. Snapshot optionsDigest matches dependency mode, exact predicate selection, effective narrowed limits, and replay options. An executable registry differing from the stored effective snapshot fails binding-mismatch before dispatch.",
+          "target": "packages/orchestration/src/pel-recovery.test.ts"
+        },
+        {
+          "id": "T-M4-018",
+          "requirements": [
+            "R-M4-018"
+          ],
+          "level": "integration",
+          "fixture": "A provider requests one allowed tool. Crash after pel.tool.result.v1 append and before sendToolResult. The stream restarts from the saved cursor and repeats the call ID. A negative variant changes arguments under that key.",
+          "action": "Resume the provider using pel.provider.cursor.v1, resolve recorded ToolResultV1 content, and feed duplicate tool events.",
+          "expected": "Tool execution count stays one. Recorded content/hash and authority are resent. Cursor advances only after durable tool/result/checkpoint state. Changed arguments yield journal-corrupt. Checkpoint bytes are persisted by M4, never by the adapter.",
+          "target": "packages/orchestration/src/pel-provider-tools.test.ts"
+        },
+        {
+          "id": "T-M4-019",
+          "requirements": [
+            "R-M4-019"
+          ],
+          "level": "integration",
+          "fixture": "Preparation variants select verification reuse, missing publication grant, task dispatch, authorized publication, and transient retry. Each operation exposes ledger and handler spies. Add a fresh bounded research-style read-result without a prior receipt and V1/V2 natural-language predicate authority fixtures.",
+          "action": "Call prepareHostEffect then the M4 dispatcher for all variants.",
+          "expected": "Reuse and missing grants add zero reservations. Task and authorized publication add exactly one matching action. Retry adds one provider_retry without a second implement charge. Handlers cannot reserve again or dispatch with a mismatched token. Fresh read-result validates and journals data with zero reservation and no required prior receipt. Stable IDs use existing ReserveAction.reservationId, not a new ledger key. A V2 evaluation child reserves evaluate; a V1-only predicate binding exits 2 before dispatch.",
+          "target": "packages/orchestration/src/pel-effects.test.ts"
+        },
+        {
+          "id": "T-M4-020",
+          "requirements": [
+            "R-M4-020"
+          ],
+          "level": "integration",
+          "fixture": "A native case uses a string condition under the bound nlConditionProfile, then print emits its selected result. Stop after receipt append and run with --json.",
+          "action": "Execute and resume through the compiled fixture CLI with the exact registered bounded-data/Boolean schemas.",
+          "expected": "The selected predicate profile/transport appears in the request. One predicate result and one output event persist. Replay makes zero repeated provider calls or print events. Stdout contains one final JSON object. Predicate output cannot authorize publication. Print with vals [1 2] returns [1 2], and recovery returns the identical value without another output event.",
+          "target": "packages/orchestration/src/pel-native-host.test.ts"
+        },
+        {
+          "id": "T-M4-021",
+          "requirements": [
+            "R-M4-021"
+          ],
+          "level": "acceptance",
+          "fixture": "The M2-owned fixture main is side-effect-free in pel-cli-fixture-main.ts, invoked only by test/pel-cli-fixture-entry.ts. Real assertions live in pel-cli-fixture.test.ts. A manifest binds copied assetRoot and assetManifestSha256.",
+          "action": "From a clean checkout run npm run verify, whose pretest builds the fixture bundle. Run the fixture CLI with mandatory --fixture-manifest, then product foreman.js with the same flag and fixture binding. Run a copied-asset variant.",
+          "expected": "Test globs select the real test, never a CLI entry. Fixture build completes before dependent tests. Copied assets resolve below manifest assetRoot with matching hashes. Missing manifest or wrong asset hash exits 2. Production rejects fixture flag/binding with zero dispatch. No fixture entry or recorded Layer appears in installation assets or live-qualified evidence.",
+          "target": "packages/orchestration/src/pel-cli-fixture.test.ts"
+        },
+        {
+          "id": "T-M4-022",
+          "requirements": [
+            "R-M4-022"
+          ],
+          "level": "integration",
+          "fixture": "A valid nested Pel result has depth 65 and a valid continuation exceeds one physical journal line. Tool content reaches its admitted limit. Faults stop after blob flush, corrupt a referenced blob, or remove a child continuation blob.",
+          "action": "Persist through existing artifact storage and unchanged RunJournal bounds, then resume from each fault boundary.",
+          "expected": "All journal records remain within 1048576 bytes, depth 64, 100000 nodes, and the 64 MiB replay budget. Deep values use references. Unreferenced blobs do not commit results. Missing/corrupt referenced blobs yield binding-mismatch and zero dispatch.",
+          "target": "packages/orchestration/src/pel-journal.test.ts"
+        },
+        {
+          "id": "T-M4-023",
+          "requirements": [
+            "R-M4-023"
+          ],
+          "level": "integration",
+          "fixture": "A delivery-final schema binding receives valid needs-action, approved, duplicate-key, extra-key, and unknown-status results. A generic binding receives a status-like list.",
+          "action": "Call the final-result projector against each result and matching or missing milestone receipts.",
+          "expected": "Valid delivery-needs-action is exit 3 independently of milestone selection. Malformed typed results fail final-result-invalid exit 1. Unmet host milestones prevent success. Generic data is not interpreted as a delivery discriminator.",
+          "target": "packages/orchestration/src/pel-run-result.test.ts"
+        }
+      ],
+      "source": "openspec/changes/foredi-04-durable-execution/catalog.json",
+      "spec": "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md"
+    },
+    {
+      "milestone": "M5",
+      "change": "foredi-05-task-delivery",
+      "title": "Deliver verified and reviewed candidates from Pel",
+      "depends_on": [
+        "M1",
+        "M2",
+        "M3",
+        "M4"
+      ],
+      "features": [
+        {
+          "id": "F-M5-01",
+          "title": "Implement bounded candidate work",
+          "description": "Execute fm/task in an admitted workspace and return host-captured candidate artifacts.",
+          "requirements": [
+            "R-M5-001",
+            "R-M5-002",
+            "R-M5-016"
+          ]
+        },
+        {
+          "id": "F-M5-02",
+          "title": "Verify an exact candidate",
+          "description": "Execute host-owned checks and reuse only matching candidate and environment evidence.",
+          "requirements": [
+            "R-M5-003",
+            "R-M5-004",
+            "R-M5-005"
+          ]
+        },
+        {
+          "id": "F-M5-03",
+          "title": "Obtain independent vendor review",
+          "description": "Review the exact candidate through a different observed vendor and preserve current-attempt verdicts.",
+          "requirements": [
+            "R-M5-006",
+            "R-M5-007"
+          ]
+        },
+        {
+          "id": "F-M5-04",
+          "title": "Deliver and repair a native Pel workflow",
+          "description": "Run Grok implementation, host verification, and Sol review with bounded native repair.",
+          "requirements": [
+            "R-M5-008",
+            "R-M5-009",
+            "R-M5-010"
+          ]
+        },
+        {
+          "id": "F-M5-05",
+          "title": "Publish with existing explicit authority",
+          "description": "Prepare and execute a bound publication only when existing host authority permits its exact destination.",
+          "requirements": [
+            "R-M5-011",
+            "R-M5-012",
+            "R-M5-013"
+          ]
+        },
+        {
+          "id": "F-M5-06",
+          "title": "Return actionable delivery results",
+          "description": "Expose real candidate artifacts, checks, review, publication, and next actions through consistent operator views.",
+          "requirements": [
+            "R-M5-014",
+            "R-M5-015"
+          ]
+        }
+      ],
+      "requirements": [
+        {
+          "id": "R-M5-001",
+          "feature": "F-M5-01",
+          "pattern": "event",
+          "text": "When an admitted fm/task call completes, the Foreman runtime SHALL return schema-validated Pel data with host-captured candidate and artifact references.",
+          "tests": [
+            "T-M5-001"
+          ]
+        },
+        {
+          "id": "R-M5-002",
+          "feature": "F-M5-01",
+          "pattern": "unwanted",
+          "text": "If task output violates its schema or admitted paths, then the Foreman runtime SHALL reject candidate promotion and retain bounded diagnostic evidence.",
+          "tests": [
+            "T-M5-002"
+          ]
+        },
+        {
+          "id": "R-M5-003",
+          "feature": "F-M5-02",
+          "pattern": "event",
+          "text": "When fm/verify receives a candidate, the Foreman runtime SHALL execute the registered host check and bind its receipt to the exact candidate and environment.",
+          "tests": [
+            "T-M5-003"
+          ]
+        },
+        {
+          "id": "R-M5-004",
+          "feature": "F-M5-02",
+          "pattern": "event",
+          "text": "When matching verification evidence already exists, the Foreman runtime SHALL reuse it only while candidate, gate, environment, policy, and freshness bindings remain unchanged.",
+          "tests": [
+            "T-M5-004"
+          ]
+        },
+        {
+          "id": "R-M5-005",
+          "feature": "F-M5-02",
+          "pattern": "unwanted",
+          "text": "If the candidate changes during verification, then the Foreman runtime SHALL invalidate the check result before recording a passing verification receipt.",
+          "tests": [
+            "T-M5-005"
+          ]
+        },
+        {
+          "id": "R-M5-006",
+          "feature": "F-M5-03",
+          "pattern": "event",
+          "text": "When fm/review records an authorizing review, the Foreman runtime SHALL bind the current candidate to an observed reviewer vendor distinct from its implementer.",
+          "tests": [
+            "T-M5-006"
+          ]
+        },
+        {
+          "id": "R-M5-007",
+          "feature": "F-M5-03",
+          "pattern": "unwanted",
+          "text": "If current review evidence is missing, stale, refused, interrupted, or malformed, then the Foreman runtime SHALL report an unverified review.",
+          "tests": [
+            "T-M5-007"
+          ]
+        },
+        {
+          "id": "R-M5-008",
+          "feature": "F-M5-04",
+          "pattern": "event",
+          "text": "When the first delivery program runs, the Foreman runtime SHALL compose Grok implementation, host verification, and Sol review through native Pel values.",
+          "tests": [
+            "T-M5-008"
+          ]
+        },
+        {
+          "id": "R-M5-009",
+          "feature": "F-M5-04",
+          "pattern": "event",
+          "text": "When review requests a correction, the Foreman runtime SHALL execute native Pel repair within the admitted correction and progress limits.",
+          "tests": [
+            "T-M5-009"
+          ]
+        },
+        {
+          "id": "R-M5-010",
+          "feature": "F-M5-04",
+          "pattern": "event",
+          "text": "When delivery resumes after interruption, the Foreman runtime SHALL reuse recorded task results and continue from the first unresolved host effect.",
+          "tests": [
+            "T-M5-010"
+          ]
+        },
+        {
+          "id": "R-M5-011",
+          "feature": "F-M5-05",
+          "pattern": "unwanted",
+          "text": "If publication lacks matching explicit host authority, then the Foreman runtime SHALL return needs-action without changing the publication destination.",
+          "tests": [
+            "T-M5-011"
+          ]
+        },
+        {
+          "id": "R-M5-012",
+          "feature": "F-M5-05",
+          "pattern": "event",
+          "text": "When publication has matching authority and evidence, the Foreman runtime SHALL revalidate the exact candidate and destination before executing the admitted publication action.",
+          "tests": [
+            "T-M5-012"
+          ]
+        },
+        {
+          "id": "R-M5-013",
+          "feature": "F-M5-05",
+          "pattern": "unwanted",
+          "text": "If publication acknowledgement is lost, then the Foreman runtime SHALL record an unknown external outcome and reconcile before any repeat publication.",
+          "tests": [
+            "T-M5-013"
+          ]
+        },
+        {
+          "id": "R-M5-014",
+          "feature": "F-M5-06",
+          "pattern": "event",
+          "text": "When delivery ends, the Foreman runtime SHALL expose candidate artifacts, check results, review findings, publication state, and a concrete next action.",
+          "tests": [
+            "T-M5-014"
+          ]
+        },
+        {
+          "id": "R-M5-015",
+          "feature": "F-M5-06",
+          "pattern": "unwanted",
+          "text": "If a requested provider profile is unqualified, then the Foreman runtime SHALL report its unavailable capability without substituting another model.",
+          "tests": [
+            "T-M5-015"
+          ]
+        },
+        {
+          "id": "R-M5-016",
+          "feature": "F-M5-01",
+          "pattern": "event",
+          "text": "When a task or review uses a role selector, the Foreman runtime SHALL resolve one exact admitted profile and transport from its bound snapshot.",
+          "tests": [
+            "T-M5-016"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "T-M5-001",
+          "requirements": [
+            "R-M5-001"
+          ],
+          "level": "integration",
+          "fixture": "A recorded test-fixture Grok native transport writes one allowed TypeScript file in a distinct admitted worktree and supplies candidate-v1 structured output.",
+          "action": "Execute fm/task through runProgram and pass its result into a native Pel lookup.",
+          "expected": "The request resolves grok-4.6 plus grok-acp, exact admitted controls, credential reference, and path/tool policy. The host result has the ordered unique task schema keys and real manifest hashes. Native lookup returns the correct status. An API-only task pair fails admission before file work. The handler registry imports M2 pel-host-descriptors.ts; any altered ArgSpec/schema/resolver digest causes binding-mismatch exit 2. Provider candidate-v1 contains only untrusted summary, claimedPaths and findings; host capture supplies authoritative candidate identity. Reversed provider JSON key order decodes through the M3 schema codec into the same canonical Pel association. Unknown/duplicate fields fail. The exact opaque credentialProfileRef reaches the injected CredentialPort without secret bytes in receipts.",
+          "target": "packages/orchestration/src/pel-host-task.test.ts"
+        },
+        {
+          "id": "T-M5-002",
+          "requirements": [
+            "R-M5-002"
+          ],
+          "level": "integration",
+          "fixture": "Three providers return malformed structured output, claim nonexistent artifacts, or modify a path outside the admitted set.",
+          "action": "Execute fm/task for each fixture and inspect recorded results and artifact reads.",
+          "expected": "task-output-invalid, artifact-missing, or candidate-out-of-scope identifies the source call. No verification or release milestone is registered.",
+          "target": "packages/orchestration/src/pel-host-task.test.ts"
+        },
+        {
+          "id": "T-M5-003",
+          "requirements": [
+            "R-M5-003"
+          ],
+          "level": "integration",
+          "fixture": "An immutable candidate C has a registered argv gate and environment digest E. Provider text falsely claims all checks pass.",
+          "action": "Invoke fm/verify with gate outcomes pass and fail, then decode both receipts.",
+          "expected": "The host gate determines pass and fail, never provider prose. Each receipt binds exact candidate/environment/gate/attempt/report. Failed result lookup :status is verification-failed and :passed is #f. Passing :passed is #t. The association schema rejects duplicate/additional keys. Nested prior evidence cannot shadow status or findings.",
+          "target": "packages/orchestration/src/pel-host-verify.test.ts"
+        },
+        {
+          "id": "T-M5-004",
+          "requirements": [
+            "R-M5-004"
+          ],
+          "level": "integration",
+          "fixture": "Candidate C has one valid verification receipt. Table variants change C, environment, gate, policy, or freshness.",
+          "action": "Call fm/verify twice unchanged, then call each changed fixture with an admitted verification allowance.",
+          "expected": "Unchanged call reuses one receipt with one gate execution and zero additional verification reservations. Each changed binding requires one fresh verify reservation and cannot reuse the old pass. Candidate-result receipt replay itself never adds another reservation.",
+          "target": "packages/orchestration/src/pel-host-verify.test.ts"
+        },
+        {
+          "id": "T-M5-005",
+          "requirements": [
+            "R-M5-005"
+          ],
+          "level": "integration",
+          "fixture": "A gate mutates a candidate file during its run. A second fixture crashes after check execution but before receipt persistence.",
+          "action": "Invoke fm/verify, then resume the interrupted run with M4 recovery.",
+          "expected": "Mutation returns candidate-changed. Interrupted verification yields recovered host evidence or needs-action, never an inferred pass or duplicated completed provider implementation.",
+          "target": "packages/orchestration/src/pel-host-verify.test.ts"
+        },
+        {
+          "id": "T-M5-006",
+          "requirements": [
+            "R-M5-006"
+          ],
+          "level": "integration",
+          "fixture": "Candidate C records xAI implementation. Sol reports observed OpenAI identity. A counterfixture requests another xAI model for review.",
+          "action": "Invoke fm/review using independent-review policy for both fixtures.",
+          "expected": "Sol review binds the exact candidate and verification result to observed OpenAI identity and enforced toolPolicy none. Same-vendor review returns review-not-independent with no audit milestone. Result fields are unique and approved is Boolean. Failed incoming verification returns unverified without reserving an audit.",
+          "target": "packages/orchestration/src/pel-host-review.test.ts"
+        },
+        {
+          "id": "T-M5-007",
+          "requirements": [
+            "R-M5-007"
+          ],
+          "level": "integration",
+          "fixture": "An old approved report exists before a new review attempt. New variants refuse, stop, return malformed output, or reference another candidate.",
+          "action": "Start fm/review, inspect in-progress state, then complete or interrupt each variant.",
+          "expected": "The old approval cannot authorize the new attempt. Each variant yields unverified with current attempt evidence and no publication eligibility.",
+          "target": "packages/orchestration/src/pel-host-review.test.ts"
+        },
+        {
+          "id": "T-M5-008",
+          "requirements": [
+            "R-M5-008"
+          ],
+          "level": "acceptance",
+          "fixture": "examples/pel/implement-verify-review.pel uses role:implementer and role:reviewer. packages/orchestration/src/fixtures/pel-adoption/project-settings.json configures Grok grok-4.6/grok-acp and Sol gpt-5.6-sol/openai-responses in an injected test-fixture Layer. The packaged examples/pel/project-settings.json remains an operator placeholder template. The fixture manifest explicitly binds its checkout or copied-install asset root.",
+          "action": "Configure the temporary project once, then run node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest fixture-manifest.json run examples/pel/implement-verify-review.pel --json without binding overrides. Repeat after changing only roleBindings to another admitted independent pair.",
+          "expected": "Both runs execute identical source/control flow with changed snapshot/binding digest. Each produces a real candidate, one host verification, independent review, and matching receipt chain. Resolved exact transport/control identities appear in preview/results. Evidence stays test-fixture, never live-qualified. Successful delivery exits 0. Project selection is applied once to the immutable base snapshot by buildEffectiveAuthoringSnapshotV1; preview/run role and predicate identities match the newly derived effective snapshot.",
+          "target": "packages/orchestration/src/pel-delivery.test.ts"
+        },
+        {
+          "id": "T-M5-009",
+          "requirements": [
+            "R-M5-009"
+          ],
+          "level": "acceptance",
+          "fixture": "The exact recursive examples/pel/repair-and-publish.pel source receives correction limit N, one current result, and an explicit round counter. Variants approve after one correction, exhaust N corrections, or make no product change.",
+          "action": "Check the exact source with M2. Execute with the fixture CLI and count task, verify, review, publication, and ledger actions.",
+          "expected": "Approval after one correction executes exactly two tasks and no further correction. Exhaustion executes N+1 tasks including initial implementation. No-change stops immediately after its correction. Both counterfixtures return unique-key delivery-needs-action data and exit 3 before further dispatch. Changed candidates receive fresh evidence. No for loop or private retry loop carries repair state. The binding declares schema:delivery-final-v1. Counterfixtures still exit 3 with no audit/publication milestones. Duplicate/extra-key needs-action lookalikes fail final-result-invalid exit 1 rather than being trusted by string shape.",
+          "target": "packages/orchestration/src/pel-delivery.test.ts"
+        },
+        {
+          "id": "T-M5-010",
+          "requirements": [
+            "R-M5-010"
+          ],
+          "level": "acceptance",
+          "fixture": "The Grok effect has a durable receipt and the process stops before verification or during review.",
+          "action": "Run compiled resume RUN against each fixture journal.",
+          "expected": "Grok dispatch remains one. Completed verification is reused without another reservation. Only unresolved review/effects reconcile or continue. Saved evaluator counters and budgets remain spent. Editing the original source file cannot alter the immutable resumed workflow.",
+          "target": "packages/orchestration/src/pel-delivery.test.ts"
+        },
+        {
+          "id": "T-M5-011",
+          "requirements": [
+            "R-M5-011"
+          ],
+          "level": "integration",
+          "fixture": "Candidate C has passing checks and independent review. Binding lacks publish permission. A malicious result contains an approved flag and fabricated receipt.",
+          "action": "Invoke fm/publish against a temporary bare remote and inspect its refs. Then register matching existing publication authority for the same admitted envelope and resume the pending request.",
+          "expected": "Status is needs-action, exit 3, with prepared exact evidence and required authority reference. Remote refs and integration state remain unchanged. Ledger spies show zero publish/integrate reservations. Fabricated approval/receipt data cannot grant authority. Initial needs-action is a pending observation, not an M1 result receipt. After matching authority appears, re-preparation adds exactly one publish reservation and publication call, with zero task, verification or review redispatch.",
+          "target": "packages/orchestration/src/pel-host-publish.test.ts"
+        },
+        {
+          "id": "T-M5-012",
+          "requirements": [
+            "R-M5-012"
+          ],
+          "level": "integration",
+          "fixture": "A fixture grant authorizes candidate C to update one bare-remote ref from expected OID B. Variants mutate C, target ref, or evidence before commit.",
+          "action": "Invoke fm/publish with the prepared binding under the destination resource lock.",
+          "expected": "Valid publication adds exactly one publish reservation, updates only the admitted ref, and records the observed receipt. Changed candidate, target, or evidence fails before mutation. Handlers do not reserve a second action or implicitly integrate. Unsupported destination returns its typed failure.",
+          "target": "packages/orchestration/src/pel-host-publish.test.ts"
+        },
+        {
+          "id": "T-M5-013",
+          "requirements": [
+            "R-M5-013"
+          ],
+          "level": "integration",
+          "fixture": "A local bare remote accepts C, then the provider boundary loses acknowledgement before the durable receipt. Observation is available or unavailable by fixture.",
+          "action": "Resume the run with PublicationService.observe and inspect publication command counts.",
+          "expected": "Available observation records confirmed C without republishing. Unavailable observation remains needs-action and unknown. Both execute the publication command once. Unknown publication keeps its evaluator request pending. Completed observation supplies one success receipt and continues to the published final value; it does not attempt to resume an already failed or consumed request.",
+          "target": "packages/orchestration/src/pel-host-publish.test.ts"
+        },
+        {
+          "id": "T-M5-014",
+          "requirements": [
+            "R-M5-014"
+          ],
+          "level": "acceptance",
+          "fixture": "Fixture journals contain delivered candidate, verification failure, changes-requested review, unauthorized publication, and unknown publication.",
+          "action": "Render compiled status in text and JSON and resolve emitted artifact references.",
+          "expected": "Both views agree on exact identities and lifecycle code. Artifact links resolve, nested evidence preserves unique result fields, and findings/next-action refer to the current stage. Pending required review/publication prevents success. Unknown external outcome stays unknown and secrets never appear.",
+          "target": "packages/orchestration/src/pel-delivery-result.test.ts"
+        },
+        {
+          "id": "T-M5-015",
+          "requirements": [
+            "R-M5-015"
+          ],
+          "level": "acceptance",
+          "fixture": "Production admission sees documented-only and fixture-only evidence for required grok-4.6/grok-acp capabilities. Another fixture allows two transports without a selector. The explicit test Layer supplies fixture evidence separately.",
+          "action": "Run the compiled production command with each invalid admission fixture, and the fixture CLI with its explicitly injected binding.",
+          "expected": "Production exits exactly 2 and names the missing live capability evidence or ambiguous transport, with zero fallback or dispatch. Test injection succeeds only in the test CLI and remains labeled test-fixture. Changed source role mappings resolve exact profiles rather than substituting literal model IDs.",
+          "target": "packages/orchestration/src/pel-delivery.test.ts"
+        },
+        {
+          "id": "T-M5-016",
+          "requirements": [
+            "R-M5-016"
+          ],
+          "level": "integration",
+          "fixture": "One source program uses role:implementer and role:reviewer. Two snapshots provide different exact role pairs. An ambiguous exact-profile fixture supplies no transport selector.",
+          "action": "Check both role-bound programs and inspect prepared ProviderRequestV1 plus resolveResources output.",
+          "expected": "Role changes preserve source bytes but change binding digests and exact preview pairs. Task native transports receive their child-context worktree grants. Ambiguous literal selection fails exit 2 before dispatch. Review uses toolPolicy none and its admitted controls. Both checker and runtime use the same effective snapshot, including predicate selection and narrowed limits. A supplied stale context or handler registry mismatch exits 2 before dispatch.",
+          "target": "packages/orchestration/src/pel-host-task.test.ts"
+        }
+      ],
+      "source": "openspec/changes/foredi-05-task-delivery/catalog.json",
+      "spec": "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md"
+    },
+    {
+      "milestone": "M6",
+      "change": "foredi-06-adoption",
+      "title": "Install, migrate and use Return of the ForeDi",
+      "depends_on": [
+        "M1",
+        "M2",
+        "M3",
+        "M4",
+        "M5"
+      ],
+      "features": [
+        {
+          "id": "F-M6-01",
+          "title": "Install and first workflow",
+          "description": "Install the Node.js 24 product and start a documented admitted Pel workflow.",
+          "requirements": [
+            "R-M6-001",
+            "R-M6-002",
+            "R-M6-003",
+            "R-M6-019"
+          ]
+        },
+        {
+          "id": "F-M6-02",
+          "title": "Runnable examples and model selection",
+          "description": "Ship useful examples with all six exact profiles and visible readiness.",
+          "requirements": [
+            "R-M6-004",
+            "R-M6-005",
+            "R-M6-006"
+          ]
+        },
+        {
+          "id": "F-M6-03",
+          "title": "Legacy workflow migration",
+          "description": "Migrate supported workflows to one execution owner while retaining historical decoding.",
+          "requirements": [
+            "R-M6-007",
+            "R-M6-008",
+            "R-M6-009"
+          ]
+        },
+        {
+          "id": "F-M6-04",
+          "title": "Measured simplification",
+          "description": "Demonstrate scoped deletion and reduced instructions against an immutable baseline.",
+          "requirements": [
+            "R-M6-010",
+            "R-M6-011",
+            "R-M6-012"
+          ]
+        },
+        {
+          "id": "F-M6-05",
+          "title": "Research and graph usability",
+          "description": "Make sourced research navigable and refreshable without a mandatory external vault.",
+          "requirements": [
+            "R-M6-013",
+            "R-M6-014",
+            "R-M6-015",
+            "R-M6-022"
+          ]
+        },
+        {
+          "id": "F-M6-06",
+          "title": "Packaging, support and rollback",
+          "description": "Package working features with truthful support and compatible recovery.",
+          "requirements": [
+            "R-M6-016",
+            "R-M6-017",
+            "R-M6-018",
+            "R-M6-020",
+            "R-M6-021",
+            "R-M6-023"
+          ]
+        }
+      ],
+      "requirements": [
+        {
+          "id": "R-M6-001",
+          "feature": "F-M6-01",
+          "pattern": "event",
+          "text": "When a clean installation completes, the Foreman installer SHALL provide the compiled Node.js 24 CLI and matching Pel examples.",
+          "tests": [
+            "T-M6-001"
+          ]
+        },
+        {
+          "id": "R-M6-002",
+          "feature": "F-M6-01",
+          "pattern": "event",
+          "text": "When the quickstart starts an admitted workflow, the Foreman CLI SHALL execute the supplied Pel file with one foreman run command.",
+          "tests": [
+            "T-M6-002"
+          ]
+        },
+        {
+          "id": "R-M6-003",
+          "feature": "F-M6-01",
+          "pattern": "unwanted",
+          "text": "If installation prerequisites are missing, then the Foreman installer SHALL report the missing prerequisite before changing the existing installation.",
+          "tests": [
+            "T-M6-003"
+          ]
+        },
+        {
+          "id": "R-M6-004",
+          "feature": "F-M6-02",
+          "pattern": "ubiquitous",
+          "text": "The Foreman example collection SHALL include sequential work, parallel work, bounded rework, review, race cancellation, recovery and research preparation.",
+          "tests": [
+            "T-M6-004"
+          ]
+        },
+        {
+          "id": "R-M6-005",
+          "feature": "F-M6-02",
+          "pattern": "event",
+          "text": "When an example selects a model, the Foreman CLI SHALL display the exact profile, transport and readiness evidence before execution.",
+          "tests": [
+            "T-M6-005"
+          ]
+        },
+        {
+          "id": "R-M6-006",
+          "feature": "F-M6-02",
+          "pattern": "unwanted",
+          "text": "If an example's required provider is unavailable, then the Foreman CLI SHALL explain the missing capability without starting the workflow.",
+          "tests": [
+            "T-M6-006"
+          ]
+        },
+        {
+          "id": "R-M6-007",
+          "feature": "F-M6-03",
+          "pattern": "event",
+          "text": "When a registered RoundPlanV1 and ExecutionContractV1 pair is imported, the Foreman migration tool SHALL emit Pel source and a parity report.",
+          "tests": [
+            "T-M6-007"
+          ]
+        },
+        {
+          "id": "R-M6-008",
+          "feature": "F-M6-03",
+          "pattern": "state",
+          "text": "While a legacy run remains active, the Foreman migration tool SHALL preserve its current execution owner and durable history.",
+          "tests": [
+            "T-M6-008"
+          ]
+        },
+        {
+          "id": "R-M6-009",
+          "feature": "F-M6-03",
+          "pattern": "event",
+          "text": "When legacy scripts are retired, the Foreman CLI SHALL preserve historical record decoding after their callers migrate to the unified runtime.",
+          "tests": [
+            "T-M6-009"
+          ]
+        },
+        {
+          "id": "R-M6-010",
+          "feature": "F-M6-04",
+          "pattern": "event",
+          "text": "When simplification is measured, the Foreman measurement tool SHALL use the specification-fixed cohort, instruction corpus, tokenizer and counting rules.",
+          "tests": [
+            "T-M6-010"
+          ]
+        },
+        {
+          "id": "R-M6-011",
+          "feature": "F-M6-04",
+          "pattern": "ubiquitous",
+          "text": "The Foreman migrated workflow cohort SHALL reduce orchestration glue lines by at least 40 percent and required instruction tokens by at least 50 percent.",
+          "tests": [
+            "T-M6-011"
+          ]
+        },
+        {
+          "id": "R-M6-012",
+          "feature": "F-M6-04",
+          "pattern": "event",
+          "text": "When an unchanged candidate repeats verification, the Foreman execution owner SHALL reuse the matching host receipt and report one full verification execution.",
+          "tests": [
+            "T-M6-012"
+          ]
+        },
+        {
+          "id": "R-M6-013",
+          "feature": "F-M6-05",
+          "pattern": "event",
+          "text": "When a user requests research context, the Foreman research reader SHALL return bounded source-linked results with claim status and freshness.",
+          "tests": [
+            "T-M6-013"
+          ]
+        },
+        {
+          "id": "R-M6-014",
+          "feature": "F-M6-05",
+          "pattern": "event",
+          "text": "When research inputs change, the Foreman research reader SHALL mark derived notes and graphs stale until a matching refresh completes.",
+          "tests": [
+            "T-M6-014"
+          ]
+        },
+        {
+          "id": "R-M6-015",
+          "feature": "F-M6-05",
+          "pattern": "optional",
+          "text": "Where an external Obsidian vault is configured, the Foreman research reader SHALL expose its linked context without granting it execution authority.",
+          "tests": [
+            "T-M6-015"
+          ]
+        },
+        {
+          "id": "R-M6-016",
+          "feature": "F-M6-06",
+          "pattern": "event",
+          "text": "When a release package is assembled, the Foreman packaging tool SHALL include matching runtime, examples, profile evidence and migration documentation.",
+          "tests": [
+            "T-M6-016"
+          ]
+        },
+        {
+          "id": "R-M6-017",
+          "feature": "F-M6-06",
+          "pattern": "event",
+          "text": "When an installed release rolls back, the Foreman rollback tool SHALL check every registered state root before restoring a compatible runtime without rewriting history.",
+          "tests": [
+            "T-M6-017"
+          ]
+        },
+        {
+          "id": "R-M6-018",
+          "feature": "F-M6-06",
+          "pattern": "event",
+          "text": "When support diagnostics are exported, the Foreman CLI SHALL report reproducible feature context with secret and reasoning redaction.",
+          "tests": [
+            "T-M6-018"
+          ]
+        },
+        {
+          "id": "R-M6-019",
+          "feature": "F-M6-01",
+          "pattern": "event",
+          "text": "When a configured project starts a Pel workflow, the Foreman CLI SHALL derive its execution binding from the checked program and stored project configuration.",
+          "tests": [
+            "T-M6-019"
+          ]
+        },
+        {
+          "id": "R-M6-020",
+          "feature": "F-M6-06",
+          "pattern": "event",
+          "text": "When version information is requested, the Foreman CLI SHALL report the release name, build identity and nullable numerical version from its installed manifest.",
+          "tests": [
+            "T-M6-020"
+          ]
+        },
+        {
+          "id": "R-M6-021",
+          "feature": "F-M6-06",
+          "pattern": "event",
+          "text": "When a adoption subcommand terminates, the Foreman CLI SHALL return the exit code assigned to its command outcome in the shared command table.",
+          "tests": [
+            "T-M6-021"
+          ]
+        },
+        {
+          "id": "R-M6-022",
+          "feature": "F-M6-05",
+          "pattern": "event",
+          "text": "When a Pel research effect executes, the Foreman host SHALL return bounded source-linked context through the registered read-only research descriptor.",
+          "tests": [
+            "T-M6-022"
+          ]
+        },
+        {
+          "id": "R-M6-023",
+          "feature": "F-M6-06",
+          "pattern": "event",
+          "text": "When an archive build is requested, the Foreman packaging tool SHALL emit the manifest-bound installable archive at its declared build-identity path.",
+          "tests": [
+            "T-M6-023"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "T-M6-001",
+          "requirements": [
+            "R-M6-001"
+          ],
+          "level": "acceptance",
+          "fixture": "Linux x64 Node24, artifacts/foredi/<buildId>.tar.gz returned by T-M6-016 archive producer, clean /tmp/foredi-unpacked and installation prefix /tmp/foredi-prefix, no checkout/global TS runner/vault.",
+          "action": "Extract artifacts/foredi/<buildId>.tar.gz to /tmp/foredi-unpacked, run node /tmp/foredi-unpacked/runtime/dist/install.js --prefix /tmp/foredi-prefix, then installed foreman --version --json and foreman check <prefix>/current/examples/pel/implement-verify-review.pel.",
+          "expected": "Installed generated Node.js executable works via symlink. Version JSON is {releaseName:\"Return of the ForeDi\",version:null,buildId:<manifest-build-id>} before version assignment. Snapshot/example hashes match and no provider call occurs. Installation, version display and the successful check each exit 0.",
+          "target": "packages/orchestration/src/pel-install.test.ts"
+        },
+        {
+          "id": "T-M6-002",
+          "requirements": [
+            "R-M6-002"
+          ],
+          "level": "acceptance",
+          "fixture": "Copied installation and packages/orchestration/src/fixtures/pel-adoption/project-settings.json in a temporary Git repository, with M4 test-fixture binding and manifest-bound state root. Mandatory temporary fixture manifest includes stateRoot, assetRoot=<prefix>/current and assetManifestSha256 plus the copied project-settings fixture.",
+          "action": "node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> project configure --settings packages/orchestration/src/fixtures/pel-adoption/project-settings.json; node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> run <assetRoot>/examples/pel/implement-verify-review.pel; node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> status <run-id> --json.",
+          "expected": "Configuration is stored at git-common-dir/foreman/project.json. One run command derives exact authority, limits, workspace and native profile mappings. Missing config exits 2 without effects. Fixture output is labeled test-fixture, never live-qualified. The launcher validates copied snapshot/example hashes from assetRoot. Missing manifest exits 2. ForemanProjectV1 is the single configuration schema name.",
+          "target": "packages/orchestration/src/pel-adoption.test.ts"
+        },
+        {
+          "id": "T-M6-003",
+          "requirements": [
+            "R-M6-003"
+          ],
+          "level": "acceptance",
+          "fixture": "Node.js 22 fixture, missing archive file, or invalid archive manifest with an existing working installation.",
+          "action": "node <archive>/runtime/dist/install.js --prefix /tmp/foredi-existing for Node22, invalid manifest and missing-asset cases.",
+          "expected": "InstallPrerequisiteMissing or PackageIntegrityMismatch names the cause. Existing installed bytes and executable entry point remain unchanged. Every Node22, missing-asset and invalid-manifest case exits 2 before changing the installation.",
+          "target": "packages/orchestration/src/pel-install.test.ts"
+        },
+        {
+          "id": "T-M6-004",
+          "requirements": [
+            "R-M6-004"
+          ],
+          "level": "acceptance",
+          "fixture": "Packaged examples/pel corpus and deterministic fake provider transcripts.",
+          "action": "Product foreman.js check each example using copied installed assets, then node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> run <assetRoot>/examples/pel/<example>.pel.",
+          "expected": "Every file parses and admits under its documented capabilities. Observable outputs demonstrate its named behavior and contain no implicit publication. research-prepare and parallel-read call registered fm/research with read-result preparation and zero provider/action reservations.",
+          "target": "packages/orchestration/src/pel-examples.test.ts"
+        },
+        {
+          "id": "T-M6-005",
+          "requirements": [
+            "R-M6-005"
+          ],
+          "level": "acceptance",
+          "fixture": "Six profile examples selecting grok-4.6, claude-opus-5, claude-fable-5-1, gpt-6-astra, gpt-5.6-sol and gemini-3.8-flash.",
+          "action": "foreman plan each profile example and foreman providers list --json.",
+          "expected": "All six exact IDs and concrete canonical transport IDs remain visible. Product evidence stays unqualified without live observations. Fixture-backed cells are labeled test-fixture, never live-qualified.",
+          "target": "packages/orchestration/src/pel-examples.test.ts"
+        },
+        {
+          "id": "T-M6-006",
+          "requirements": [
+            "R-M6-006"
+          ],
+          "level": "acceptance",
+          "fixture": "Product binding with documented-only, fixture-only, expired or absent exact model/native permission evidence.",
+          "action": "foreman run the example using its documented command.",
+          "expected": "Exit 2 reports ModelUnavailable or CapabilityUnverified with configuration details. No provider call, reservation or worktree is created. Product rejects a test-fixture binding.",
+          "target": "packages/orchestration/src/pel-examples.test.ts"
+        },
+        {
+          "id": "T-M6-007",
+          "requirements": [
+            "R-M6-007"
+          ],
+          "level": "integration",
+          "fixture": "packages/orchestration/src/fixtures/pel-migration/{implement-verify-review,bounded-rework}/ each contains round-v1.json, contract-v1.json, registered-command-bindings.json and expected-trace.json. Inputs use RoundPlanV1 and ExecutionContractV1 schemaVersion1.",
+          "action": "foreman migrate <case>/round-v1.json --contract <case>/contract-v1.json --out <file.pel>, then node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> run <file.pel>.",
+          "expected": "Both known templates preserve required effects, identities, bounds and terminal decisions. Unsupported schema/argv or Council input returns UnsupportedLegacyConstruct. No arbitrary command executes. Supported import exits 0. Unsupported schema/command/template exits 2.",
+          "target": "packages/orchestration/src/pel-migration.test.ts"
+        },
+        {
+          "id": "T-M6-008",
+          "requirements": [
+            "R-M6-008"
+          ],
+          "level": "integration",
+          "fixture": "An active legacy run with a lease, reservations and completed tool receipts.",
+          "action": "Attempt migration and resume through the new CLI.",
+          "expected": "Migration returns ActiveLegacyRun. The existing owner continues. Journal hashes and budgets remain unchanged. No second controller starts. ActiveLegacyRun exits 3 without transferring ownership.",
+          "target": "packages/orchestration/src/pel-migration.test.ts"
+        },
+        {
+          "id": "T-M6-009",
+          "requirements": [
+            "R-M6-009"
+          ],
+          "level": "integration",
+          "fixture": "Historical terminal records and the twelve exact legacy shell cohort paths, with caller migration completed.",
+          "action": "Assert all twelve files are absent; rg full paths and basenames in packages, components/council, skills/foreman, scripts, env and .github; run migrated CLI workflows and retained Council review/preflight fixtures.",
+          "expected": "No legacy shell cohort entry or active caller remains. Historical identities still decode. No compatibility argv parser or second scheduler is introduced. Every live caller scope has zero deleted-entry references, including retained Council callers. Historical records remain separate and runtime manifests are regenerated.",
+          "target": "packages/orchestration/src/pel-migration.test.ts"
+        },
+        {
+          "id": "T-M6-010",
+          "requirements": [
+            "R-M6-010"
+          ],
+          "level": "integration",
+          "fixture": "Spec-fixed 15-file production cohort and five instruction files at baseline 441c3fb9f6acb2656760d03cc79e7c706fb8b7dd, js-tiktoken1.0.21/cl100k_base and candidate revision. Candidate includes a newly added pel-research-host.ts and surviving full baseline instruction files.",
+          "action": "node skills/foreman/runtime/dist/pel-simplification.js --baseline <manifest> --candidate <revision>.",
+          "expected": "Report includes old and replacement production lines, generated/test/archive exclusions, command count, instruction tokens, owners and total production growth with file hashes. Changed cohort membership or tokenizer identity fails comparison. Build manifest contains the named metric bundle. Valid passing comparison exits 0. Changed membership/tokenizer exits 2. A valid report with missed acceptance targets exits 1 and remains available. Research/install/metrics source is included under the exact path-and-change union. Residual instruction files count in full, not selected paragraphs.",
+          "target": "packages/orchestration/src/pel-simplification.test.ts"
+        },
+        {
+          "id": "T-M6-011",
+          "requirements": [
+            "R-M6-011"
+          ],
+          "level": "integration",
+          "fixture": "The frozen implementation cohort, all new replacement glue, and the complete mandatory quickstart instruction corpus.",
+          "action": "Run the simplification measurement against the candidate and compare its acceptance fields.",
+          "expected": "Net glue reduction is at least 0.40 and instruction reduction at least 0.50. Moving code or instructions outside old paths does not remove them from counts.",
+          "target": "packages/orchestration/src/pel-simplification.test.ts"
+        },
+        {
+          "id": "T-M6-012",
+          "requirements": [
+            "R-M6-012"
+          ],
+          "level": "integration",
+          "fixture": "Migrated standard workflow runs twice with identical candidate, base, checks, dependencies, tools and environment.",
+          "action": "Execute the corpus twice, then change each verification binding in a table-driven test.",
+          "expected": "Identical bindings invoke the full verifier once. Any changed binding invokes it again. Each run has one control-flow owner and one event history.",
+          "target": "packages/orchestration/src/pel-simplification.test.ts"
+        },
+        {
+          "id": "T-M6-013",
+          "requirements": [
+            "R-M6-013"
+          ],
+          "level": "integration",
+          "fixture": "Repository research bundle containing paper claims, adopted decisions, hypotheses, coverage warnings and provider source captures.",
+          "action": "foreman research query \"Fable forced tools\" --json --limit 5 without a vault path.",
+          "expected": "Results include source locator, source hash, capture time, claim class and freshness. Unsupported extraction remains visible. Hidden reasoning and secrets are absent. Successful query, including no-match or stale results, exits 0. Invalid arguments or required schema exit 2.",
+          "target": "packages/orchestration/src/pel-research-context.test.ts"
+        },
+        {
+          "id": "T-M6-014",
+          "requirements": [
+            "R-M6-014"
+          ],
+          "level": "integration",
+          "fixture": "A copied bundle with one changed source hash, one missing source and interrupted refresh metadata.",
+          "action": "foreman research status --json, then foreman research refresh --bundle <path> against a complete captured bundle.",
+          "expected": "Stale and missing inputs appear explicitly. Refresh atomically publishes matching derived hashes and provenance. Interrupted refresh preserves the previous readable snapshot. Successful status and refresh exit 0. Invalid source provenance exits 2. Explicit interruption exits 4 after preserving the previous snapshot.",
+          "target": "packages/orchestration/src/pel-research-context.test.ts"
+        },
+        {
+          "id": "T-M6-015",
+          "requirements": [
+            "R-M6-015"
+          ],
+          "level": "integration",
+          "fixture": "Optional temporary Obsidian vault with wikilinks, advisory graph nodes and a note containing an execution instruction.",
+          "action": "foreman research query with --vault <path>, then remove the vault and run the standard Pel example.",
+          "expected": "Query preserves note links and provenance. Note instructions cannot grant capabilities. Core workflow still works without the vault and reports optional context absence.",
+          "target": "packages/orchestration/src/pel-research-context.test.ts"
+        },
+        {
+          "id": "T-M6-016",
+          "requirements": [
+            "R-M6-016"
+          ],
+          "level": "acceptance",
+          "fixture": "Candidate build with generated runtime, source manifest, support matrix and unresolved v0.5 obligation references.",
+          "action": "npm run build, then npm run package:pel -- --candidate <git-commit> --out artifacts/foredi, inspect emitted archivePath/buildId/archiveSha256 and manifest; run candidate static checks.",
+          "expected": "Archive hashes match candidate, metric bundle and assets/pel/default-authoring-snapshot.json. Canonical example paths exist. Support is exact per capability. Unassigned version is null. Unresolved v0.5 obligations retain their original status. ManifestPayloadV1 canonical hash yields buildId without self-reference. Archive path is artifacts/foredi/<buildId>.tar.gz and contains the exact installable layout.",
+          "target": "packages/orchestration/src/pel-package.test.ts"
+        },
+        {
+          "id": "T-M6-017",
+          "requirements": [
+            "R-M6-017"
+          ],
+          "level": "acceptance",
+          "fixture": "prefix/versions/<old-build-id> and current manifests plus prefix/state-roots.json with two canonical state roots, one compatible and one incompatible or unreadable active checkpoint. Include a root created through registered --state-root override and a separate unregistered override.",
+          "action": "foreman install rollback --to <old-build-id> for compatible and incompatible registered-state fixtures.",
+          "expected": "Compatible rollback atomically switches prefix/current and preserves both histories. Any incompatible or unreadable registered root returns RollbackIncompatible before switch. No second scheduler starts. Compatible rollback exits 0. Incompatible or unreadable registered active state exits 3. Unknown build identity exits 2. Installed run/resume reject the unregistered override with exit 2. Rollback checks the registered override root. Checkout/fixture runs need no installation prefix projection.",
+          "target": "packages/orchestration/src/pel-package.test.ts"
+        },
+        {
+          "id": "T-M6-018",
+          "requirements": [
+            "R-M6-018"
+          ],
+          "level": "acceptance",
+          "fixture": "Failed packaged quickstart with a model mismatch, run IDs, provider evidence, source version, secret fixture and opaque reasoning blob.",
+          "action": "foreman support export --run <id> --out <bundle>.",
+          "expected": "Bundle includes version, platform, exact profile/transport, safe failure, relevant event IDs and reproduction command. Secrets, tokens and hidden reasoning are absent. Successful export exits 0. Unknown run exits 2 and write failure exits 1.",
+          "target": "packages/orchestration/src/pel-support.test.ts"
+        },
+        {
+          "id": "T-M6-019",
+          "requirements": [
+            "R-M6-019"
+          ],
+          "level": "acceptance",
+          "fixture": "Git-common-dir/foreman/project.json created from packages/orchestration/src/fixtures/pel-adoption/project-settings.json, plus missing and invalid variants. Required fixture manifest supplies stateRoot, assetRoot=<prefix>/current and assetManifestSha256.",
+          "action": "node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> run <assetRoot>/examples/pel/implement-verify-review.pel without --binding.",
+          "expected": "Valid configuration binds exact authority, state root, limits, profile mappings and workspace grants. Missing or invalid configuration exits 2 with zero reservation and dispatch.",
+          "target": "packages/orchestration/src/pel-adoption.test.ts"
+        },
+        {
+          "id": "T-M6-020",
+          "requirements": [
+            "R-M6-020"
+          ],
+          "level": "acceptance",
+          "fixture": "Installed manifest with releaseName Return of the ForeDi, version null and known buildId, followed by an explicitly assigned SemVer variant.",
+          "action": "foreman --version --json and foreman --version.",
+          "expected": "JSON has exactly releaseName, version and buildId matching the manifest. Human output says unversioned before assignment and never invents a numerical release. Valid nullable version output exits 0.",
+          "target": "packages/orchestration/src/pel-package.test.ts"
+        },
+        {
+          "id": "T-M6-021",
+          "requirements": [
+            "R-M6-021"
+          ],
+          "level": "acceptance",
+          "fixture": "Table-driven installed-asset/filesystem cases for migrate, research query/status/refresh, install, rollback, support, version and metric commands from design.md Command outcomes.",
+          "action": "Invoke product install/version/metric entries or node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> <adoption-subcommand> for injected filesystem cases, inspecting exact exits and mutations.",
+          "expected": "All command outcomes match the table: success 0, failure 1, invalid input 2, active-legacy/incompatible-state needs-action 3 and confirmed local cancellation 4. Prior data remains intact on failed or interrupted mutations. No final pending 5 appears.",
+          "target": "packages/orchestration/src/pel-adoption-cli.test.ts"
+        },
+        {
+          "id": "T-M6-022",
+          "requirements": [
+            "R-M6-022"
+          ],
+          "level": "acceptance",
+          "fixture": "M2 fm/research descriptor with id/query/bundle/limit, admitted bundle:release-sources and two distinct parallel read bundles.",
+          "action": "Check research-prepare.pel and parallel-read.pel, then node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> run <assetRoot>/examples/pel/<example>.pel.",
+          "expected": "M6 handler returns schema:research-result-v1 in declared order. Read resources match admitted bundles, writes are empty and fresh read-result preparation needs no prior receipt or external reservation.",
+          "target": "packages/orchestration/src/pel-research-host.test.ts"
+        },
+        {
+          "id": "T-M6-023",
+          "requirements": [
+            "R-M6-023"
+          ],
+          "level": "acceptance",
+          "fixture": "Compiled Node24 producer, exact candidate revision and runtime/assets/examples/docs payload with invalid-path counterfixtures.",
+          "action": "npm run package:pel -- --candidate <git-commit> --out artifacts/foredi.",
+          "expected": "Successful build emits artifacts/foredi/<buildId>.tar.gz and matching archive hash with exit 0. Invalid paths/options exit 2 and archive I/O fails with exit 1. Payload digest excludes manifest self-reference.",
+          "target": "packages/orchestration/src/pel-package.test.ts"
+        }
+      ],
+      "source": "openspec/changes/foredi-06-adoption/catalog.json",
+      "spec": "openspec/changes/foredi-06-adoption/specs/foredi-06-adoption/spec.md"
+    }
+  ],
+  "counts": {
+    "features": 36,
+    "requirements": 125,
+    "tests": 127
+  }
+}

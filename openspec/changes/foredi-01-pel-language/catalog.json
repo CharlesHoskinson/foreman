@@ -1,0 +1,486 @@
+{
+  "milestone": "M1",
+  "change": "foredi-01-pel-language",
+  "title": "Return of the ForeDi: Pel language",
+  "depends_on": [],
+  "features": [
+    {
+      "id": "F-M1-01",
+      "title": "Published grammar and source locations",
+      "description": "Parse the paper syntax with exact source spans.",
+      "requirements": [
+        "R-M1-001",
+        "R-M1-002",
+        "R-M1-019"
+      ]
+    },
+    {
+      "id": "F-M1-02",
+      "title": "Values and callable lists",
+      "description": "Preserve Pel values with an explicit one-based list profile.",
+      "requirements": [
+        "R-M1-003",
+        "R-M1-004",
+        "R-M1-018"
+      ]
+    },
+    {
+      "id": "F-M1-03",
+      "title": "Closures and argument binding",
+      "description": "Implement lexical closures, defaults, and partial application.",
+      "requirements": [
+        "R-M1-005",
+        "R-M1-006"
+      ]
+    },
+    {
+      "id": "F-M1-04",
+      "title": "Pipes and native control flow",
+      "description": "Compose values through native pipes and selective control flow.",
+      "requirements": [
+        "R-M1-007",
+        "R-M1-008",
+        "R-M1-009"
+      ]
+    },
+    {
+      "id": "F-M1-05",
+      "title": "Diagnostics and evaluation limits",
+      "description": "Report source errors and stop evaluation at finite bounds.",
+      "requirements": [
+        "R-M1-010",
+        "R-M1-011"
+      ]
+    },
+    {
+      "id": "F-M1-06",
+      "title": "Host suspension and recovery data",
+      "description": "Suspend host calls and resume with ordinary validated Pel values.",
+      "requirements": [
+        "R-M1-012",
+        "R-M1-013",
+        "R-M1-014",
+        "R-M1-015",
+        "R-M1-016",
+        "R-M1-017",
+        "R-M1-020"
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "id": "R-M1-001",
+      "feature": "F-M1-01",
+      "pattern": "event",
+      "text": "When Pel source is parsed, the Foreman Pel parser SHALL produce the profile-defined AST with exact source spans.",
+      "tests": [
+        "T-M1-001"
+      ]
+    },
+    {
+      "id": "R-M1-002",
+      "feature": "F-M1-01",
+      "pattern": "unwanted",
+      "text": "If source violates the lexical or grammar profile, then the Foreman Pel parser SHALL return source-located diagnostics without an executable program.",
+      "tests": [
+        "T-M1-002"
+      ]
+    },
+    {
+      "id": "R-M1-003",
+      "feature": "F-M1-02",
+      "pattern": "event",
+      "text": "When Pel values are evaluated or formatted, the Foreman Pel evaluator SHALL preserve their profile-defined types and ordered pair structure.",
+      "tests": [
+        "T-M1-003"
+      ]
+    },
+    {
+      "id": "R-M1-004",
+      "feature": "F-M1-02",
+      "pattern": "event",
+      "text": "When a list is called, the Foreman Pel evaluator SHALL apply one-based indexing, inclusive slicing, and ordered key selection.",
+      "tests": [
+        "T-M1-004"
+      ]
+    },
+    {
+      "id": "R-M1-005",
+      "feature": "F-M1-03",
+      "pattern": "event",
+      "text": "When a lambda is created or invoked, the Foreman Pel evaluator SHALL preserve lexical capture and profile-defined default evaluation.",
+      "tests": [
+        "T-M1-005"
+      ]
+    },
+    {
+      "id": "R-M1-006",
+      "feature": "F-M1-03",
+      "pattern": "event",
+      "text": "When a closure receives arguments, the Foreman Pel evaluator SHALL bind named or positional arguments under its fixed argument specification.",
+      "tests": [
+        "T-M1-006"
+      ]
+    },
+    {
+      "id": "R-M1-007",
+      "feature": "F-M1-04",
+      "pattern": "event",
+      "text": "When a pipe is evaluated, the Foreman Pel evaluator SHALL insert its once-evaluated input at profile-defined caret positions.",
+      "tests": [
+        "T-M1-007"
+      ]
+    },
+    {
+      "id": "R-M1-008",
+      "feature": "F-M1-04",
+      "pattern": "event",
+      "text": "When native conditional or loop functions are evaluated, the Foreman Pel evaluator SHALL select only required expressions and preserve result order.",
+      "tests": [
+        "T-M1-008"
+      ]
+    },
+    {
+      "id": "R-M1-009",
+      "feature": "F-M1-04",
+      "pattern": "event",
+      "text": "When do or do/async evaluates a sequence, the Foreman Pel evaluator SHALL return the last source expression after required dependencies complete.",
+      "tests": [
+        "T-M1-009"
+      ]
+    },
+    {
+      "id": "R-M1-010",
+      "feature": "F-M1-05",
+      "pattern": "event",
+      "text": "When evaluation fails, the Foreman Pel evaluator SHALL return a stable error code, precise source span, and applicable function signature.",
+      "tests": [
+        "T-M1-010",
+        "T-M1-021"
+      ]
+    },
+    {
+      "id": "R-M1-011",
+      "feature": "F-M1-05",
+      "pattern": "unwanted",
+      "text": "If an evaluation bound would be exceeded, then the Foreman Pel evaluator SHALL stop before the next expression emits a host request.",
+      "tests": [
+        "T-M1-011"
+      ]
+    },
+    {
+      "id": "R-M1-012",
+      "feature": "F-M1-06",
+      "pattern": "event",
+      "text": "When a fully applied host function is reached, the Foreman Pel evaluator SHALL suspend and resume through validated ordinary Pel data.",
+      "tests": [
+        "T-M1-012"
+      ]
+    },
+    {
+      "id": "R-M1-013",
+      "feature": "F-M1-06",
+      "pattern": "event",
+      "text": "When case reaches a literal string condition, the Foreman Pel evaluator SHALL request a typed natural-language predicate result through host suspension.",
+      "tests": [
+        "T-M1-013"
+      ]
+    },
+    {
+      "id": "R-M1-014",
+      "feature": "F-M1-06",
+      "pattern": "event",
+      "text": "When a continuation is encoded and restored, the Foreman Pel evaluator SHALL preserve lexical data, pending request identities, and consumed limits.",
+      "tests": [
+        "T-M1-014"
+      ]
+    },
+    {
+      "id": "R-M1-015",
+      "feature": "F-M1-06",
+      "pattern": "event",
+      "text": "When a valid host failure receipt arrives, the Foreman Pel evaluator SHALL preserve its typed failure and stop releasing new requests.",
+      "tests": [
+        "T-M1-015"
+      ]
+    },
+    {
+      "id": "R-M1-016",
+      "feature": "F-M1-06",
+      "pattern": "event",
+      "text": "When a host-library closure is evaluated, the Foreman Pel evaluator SHALL bind nested requests and consumed counters to its unique child invocation identity.",
+      "tests": [
+        "T-M1-016"
+      ]
+    },
+    {
+      "id": "R-M1-017",
+      "feature": "F-M1-06",
+      "pattern": "event",
+      "text": "When a host registry is constructed, the Foreman Pel evaluator SHALL validate its names, argument specifications, data schemas, and canonical digest.",
+      "tests": [
+        "T-M1-017"
+      ]
+    },
+    {
+      "id": "R-M1-018",
+      "feature": "F-M1-02",
+      "pattern": "event",
+      "text": "When Pel data is encoded, the Foreman Pel evaluator SHALL produce the canonical tagged JSON representation and deterministic source formatting.",
+      "tests": [
+        "T-M1-018"
+      ]
+    },
+    {
+      "id": "R-M1-019",
+      "feature": "F-M1-01",
+      "pattern": "event",
+      "text": "When compatibility fixtures are validated, the Foreman Pel conformance suite SHALL cover every classified profile decision with its declared positive and negative cases.",
+      "tests": [
+        "T-M1-019"
+      ]
+    },
+    {
+      "id": "R-M1-020",
+      "feature": "F-M1-06",
+      "pattern": "event",
+      "text": "When a revised program preserves its completed prefix, the Foreman Pel evaluator SHALL validate old-to-new call mappings before fresh replay.",
+      "tests": [
+        "T-M1-020"
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "id": "T-M1-001",
+      "requirements": [
+        "R-M1-001"
+      ],
+      "level": "unit",
+      "fixture": "Calls (+ 1 2), lists [1 (+ 2 3)], nil, pair presence [:x] versus [:x #nil], quoted keys, ASCII |> pipes, corrected PDF KEY characters *, <, >, and escaped Unicode.",
+      "action": "parsePel each fixture with pel-paper-v2-foreman-1.",
+      "expected": "AST tags and UTF-8 spans match the profile. Pair AST valuePresent distinguishes required parameters from explicit nil defaults. ASCII |> parses and quoted keys remain data. A nonempty program returns its last source top-level expression value, after all required expressions complete.",
+      "target": "packages/pel/test/syntax.test.ts"
+    },
+    {
+      "id": "T-M1-002",
+      "requirements": [
+        "R-M1-002"
+      ],
+      "level": "unit",
+      "fixture": "Unmatched call/list delimiters, extracted ^> pipe, malformed escapes, #true, invalid UTF-8, 1e5, out-of-range decimals, a>b, >b, and x U+25B7 (f).",
+      "action": "parsePel each invalid lexical or grammar fixture.",
+      "expected": "Unmatched delimiters return PEL_PARSE. All listed invalid tokens return PEL_LEX with exact spans. U+25B7 gives the hint use |>. No invalid parse returns a program.",
+      "target": "packages/pel/test/syntax.test.ts"
+    },
+    {
+      "id": "T-M1-003",
+      "requirements": [
+        "R-M1-003"
+      ],
+      "level": "unit",
+      "fixture": "[1 \"two\" #t #nil :a 1 :flag], quoted symbols and expressions, duplicate keys, Unicode strings, and numeric boundary fixtures.",
+      "action": "startPel each fixture and formatPel its result.",
+      "expected": "Types and ordered pairs remain distinct. Formatting and JSON encoding round-trip Unicode and nil. Safe integers retain value. Unsafe or nonfinite arithmetic returns PEL_NUMERIC_DOMAIN.",
+      "target": "packages/pel/test/values.test.ts"
+    },
+    {
+      "id": "T-M1-004",
+      "requirements": [
+        "R-M1-004"
+      ],
+      "level": "unit",
+      "fixture": "([5 6 7 8] 1), ([5 6 7 8] () 1 3), ([:a 1 :b 2] :at [':b ':a]), missing keys, zero/fractional/out-of-range indices.",
+      "action": "startPel the callable-list fixture matrix.",
+      "expected": "Results are 5, [5 6 7], [2 1], and nil respectively. Invalid indices return PEL_INDEX. Mixed at and slice selectors return PEL_ARGUMENT_MODE.",
+      "target": "packages/pel/test/values.test.ts"
+    },
+    {
+      "id": "T-M1-005",
+      "requirements": [
+        "R-M1-005"
+      ],
+      "level": "unit",
+      "fixture": "((lambda [:x] x)), ((lambda [:x #nil] x)), defaults [:x :y 3] and [:x 1 :y], lexical capture, and recursive factorial.",
+      "action": "startPel closure fixtures.",
+      "expected": "The required-x zero-argument call returns a partial closure. The nil-default call returns nil. The two parameter matrices bind declared defaults and required values exactly. Factorial 5 returns 120.",
+      "target": "packages/pel/test/closures.test.ts"
+    },
+    {
+      "id": "T-M1-006",
+      "requirements": [
+        "R-M1-006"
+      ],
+      "level": "unit",
+      "fixture": "(def name) partial def, partial lambda, (+ :x 1 :y 2), ((+ 5) 4), (+ [1 2]), ((+ 5) [1 2]), mixed modes, duplicate/unknown names, and excess arguments. Rebinding :x on an already x-bound partial closure.",
+      "action": "startPel argument fixtures with a host-call spy.",
+      "expected": "Partial constructors do not bind or evaluate missing bodies. Numeric results are 3, 9, and 3. Partial binary plus with list returns PEL_TYPE. Mode/name/count errors are PEL_ARGUMENT_MODE, PEL_ARGUMENT_NAME, and PEL_ARITY. Partial rebinding returns PEL_ARGUMENT_NAME.",
+      "target": "packages/pel/test/closures.test.ts"
+    },
+    {
+      "id": "T-M1-007",
+      "requirements": [
+        "R-M1-007"
+      ],
+      "level": "contract",
+      "fixture": "A once-only host input with repeated carets, the page-17 case pipe chain, 7 |> (case ^ [(gt ^ 5) \"big\" #t \"small\"]), an aliased case, and (+ 1 2) |> (def z ^).",
+      "action": "startPel and resumePel once with test/once returning 5.",
+      "expected": "Repeated insertion emits one host call. The pipe-chain and nested/aliased case fixtures return \"big\". Def piping returns 3 and binds z. Quotes and nested case scopes retain their declared owners.",
+      "target": "packages/pel/test/control.test.ts"
+    },
+    {
+      "id": "T-M1-008",
+      "requirements": [
+        "R-M1-008"
+      ],
+      "level": "unit",
+      "fixture": "(if #f (test/denied) 7), (case 7 [(gt ^ 5) \"big\" #t \"small\"]), (case (test/once) [(gt 2) 1 #t 0]), a symbol-valued string condition, per-iteration def, and def inside if.",
+      "action": "startPel each native-control fixture.",
+      "expected": "The false branch emits no request. Case returns \"big\" and evaluates test/once exactly once. Nonliteral string conditions return PEL_TYPE. Per-iteration definitions return [1 2] without collision. Selected if definitions bind the caller scope.",
+      "target": "packages/pel/test/control.test.ts"
+    },
+    {
+      "id": "T-M1-009",
+      "requirements": [
+        "R-M1-009"
+      ],
+      "level": "contract",
+      "fixture": "Sequential do, empty blocks, do/async requests A then B, a forward dependency, and a cycle. Also (test/a) (test/b) without do/async under explicit ordered and automatic PelRunOptionsV1.",
+      "action": "startPel with explicit options, then resumePel(program,registry,continuation,[receiptB],options) for the asynchronous fixture, followed by receiptA.",
+      "expected": "Initial ready is [A:false,B:false]. After only B returns, suspend.ready is [A:true] with no newly emitted request. After A returns, done contains B value. Source-order dependencies wait and cycles return PEL_DEPENDENCY_CYCLE. Ordered top-level mode initially releases only A, automatic releases both, and both return the last source value after required work completes.",
+      "target": "packages/pel/test/control.test.ts"
+    },
+    {
+      "id": "T-M1-010",
+      "requirements": [
+        "R-M1-010"
+      ],
+      "level": "unit",
+      "fixture": "A two-line program with (print [\"hello\" name] :sep \" \") on line 2 and a registered print signature.",
+      "action": "startPel then renderPelDiagnostic.",
+      "expected": "PEL_ARGUMENT_MODE identifies line 2, marks the complete call, prints the registered signature, and supplies a named-argument example without unrelated environment data.",
+      "target": "packages/pel/test/limits.test.ts"
+    },
+    {
+      "id": "T-M1-011",
+      "requirements": [
+        "R-M1-011"
+      ],
+      "level": "contract",
+      "fixture": "(for [1 2 3] i (test/echo i)) with maxIterations=2, recursive fuel exhaustion, oversized input, deep nesting, and continuation resumes.",
+      "action": "startPel then resume valid receipts until the first bound failure.",
+      "expected": "Exactly two loop requests can occur. The third body emits none. PEL_LIMIT names the bound and consumed count. Resume retains previous counters.",
+      "target": "packages/pel/test/limits.test.ts"
+    },
+    {
+      "id": "T-M1-012",
+      "requirements": [
+        "R-M1-012"
+      ],
+      "level": "contract",
+      "fixture": "createHostRegistry fixture descriptors and schemas, then (test/flag) |> (if :cond ^ :then (for [1 2] i (* i 2)) :else []), plus an incomplete host closure.",
+      "action": "createPelEnvironment, startPel, then resumePel(program,registry,continuation,[successful Boolean receipt]).",
+      "expected": "One ready request appears and true yields [2 4]. The incomplete host closure emits no request. Changed registry content fails PEL_CONTINUATION_MISMATCH and schema-invalid values fail PEL_HOST_RESULT.",
+      "target": "packages/pel/test/host-contract.test.ts"
+    },
+    {
+      "id": "T-M1-013",
+      "requirements": [
+        "R-M1-013"
+      ],
+      "level": "contract",
+      "fixture": "(case [:tier \"premium\"] [\"is premium\" 1 #t 0]) with nlConditionProfile={profileId:\"gpt-5.6-sol\",transportId:\"openai-responses\",controls:fixtureControls,credentialProfileRef:\"account:test\",outputSchemaId:\"schema:pel-boolean-v1\"}. The selection and its digest are supplied through PelRunOptionsV1, with a null-selection counterfixture.",
+      "action": "startPel with explicit options and resumePel with matching options and Boolean or invalid receipts.",
+      "expected": "The request carries declared selection and selectionDigest fields plus scrutinee and literal condition. Boolean receipts return 1 or 0. Null selection returns PEL_REGISTRY before release. A string receipt returns PEL_HOST_RESULT.",
+      "target": "packages/pel/test/host-contract.test.ts"
+    },
+    {
+      "id": "T-M1-014",
+      "requirements": [
+        "R-M1-014"
+      ],
+      "level": "contract",
+      "fixture": "A partially complete do/async with a captured closure, one completed receipt, pending requests, changed digest, and duplicate receipt. Change dependencyMode, predicate selection, or replay options independently.",
+      "action": "Encode/decode PelContinuationV1, resumePel with the supplied program and registry, then try changed source, changed registry, and duplicate receipts.",
+      "expected": "Matching restoration returns the same value without repeated calls. Changed source or registry returns PEL_CONTINUATION_MISMATCH. Duplicate and unknown receipts return PEL_HOST_RESULT. Every changed optionsDigest returns PEL_CONTINUATION_MISMATCH.",
+      "target": "packages/pel/test/host-contract.test.ts"
+    },
+    {
+      "id": "T-M1-015",
+      "requirements": [
+        "R-M1-015"
+      ],
+      "level": "contract",
+      "fixture": "do/async with A failing while B remains pending, and a retry child returning a registered provider failure.",
+      "action": "resumePel with A failure, inspect failed continuation, then merge the final child failure.",
+      "expected": "PelStep.failed contains PEL_HOST_FAILURE and identical hostFailure code/message/cause. B remains pending for host reconciliation. No new request is emitted. Merged child failure preserves counters.",
+      "target": "packages/pel/test/host-contract.test.ts"
+    },
+    {
+      "id": "T-M1-016",
+      "requirements": [
+        "R-M1-016"
+      ],
+      "level": "contract",
+      "fixture": "The same closure evaluated under parent p at retry attempts 1 and 2, race contenders 1 and 2, and an abandoned losing child. A recursively captured closure whose canonical node table contains a cycle.",
+      "action": "extractClosureEnvironment, evaluateClosure per context, then merge counters and try an attempt-1 receipt in attempt 2. Encode/decode HostArgumentsEncodingV1 and hash the whole digest-free environment node/reference table.",
+      "expected": "Nested request IDs differ across attempts and contenders. A foreign receipt returns PEL_HOST_RESULT. Winning, failed, and abandoned child counters are charged once. Closure return data is rejected at the host-library boundary. Recursive closure argument bytes and digest remain stable without recursive environment hashing.",
+      "target": "packages/pel/test/host-contract.test.ts"
+    },
+    {
+      "id": "T-M1-017",
+      "requirements": [
+        "R-M1-017"
+      ],
+      "level": "contract",
+      "fixture": "Duplicate host names, unknown schema references, a maxItems=4 list schema, an association with duplicate keys, and changed descriptor content. Change only the resolverCatalog.",
+      "action": "createHostRegistry(descriptors,dataSchemas,failureSchemas,resolverCatalog), then decode fixture receipts.",
+      "expected": "Invalid registries return PEL_REGISTRY. The bounded schema permits four values and rejects five. Association duplicates fail PEL_HOST_RESULT. Descriptor changes change the registry digest. Resolver changes alter registryDigest.",
+      "target": "packages/pel/test/host-contract.test.ts"
+    },
+    {
+      "id": "T-M1-018",
+      "requirements": [
+        "R-M1-018"
+      ],
+      "level": "property",
+      "fixture": "Nil, pair :a 1, list [':a 1], negative zero, Unicode string, nested data, and a closure.",
+      "action": "Encode, canonicalize, SHA-256 hash, decode, and formatPel each fixture.",
+      "expected": "Round-trips preserve data. Equal values have identical digests. Pair and list hashes differ. Negative zero encodes as zero. Closure formatting is explicitly non-executable.",
+      "target": "packages/pel/test/values.test.ts"
+    },
+    {
+      "id": "T-M1-019",
+      "requirements": [
+        "R-M1-019"
+      ],
+      "level": "contract",
+      "fixture": "The corrected PDF-backed profile matrix with extension rows separate from pure paper baseline rows, positive/negative fixtures through PV2-056, and a deliberately wrong locator/classification.",
+      "action": "Run packages/pel/test/profile.test.ts through scripts/run-tests.ts.",
+      "expected": "Complete fixtures and exact matrix metadata pass. Missing cases, wrong stored metadata, or unclassified rows fail. PixelRAG page-image spot checks establish p12 nil/pairs, p14 argument modes, p17 if/case, and p11 keyword rules. Print routing is an extension.",
+      "target": "packages/pel/test/profile.test.ts"
+    },
+    {
+      "id": "T-M1-020",
+      "requirements": [
+        "R-M1-020"
+      ],
+      "level": "contract",
+      "fixture": "Two completed host calls, recorded prefix reductions 10, latest durable failed-step reductions 14, and a revised pure suffix consuming 3 reductions. Counterfixtures change a completed argument or lower committedCounters.",
+      "action": "validateRevisionPrefix, startPel with completed-prefix replay options containing recordedCounters and committedCounters, then supply mapped receipts.",
+      "expected": "Both host results reuse receipts without dispatch. Replay consumes separate bounded fuel. New ordinary reductions total 17, including failed suffix work. Changed completed arguments or reduced committed counters fail before dispatch; original limits remain enforced.",
+      "target": "packages/pel/test/host-contract.test.ts"
+    },
+    {
+      "id": "T-M1-021",
+      "requirements": [
+        "R-M1-010"
+      ],
+      "level": "unit",
+      "fixture": "Parser-valid bare caret, :a^b, lone minus, Infinity, :a>, and every stable diagnostic enum member.",
+      "action": "parsePel first, then startPel with default explicit options for parse-valid programs and enumerate diagnostic rendering.",
+      "expected": "Parsing accepts standalone caret syntax and symbol tokens. Evaluation raises PEL_CARET_SCOPE for demanded unbound carets, returns a subtraction closure for minus, and raises PEL_UNBOUND_SYMBOL for Infinity. :a> remains a keyword. Stable diagnostics include PEL_HOST_FAILURE and PEL_REGISTRY.",
+      "target": "packages/pel/test/limits.test.ts"
+    }
+  ]
+}

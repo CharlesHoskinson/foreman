@@ -1,0 +1,543 @@
+{
+  "milestone": "M6",
+  "change": "foredi-06-adoption",
+  "title": "Install, migrate and use Return of the ForeDi",
+  "depends_on": [
+    "M1",
+    "M2",
+    "M3",
+    "M4",
+    "M5"
+  ],
+  "features": [
+    {
+      "id": "F-M6-01",
+      "title": "Install and first workflow",
+      "description": "Install the Node.js 24 product and start a documented admitted Pel workflow.",
+      "requirements": [
+        "R-M6-001",
+        "R-M6-002",
+        "R-M6-003",
+        "R-M6-019"
+      ]
+    },
+    {
+      "id": "F-M6-02",
+      "title": "Runnable examples and model selection",
+      "description": "Ship useful examples with all six exact profiles and visible readiness.",
+      "requirements": [
+        "R-M6-004",
+        "R-M6-005",
+        "R-M6-006"
+      ]
+    },
+    {
+      "id": "F-M6-03",
+      "title": "Legacy workflow migration",
+      "description": "Migrate supported workflows to one execution owner while retaining historical decoding.",
+      "requirements": [
+        "R-M6-007",
+        "R-M6-008",
+        "R-M6-009"
+      ]
+    },
+    {
+      "id": "F-M6-04",
+      "title": "Measured simplification",
+      "description": "Demonstrate scoped deletion and reduced instructions against an immutable baseline.",
+      "requirements": [
+        "R-M6-010",
+        "R-M6-011",
+        "R-M6-012"
+      ]
+    },
+    {
+      "id": "F-M6-05",
+      "title": "Research and graph usability",
+      "description": "Make sourced research navigable and refreshable without a mandatory external vault.",
+      "requirements": [
+        "R-M6-013",
+        "R-M6-014",
+        "R-M6-015",
+        "R-M6-022"
+      ]
+    },
+    {
+      "id": "F-M6-06",
+      "title": "Packaging, support and rollback",
+      "description": "Package working features with truthful support and compatible recovery.",
+      "requirements": [
+        "R-M6-016",
+        "R-M6-017",
+        "R-M6-018",
+        "R-M6-020",
+        "R-M6-021",
+        "R-M6-023"
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "id": "R-M6-001",
+      "feature": "F-M6-01",
+      "pattern": "event",
+      "text": "When a clean installation completes, the Foreman installer SHALL provide the compiled Node.js 24 CLI and matching Pel examples.",
+      "tests": [
+        "T-M6-001"
+      ]
+    },
+    {
+      "id": "R-M6-002",
+      "feature": "F-M6-01",
+      "pattern": "event",
+      "text": "When the quickstart starts an admitted workflow, the Foreman CLI SHALL execute the supplied Pel file with one foreman run command.",
+      "tests": [
+        "T-M6-002"
+      ]
+    },
+    {
+      "id": "R-M6-003",
+      "feature": "F-M6-01",
+      "pattern": "unwanted",
+      "text": "If installation prerequisites are missing, then the Foreman installer SHALL report the missing prerequisite before changing the existing installation.",
+      "tests": [
+        "T-M6-003"
+      ]
+    },
+    {
+      "id": "R-M6-004",
+      "feature": "F-M6-02",
+      "pattern": "ubiquitous",
+      "text": "The Foreman example collection SHALL include sequential work, parallel work, bounded rework, review, race cancellation, recovery and research preparation.",
+      "tests": [
+        "T-M6-004"
+      ]
+    },
+    {
+      "id": "R-M6-005",
+      "feature": "F-M6-02",
+      "pattern": "event",
+      "text": "When an example selects a model, the Foreman CLI SHALL display the exact profile, transport and readiness evidence before execution.",
+      "tests": [
+        "T-M6-005"
+      ]
+    },
+    {
+      "id": "R-M6-006",
+      "feature": "F-M6-02",
+      "pattern": "unwanted",
+      "text": "If an example's required provider is unavailable, then the Foreman CLI SHALL explain the missing capability without starting the workflow.",
+      "tests": [
+        "T-M6-006"
+      ]
+    },
+    {
+      "id": "R-M6-007",
+      "feature": "F-M6-03",
+      "pattern": "event",
+      "text": "When a registered RoundPlanV1 and ExecutionContractV1 pair is imported, the Foreman migration tool SHALL emit Pel source and a parity report.",
+      "tests": [
+        "T-M6-007"
+      ]
+    },
+    {
+      "id": "R-M6-008",
+      "feature": "F-M6-03",
+      "pattern": "state",
+      "text": "While a legacy run remains active, the Foreman migration tool SHALL preserve its current execution owner and durable history.",
+      "tests": [
+        "T-M6-008"
+      ]
+    },
+    {
+      "id": "R-M6-009",
+      "feature": "F-M6-03",
+      "pattern": "event",
+      "text": "When legacy scripts are retired, the Foreman CLI SHALL preserve historical record decoding after their callers migrate to the unified runtime.",
+      "tests": [
+        "T-M6-009"
+      ]
+    },
+    {
+      "id": "R-M6-010",
+      "feature": "F-M6-04",
+      "pattern": "event",
+      "text": "When simplification is measured, the Foreman measurement tool SHALL use the specification-fixed cohort, instruction corpus, tokenizer and counting rules.",
+      "tests": [
+        "T-M6-010"
+      ]
+    },
+    {
+      "id": "R-M6-011",
+      "feature": "F-M6-04",
+      "pattern": "ubiquitous",
+      "text": "The Foreman migrated workflow cohort SHALL reduce orchestration glue lines by at least 40 percent and required instruction tokens by at least 50 percent.",
+      "tests": [
+        "T-M6-011"
+      ]
+    },
+    {
+      "id": "R-M6-012",
+      "feature": "F-M6-04",
+      "pattern": "event",
+      "text": "When an unchanged candidate repeats verification, the Foreman execution owner SHALL reuse the matching host receipt and report one full verification execution.",
+      "tests": [
+        "T-M6-012"
+      ]
+    },
+    {
+      "id": "R-M6-013",
+      "feature": "F-M6-05",
+      "pattern": "event",
+      "text": "When a user requests research context, the Foreman research reader SHALL return bounded source-linked results with claim status and freshness.",
+      "tests": [
+        "T-M6-013"
+      ]
+    },
+    {
+      "id": "R-M6-014",
+      "feature": "F-M6-05",
+      "pattern": "event",
+      "text": "When research inputs change, the Foreman research reader SHALL mark derived notes and graphs stale until a matching refresh completes.",
+      "tests": [
+        "T-M6-014"
+      ]
+    },
+    {
+      "id": "R-M6-015",
+      "feature": "F-M6-05",
+      "pattern": "optional",
+      "text": "Where an external Obsidian vault is configured, the Foreman research reader SHALL expose its linked context without granting it execution authority.",
+      "tests": [
+        "T-M6-015"
+      ]
+    },
+    {
+      "id": "R-M6-016",
+      "feature": "F-M6-06",
+      "pattern": "event",
+      "text": "When a release package is assembled, the Foreman packaging tool SHALL include matching runtime, examples, profile evidence and migration documentation.",
+      "tests": [
+        "T-M6-016"
+      ]
+    },
+    {
+      "id": "R-M6-017",
+      "feature": "F-M6-06",
+      "pattern": "event",
+      "text": "When an installed release rolls back, the Foreman rollback tool SHALL check every registered state root before restoring a compatible runtime without rewriting history.",
+      "tests": [
+        "T-M6-017"
+      ]
+    },
+    {
+      "id": "R-M6-018",
+      "feature": "F-M6-06",
+      "pattern": "event",
+      "text": "When support diagnostics are exported, the Foreman CLI SHALL report reproducible feature context with secret and reasoning redaction.",
+      "tests": [
+        "T-M6-018"
+      ]
+    },
+    {
+      "id": "R-M6-019",
+      "feature": "F-M6-01",
+      "pattern": "event",
+      "text": "When a configured project starts a Pel workflow, the Foreman CLI SHALL derive its execution binding from the checked program and stored project configuration.",
+      "tests": [
+        "T-M6-019"
+      ]
+    },
+    {
+      "id": "R-M6-020",
+      "feature": "F-M6-06",
+      "pattern": "event",
+      "text": "When version information is requested, the Foreman CLI SHALL report the release name, build identity and nullable numerical version from its installed manifest.",
+      "tests": [
+        "T-M6-020"
+      ]
+    },
+    {
+      "id": "R-M6-021",
+      "feature": "F-M6-06",
+      "pattern": "event",
+      "text": "When a adoption subcommand terminates, the Foreman CLI SHALL return the exit code assigned to its command outcome in the shared command table.",
+      "tests": [
+        "T-M6-021"
+      ]
+    },
+    {
+      "id": "R-M6-022",
+      "feature": "F-M6-05",
+      "pattern": "event",
+      "text": "When a Pel research effect executes, the Foreman host SHALL return bounded source-linked context through the registered read-only research descriptor.",
+      "tests": [
+        "T-M6-022"
+      ]
+    },
+    {
+      "id": "R-M6-023",
+      "feature": "F-M6-06",
+      "pattern": "event",
+      "text": "When an archive build is requested, the Foreman packaging tool SHALL emit the manifest-bound installable archive at its declared build-identity path.",
+      "tests": [
+        "T-M6-023"
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "id": "T-M6-001",
+      "requirements": [
+        "R-M6-001"
+      ],
+      "level": "acceptance",
+      "fixture": "Linux x64 Node24, artifacts/foredi/<buildId>.tar.gz returned by T-M6-016 archive producer, clean /tmp/foredi-unpacked and installation prefix /tmp/foredi-prefix, no checkout/global TS runner/vault.",
+      "action": "Extract artifacts/foredi/<buildId>.tar.gz to /tmp/foredi-unpacked, run node /tmp/foredi-unpacked/runtime/dist/install.js --prefix /tmp/foredi-prefix, then installed foreman --version --json and foreman check <prefix>/current/examples/pel/implement-verify-review.pel.",
+      "expected": "Installed generated Node.js executable works via symlink. Version JSON is {releaseName:\"Return of the ForeDi\",version:null,buildId:<manifest-build-id>} before version assignment. Snapshot/example hashes match and no provider call occurs. Installation, version display and the successful check each exit 0.",
+      "target": "packages/orchestration/src/pel-install.test.ts"
+    },
+    {
+      "id": "T-M6-002",
+      "requirements": [
+        "R-M6-002"
+      ],
+      "level": "acceptance",
+      "fixture": "Copied installation and packages/orchestration/src/fixtures/pel-adoption/project-settings.json in a temporary Git repository, with M4 test-fixture binding and manifest-bound state root. Mandatory temporary fixture manifest includes stateRoot, assetRoot=<prefix>/current and assetManifestSha256 plus the copied project-settings fixture.",
+      "action": "node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> project configure --settings packages/orchestration/src/fixtures/pel-adoption/project-settings.json; node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> run <assetRoot>/examples/pel/implement-verify-review.pel; node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> status <run-id> --json.",
+      "expected": "Configuration is stored at git-common-dir/foreman/project.json. One run command derives exact authority, limits, workspace and native profile mappings. Missing config exits 2 without effects. Fixture output is labeled test-fixture, never live-qualified. The launcher validates copied snapshot/example hashes from assetRoot. Missing manifest exits 2. ForemanProjectV1 is the single configuration schema name.",
+      "target": "packages/orchestration/src/pel-adoption.test.ts"
+    },
+    {
+      "id": "T-M6-003",
+      "requirements": [
+        "R-M6-003"
+      ],
+      "level": "acceptance",
+      "fixture": "Node.js 22 fixture, missing archive file, or invalid archive manifest with an existing working installation.",
+      "action": "node <archive>/runtime/dist/install.js --prefix /tmp/foredi-existing for Node22, invalid manifest and missing-asset cases.",
+      "expected": "InstallPrerequisiteMissing or PackageIntegrityMismatch names the cause. Existing installed bytes and executable entry point remain unchanged. Every Node22, missing-asset and invalid-manifest case exits 2 before changing the installation.",
+      "target": "packages/orchestration/src/pel-install.test.ts"
+    },
+    {
+      "id": "T-M6-004",
+      "requirements": [
+        "R-M6-004"
+      ],
+      "level": "acceptance",
+      "fixture": "Packaged examples/pel corpus and deterministic fake provider transcripts.",
+      "action": "Product foreman.js check each example using copied installed assets, then node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> run <assetRoot>/examples/pel/<example>.pel.",
+      "expected": "Every file parses and admits under its documented capabilities. Observable outputs demonstrate its named behavior and contain no implicit publication. research-prepare and parallel-read call registered fm/research with read-result preparation and zero provider/action reservations.",
+      "target": "packages/orchestration/src/pel-examples.test.ts"
+    },
+    {
+      "id": "T-M6-005",
+      "requirements": [
+        "R-M6-005"
+      ],
+      "level": "acceptance",
+      "fixture": "Six profile examples selecting grok-4.6, claude-opus-5, claude-fable-5-1, gpt-6-astra, gpt-5.6-sol and gemini-3.8-flash.",
+      "action": "foreman plan each profile example and foreman providers list --json.",
+      "expected": "All six exact IDs and concrete canonical transport IDs remain visible. Product evidence stays unqualified without live observations. Fixture-backed cells are labeled test-fixture, never live-qualified.",
+      "target": "packages/orchestration/src/pel-examples.test.ts"
+    },
+    {
+      "id": "T-M6-006",
+      "requirements": [
+        "R-M6-006"
+      ],
+      "level": "acceptance",
+      "fixture": "Product binding with documented-only, fixture-only, expired or absent exact model/native permission evidence.",
+      "action": "foreman run the example using its documented command.",
+      "expected": "Exit 2 reports ModelUnavailable or CapabilityUnverified with configuration details. No provider call, reservation or worktree is created. Product rejects a test-fixture binding.",
+      "target": "packages/orchestration/src/pel-examples.test.ts"
+    },
+    {
+      "id": "T-M6-007",
+      "requirements": [
+        "R-M6-007"
+      ],
+      "level": "integration",
+      "fixture": "packages/orchestration/src/fixtures/pel-migration/{implement-verify-review,bounded-rework}/ each contains round-v1.json, contract-v1.json, registered-command-bindings.json and expected-trace.json. Inputs use RoundPlanV1 and ExecutionContractV1 schemaVersion1.",
+      "action": "foreman migrate <case>/round-v1.json --contract <case>/contract-v1.json --out <file.pel>, then node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> run <file.pel>.",
+      "expected": "Both known templates preserve required effects, identities, bounds and terminal decisions. Unsupported schema/argv or Council input returns UnsupportedLegacyConstruct. No arbitrary command executes. Supported import exits 0. Unsupported schema/command/template exits 2.",
+      "target": "packages/orchestration/src/pel-migration.test.ts"
+    },
+    {
+      "id": "T-M6-008",
+      "requirements": [
+        "R-M6-008"
+      ],
+      "level": "integration",
+      "fixture": "An active legacy run with a lease, reservations and completed tool receipts.",
+      "action": "Attempt migration and resume through the new CLI.",
+      "expected": "Migration returns ActiveLegacyRun. The existing owner continues. Journal hashes and budgets remain unchanged. No second controller starts. ActiveLegacyRun exits 3 without transferring ownership.",
+      "target": "packages/orchestration/src/pel-migration.test.ts"
+    },
+    {
+      "id": "T-M6-009",
+      "requirements": [
+        "R-M6-009"
+      ],
+      "level": "integration",
+      "fixture": "Historical terminal records and the twelve exact legacy shell cohort paths, with caller migration completed.",
+      "action": "Assert all twelve files are absent; rg full paths and basenames in packages, components/council, skills/foreman, scripts, env and .github; run migrated CLI workflows and retained Council review/preflight fixtures.",
+      "expected": "No legacy shell cohort entry or active caller remains. Historical identities still decode. No compatibility argv parser or second scheduler is introduced. Every live caller scope has zero deleted-entry references, including retained Council callers. Historical records remain separate and runtime manifests are regenerated.",
+      "target": "packages/orchestration/src/pel-migration.test.ts"
+    },
+    {
+      "id": "T-M6-010",
+      "requirements": [
+        "R-M6-010"
+      ],
+      "level": "integration",
+      "fixture": "Spec-fixed 15-file production cohort and five instruction files at baseline 441c3fb9f6acb2656760d03cc79e7c706fb8b7dd, js-tiktoken1.0.21/cl100k_base and candidate revision. Candidate includes a newly added pel-research-host.ts and surviving full baseline instruction files.",
+      "action": "node skills/foreman/runtime/dist/pel-simplification.js --baseline <manifest> --candidate <revision>.",
+      "expected": "Report includes old and replacement production lines, generated/test/archive exclusions, command count, instruction tokens, owners and total production growth with file hashes. Changed cohort membership or tokenizer identity fails comparison. Build manifest contains the named metric bundle. Valid passing comparison exits 0. Changed membership/tokenizer exits 2. A valid report with missed acceptance targets exits 1 and remains available. Research/install/metrics source is included under the exact path-and-change union. Residual instruction files count in full, not selected paragraphs.",
+      "target": "packages/orchestration/src/pel-simplification.test.ts"
+    },
+    {
+      "id": "T-M6-011",
+      "requirements": [
+        "R-M6-011"
+      ],
+      "level": "integration",
+      "fixture": "The frozen implementation cohort, all new replacement glue, and the complete mandatory quickstart instruction corpus.",
+      "action": "Run the simplification measurement against the candidate and compare its acceptance fields.",
+      "expected": "Net glue reduction is at least 0.40 and instruction reduction at least 0.50. Moving code or instructions outside old paths does not remove them from counts.",
+      "target": "packages/orchestration/src/pel-simplification.test.ts"
+    },
+    {
+      "id": "T-M6-012",
+      "requirements": [
+        "R-M6-012"
+      ],
+      "level": "integration",
+      "fixture": "Migrated standard workflow runs twice with identical candidate, base, checks, dependencies, tools and environment.",
+      "action": "Execute the corpus twice, then change each verification binding in a table-driven test.",
+      "expected": "Identical bindings invoke the full verifier once. Any changed binding invokes it again. Each run has one control-flow owner and one event history.",
+      "target": "packages/orchestration/src/pel-simplification.test.ts"
+    },
+    {
+      "id": "T-M6-013",
+      "requirements": [
+        "R-M6-013"
+      ],
+      "level": "integration",
+      "fixture": "Repository research bundle containing paper claims, adopted decisions, hypotheses, coverage warnings and provider source captures.",
+      "action": "foreman research query \"Fable forced tools\" --json --limit 5 without a vault path.",
+      "expected": "Results include source locator, source hash, capture time, claim class and freshness. Unsupported extraction remains visible. Hidden reasoning and secrets are absent. Successful query, including no-match or stale results, exits 0. Invalid arguments or required schema exit 2.",
+      "target": "packages/orchestration/src/pel-research-context.test.ts"
+    },
+    {
+      "id": "T-M6-014",
+      "requirements": [
+        "R-M6-014"
+      ],
+      "level": "integration",
+      "fixture": "A copied bundle with one changed source hash, one missing source and interrupted refresh metadata.",
+      "action": "foreman research status --json, then foreman research refresh --bundle <path> against a complete captured bundle.",
+      "expected": "Stale and missing inputs appear explicitly. Refresh atomically publishes matching derived hashes and provenance. Interrupted refresh preserves the previous readable snapshot. Successful status and refresh exit 0. Invalid source provenance exits 2. Explicit interruption exits 4 after preserving the previous snapshot.",
+      "target": "packages/orchestration/src/pel-research-context.test.ts"
+    },
+    {
+      "id": "T-M6-015",
+      "requirements": [
+        "R-M6-015"
+      ],
+      "level": "integration",
+      "fixture": "Optional temporary Obsidian vault with wikilinks, advisory graph nodes and a note containing an execution instruction.",
+      "action": "foreman research query with --vault <path>, then remove the vault and run the standard Pel example.",
+      "expected": "Query preserves note links and provenance. Note instructions cannot grant capabilities. Core workflow still works without the vault and reports optional context absence.",
+      "target": "packages/orchestration/src/pel-research-context.test.ts"
+    },
+    {
+      "id": "T-M6-016",
+      "requirements": [
+        "R-M6-016"
+      ],
+      "level": "acceptance",
+      "fixture": "Candidate build with generated runtime, source manifest, support matrix and unresolved v0.5 obligation references.",
+      "action": "npm run build, then npm run package:pel -- --candidate <git-commit> --out artifacts/foredi, inspect emitted archivePath/buildId/archiveSha256 and manifest; run candidate static checks.",
+      "expected": "Archive hashes match candidate, metric bundle and assets/pel/default-authoring-snapshot.json. Canonical example paths exist. Support is exact per capability. Unassigned version is null. Unresolved v0.5 obligations retain their original status. ManifestPayloadV1 canonical hash yields buildId without self-reference. Archive path is artifacts/foredi/<buildId>.tar.gz and contains the exact installable layout.",
+      "target": "packages/orchestration/src/pel-package.test.ts"
+    },
+    {
+      "id": "T-M6-017",
+      "requirements": [
+        "R-M6-017"
+      ],
+      "level": "acceptance",
+      "fixture": "prefix/versions/<old-build-id> and current manifests plus prefix/state-roots.json with two canonical state roots, one compatible and one incompatible or unreadable active checkpoint. Include a root created through registered --state-root override and a separate unregistered override.",
+      "action": "foreman install rollback --to <old-build-id> for compatible and incompatible registered-state fixtures.",
+      "expected": "Compatible rollback atomically switches prefix/current and preserves both histories. Any incompatible or unreadable registered root returns RollbackIncompatible before switch. No second scheduler starts. Compatible rollback exits 0. Incompatible or unreadable registered active state exits 3. Unknown build identity exits 2. Installed run/resume reject the unregistered override with exit 2. Rollback checks the registered override root. Checkout/fixture runs need no installation prefix projection.",
+      "target": "packages/orchestration/src/pel-package.test.ts"
+    },
+    {
+      "id": "T-M6-018",
+      "requirements": [
+        "R-M6-018"
+      ],
+      "level": "acceptance",
+      "fixture": "Failed packaged quickstart with a model mismatch, run IDs, provider evidence, source version, secret fixture and opaque reasoning blob.",
+      "action": "foreman support export --run <id> --out <bundle>.",
+      "expected": "Bundle includes version, platform, exact profile/transport, safe failure, relevant event IDs and reproduction command. Secrets, tokens and hidden reasoning are absent. Successful export exits 0. Unknown run exits 2 and write failure exits 1.",
+      "target": "packages/orchestration/src/pel-support.test.ts"
+    },
+    {
+      "id": "T-M6-019",
+      "requirements": [
+        "R-M6-019"
+      ],
+      "level": "acceptance",
+      "fixture": "Git-common-dir/foreman/project.json created from packages/orchestration/src/fixtures/pel-adoption/project-settings.json, plus missing and invalid variants. Required fixture manifest supplies stateRoot, assetRoot=<prefix>/current and assetManifestSha256.",
+      "action": "node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> run <assetRoot>/examples/pel/implement-verify-review.pel without --binding.",
+      "expected": "Valid configuration binds exact authority, state root, limits, profile mappings and workspace grants. Missing or invalid configuration exits 2 with zero reservation and dispatch.",
+      "target": "packages/orchestration/src/pel-adoption.test.ts"
+    },
+    {
+      "id": "T-M6-020",
+      "requirements": [
+        "R-M6-020"
+      ],
+      "level": "acceptance",
+      "fixture": "Installed manifest with releaseName Return of the ForeDi, version null and known buildId, followed by an explicitly assigned SemVer variant.",
+      "action": "foreman --version --json and foreman --version.",
+      "expected": "JSON has exactly releaseName, version and buildId matching the manifest. Human output says unversioned before assignment and never invents a numerical release. Valid nullable version output exits 0.",
+      "target": "packages/orchestration/src/pel-package.test.ts"
+    },
+    {
+      "id": "T-M6-021",
+      "requirements": [
+        "R-M6-021"
+      ],
+      "level": "acceptance",
+      "fixture": "Table-driven installed-asset/filesystem cases for migrate, research query/status/refresh, install, rollback, support, version and metric commands from design.md Command outcomes.",
+      "action": "Invoke product install/version/metric entries or node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> <adoption-subcommand> for injected filesystem cases, inspecting exact exits and mutations.",
+      "expected": "All command outcomes match the table: success 0, failure 1, invalid input 2, active-legacy/incompatible-state needs-action 3 and confirmed local cancellation 4. Prior data remains intact on failed or interrupted mutations. No final pending 5 appears.",
+      "target": "packages/orchestration/src/pel-adoption-cli.test.ts"
+    },
+    {
+      "id": "T-M6-022",
+      "requirements": [
+        "R-M6-022"
+      ],
+      "level": "acceptance",
+      "fixture": "M2 fm/research descriptor with id/query/bundle/limit, admitted bundle:release-sources and two distinct parallel read bundles.",
+      "action": "Check research-prepare.pel and parallel-read.pel, then node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> run <assetRoot>/examples/pel/<example>.pel.",
+      "expected": "M6 handler returns schema:research-result-v1 in declared order. Read resources match admitted bundles, writes are empty and fresh read-result preparation needs no prior receipt or external reservation.",
+      "target": "packages/orchestration/src/pel-research-host.test.ts"
+    },
+    {
+      "id": "T-M6-023",
+      "requirements": [
+        "R-M6-023"
+      ],
+      "level": "acceptance",
+      "fixture": "Compiled Node24 producer, exact candidate revision and runtime/assets/examples/docs payload with invalid-path counterfixtures.",
+      "action": "npm run package:pel -- --candidate <git-commit> --out artifacts/foredi.",
+      "expected": "Successful build emits artifacts/foredi/<buildId>.tar.gz and matching archive hash with exit 0. Invalid paths/options exit 2 and archive I/O fails with exit 1. Payload digest excludes manifest self-reference.",
+      "target": "packages/orchestration/src/pel-package.test.ts"
+    }
+  ]
+}

@@ -51,7 +51,7 @@ The capture note records that distinction.
 |---|---|---|
 | §§4.1–4.2, pp.10–12 | Parenthesized calls, evaluated bracket lists, symbols, keywords, pairs, numbers, strings, booleans, nil | Preserve the syntax and data model in a versioned language profile. |
 | §4.3, pp.12–14 | Closures, lexical environment, fixed argument specifications, partial application, named arguments | Preserve pure closures and partial application. Reject mixed positional and named arguments. |
-| §4.4, pp.14–15 | `^>` composition and recursive `^` insertion | Preserve both forms. Specify placeholder scope and repeated insertion. |
+| §4.4, pp.14–15 | Rendered triangle pipe and recursive `^` insertion | Use the explicit ASCII normalization `\|>`. Specify placeholder scope and repeated insertion. |
 | §4.5, pp.15–16 | Callable lists, indexing, slices, and key lookup | Preserve the concept. Resolve conflicting index examples explicitly. |
 | §4.6, pp.16–18 | Non-strict built-in `if`, `case`, `for`, `do`, and `do/async` | Preserve selective evaluation. Bound all execution through the host contract. |
 | §4.7, pp.18–19 | Natural-language predicates invoke an LLM | Make the invocation an explicit effect with a recorded result. |
@@ -65,7 +65,7 @@ The capture note records that distinction.
    Later examples return `6` for index `1` in `[5 6 7 8]` and iterate indices `0, 2, 4`.
    Select one-based indexing for the first profile. Reject zero rather than silently changing the earlier specification.
    Record the conflicting examples as errata, with proposed outputs `5` and `[5 6 7]` for the positional examples.
-2. **Incomplete lexical rules.** The printed `SYMBOL` regex excludes `^`, but examples require a standalone caret placeholder.
+2. **Incomplete lexical rules.** The printed grammar has no separate caret production, but examples require a standalone caret placeholder. The PDF SYMBOL class excludes `|` and `>`, not caret.
    Define a separate caret token. Specify pipe precedence, quoting, escapes, Unicode, and token boundaries.
    The printed string regex does not implement the claimed C-style escapes.
 3. **Arity conflicts.** Section 3 states that functions have fixed arity and no variadic arguments.
@@ -171,3 +171,7 @@ Each claim should link to its source and capture date. Each decision should name
 Keep the execution ledger authoritative. Wiki prose and graph edges provide context, not permission to execute.
 The gist is an optional pattern, not a requirement for embeddings, a hosted service, or a particular Obsidian plugin.
 This review does not install or configure the vault.
+
+## PDF glyph verification after the OpenSpec audits
+
+Visual inspection corrected errors in the text extraction. The pipe prints as a hollow right-pointing triangle. The PDF keyword character class includes `*`, `<`, and `>`, and does not include caret. The extracted `^>` spelling is not reliable source syntax. The release uses `|>` as an explicit ASCII normalization, with `^` as the placeholder. See the [page images and inspection record](sources/pel/glyph-verification.md). Original PDF and text captures remain unchanged.

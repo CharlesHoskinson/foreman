@@ -1,0 +1,12 @@
+{
+  "role": "release",
+  "focus": "Lead focus: every release stage is specified and implementable, features dominate bureaucracy, EARS is complete and observable, each feature has meaningful test coverage, runnable implementation tasks, delivery UX, migration/deletion and install/rollback in M5/M6. Check missing features and integration seams across all six.",
+  "requested_model": "claude-opus-5",
+  "effort": "high",
+  "prompt_sha256": "595b91d9ca4e6528cd76b99074379e11b61a4e793609f78b88866a077c070b3b",
+  "input_manifest_sha256": "e4eec8af46d29fe8111466e310c469b9a61f6815bcefbdd5c64de32923159aac",
+  "prompt_bytes": 422199,
+  "tools": [],
+  "permission_mode": "plan",
+  "safe_mode": true
+}

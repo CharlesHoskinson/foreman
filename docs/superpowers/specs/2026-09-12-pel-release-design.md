@@ -1,8 +1,10 @@
-# Foreman Pel release design
+# Return of the ForeDi release design
 
 Status: proposed release design. The user selected **adopt and extend Pel** on 2026-09-12.
 Baseline: `441c3fb9f6ac`, the merge of the v0.5 bootstrap tranche. The remaining v0.5 work is not presumed complete.
-Release name: **Foreman Pel**. Assign a version after reconciling the active release program.
+Release name: **Return of the ForeDi**. Assign a version after reconciling the active release program.
+
+The [feature OpenSpecs and EARS catalog](../../releases/return-of-the-foredi/README.md) define the implementation milestones for this design.
 
 ## Outcome
 
@@ -74,7 +76,7 @@ Machine-readable previews and execution records are outputs, not competing plans
 ## Pel core and Foreman library
 
 Preserve Pel's distinction between calls `(...)` and evaluated literal lists `[...]`.
-Preserve `#t`, `#f`, `#nil`, quoted expressions, keywords, lexical closures, partial application, and `^>` piping.
+Preserve `#t`, `#f`, `#nil`, quoted expressions, keywords, lexical closures, partial application, and `|>` piping.
 Document fixed arity, named arguments, non-strict built-ins, truth handling, and errors in the compatibility profile.
 Resolve caret injection and list indexing with paper-linked fixtures before claiming compatibility.
 
@@ -106,8 +108,8 @@ Example of the proposed extension syntax:
 ```lisp
 (fm/task :id "implement" :model "grok-4.6"
   :input "artifact:approved-spec" :output "schema:candidate-v1")
-^> (fm/verify :id "verify" :input ^ :gate "candidate-full")
-^> (fm/review :id "review" :model "gpt-5.6-sol"
+|> (fm/verify :id "verify" :input ^ :gate "candidate-full")
+|> (fm/review :id "review" :model "gpt-5.6-sol"
       :input ^ :policy "independent-review")
 ```
 

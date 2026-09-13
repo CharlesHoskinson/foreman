@@ -1,0 +1,32 @@
+{
+  "schema": "foreman.foredi-host-source-review.v1",
+  "status": "source inspection; no new runtime executed",
+  "files": {
+    "packages/orchestration/src/execution-ledger.ts": "54125e16eda63b49813edc1f454977e7ec0ba7d8f31e1356bce0f4ee5f4de5af",
+    "packages/orchestration/src/execution-terminal-policy.ts": "15caee0b62c83483806ff49921a4ab62a2bc8c04b0a911bb67266e195510918b",
+    "packages/event-log/src/run-journal.ts": "c564aaaadfde2bcb3eab1494f781e431d32b2839b52205acdc2c0509f204a29e",
+    "packages/event-log/src/stored-event.ts": "05f7f77d831193aaaddd1484e97f67c3b92d64258995ca8166e6020e846c8fcf",
+    "packages/event-log/src/bounds.ts": "7faccdd9511d8d1c166e43eb6692e93d6b75ab3e161105e193c0cc7c197d637d",
+    "packages/orchestration/src/credential-profile.ts": "c4cee345c059c6671bbe93f3b9f34bc1664acd89d4534799eb118bfaf4459cae",
+    "packages/orchestration/tsconfig.json": "fce9d740b7f3e9f42bdfa0e10f17b2866372c9257d451d192d929f08f2b62afa",
+    "packages/orchestration/package.json": "2ab96b2008cf44960c7b0631bcec687e1bf3d97403e376ab49b13bca73aa503e",
+    "tsconfig.base.json": "337dd395d9ad4b015887051dbee39055bb5565369805b02799eb276fbd706126"
+  },
+  "observations": [
+    {
+      "id": "HOST-001",
+      "fact": "RunJournal exposes allocate, transact, append and reserveResumeAttempt. EndstopLedger exposes execute and executeChild. V1 ReserveAction already carries reservationId; evaluate is available only in V2 ReleaseActionV1.",
+      "required_correction": "Specify stable reservationId reuse and require existing V2 evaluation authority for natural-language predicates, or reject unsupported V1 admission."
+    },
+    {
+      "id": "HOST-002",
+      "fact": "StoredEvent freezes the envelope but leaves type and payload opaque. Event bounds are 1 MiB physical line, nesting 64, 100000 JSON nodes, and 64 MiB total replay input. Pel permits deeper or larger values.",
+      "required_correction": "Use hash-bound immutable artifact references for deep or large continuation/result/argument/output values; flush before the journal reference and verify on resume."
+    },
+    {
+      "id": "HOST-003",
+      "fact": "Orchestration already references core, event-log, policy and session-store. Its composite tsconfig rootDir is src and excludes src/**/*.test.ts. Adding a providers project reference requires providers to avoid importing orchestration.",
+      "required_correction": "Use a providers-owned injected credential port and separate non-test fixture entry with explicit build ownership."
+    }
+  ]
+}

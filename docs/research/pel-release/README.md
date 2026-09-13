@@ -1,9 +1,11 @@
-# Foreman Pel release research
+# Return of the ForeDi release research
 
 The user selected **adopt and extend Pel** to simplify orchestration planning and execution.
 This branch contains research and a proposed release sequence. It does not implement a Pel runtime.
 
 Start with the [release design](../../superpowers/specs/2026-09-12-pel-release-design.md) and [release plan](../../superpowers/plans/2026-09-12-pel-release-plan.md).
+
+The [Return of the ForeDi OpenSpecs](../../releases/return-of-the-foredi/README.md) define the feature milestones, EARS catalog, and test plan.
 
 | Artifact | Purpose |
 | --- | --- |

@@ -78,3 +78,7 @@ The current site patterns cover the encountered static documents, raw GitHub fil
 No new cookie or private-site pattern needed storage.
 Provider documentation with a Markdown endpoint gave smaller extracts than navigation-heavy HTML.
 Scrapling preserved PDF bytes before text extraction, avoiding false success from an empty selector result.
+
+## PixelRAG follow-up
+
+On 2026-09-13, the user requested the latest PixelRAG release for PDF reading. PixelRAG 0.4.0 was already installed and remained the latest published release. Its dependencies were refreshed, its PDF extra was installed, and the release wheel was downloaded with a verified registry hash. Pixelshot rendered all 29 Pel pages, which were read visually. See the [reading record](sources/pel/pixelrag-reading.md) and [installation receipt](sources/pixelrag/installation-and-reading.json).

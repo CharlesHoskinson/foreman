@@ -1,0 +1,2046 @@
+{
+  "schemaVersion": 1,
+  "scope": [
+    "M4",
+    "M5"
+  ],
+  "purpose": "Map existing frozen specification fixes to initial findings. This document does not apply edits or assert runtime implementation.",
+  "coverage": {
+    "selection": "Initial file/requirements or problem text names M4/M5 or their task/review/verify/retry/race interfaces, plus shared partial-receipt, predicate, schema, glyph, and Council-scope findings.",
+    "findingCount": 51
+  },
+  "runtimeEvidence": "None. Catalog tests are planned. Follow-up independent audits are pending.",
+  "frozen_spec_hashes": [
+    {
+      "file": "openspec/changes/foredi-04-durable-execution/catalog.json",
+      "sha256": "4cdb450c4b7a8c057f09e419ef6f8f40848df298018a6059072ccbcc6b949e92"
+    },
+    {
+      "file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "sha256": "4245efc674caa89e36f521054b45827bd2916751446d2ee1d115f4189b7c38c9"
+    },
+    {
+      "file": "openspec/changes/foredi-04-durable-execution/proposal.md",
+      "sha256": "69c6d6542e9d8058fc1cd7137e2c2aa02ac96d75b1f867c00fd28e953e5e11bc"
+    },
+    {
+      "file": "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+      "sha256": "6f20a36459a3f49a4c1bd55f5e958fde539d91738abc5de49cc6013cb84d6510"
+    },
+    {
+      "file": "openspec/changes/foredi-04-durable-execution/tasks.md",
+      "sha256": "99f9d7a731a87ca12458d67267c84031c3681f20ace70579ee1ec6e24ee3b4cf"
+    },
+    {
+      "file": "openspec/changes/foredi-05-task-delivery/catalog.json",
+      "sha256": "ff1ace19e8b176758096e7228f0a37c3007206bf29a087c952727a0a9df12291"
+    },
+    {
+      "file": "openspec/changes/foredi-05-task-delivery/design.md",
+      "sha256": "37e1a7395eb6926d4b97e04ae2e9d70eecfbbe97946b3b77482298280a7483eb"
+    },
+    {
+      "file": "openspec/changes/foredi-05-task-delivery/proposal.md",
+      "sha256": "6cc8528a233a99c63feef65ad913deace7a47b2b55dd9367c67858afa4cd7449"
+    },
+    {
+      "file": "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+      "sha256": "081407c8b1176cd3b723738d45cf9590f44aa96440cfcb8685259883c2111828"
+    },
+    {
+      "file": "openspec/changes/foredi-05-task-delivery/tasks.md",
+      "sha256": "e9e4928a8016a3385bd5f56008372435a774368f703cb312361b2f39911dbaf4"
+    }
+  ],
+  "findings": [
+    {
+      "id": "EXECUTION-001",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M4-014",
+        "R-M1-014",
+        "R-M4-003"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-014"
+          ],
+          "line": 104,
+          "planned_tests": [
+            "T-M4-014"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-014"
+          ],
+          "line": 385,
+          "planned_tests": [
+            "T-M1-014"
+          ]
+        }
+      ],
+      "resolution": "Separate PelRevisionDecisionV1 and PelRevisionMappingV1 validate an unchanged whole-top-level prefix. Revised source starts a new evaluator. Persisted aliases supply old receipts under new request IDs while retaining original effect IDs and reservations. Partial-form edits and changed completed arguments fail before dispatch."
+    },
+    {
+      "id": "EXECUTION-002",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-03-model-adapters/design.md",
+      "original_requirements": [
+        "R-M3-002",
+        "R-M3-011",
+        "R-M3-012",
+        "R-M3-019"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Closed controls and transport selection",
+          "requirements": [
+            "R-M3-002"
+          ],
+          "line": 182,
+          "planned_tests": [
+            "T-M3-002"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-016"
+          ],
+          "line": 55,
+          "planned_tests": [
+            "T-M5-016"
+          ]
+        }
+      ],
+      "resolution": "M3 defines closed ProviderControlsV1. M5 resolves controls from immutable role/profile defaults, records them in the binding, and fixes review toolChoice to none."
+    },
+    {
+      "id": "EXECUTION-003",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M3-008",
+        "R-M3-012",
+        "R-M4-003",
+        "R-M4-004"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-018"
+          ],
+          "line": 104,
+          "planned_tests": [
+            "T-M4-018"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Durable observation contract",
+          "requirements": [
+            "R-M3-008",
+            "R-M3-012"
+          ],
+          "line": 218,
+          "planned_tests": [
+            "T-M3-008",
+            "T-M3-012"
+          ]
+        }
+      ],
+      "resolution": "M4 persists tool intent/result records keyed by effect, full provider identity, and call ID, plus durable cursors and protected checkpoint artifacts. Repeated calls resend host-resolved bounded content without another tool execution. Changed arguments under one key fail."
+    },
+    {
+      "id": "EXECUTION-004",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-03-model-adapters/design.md",
+      "original_requirements": [
+        "R-M4-013",
+        "R-M5-013",
+        "R-M3-012"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Durable observation contract",
+          "requirements": [
+            "R-M3-012"
+          ],
+          "line": 218,
+          "planned_tests": [
+            "T-M3-012"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-013"
+          ],
+          "line": 293,
+          "planned_tests": [
+            "T-M4-013"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Authorized publication",
+          "requirements": [
+            "R-M5-013"
+          ],
+          "line": 210,
+          "planned_tests": [
+            "T-M5-013"
+          ]
+        }
+      ],
+      "resolution": "The shared transport now observes existing identities and returns pending/completed/cancelled/not-found/unsupported. M4 records observed results without redispatch. Not-found and unsupported do not establish no dispatch. M5 uses destination observation after lost publication acknowledgement."
+    },
+    {
+      "id": "EXECUTION-005",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M5-004",
+        "R-M5-011",
+        "R-M5-012",
+        "R-M6-012"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-019"
+          ],
+          "line": 104,
+          "planned_tests": [
+            "T-M4-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Implementation and verification",
+          "requirements": [
+            "R-M5-004"
+          ],
+          "line": 111,
+          "planned_tests": [
+            "T-M5-004"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Authorized publication",
+          "requirements": [
+            "R-M5-011",
+            "R-M5-012"
+          ],
+          "line": 210,
+          "planned_tests": [
+            "T-M5-011",
+            "T-M5-012"
+          ]
+        }
+      ],
+      "resolution": "Read-only preparation chooses reuse, needs-action, or a prepared external operation before reservation. Reuse and absent grants reserve zero actions. M4 reserves exactly one action for dispatch and supplies a token. Handlers cannot reserve again."
+    },
+    {
+      "id": "EXECUTION-006",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-05-task-delivery/design.md",
+      "original_requirements": [
+        "R-M5-001",
+        "R-M5-003",
+        "R-M5-006",
+        "R-M5-009"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-001",
+            "R-M5-003",
+            "R-M5-006"
+          ],
+          "line": 55,
+          "planned_tests": [
+            "T-M5-001",
+            "T-M5-003",
+            "T-M5-006"
+          ]
+        }
+      ],
+      "resolution": "Each host result has an exact ordered association schema with unique keys and nested prior evidence. Verification includes Boolean passed and current status. Duplicate/additional keys fail instead of shadowing newer results."
+    },
+    {
+      "id": "EXECUTION-007",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-05-task-delivery/design.md",
+      "original_requirements": [
+        "R-M5-009"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Independent review and bounded repair",
+          "requirements": [
+            "R-M5-009"
+          ],
+          "line": 132,
+          "planned_tests": [
+            "T-M5-009"
+          ]
+        }
+      ],
+      "resolution": "The design includes exact self-recursive Pel source carrying current result, round, and maximum. Approval stops immediately. Exhaustion/no-change returns explicit delivery-needs-action data and exit 3 before another effect. Tests assert two tasks for one successful correction and N+1 for exhaustion."
+    },
+    {
+      "id": "EXECUTION-008",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-05-task-delivery/design.md",
+      "original_requirements": [
+        "R-M4-007",
+        "R-M4-008",
+        "R-M5-001"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Native execution and resource ownership",
+          "requirements": [
+            "R-M4-002",
+            "R-M4-007",
+            "R-M4-008"
+          ],
+          "line": 211,
+          "planned_tests": [
+            "T-M4-002",
+            "T-M4-007",
+            "T-M4-008"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Implementation and verification",
+          "requirements": [
+            "R-M5-001",
+            "R-M5-016"
+          ],
+          "line": 111,
+          "planned_tests": [
+            "T-M5-001",
+            "T-M5-016"
+          ]
+        }
+      ],
+      "resolution": "The host resolves argument-dependent canonical resources against M2 envelopes. Race allocates separate admitted worktree grants before dispatch and passes them through child context. Ordinary parallel tasks sharing a workspace serialize."
+    },
+    {
+      "id": "EXECUTION-009",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-01-pel-language/design.md",
+      "original_requirements": [
+        "R-M1-012",
+        "R-M4-009",
+        "R-M4-015"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-012"
+          ],
+          "line": 385,
+          "planned_tests": [
+            "T-M1-012"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Native execution and resource ownership",
+          "requirements": [
+            "R-M4-009"
+          ],
+          "line": 211,
+          "planned_tests": [
+            "T-M4-009"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-015"
+          ],
+          "line": 293,
+          "planned_tests": [
+            "T-M4-015"
+          ]
+        }
+      ],
+      "resolution": "A valid host failure produces PelStep.failed with PEL_HOST_FAILURE and preserved structured cause. Retry classifies child failures before merge. Unretryable failure stops new dispatch and cancels siblings. M4 defines exact state/exit mappings."
+    },
+    {
+      "id": "EXECUTION-010",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M4-009",
+        "R-M2-010",
+        "R-M3-012"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared error and generation contract",
+          "requirements": [
+            "R-M3-012",
+            "R-M3-019"
+          ],
+          "line": 233,
+          "planned_tests": [
+            "T-M3-012",
+            "T-M3-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-009",
+            "R-M4-015"
+          ],
+          "line": 293,
+          "planned_tests": [
+            "T-M4-009",
+            "T-M4-015"
+          ]
+        }
+      ],
+      "resolution": "One M3 ProviderFailure union is retained verbatim in cause.providerFailure. Only RateLimited and safely reconcilable TransportDisconnected can retry, through :rate-limited and :transport-disconnected. Exhaustive switches and per-tag tests replace competing category vocabularies."
+    },
+    {
+      "id": "EXECUTION-011",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M4-009",
+        "R-M4-008"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Native execution and resource ownership",
+          "requirements": [
+            "R-M4-008",
+            "R-M4-009"
+          ],
+          "line": 211,
+          "planned_tests": [
+            "T-M4-008",
+            "T-M4-009"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-014"
+          ],
+          "line": 385,
+          "planned_tests": [
+            "T-M1-014"
+          ]
+        }
+      ],
+      "resolution": "One-based parent/retry/attempt and parent/race/contender child IDs enter nested request paths. M1 exports closure-environment extraction. Counter accounting includes failed and abandoned children exactly once, preventing both identity collisions and lost loser costs."
+    },
+    {
+      "id": "EXECUTION-012",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M4-010",
+        "R-M4-011",
+        "R-M3-011"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-010",
+            "R-M4-011"
+          ],
+          "line": 293,
+          "planned_tests": [
+            "T-M4-010",
+            "T-M4-011"
+          ]
+        }
+      ],
+      "resolution": "A finite admitted cancellation observation window cannot reset on repeated requests. Unsupported/unknown remote outcomes become needs-action exit 3 after local cleanup and window expiry. Local-only effects require only confirmed local cleanup."
+    },
+    {
+      "id": "EXECUTION-013",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M4-012",
+        "R-M4-016",
+        "R-M5-010"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-017"
+          ],
+          "line": 104,
+          "planned_tests": [
+            "T-M4-017"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Planned validation",
+          "requirements": [
+            "R-M5-010"
+          ],
+          "line": 250,
+          "planned_tests": [
+            "T-M5-010"
+          ]
+        }
+      ],
+      "resolution": "Run admission stores exact immutable source, full authoring snapshot, registry, and project settings by hashed artifact reference. Resume ignores changed working files and installed defaults. Missing or mismatched stored bytes fail binding-mismatch before dispatch."
+    },
+    {
+      "id": "EXECUTION-014",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-03-model-adapters/design.md",
+      "original_requirements": [
+        "R-M3-018",
+        "R-M5-015",
+        "R-M6-006",
+        "R-M5-008"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Evidence admission and test binding",
+          "requirements": [
+            "R-M3-018"
+          ],
+          "line": 254,
+          "planned_tests": [
+            "T-M3-018"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-008",
+            "R-M5-015"
+          ],
+          "line": 55,
+          "planned_tests": [
+            "T-M5-008",
+            "T-M5-015"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Remaining native host functions and test injection",
+          "requirements": [
+            "R-M4-021"
+          ],
+          "line": 340,
+          "planned_tests": [
+            "T-M4-021"
+          ]
+        }
+      ],
+      "resolution": "Product admission requires live-qualified evidence for every required exact profile/transport capability. Only an injected test-only Layer admits fixture evidence, labels it test-fixture, and cannot produce live-qualified evidence or product authority."
+    },
+    {
+      "id": "EXECUTION-015",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-05-task-delivery/design.md",
+      "original_requirements": [
+        "R-M2-003",
+        "R-M5-001",
+        "R-M3-006"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-001",
+            "R-M5-008",
+            "R-M5-016"
+          ],
+          "line": 55,
+          "planned_tests": [
+            "T-M5-001",
+            "T-M5-008",
+            "T-M5-016"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Closed controls and transport selection",
+          "requirements": [
+            "R-M3-006"
+          ],
+          "line": 182,
+          "planned_tests": [
+            "T-M3-006"
+          ]
+        }
+      ],
+      "resolution": "Role selectors resolve through hashed roleBindings to exact profile, transport, controls, and credential reference. Optional transport must match admission and ambiguity fails. Initial coding tasks require qualified native transports, while review requires enforceable toolPolicy none."
+    },
+    {
+      "id": "EXECUTION-017",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-03-model-adapters/tasks.md",
+      "original_requirements": [
+        "R-M3-019",
+        "R-M2-008"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Package and ownership",
+          "requirements": [
+            "R-M3-019"
+          ],
+          "line": 13,
+          "planned_tests": [
+            "T-M3-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Project configuration and admission",
+          "requirements": [
+            "R-M4-001"
+          ],
+          "line": 66,
+          "planned_tests": [
+            "T-M4-001"
+          ]
+        }
+      ],
+      "resolution": "The release dependency table and catalogs use milestone IDs. M2 owns provider bootstrap and M3 extends it. M4/M5 retain their explicit M1-M3/M1-M4 dependency lists and do not create provider bootstrap files."
+    },
+    {
+      "id": "EXECUTION-019",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M4-001",
+        "R-M5-015",
+        "R-M6-006"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-001",
+            "R-M4-015"
+          ],
+          "line": 293,
+          "planned_tests": [
+            "T-M4-001",
+            "T-M4-015"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Operator results and errors",
+          "requirements": [
+            "R-M5-015"
+          ],
+          "line": 235,
+          "planned_tests": [
+            "T-M5-015"
+          ]
+        }
+      ],
+      "resolution": "CLI outcome classes are consistently 0 success, 1 failed, 2 invalid, 3 needs-action, 4 cancelled, and 5 pending. Missing source/configuration, checker rejection, unsupported profile admission, and invalid binding return 2 before dispatch."
+    },
+    {
+      "id": "EXECUTION-020",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-01-pel-language/design.md",
+      "original_requirements": [
+        "R-M1-012",
+        "R-M4-006"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Suspension and restart ownership",
+          "requirements": [
+            "R-M1-009",
+            "R-M1-012"
+          ],
+          "line": 174,
+          "planned_tests": [
+            "T-M1-009",
+            "T-M1-012"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Planned TypeScript interfaces",
+          "requirements": [
+            "R-M4-006"
+          ],
+          "line": 25,
+          "planned_tests": [
+            "T-M4-006"
+          ]
+        }
+      ],
+      "resolution": "Suspension lists all unreceipted requests with alreadyEmitted flags in deterministic invocation order. Partial receipt delivery preserves pending requests. M4 joins repeated requests to durable effects rather than redispatching them."
+    },
+    {
+      "id": "EXECUTION-021",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-06-adoption/design.md",
+      "original_requirements": [
+        "R-M6-002",
+        "R-M5-008",
+        "R-M2-003"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Independent review and bounded repair",
+          "requirements": [
+            "R-M5-008",
+            "R-M5-009"
+          ],
+          "line": 132,
+          "planned_tests": [
+            "T-M5-008",
+            "T-M5-009"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Fixture launcher and canonical package examples",
+          "requirements": [
+            "R-M6-002",
+            "R-M6-004"
+          ],
+          "line": 360,
+          "planned_tests": [
+            "T-M6-002",
+            "T-M6-004"
+          ]
+        }
+      ],
+      "resolution": "Canonical delivery files are implement-verify-review.pel and repair-and-publish.pel. M2/M5/M6 reference the same files. The standard source uses role bindings and the normalized ASCII |> pipe. Verification schema explicitly includes passed."
+    },
+    {
+      "id": "EXECUTION-022",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "original_file": "openspec/changes/foredi-01-pel-language/design.md",
+      "original_requirements": [
+        "R-M1-013",
+        "R-M2-003"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Project configuration and admission",
+          "requirements": [
+            "R-M4-020"
+          ],
+          "line": 66,
+          "planned_tests": [
+            "T-M4-020"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Remaining native host functions and test injection",
+          "requirements": [
+            "R-M4-020"
+          ],
+          "line": 340,
+          "planned_tests": [
+            "T-M4-020"
+          ]
+        }
+      ],
+      "resolution": "The full snapshot and project binding select nlConditionProfile with exact profile/transport/controls/credential and fixed schema:pel-boolean-v1. M4 executes and journals that selected predicate as an ordinary host effect."
+    },
+    {
+      "id": "LANGUAGE-001",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "original_file": "openspec/changes/foredi-01-pel-language/design.md",
+      "original_requirements": [
+        "R-M1-014",
+        "R-M4-012",
+        "R-M4-014"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-014"
+          ],
+          "line": 104,
+          "planned_tests": [
+            "T-M4-014"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-014"
+          ],
+          "line": 385,
+          "planned_tests": [
+            "T-M1-014"
+          ]
+        }
+      ],
+      "resolution": "Separate PelRevisionDecisionV1 and PelRevisionMappingV1 validate an unchanged whole-top-level prefix. Revised source starts a new evaluator. Persisted aliases supply old receipts under new request IDs while retaining original effect IDs and reservations. Partial-form edits and changed completed arguments fail before dispatch."
+    },
+    {
+      "id": "LANGUAGE-003",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "original_file": "openspec/changes/foredi-01-pel-language/design.md",
+      "original_requirements": [
+        "R-M1-009",
+        "R-M1-012",
+        "R-M1-014"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Suspension and restart ownership",
+          "requirements": [
+            "R-M1-009",
+            "R-M1-012"
+          ],
+          "line": 174,
+          "planned_tests": [
+            "T-M1-009",
+            "T-M1-012"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Planned TypeScript interfaces",
+          "requirements": [
+            "R-M4-006"
+          ],
+          "line": 25,
+          "planned_tests": [
+            "T-M4-006"
+          ]
+        }
+      ],
+      "resolution": "Suspension lists all unreceipted requests with alreadyEmitted flags in deterministic invocation order. Partial receipt delivery preserves pending requests. M4 joins repeated requests to durable effects rather than redispatching them."
+    },
+    {
+      "id": "LANGUAGE-004",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "original_file": "openspec/changes/foredi-01-pel-language/design.md",
+      "original_requirements": [
+        "R-M1-012",
+        "R-M1-014"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Registry, schemas, and canonical values",
+          "requirements": [
+            "R-M1-012",
+            "R-M1-014"
+          ],
+          "line": 251,
+          "planned_tests": [
+            "T-M1-012",
+            "T-M1-014"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-017"
+          ],
+          "line": 104,
+          "planned_tests": [
+            "T-M4-017"
+          ]
+        }
+      ],
+      "resolution": "M1 exports registry/environment construction and passes program plus registry into resumePel. M4 stores their complete immutable source content and validates matching digests before restoring a continuation."
+    },
+    {
+      "id": "LANGUAGE-005",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "original_file": "openspec/changes/foredi-01-pel-language/design.md",
+      "original_requirements": [
+        "R-M1-012",
+        "R-M4-009",
+        "R-M5-003"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-012"
+          ],
+          "line": 385,
+          "planned_tests": [
+            "T-M1-012"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Native execution and resource ownership",
+          "requirements": [
+            "R-M4-009"
+          ],
+          "line": 211,
+          "planned_tests": [
+            "T-M4-009"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-015"
+          ],
+          "line": 293,
+          "planned_tests": [
+            "T-M4-015"
+          ]
+        }
+      ],
+      "resolution": "A valid host failure produces PelStep.failed with PEL_HOST_FAILURE and preserved structured cause. Retry classifies child failures before merge. Unretryable failure stops new dispatch and cancels siblings. M4 defines exact state/exit mappings."
+    },
+    {
+      "id": "LANGUAGE-006",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "original_file": "openspec/changes/foredi-01-pel-language/design.md",
+      "original_requirements": [
+        "R-M1-014",
+        "R-M4-008",
+        "R-M4-009"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Native execution and resource ownership",
+          "requirements": [
+            "R-M4-008",
+            "R-M4-009"
+          ],
+          "line": 211,
+          "planned_tests": [
+            "T-M4-008",
+            "T-M4-009"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-014"
+          ],
+          "line": 385,
+          "planned_tests": [
+            "T-M1-014"
+          ]
+        }
+      ],
+      "resolution": "One-based parent/retry/attempt and parent/race/contender child IDs enter nested request paths. M1 exports closure-environment extraction. Counter accounting includes failed and abandoned children exactly once, preventing both identity collisions and lost loser costs."
+    },
+    {
+      "id": "LANGUAGE-007",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "original_file": "openspec/changes/foredi-01-pel-language/design.md",
+      "original_requirements": [
+        "R-M1-003",
+        "R-M1-014",
+        "R-M4-005"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Registry, schemas, and canonical values",
+          "requirements": [
+            "R-M1-003",
+            "R-M1-014"
+          ],
+          "line": 251,
+          "planned_tests": [
+            "T-M1-003",
+            "T-M1-014"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-003",
+            "R-M4-005"
+          ],
+          "line": 104,
+          "planned_tests": [
+            "T-M4-003",
+            "T-M4-005"
+          ]
+        }
+      ],
+      "resolution": "M1 defines closed tagged wire values, canonical UTF-8 bytes, negative-zero normalization, and formatting rules. M4 hashes recorded values using that shared encoding and the existing core canonicalizer."
+    },
+    {
+      "id": "PLAN-011",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "original_file": "openspec/changes/foredi-02-plan-authoring/design.md",
+      "original_requirements": [
+        "R-M2-001",
+        "R-M2-005",
+        "R-M2-006"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Registry, schemas, and canonical values",
+          "requirements": [
+            "R-M1-012"
+          ],
+          "line": 251,
+          "planned_tests": [
+            "T-M1-012"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-017"
+          ],
+          "line": 104,
+          "planned_tests": [
+            "T-M4-017"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-003"
+          ],
+          "line": 55,
+          "planned_tests": [
+            "T-M5-003"
+          ]
+        }
+      ],
+      "resolution": "Full snapshot content and closed bounded PelDataSchemaV1 schemas replace digest-only metadata. M4 stores that content immutably, and M5 result schemas declare ordered fields including Boolean passed."
+    },
+    {
+      "id": "PLAN-012",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "original_file": "openspec/changes/foredi-05-task-delivery/design.md",
+      "original_requirements": [
+        "R-M5-003",
+        "R-M5-009",
+        "R-M2-013"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-001",
+            "R-M5-003",
+            "R-M5-006"
+          ],
+          "line": 55,
+          "planned_tests": [
+            "T-M5-001",
+            "T-M5-003",
+            "T-M5-006"
+          ]
+        }
+      ],
+      "resolution": "Each host result has an exact ordered association schema with unique keys and nested prior evidence. Verification includes Boolean passed and current status. Duplicate/additional keys fail instead of shadowing newer results."
+    },
+    {
+      "id": "PROVIDER-013",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "original_file": "openspec/changes/foredi-03-model-adapters/design.md",
+      "original_requirements": [
+        "R-M2-010",
+        "R-M3-019",
+        "R-M4-009"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared error and generation contract",
+          "requirements": [
+            "R-M3-012",
+            "R-M3-019"
+          ],
+          "line": 233,
+          "planned_tests": [
+            "T-M3-012",
+            "T-M3-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-009",
+            "R-M4-015"
+          ],
+          "line": 293,
+          "planned_tests": [
+            "T-M4-009",
+            "T-M4-015"
+          ]
+        }
+      ],
+      "resolution": "One M3 ProviderFailure union is retained verbatim in cause.providerFailure. Only RateLimited and safely reconcilable TransportDisconnected can retry, through :rate-limited and :transport-disconnected. Exhaustive switches and per-tag tests replace competing category vocabularies."
+    },
+    {
+      "id": "BUILD-015",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "original_file": "openspec/changes/foredi-02-plan-authoring/design.md",
+      "original_requirements": [
+        "R-M2-008",
+        "R-M2-009",
+        "R-M2-012"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Planned validation",
+          "requirements": [
+            "R-M2-008",
+            "R-M2-009",
+            "R-M2-012"
+          ],
+          "line": 274,
+          "planned_tests": [
+            "T-M2-008",
+            "T-M2-009",
+            "T-M2-012"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Planned validation",
+          "requirements": [
+            "R-M4-021"
+          ],
+          "line": 366,
+          "planned_tests": [
+            "T-M4-021"
+          ]
+        }
+      ],
+      "resolution": "The revised plan uses quoted run-tests.ts globs rather than shell brace expansion. M4 names an explicit single-entry esbuild command for the compiled test launcher, preceded by workspace type checking."
+    },
+    {
+      "id": "PLAN-016",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M2-001",
+        "R-M4-011"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-001",
+            "R-M4-015"
+          ],
+          "line": 293,
+          "planned_tests": [
+            "T-M4-001",
+            "T-M4-015"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Operator results and errors",
+          "requirements": [
+            "R-M5-015"
+          ],
+          "line": 235,
+          "planned_tests": [
+            "T-M5-015"
+          ]
+        }
+      ],
+      "resolution": "CLI outcome classes are consistently 0 success, 1 failed, 2 invalid, 3 needs-action, 4 cancelled, and 5 pending. Missing source/configuration, checker rejection, unsupported profile admission, and invalid binding return 2 before dispatch."
+    },
+    {
+      "id": "DELIVERY-017",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "original_file": "openspec/changes/foredi-06-adoption/design.md",
+      "original_requirements": [
+        "R-M5-008",
+        "R-M6-001",
+        "R-M6-002"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Independent review and bounded repair",
+          "requirements": [
+            "R-M5-008",
+            "R-M5-009"
+          ],
+          "line": 132,
+          "planned_tests": [
+            "T-M5-008",
+            "T-M5-009"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Fixture launcher and canonical package examples",
+          "requirements": [
+            "R-M6-002",
+            "R-M6-004"
+          ],
+          "line": 360,
+          "planned_tests": [
+            "T-M6-002",
+            "T-M6-004"
+          ]
+        }
+      ],
+      "resolution": "Canonical delivery files are implement-verify-review.pel and repair-and-publish.pel. M2/M5/M6 reference the same files. The standard source uses role bindings and the normalized ASCII |> pipe. Verification schema explicitly includes passed."
+    },
+    {
+      "id": "DELIVERY-018",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M4-003",
+        "R-M5-004"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-019"
+          ],
+          "line": 104,
+          "planned_tests": [
+            "T-M4-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Implementation and verification",
+          "requirements": [
+            "R-M5-004"
+          ],
+          "line": 111,
+          "planned_tests": [
+            "T-M5-004"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Authorized publication",
+          "requirements": [
+            "R-M5-011",
+            "R-M5-012"
+          ],
+          "line": 210,
+          "planned_tests": [
+            "T-M5-011",
+            "T-M5-012"
+          ]
+        }
+      ],
+      "resolution": "Read-only preparation chooses reuse, needs-action, or a prepared external operation before reservation. Reuse and absent grants reserve zero actions. M4 reserves exactly one action for dispatch and supplies a token. Handlers cannot reserve again."
+    },
+    {
+      "id": "RELEASE-001",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M4-001",
+        "R-M5-008",
+        "R-M5-009",
+        "R-M5-011",
+        "R-M6-002"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Project configuration and admission",
+          "requirements": [
+            "R-M4-001"
+          ],
+          "line": 66,
+          "planned_tests": [
+            "T-M4-001"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Independent review and bounded repair",
+          "requirements": [
+            "R-M5-008"
+          ],
+          "line": 132,
+          "planned_tests": [
+            "T-M5-008"
+          ]
+        }
+      ],
+      "resolution": "ForemanProjectV1 lives at the canonical Git-common-directory foreman/project.json. A one-time project configure command validates existing authority references and writes settings. Pure derivation supplies contract/binding fields. Bare run discovers settings and missing configuration exits 2."
+    },
+    {
+      "id": "RELEASE-002",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-05-task-delivery/design.md",
+      "original_requirements": [
+        "R-M2-003",
+        "R-M3-006",
+        "R-M5-008",
+        "R-M5-015",
+        "R-M6-005"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-001",
+            "R-M5-008",
+            "R-M5-016"
+          ],
+          "line": 55,
+          "planned_tests": [
+            "T-M5-001",
+            "T-M5-008",
+            "T-M5-016"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Closed controls and transport selection",
+          "requirements": [
+            "R-M3-006"
+          ],
+          "line": 182,
+          "planned_tests": [
+            "T-M3-006"
+          ]
+        }
+      ],
+      "resolution": "Role selectors resolve through hashed roleBindings to exact profile, transport, controls, and credential reference. Optional transport must match admission and ambiguity fails. Initial coding tasks require qualified native transports, while review requires enforceable toolPolicy none."
+    },
+    {
+      "id": "RELEASE-003",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-03-model-adapters/design.md",
+      "original_requirements": [
+        "R-M3-017",
+        "R-M3-018",
+        "R-M6-007",
+        "R-M6-013",
+        "R-M6-017",
+        "R-M6-018"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Command behavior",
+          "requirements": [
+            "R-M4-001"
+          ],
+          "line": 265,
+          "planned_tests": [
+            "T-M4-001"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Implementation boundaries",
+          "requirements": [
+            "R-M6-001"
+          ],
+          "line": 21,
+          "planned_tests": [
+            "T-M6-001"
+          ]
+        }
+      ],
+      "resolution": "All later commands extend M2 pel-authoring-cli.ts/pel-authoring-main.ts and one dist/foreman.js bundle. M4 exports a service-injected factory for that same router, not another parser."
+    },
+    {
+      "id": "RELEASE-004",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-02-plan-authoring/design.md",
+      "original_requirements": [
+        "R-M2-001",
+        "R-M2-002",
+        "R-M4-011",
+        "R-M6-003",
+        "R-M6-006"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-001",
+            "R-M4-015"
+          ],
+          "line": 293,
+          "planned_tests": [
+            "T-M4-001",
+            "T-M4-015"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Operator results and errors",
+          "requirements": [
+            "R-M5-015"
+          ],
+          "line": 235,
+          "planned_tests": [
+            "T-M5-015"
+          ]
+        }
+      ],
+      "resolution": "CLI outcome classes are consistently 0 success, 1 failed, 2 invalid, 3 needs-action, 4 cancelled, and 5 pending. Missing source/configuration, checker rejection, unsupported profile admission, and invalid binding return 2 before dispatch."
+    },
+    {
+      "id": "RELEASE-005",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M4-014",
+        "R-M1-014"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-014"
+          ],
+          "line": 104,
+          "planned_tests": [
+            "T-M4-014"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-014"
+          ],
+          "line": 385,
+          "planned_tests": [
+            "T-M1-014"
+          ]
+        }
+      ],
+      "resolution": "Separate PelRevisionDecisionV1 and PelRevisionMappingV1 validate an unchanged whole-top-level prefix. Revised source starts a new evaluator. Persisted aliases supply old receipts under new request IDs while retaining original effect IDs and reservations. Partial-form edits and changed completed arguments fail before dispatch."
+    },
+    {
+      "id": "RELEASE-006",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M4-003",
+        "R-M4-004",
+        "R-M1-011"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-003",
+            "R-M4-004",
+            "R-M4-017"
+          ],
+          "line": 104,
+          "planned_tests": [
+            "T-M4-003",
+            "T-M4-004",
+            "T-M4-017"
+          ]
+        }
+      ],
+      "resolution": "Automatic pel.suspension.v1 records save continuation, pending mapping, and committed counters before dispatch. Recovery does not require fm/checkpoint and restores those counters without charging a completed pure prefix twice."
+    },
+    {
+      "id": "RELEASE-007",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-01-pel-language/design.md",
+      "original_requirements": [
+        "R-M1-012",
+        "R-M2-004",
+        "R-M4-007"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Registry, schemas, and canonical values",
+          "requirements": [
+            "R-M1-012"
+          ],
+          "line": 251,
+          "planned_tests": [
+            "T-M1-012"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Native execution and resource ownership",
+          "requirements": [
+            "R-M4-002",
+            "R-M4-007"
+          ],
+          "line": 211,
+          "planned_tests": [
+            "T-M4-002",
+            "T-M4-007"
+          ]
+        }
+      ],
+      "resolution": "The registry constructor returns branded descriptors and hashes a versioned resolver catalog. M2 derives abstract envelopes while M4 resolves concrete argument/workspace paths and checks canonical containment before resource acquisition."
+    },
+    {
+      "id": "RELEASE-008",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-01-pel-language/design.md",
+      "original_requirements": [
+        "R-M1-012",
+        "R-M2-010",
+        "R-M3-019",
+        "R-M4-009"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared error and generation contract",
+          "requirements": [
+            "R-M3-012",
+            "R-M3-019"
+          ],
+          "line": 233,
+          "planned_tests": [
+            "T-M3-012",
+            "T-M3-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-009",
+            "R-M4-015"
+          ],
+          "line": 293,
+          "planned_tests": [
+            "T-M4-009",
+            "T-M4-015"
+          ]
+        }
+      ],
+      "resolution": "One M3 ProviderFailure union is retained verbatim in cause.providerFailure. Only RateLimited and safely reconcilable TransportDisconnected can retry, through :rate-limited and :transport-disconnected. Exhaustive switches and per-tag tests replace competing category vocabularies."
+    },
+    {
+      "id": "RELEASE-009",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M1-013",
+        "R-M2-004",
+        "R-M4-006"
+      ],
+      "status": "documented-fix-with-post-snapshot-correction-awaiting-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Remaining native host functions and test injection",
+          "requirements": [
+            "R-M4-020"
+          ],
+          "line": 340,
+          "planned_tests": [
+            "T-M4-020"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Registry, schemas, and canonical values",
+          "requirements": [
+            "R-M1-013"
+          ],
+          "line": 251,
+          "planned_tests": [
+            "T-M1-013"
+          ]
+        }
+      ],
+      "resolution": "M4 now owns executable print and pel/nl-condition handlers. It binds the predicate to an exact profile with Boolean result schema, journals outputs/results, and preserves one final JSON stdout object. Post-snapshot correction aligns print with M1: return vals unchanged under schema:pel-data-v1, including a replay-value assertion in T-M4-020.",
+      "notes": "The print return/schema mismatch was corrected after the archived follow-up audit snapshot, by explicit root instruction. Those archived audit inputs still contain the earlier nil contract."
+    },
+    {
+      "id": "RELEASE-011",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-01-pel-language/design.md",
+      "original_requirements": [
+        "R-M1-001",
+        "R-M1-002"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "PDF and compatibility provenance",
+          "requirements": [
+            "R-M1-001",
+            "R-M1-002"
+          ],
+          "line": 432,
+          "planned_tests": [
+            "T-M1-001",
+            "T-M1-002"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Independent review and bounded repair",
+          "requirements": [
+            "R-M5-008",
+            "R-M5-009"
+          ],
+          "line": 132,
+          "planned_tests": [
+            "T-M5-008",
+            "T-M5-009"
+          ]
+        }
+      ],
+      "resolution": "The revised M1 profile records PDF glyph evidence and explicit ASCII |> normalization. M5 canonical standard and repair source blocks use |> consistently. This entry records consumption of the root-owned glyph correction, not a new PDF verification."
+    },
+    {
+      "id": "RELEASE-012",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-05-task-delivery/design.md",
+      "original_requirements": [
+        "R-M5-009"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Independent review and bounded repair",
+          "requirements": [
+            "R-M5-009"
+          ],
+          "line": 132,
+          "planned_tests": [
+            "T-M5-009"
+          ]
+        }
+      ],
+      "resolution": "The design includes exact self-recursive Pel source carrying current result, round, and maximum. Approval stops immediately. Exhaustion/no-change returns explicit delivery-needs-action data and exit 3 before another effect. Tests assert two tasks for one successful correction and N+1 for exhaustion."
+    },
+    {
+      "id": "RELEASE-013",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-05-task-delivery/design.md",
+      "original_requirements": [
+        "R-M5-004",
+        "R-M6-012",
+        "R-M4-003"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-019"
+          ],
+          "line": 104,
+          "planned_tests": [
+            "T-M4-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Implementation and verification",
+          "requirements": [
+            "R-M5-004"
+          ],
+          "line": 111,
+          "planned_tests": [
+            "T-M5-004"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Authorized publication",
+          "requirements": [
+            "R-M5-011",
+            "R-M5-012"
+          ],
+          "line": 210,
+          "planned_tests": [
+            "T-M5-011",
+            "T-M5-012"
+          ]
+        }
+      ],
+      "resolution": "Read-only preparation chooses reuse, needs-action, or a prepared external operation before reservation. Reuse and absent grants reserve zero actions. M4 reserves exactly one action for dispatch and supplies a token. Handlers cannot reserve again."
+    },
+    {
+      "id": "RELEASE-015",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-06-adoption/design.md",
+      "original_requirements": [
+        "R-M6-007",
+        "R-M6-009"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Fixed migration corpus",
+          "requirements": [
+            "R-M6-007"
+          ],
+          "line": 300,
+          "planned_tests": [
+            "T-M6-007"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Existing integration points",
+          "requirements": [
+            "R-M5-006"
+          ],
+          "line": 8,
+          "planned_tests": [
+            "T-M5-006"
+          ]
+        }
+      ],
+      "resolution": "M6 excludes Council-specific workflow import and deletion from the current corpus, preserving its existing policy/path. M5 defines independent single-review delivery without claiming a new Council blinding/quorum primitive."
+    },
+    {
+      "id": "RELEASE-017",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M2-008",
+        "R-M4-001",
+        "R-M5-008",
+        "R-M6-002",
+        "R-M6-004"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Remaining native host functions and test injection",
+          "requirements": [
+            "R-M4-021"
+          ],
+          "line": 340,
+          "planned_tests": [
+            "T-M4-021"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Planned validation",
+          "requirements": [
+            "R-M5-008"
+          ],
+          "line": 250,
+          "planned_tests": [
+            "T-M5-008"
+          ]
+        }
+      ],
+      "resolution": "An excluded compiled pel-cli-fixture entry accepts test-only --fixture-manifest, injects recorded services, and calls the shared router. Product has no fixture loader and rejects the flag/binding. Fixture evidence never becomes live-qualified."
+    },
+    {
+      "id": "RELEASE-019",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M4-011",
+        "R-M4-015",
+        "R-M6-002"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Command behavior",
+          "requirements": [
+            "R-M4-001",
+            "R-M4-011",
+            "R-M4-015"
+          ],
+          "line": 265,
+          "planned_tests": [
+            "T-M4-001",
+            "T-M4-011",
+            "T-M4-015"
+          ]
+        }
+      ],
+      "resolution": "Run/resume stay attached. Durable admission emits a stderr run-started JSON event or human run-id line before dispatch. One final stdout result includes the same ID. Concurrent status/cancel consume that ID, and only their pending observations use exit 5."
+    },
+    {
+      "id": "RELEASE-020",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-06-adoption/design.md",
+      "original_requirements": [
+        "R-M2-013",
+        "R-M5-008",
+        "R-M6-004"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Independent review and bounded repair",
+          "requirements": [
+            "R-M5-008",
+            "R-M5-009"
+          ],
+          "line": 132,
+          "planned_tests": [
+            "T-M5-008",
+            "T-M5-009"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Fixture launcher and canonical package examples",
+          "requirements": [
+            "R-M6-002",
+            "R-M6-004"
+          ],
+          "line": 360,
+          "planned_tests": [
+            "T-M6-002",
+            "T-M6-004"
+          ]
+        }
+      ],
+      "resolution": "Canonical delivery files are implement-verify-review.pel and repair-and-publish.pel. M2/M5/M6 reference the same files. The standard source uses role bindings and the normalized ASCII |> pipe. Verification schema explicitly includes passed."
+    },
+    {
+      "id": "RELEASE-024",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-01-pel-language/catalog.json",
+      "original_requirements": [
+        "R-M1-011"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Package and ownership",
+          "requirements": [
+            "R-M3-019"
+          ],
+          "line": 13,
+          "planned_tests": [
+            "T-M3-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Project configuration and admission",
+          "requirements": [
+            "R-M4-001"
+          ],
+          "line": 66,
+          "planned_tests": [
+            "T-M4-001"
+          ]
+        }
+      ],
+      "resolution": "The release dependency table and catalogs use milestone IDs. M2 owns provider bootstrap and M3 extends it. M4/M5 retain their explicit M1-M3/M1-M4 dependency lists and do not create provider bootstrap files."
+    },
+    {
+      "id": "RELEASE-025",
+      "source_audit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "original_file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "original_requirements": [
+        "R-M4-008"
+      ],
+      "status": "documented-fix-awaiting-follow-up-review",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Native execution and resource ownership",
+          "requirements": [
+            "R-M4-008"
+          ],
+          "line": 211,
+          "planned_tests": [
+            "T-M4-008"
+          ]
+        }
+      ],
+      "resolution": "Race requires finite analyzable closure resource envelopes before allocating separate worktrees. Its exact unique-key result contains winner-index, value, and losers. Candidate consumption explicitly selects value, and shared external writes reject before dispatch."
+    }
+  ],
+  "post_snapshot_corrections": [
+    {
+      "id": "print-return-schema-alignment",
+      "finding": "RELEASE-009",
+      "canonical_contract": "Use M1 print semantics: return the input vals unchanged after durable bounded host output, with result schema schema:pel-data-v1.",
+      "basis": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Compatibility profile pel-paper-v2-foreman-1",
+          "detail": "Print returns its input after host output."
+        },
+        {
+          "file": "docs/research/pel-release/sources/pel/arxiv-2505.13453v2.txt",
+          "lines": [
+            799,
+            806
+          ],
+          "detail": "Captured page 21 prose describes returning input vals unchanged. PDF visual confirmation remains owned by the root audit."
+        }
+      ],
+      "edits": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Remaining native host functions and test injection",
+          "replace": "print returns nil under the nil result schema and uses schema:pel-nil-v1",
+          "with": "print returns its vals argument unchanged after durable output, using schema:pel-data-v1 with the admitted data depth and byte bounds"
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/catalog.json",
+          "test": "T-M4-020",
+          "replace": "exact registered nil/Boolean schemas",
+          "with": "exact registered bounded-data/Boolean schemas; assert print :vals [1 2] returns [1 2] and recovered completion returns identical values without another output event"
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+          "scenario": "T-M4-020",
+          "action": "Apply the same planned-test assertion text as catalog.json. R-M4-020 EARS body need not change."
+        }
+      ],
+      "applied": true,
+      "applied_phase": "post-follow-up-audit-snapshot"
+    }
+  ],
+  "post_snapshot_corrected_hashes": [
+    {
+      "file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "sha256": "d202deed45521e0fe28317ec3539e29b4d58373d0d1e7ba54f2c43a878bff661"
+    },
+    {
+      "file": "openspec/changes/foredi-04-durable-execution/catalog.json",
+      "sha256": "50e42576a13270d3e19d63a16db528b2e1113baf01ed34d597f0d8b5d740ce7a"
+    },
+    {
+      "file": "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+      "sha256": "efa49ca74403a33373ad41ae41aaa45c93ac201b532b95b56de58ade98d9a901"
+    }
+  ]
+}
