@@ -9,10 +9,17 @@ import {
   parseVendorCapabilitiesFromToml,
 } from "../packages/orchestration/src/vendor-preflight-manifest.js";
 import { isVendorPreflightContractFailure } from "../packages/orchestration/src/vendor-preflight-contract.js";
+import { createDefaultAuthoringSnapshotV1 } from "../packages/orchestration/src/pel-host-descriptors.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const ENTRIES = [
+  {
+    id: "foreman",
+    entry: join(root, "packages/orchestration/src/pel-authoring-main.ts"),
+    relativePath: "dist/foreman.js",
+    injectCapabilities: false,
+  },
   {
     id: "architecture-policy",
     entry: join(root, "packages/policy/src/architecture-main.ts"),
@@ -263,6 +270,22 @@ export async function buildTo(paths: BuildPaths): Promise<{
   mkdirSync(distDir, { recursive: true });
   const artifacts: ArtifactBuild[] = [];
   const caps = loadAuthoredCapabilityEmbed();
+  const snapshotPath = join(
+    paths.runtimeRoot,
+    "assets/pel/default-authoring-snapshot.json",
+  );
+  mkdirSync(dirname(snapshotPath), { recursive: true });
+  const snapshotBytes = Buffer.from(
+    canonicalize(createDefaultAuthoringSnapshotV1()) + "\n",
+  );
+  writeFileSync(snapshotPath, snapshotBytes);
+  artifacts.push({
+    id: "pel-authoring-snapshot",
+    relativePath: "assets/pel/default-authoring-snapshot.json",
+    bundlePath: snapshotPath,
+    sha256: createHash("sha256").update(snapshotBytes).digest("hex"),
+    byteLength: snapshotBytes.length,
+  });
 
   for (const e of ENTRIES) {
     const bundlePath = join(paths.runtimeRoot, e.relativePath);
@@ -280,6 +303,7 @@ export async function buildTo(paths: BuildPaths): Promise<{
       logLevel: "silent",
       packages: "bundle",
       absWorkingDir: root,
+      ...(e.id === "foreman" ? { banner: { js: "#!/usr/bin/env node" } } : {}),
     };
     if (e.injectCapabilities) {
       // Inject only into vendor-preflight. Other artifacts stay free of the table.

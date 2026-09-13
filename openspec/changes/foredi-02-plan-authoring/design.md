@@ -173,6 +173,10 @@ Until M3 exists, contract tests use a local typed fixture port.
 The interface remains the same.
 
 `GenerationRequest` contains generationId, modelProfileId, transportId, controls, credentialProfileRef, prompt, trustedTemplateId, registry catalog, artifacts, output schema, grammar mode, finite limits, generationBudgetReservationRef, and attempt.
+It also contains `capabilitySnapshot:AuthoringPolicyV1`, the immutable policy facts from the validated effective snapshot.
+Each attempt preserves this exact content, including allowed capabilities, model/transport pairs, resource envelopes, schema and account references, and finite budgets.
+The generation service rejects policy content that differs from the checked snapshot before reservation or dispatch.
+Provider lowering puts these admitted policy facts in the pinned template's policy field, separate from untrusted catalog and artifact text.
 M3 maps modelProfileId to `ProviderRequestV1.profileId` without changing identity.
 `GenerationResponse` contains pelSource, exact observed profile and transport identities, provider request ID, and usage.
 `ProviderFailure` exports ModelUnavailable, ModelMismatch, UnsupportedCapability, CapabilityUnverified, PromptChannelUnsupported, AuthenticationRequired, ProbeUnknown, OutputInvalid, OutputIncomplete, MalformedEvent, ContinuationMismatch, ResumeUnavailable, OutcomeUnknown, RateLimited, and TransportDisconnected.
@@ -575,3 +579,17 @@ Only RateLimited and TransportDisconnected have retryClass transient.
 Every other tag has retryClass never.
 Providers obtain credential material from an injected CredentialPort defined in providers.
 Orchestration supplies the implementation. Providers never import orchestration modules.
+
+## Implemented authoring policy details
+
+`AuthoringPolicyV1.allowedReviewPolicies` contains the admitted `fm/review :policy` identifiers.
+The default includes `independent-review`, `policy:independent-review`, and `policy:default`.
+The checker rejects other review policies before preview acceptance.
+Resource scopes use normalized host identifiers without wildcards, traversal, encoded separators, or absolute paths.
+Pinned profile ceilings reject impossible model/transport and control metadata, even when a snapshot has recomputed digests.
+These ceilings provide authoring constraints. M3 still owns live qualification evidence.
+
+`CheckedProgramV1.analysis` and its nested preview records are immutable.
+`normalizedAst` excludes byte spans and node identifiers. Exact source bytes remain part of every checked binding.
+The abstract interpreter includes child closures from `fm/retry` and `fm/race` in capability checks and aggregate effect bounds.
+Its dynamic envelopes conservatively include all feasible alternatives. Host dispatch remains absent from M2.

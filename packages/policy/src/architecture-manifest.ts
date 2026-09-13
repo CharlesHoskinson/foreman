@@ -17,6 +17,7 @@ import {
   canonicalize,
 } from "@foreman/core";
 import type { PolicyReason } from "./architecture-schema.js";
+import { PEL_AUTHORING_ASSET_PATH } from "./install-verify-decode.js";
 import { RUNTIME_DIST_PREFIX } from "./architecture-extensions.js";
 
 export type ManifestArtifact = {
@@ -71,11 +72,17 @@ function artifactFromBundleObject(
   if (isCoreFailure(relativePathRaw)) return fail("schema_mismatch");
   const relativePath = normalizeRelativePath(relativePathRaw);
   if (relativePath === null) return fail("schema_mismatch");
-  // Runtime artifact paths must stay under dist/ with no escape.
-  if (!relativePath.startsWith("dist/") || relativePath === "dist/") {
+  // Admit dist artifacts and the exact declared authoring snapshot asset.
+  if (
+    relativePath !== PEL_AUTHORING_ASSET_PATH &&
+    (!relativePath.startsWith("dist/") || relativePath === "dist/")
+  ) {
     return fail("schema_mismatch");
   }
-  if (relativePath.includes("\\") || relativePath.split("/").some((p) => p === "" || p === "." || p === "..")) {
+  if (
+    relativePath.includes("\\") ||
+    relativePath.split("/").some((p) => p === "" || p === "." || p === "..")
+  ) {
     return fail("schema_mismatch");
   }
   const sha256 = expectString(bundle["sha256"]);
@@ -98,9 +105,7 @@ function artifactFromBundleObject(
  * LF). Rejects duplicate keys, unknown fields, unsafe relative paths, and
  * non-canonical form.
  */
-export function decodeRuntimeManifest(
-  text: string,
-): ManifestDecodeResult {
+export function decodeRuntimeManifest(text: string): ManifestDecodeResult {
   const body = text.endsWith("\n") ? text.slice(0, -1) : text;
   const parsed = parseJsonRejectDuplicateKeys(body);
   if (isCoreFailure(parsed)) return fail("schema_mismatch");
@@ -116,7 +121,11 @@ export function decodeRuntimeManifest(
 
   const schemaVersion = obj["schemaVersion"];
   if (schemaVersion === 1) {
-    const unk = rejectUnknownKeys(obj, ["bundle", "nodeRange", "schemaVersion"]);
+    const unk = rejectUnknownKeys(obj, [
+      "bundle",
+      "nodeRange",
+      "schemaVersion",
+    ]);
     if (unk) return fail("schema_mismatch");
     const nodeRange = expectString(obj["nodeRange"]);
     if (isCoreFailure(nodeRange) || nodeRange !== ">=24 <25") {
@@ -163,7 +172,8 @@ export function decodeRuntimeManifest(
       if (aUnk) return fail("schema_mismatch");
       if (aobj["id"] !== undefined) {
         const id = expectString(aobj["id"]);
-        if (isCoreFailure(id) || id.length === 0) return fail("schema_mismatch");
+        if (isCoreFailure(id) || id.length === 0)
+          return fail("schema_mismatch");
       }
       const art = artifactFromBundleObject({
         byteLength: aobj["byteLength"],
@@ -192,6 +202,8 @@ export function decodeRuntimeManifest(
  * (e.g. skills/foreman/runtime/dist/x.js → dist/x.js).
  */
 export function repoPathToManifestRelative(repoPath: string): string | null {
+  if (repoPath === `skills/foreman/runtime/${PEL_AUTHORING_ASSET_PATH}`)
+    return PEL_AUTHORING_ASSET_PATH;
   if (!repoPath.startsWith(RUNTIME_DIST_PREFIX)) return null;
   const name = repoPath.slice(RUNTIME_DIST_PREFIX.length);
   if (name.length === 0 || name.includes("/") || name.includes("..")) {
@@ -201,8 +213,7 @@ export function repoPathToManifestRelative(repoPath: string): string | null {
 }
 
 export type BundleMatch =
-  | { readonly ok: true }
-  | { readonly ok: false; readonly reason: PolicyReason };
+  { readonly ok: true } | { readonly ok: false; readonly reason: PolicyReason };
 
 /**
  * Check that a candidate blob is exactly the declared manifest artifact.

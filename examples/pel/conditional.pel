@@ -1,0 +1,5 @@
+(def result (fm/verify :id "verify" :input "artifact:approved-spec" :gate "candidate-full"))
+(if (result :at ':passed)
+  (fm/review :id "review" :model "role:reviewer"
+    :input result :policy "independent-review")
+  [:status "verification-failed"])

@@ -77,6 +77,7 @@ const trackedReleaseRuntimeArtifacts = [
   "release-policy.js",
 ] as const;
 const trackedFixtureRuntimeArtifacts = [
+  "foreman.js",
   "appliance-doctor.js",
   "graph-context.js",
   "graph-evaluation.js",
@@ -88,7 +89,7 @@ function releaseRuntimeMemoryNodes(
   dist: string,
   identityPrefix: string,
 ): ReadonlyArray<readonly [string, MemoryNode]> {
-  return trackedFixtureRuntimeArtifacts.map((name, index) => {
+  const bundles = trackedFixtureRuntimeArtifacts.map((name, index) => {
     const bytes = readFileSync(join(trackedRuntime, "dist", name));
     return [
       `${dist}/${name}`,
@@ -102,6 +103,39 @@ function releaseRuntimeMemoryNodes(
       },
     ] as const;
   });
+  const runtime = dirname(dist);
+  const asset = "assets/pel/default-authoring-snapshot.json";
+  const bytes = readFileSync(join(trackedRuntime, asset));
+  return [
+    ...bundles,
+    [
+      `${runtime}/assets`,
+      {
+        kind: "dir",
+        identity: dirIdentity({ ino: `${identityPrefix}-assets` }),
+        names: ["pel"],
+      },
+    ],
+    [
+      `${runtime}/assets/pel`,
+      {
+        kind: "dir",
+        identity: dirIdentity({ ino: `${identityPrefix}-pel-assets` }),
+        names: ["default-authoring-snapshot.json"],
+      },
+    ],
+    [
+      `${runtime}/${asset}`,
+      {
+        kind: "file",
+        bytes,
+        identity: fileIdentity({
+          ino: `${identityPrefix}-pel-snapshot`,
+          size: bytes.byteLength,
+        }),
+      },
+    ],
+  ];
 }
 
 function runVerifySkill(path: string) {
@@ -612,7 +646,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
         {
           kind: "dir" as const,
           identity: dirIdentity({ ino: "11" }),
-          names: ["dist", "manifest.json"],
+          names: ["assets", "dist", "manifest.json"],
         },
       ],
       [
@@ -633,6 +667,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
               "execution-guard.js",
               "fm-session.js",
               "foreman-launch.js",
+              "foreman.js",
               "foreman-setup.js",
               "graph-store.js",
               "lane-queue.js",
@@ -979,7 +1014,7 @@ describe("runtime plugin-drift", () => {
           {
             kind: "dir",
             identity: dirIdentity({ ino: prefix + "-rt" }),
-            names: ["dist", "manifest.json"],
+            names: ["assets", "dist", "manifest.json"],
           },
         ],
         [
@@ -1000,6 +1035,7 @@ describe("runtime plugin-drift", () => {
               "execution-guard.js",
               "fm-session.js",
               "foreman-launch.js",
+              "foreman.js",
               "foreman-setup.js",
               "graph-store.js",
               "lane-queue.js",
@@ -1341,7 +1377,7 @@ describe("skill-root and directory stability seams", () => {
     const runtimeDir: MemoryNode = {
       kind: "dir",
       identity: dirIdentity({ ino: opts?.runtimeIno ?? "11" }),
-      names: ["dist", "manifest.json"],
+      names: ["assets", "dist", "manifest.json"],
       lstatCount: { count: 0 },
       ...(opts?.runtimeIdentityAfter !== undefined
         ? {
@@ -1366,6 +1402,7 @@ describe("skill-root and directory stability seams", () => {
               "execution-guard.js",
               "fm-session.js",
               "foreman-launch.js",
+              "foreman.js",
               "foreman-setup.js",
               "graph-store.js",
               "lane-queue.js",
@@ -1809,7 +1846,7 @@ describe("memory InstallFs path separator seam", () => {
         {
           kind: "dir",
           identity: dirIdentity({ ino: "11" }),
-          names: ["dist", "manifest.json"],
+          names: ["assets", "dist", "manifest.json"],
         },
       ],
       [
@@ -1830,6 +1867,7 @@ describe("memory InstallFs path separator seam", () => {
             "execution-guard.js",
             "fm-session.js",
             "foreman-launch.js",
+              "foreman.js",
             "foreman-setup.js",
             "graph-store.js",
             "lane-queue.js",

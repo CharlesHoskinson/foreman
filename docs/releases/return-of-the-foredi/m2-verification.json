@@ -1,0 +1,364 @@
+{
+  "schemaVersion": 1,
+  "milestone": "M2",
+  "release": "Return of the ForeDi",
+  "measuredAt": "2026-09-13T06:32:27.318Z",
+  "baselineCommit": "b48b1a7cc01f12cf2246c7ed9f704c441b0cc237",
+  "nodeVersion": "v24.18.1",
+  "features": 6,
+  "requirements": 15,
+  "catalogScenarios": 16,
+  "checks": [
+    {
+      "id": "workspace-typecheck",
+      "command": "npm run typecheck",
+      "exitCode": 0,
+      "expectedExitCode": 0,
+      "outputSha256": "1f76325af2eb11829b7d65fc38d0a020ad1b0567429b01b009f89e216aa5f4aa"
+    },
+    {
+      "id": "runtime-build",
+      "command": "npm run build",
+      "exitCode": 0,
+      "expectedExitCode": 0,
+      "outputSha256": "da5832be9ea28a7348f1d77be852725b70d203777c0bc8373bcb689b81cefae2"
+    },
+    {
+      "id": "focused-authoring",
+      "command": "sh -c 'npm run test:pel-authoring'",
+      "exitCode": 0,
+      "expectedExitCode": 0,
+      "outputSha256": "d2656d52e1e462eace443849bc4fe614c55cbcb06c7b3e86ce9e0031b7eb81ee",
+      "tests": 97,
+      "passed": 97,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "compiled-pel-build",
+      "command": "npx tsc -p packages/pel/tsconfig.test.json",
+      "exitCode": 0,
+      "expectedExitCode": 0,
+      "outputSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "compiled-pel-tests",
+      "command": "npx tsx scripts/run-tests.ts \"packages/pel/dist-test/test/*.test.js\"",
+      "exitCode": 0,
+      "expectedExitCode": 0,
+      "outputSha256": "4dd192c3df3682d9b74bbffa75044ae5b7bbbbb814c6c7fb4ffdba2231ce4289",
+      "tests": 312,
+      "passed": 312,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "runtime-verification",
+      "command": "npm run verify-runtime",
+      "exitCode": 0,
+      "expectedExitCode": 0,
+      "outputSha256": "5097e39665345c6e500a9f94a841f97a901452e6dd51f74304ab12d15959440b"
+    },
+    {
+      "id": "strict-openspec",
+      "command": "openspec validate foredi-02-plan-authoring --strict",
+      "exitCode": 0,
+      "expectedExitCode": 0,
+      "outputSha256": "f347aa229483f79ba1461579541b553e98c85fc3d021097e44170d2ba9f16c66"
+    },
+    {
+      "id": "missing-test-path",
+      "command": "npx tsx scripts/run-tests.ts \"packages/pel/test/definitely-missing-release-test.ts\"",
+      "exitCode": 1,
+      "expectedExitCode": 1,
+      "outputSha256": "9cae57e8c018fee76d9eb5a318e0a54d53f18e8c2be1facbe3a1a490a5f9517d"
+    },
+    {
+      "id": "workspace-tests",
+      "command": "npm test",
+      "exitCode": 1,
+      "expectedExitCode": 1,
+      "outputSha256": "fed0e9fe8eeb09b666dbe8c904079956be25a6bd583d816f9d5105f7b6dcebea",
+      "tests": 2546,
+      "passed": 2536,
+      "failed": 3,
+      "skipped": 7
+    }
+  ],
+  "remainingBaselineFailures": [
+    {
+      "file": "packages/orchestration/src/release-coverage-cli.test.ts",
+      "test": "accepts the live v0.5 register at bootstrap through the CLI",
+      "reason": "inventory_mismatch"
+    },
+    {
+      "file": "packages/policy/src/release-coverage.test.ts",
+      "test": "accepts the live v0.5 register at bootstrap",
+      "reason": "inventory_mismatch"
+    },
+    {
+      "file": "packages/orchestration/src/secret-scan.test.ts",
+      "test": "scans the current Foreman worktree clean under default bounds",
+      "reason": "bound_exceeded"
+    }
+  ],
+  "implementationAndEvidenceFiles": [
+    {
+      "path": "docs/reference/pel/authoring.md",
+      "sha256": "fd00ff3615c2115a9bfbd07210e0635e998dab12b6b55269eaa38c030639e232"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/README.md",
+      "sha256": "60d6c223a989299a78d60594aad19140f739166efb4711d1da23cf7f5215be83"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/m2-ears-coverage.md",
+      "sha256": "c8a553b6ea2c0849c1b5588ba0275eb65fe89da0b6a988f782a63159e6e70d75"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/m2-implementation.md",
+      "sha256": "aefb206060e69b172b4f5aa3851c44278aa8492f7a2fdb6623d0f103d9f13ec1"
+    },
+    {
+      "path": "examples/pel/conditional.pel",
+      "sha256": "524d747278299836c9d11e34b8f038cfb86a5654a80b6482cb72f2135d732fc1"
+    },
+    {
+      "path": "examples/pel/implement-verify-review.pel",
+      "sha256": "9cea3c10124da4a2d6548b7700dd0ec5b8ff60bdc50ca6bf10722cf8cd538779"
+    },
+    {
+      "path": "examples/pel/parallel-read.pel",
+      "sha256": "f3abeea58c0fdea3b3abc012942506859b45d8325286a7c1d82b3c793934516a"
+    },
+    {
+      "path": "examples/pel/repair.pel",
+      "sha256": "182bd06b9ed6c4010c5f9f0bc63be230d4ae437f0499d6ac22e9bf59f1e5384d"
+    },
+    {
+      "path": "openspec/changes/foredi-02-plan-authoring/design.md",
+      "sha256": "726e9c87ec3c3be34b517b2e4a7e330cc1eeb73a2c49ebdb5db68beb7fa34d37"
+    },
+    {
+      "path": "openspec/changes/foredi-02-plan-authoring/tasks.md",
+      "sha256": "57ccd5ee7d5c8c559cd1d36e849a4d4b7baa56786d2efa2be607fed56875ac37"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "527ee89344b14acac51a5ee66d8f6a8869a2da903b666e8bcef37448f38479dd"
+    },
+    {
+      "path": "package.json",
+      "sha256": "1986a882ceb1d212fb8d3b1a4ae8d62fad8ff34c15739fe64c572289844ab2f8"
+    },
+    {
+      "path": "packages/orchestration/package.json",
+      "sha256": "bbe3fae43a53a051dc66b566be14416c250aafb4cfb6121daac5b04ce638cb03"
+    },
+    {
+      "path": "packages/orchestration/src/pel-authoring-cli.test.ts",
+      "sha256": "78f147befc95a6fa7fdae88e2ca229e660e6c033551c1f6f1b8a429eeb4432db"
+    },
+    {
+      "path": "packages/orchestration/src/pel-authoring-cli.ts",
+      "sha256": "7859ca33d274662f009fb756986e230433c6b7453bf40f61e29c03f4cd44a08b"
+    },
+    {
+      "path": "packages/orchestration/src/pel-authoring-contract.ts",
+      "sha256": "d26442aa5c0beb93fc726e5f14f0e44013407019aea4b81206d2ea445da6953a"
+    },
+    {
+      "path": "packages/orchestration/src/pel-authoring-main.ts",
+      "sha256": "5ae9e94f761ba1905dc60112955d32d6fe8b5fba37967df1bb49edfa6a2ab45f"
+    },
+    {
+      "path": "packages/orchestration/src/pel-cli-fixture-main.ts",
+      "sha256": "c57b1ceccdbfb188ab08c70c75a140dfb1bd0ad0c5b366d94ac14e975e1a713a"
+    },
+    {
+      "path": "packages/orchestration/src/pel-cli-fixture.test.ts",
+      "sha256": "6be8cdbe27e32390c3040fbcf40741b9b01ceba6efd43cd00e4708dad4eeb2db"
+    },
+    {
+      "path": "packages/orchestration/src/pel-draft-session.test.ts",
+      "sha256": "7039d396e5884fdfd90b8b7caf329680cce6e46429fc28eed5b2adfb5239fe9a"
+    },
+    {
+      "path": "packages/orchestration/src/pel-draft-session.ts",
+      "sha256": "f594c1d13148ec1e45246120e4acc1e0a23a3638b634ab131e542a2217c21622"
+    },
+    {
+      "path": "packages/orchestration/src/pel-generation.test.ts",
+      "sha256": "8097505700c069fa56017a26b50b3ac524635b1bf236ac16a475915fa6aa629e"
+    },
+    {
+      "path": "packages/orchestration/src/pel-generation.ts",
+      "sha256": "9e7e03991c4e17b2c4a53b9ba2213e46e3c78ab64b7fa13f37a2f19e2f715e6d"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-descriptors.ts",
+      "sha256": "030c3957df9bb4de9340716047e2619e868ae9dc3b774ed935177238b8691871"
+    },
+    {
+      "path": "packages/orchestration/test/pel-cli-fixture-entry.ts",
+      "sha256": "4b9369d49e340b45121fd3f3c105b7224a2887d4bae7f16829963c7138da2ec7"
+    },
+    {
+      "path": "packages/orchestration/tsconfig.json",
+      "sha256": "50d0520515f293d6caded656189abae5d9847b16a0598ddfd820d0496005f950"
+    },
+    {
+      "path": "packages/pel/src/analysis-types.ts",
+      "sha256": "3cf808c4a12205ede124eb1af34b1274ceb9e0a84cf96a9acf26543b11bdd7ec"
+    },
+    {
+      "path": "packages/pel/src/analysis.ts",
+      "sha256": "d91502018c8faf3d85bcccd26800d415882bfc87d8474a5e3855aa09a0e80d34"
+    },
+    {
+      "path": "packages/pel/src/authoring-profile-ceilings.ts",
+      "sha256": "251a90520ed054f863e01ed47857419fbe633c04f131174d7a87f2637f70da09"
+    },
+    {
+      "path": "packages/pel/src/authoring-types.ts",
+      "sha256": "ec9bcac937904f94aee833bf2f8a33d69635eba0aa0d8384a98d0d4591d8645b"
+    },
+    {
+      "path": "packages/pel/src/binding.ts",
+      "sha256": "987d919d21913178d35eed1430447c3ac621982e6dea8df3d274c40ffcae0c9b"
+    },
+    {
+      "path": "packages/pel/src/checker.ts",
+      "sha256": "a46c39f29e773f663ee407219bf235ddadabdf02fd749b7f4217b1a069206771"
+    },
+    {
+      "path": "packages/pel/src/index.ts",
+      "sha256": "bf721b4aa802a76b9aa26d28d77ff292e2ea7bb420650b07b7b6ebc20d6f3cb8"
+    },
+    {
+      "path": "packages/pel/src/preview.ts",
+      "sha256": "97d60fc93de5b7557dbb51bf2f3c8e3554763ae7f6a4500bde8dbcd4d8b314db"
+    },
+    {
+      "path": "packages/pel/src/snapshot.ts",
+      "sha256": "b1a5f14dfa0ccfdb5c4f8550379be1b3c69de73c1dab19b315244315f6ab245d"
+    },
+    {
+      "path": "packages/pel/test/analysis.test.ts",
+      "sha256": "72cf73b90d63790ae5880ced1a34c3f088b30d2f16d7b0285ddd354982a3afde"
+    },
+    {
+      "path": "packages/pel/test/binding.test.ts",
+      "sha256": "8115b4873e7459b7a687593e31fe8131a533960a588b1b67e6ceb63eba1fbfb8"
+    },
+    {
+      "path": "packages/pel/test/fixtures/authoring-snapshot.json",
+      "sha256": "64fde9d00121cbb60c320aa118aa7ff61c6622b911be3574445f9c944f3aca4c"
+    },
+    {
+      "path": "packages/pel/test/fixtures/repair-invalid.pel",
+      "sha256": "06a9cb67735ad2e3be03e4c5b4f413e3018aba279dccc7d9f9c20c5eb45c4cf1"
+    },
+    {
+      "path": "packages/pel/test/preview.test.ts",
+      "sha256": "3226b720aca49bc7b331c79910c1e73cb70be21419219aa3fd16311096fbf6f9"
+    },
+    {
+      "path": "packages/pel/test/snapshot.test.ts",
+      "sha256": "5556b442ad423fd5272366bf2faa0df63ec56494b392492916c98b6b47dfbbbe"
+    },
+    {
+      "path": "packages/policy/src/architecture-manifest.ts",
+      "sha256": "22f72a0018727ec0037bf65b7c86430aeb3a39cb580cb92202ad38f3f00d67f8"
+    },
+    {
+      "path": "packages/policy/src/install-verify-authoring-asset.test.ts",
+      "sha256": "e35498a4937efc1d0e15a57c20eca30d9d0651300eacc22738b4fa6b2ca52d7d"
+    },
+    {
+      "path": "packages/policy/src/install-verify-decode.ts",
+      "sha256": "0c4e46f033a1a759ffb1357a258e67859477359efd1806d280153593979bb48c"
+    },
+    {
+      "path": "packages/policy/src/install-verify.test.ts",
+      "sha256": "5f79681d8aceef9785275015f7e3ec898022dd5fd5be9210b09687d717f2e97c"
+    },
+    {
+      "path": "packages/policy/src/install-verify.ts",
+      "sha256": "bd4a7fe08317c8a2193b6c4967bbca5347cab40652858741905de818197edb14"
+    },
+    {
+      "path": "packages/providers/package.json",
+      "sha256": "2b6cca9dfbce1a7719a1536b2c2cab3015719f0672429815661fa6e30103032c"
+    },
+    {
+      "path": "packages/providers/src/contract.ts",
+      "sha256": "7d8fff5be535a769be79eccdc9131e3eb1b1db3adca91497efce4656b58b381e"
+    },
+    {
+      "path": "packages/providers/src/controls.ts",
+      "sha256": "ae7d07f87888c55a4598ae394e4a67227f2053a3aeb1942e4a97af96e73ca174"
+    },
+    {
+      "path": "packages/providers/src/errors.ts",
+      "sha256": "5c6dcab93d1303f365f20212db8cc3a3c02c96e639e77bfaaa3427f768454735"
+    },
+    {
+      "path": "packages/providers/src/identity.ts",
+      "sha256": "8c95b8de78562f2893ee47083becaadd48e1a95b1bacea05d580c3ede091264f"
+    },
+    {
+      "path": "packages/providers/src/index.ts",
+      "sha256": "b3f1284dc01c262aa8515d0903b2a559d705d70a8e91d5f216c8bc2ec7c8aac9"
+    },
+    {
+      "path": "packages/providers/src/usage.ts",
+      "sha256": "189b7bd333861b489597b4dda2a11b226754f0236009d886b1c94c6f3d55268a"
+    },
+    {
+      "path": "packages/providers/tsconfig.json",
+      "sha256": "525fe7bf81de8c59fc18c3c61efcea573936f8fbe5b3fe6fc6526b2dad4d6d65"
+    },
+    {
+      "path": "scripts/build-pel-test-fixture.ts",
+      "sha256": "a2137ba36a9e6fbdfbac97583bdcaab37108b7cd31323b0593ddfbc3e082b507"
+    },
+    {
+      "path": "scripts/build-runtime.ts",
+      "sha256": "0b5ef27bbf07a83c3d1d1e5e7c279cf2d5d3aa7767e192bfe95f3df8575fd662"
+    },
+    {
+      "path": "scripts/verify-runtime.ts",
+      "sha256": "99ffebc6945d31fc802275bf414d77b9e90fd55cac555a4b364945b000e27e84"
+    },
+    {
+      "path": "skills/foreman/runtime/assets/pel/default-authoring-snapshot.json",
+      "sha256": "64fde9d00121cbb60c320aa118aa7ff61c6622b911be3574445f9c944f3aca4c"
+    },
+    {
+      "path": "skills/foreman/runtime/dist/appliance-doctor.js",
+      "sha256": "727c57dee7b2a9434b7eb06bb53b31be591ec7890c46a76386b389a11eb0c997"
+    },
+    {
+      "path": "skills/foreman/runtime/dist/architecture-policy.js",
+      "sha256": "f022b3d1431e684a98958df7798c1487f4b9b9d0651f42b6cd9596d84f529e36"
+    },
+    {
+      "path": "skills/foreman/runtime/dist/foreman.js",
+      "sha256": "1a6d2166e6c2be2ee02177688171fff9d138842c4d41fe70547b0ce9d51695e4"
+    },
+    {
+      "path": "skills/foreman/runtime/manifest.json",
+      "sha256": "97487c9d958d1358ebbcd7cc317d444f1a5a7fee351342e1b6c2449d2718cb36"
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "c2463bfb4408fe7e123c7735c45822c01aef1174abc5520a2fc68f8f98676fa5"
+    }
+  ],
+  "limitsOfEvidence": [
+    "Live provider transport qualification remains M3 work.",
+    "M4 supplies execution admission and the run side of check/plan/run correspondence.",
+    "The full workspace suite retains the same three failures recorded before M1."
+  ]
+}

@@ -175,6 +175,7 @@ const trackedReleasePolicy = readFileSync(trackedReleasePolicyPath);
     "fm-session.js",
     "foreman-launch.js",
     "foreman-setup.js",
+    "foreman.js",
     "graph-context.js",
     "graph-evaluation.js",
     "graph-store.js",
@@ -425,6 +426,15 @@ try {
     const miss = verifyRuntimeManifest(rt);
     if (miss.ok || miss.reason !== "bundle_missing") {
       fail("expected bundle_missing got " + JSON.stringify(miss));
+    }
+    for (const artifact of trackedCheck.artifacts) {
+      const destination = join(rt, artifact.relativePath);
+      mkdirSync(dirname(destination), { recursive: true });
+      cpSync(join(trackedRuntime, artifact.relativePath), destination);
+    }
+    const seeded = verifyRuntimeManifest(rt);
+    if (!seeded.ok) {
+      fail("negative probe fixture is incomplete: " + JSON.stringify(seeded));
     }
     writeFileSync(join(rt, "dist/destruction-guard.js"), "TAMPER");
     writeFileSync(
@@ -853,113 +863,21 @@ try {
       }
       writeFileSync(join(rt, "dist/foreman-launch.js"), trackedForemanLaunch);
     }
-    // Tamper manifest digests
+    // Preserve every declared artifact while changing one valid digest.
+    const tamperedManifest = JSON.parse(trackedManifest.toString("utf8")) as {
+      artifacts: { sha256: string }[];
+    };
+    const artifact = tamperedManifest.artifacts[0]!;
+    artifact.sha256 =
+      artifact.sha256 === "0".repeat(64) ? "1".repeat(64) : "0".repeat(64);
     writeFileSync(
       join(rt, "manifest.json"),
-      canonicalize({
-        artifacts: [
-          {
-            byteLength: 1,
-            id: "architecture-policy",
-            relativePath: "dist/architecture-policy.js",
-            sha256: "a".repeat(64),
-          },
-          {
-            byteLength: 1,
-            id: "credential-profile",
-            relativePath: "dist/credential-profile.js",
-            sha256: "k".repeat(64),
-          },
-          {
-            byteLength: 1,
-            id: "credential-profile-lane",
-            relativePath: "dist/credential-profile-lane.js",
-            sha256: "l".repeat(64),
-          },
-          {
-            byteLength: 1,
-            id: "dependency-drift",
-            relativePath: "dist/dependency-drift.js",
-            sha256: "g".repeat(64),
-          },
-          {
-            byteLength: 1,
-            id: "destruction-guard",
-            relativePath: "dist/destruction-guard.js",
-            sha256: "b".repeat(64),
-          },
-          {
-            byteLength: 1,
-            id: "execution-guard",
-            relativePath: "dist/execution-guard.js",
-            sha256: "m".repeat(64),
-          },
-          {
-            byteLength: 1,
-            id: "fm-session",
-            relativePath: "dist/fm-session.js",
-            sha256: "x".repeat(64),
-          },
-          {
-            byteLength: 1,
-            id: "foreman-launch",
-            relativePath: "dist/foreman-launch.js",
-            sha256: "o".repeat(64),
-          },
-          {
-            byteLength: 1,
-            id: "foreman-setup",
-            relativePath: "dist/foreman-setup.js",
-            sha256: "h".repeat(64),
-          },
-          {
-            byteLength: 1,
-            id: "graph-store",
-            relativePath: "dist/graph-store.js",
-            sha256: "n".repeat(64),
-          },
-          {
-            byteLength: 1,
-            id: "lane-queue",
-            relativePath: "dist/lane-queue.js",
-            sha256: "c".repeat(64),
-          },
-          {
-            byteLength: 1,
-            id: "lane-round",
-            relativePath: "dist/lane-round.js",
-            sha256: "d".repeat(64),
-          },
-          {
-            byteLength: 1,
-            id: "lane-supervise",
-            relativePath: "dist/lane-supervise.js",
-            sha256: "i".repeat(64),
-          },
-          {
-            byteLength: 1,
-            id: "secret-scan",
-            relativePath: "dist/secret-scan.js",
-            sha256: "j".repeat(64),
-          },
-          {
-            byteLength: 1,
-            id: "tool-check",
-            relativePath: "dist/tool-check.js",
-            sha256: "f".repeat(64),
-          },
-          {
-            byteLength: 1,
-            id: "vendor-preflight",
-            relativePath: "dist/vendor-preflight.js",
-            sha256: "e".repeat(64),
-          },
-        ],
-        nodeRange: ">=24 <25",
-        schemaVersion: 2,
-      }) + "\n",
+      canonicalize(tamperedManifest) + "\n",
     );
-    if (verifyRuntimeManifest(rt).ok) fail("tampered manifest should fail");
+    const tampered = verifyRuntimeManifest(rt);
+    if (tampered.ok || tampered.reason !== "bundle_digest_mismatch") {
+      fail("expected bundle_digest_mismatch got " + JSON.stringify(tampered));
+    }
   } finally {
     rmSync(probe, { recursive: true, force: true });
   }

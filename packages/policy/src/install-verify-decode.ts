@@ -46,6 +46,9 @@ function normalizeRelativePath(p: string): string | null {
   return s;
 }
 
+export const PEL_AUTHORING_ASSET_PATH =
+  "assets/pel/default-authoring-snapshot.json";
+
 const REQUIRED_V2 = new Set([
   "dist/architecture-policy.js",
   "dist/credential-profile-lane.js",
@@ -79,10 +82,17 @@ function decodeArtifactObject(
     return { ok: false, reason: "manifest_relative_path" };
   }
   const relativePath = normalizeRelativePath(relativePathRaw);
-  if (relativePath === null || !relativePath.startsWith("dist/")) {
+  if (
+    relativePath === null ||
+    (relativePath !== PEL_AUTHORING_ASSET_PATH &&
+      !relativePath.startsWith("dist/"))
+  ) {
     return { ok: false, reason: "manifest_relative_path" };
   }
-  const rest = relativePath.slice("dist/".length);
+  const rest =
+    relativePath === PEL_AUTHORING_ASSET_PATH
+      ? "default-authoring-snapshot.json"
+      : relativePath.slice("dist/".length);
   if (
     rest.length === 0 ||
     rest.includes("/") ||
@@ -138,7 +148,11 @@ export function decodeInstallManifestText(
 
   const schemaVersion = obj["schemaVersion"];
   if (schemaVersion === 1) {
-    const unk = rejectUnknownKeys(obj, ["bundle", "nodeRange", "schemaVersion"]);
+    const unk = rejectUnknownKeys(obj, [
+      "bundle",
+      "nodeRange",
+      "schemaVersion",
+    ]);
     if (unk) return fail("manifest_unknown_field");
     const nodeRange = expectString(obj["nodeRange"]);
     if (isCoreFailure(nodeRange) || nodeRange !== ">=24 <25") {

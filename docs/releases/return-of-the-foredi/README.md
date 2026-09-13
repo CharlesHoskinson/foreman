@@ -1,6 +1,6 @@
 # Return of the ForeDi
 
-Status: M1 is implemented. M2–M6 and release qualification remain open. See the [M1 implementation report](m1-implementation.md) and [M1 EARS coverage](m1-ears-coverage.md).
+Status: M1 and M2 are implemented. M3–M6 and release qualification remain open. See the [M1 report](m1-implementation.md), [M2 report](m2-implementation.md), and [M2 EARS coverage](m2-ears-coverage.md).
 
 Pel is the common language for Foreman planning and execution. A person or model writes one program. Foreman checks the program, explains its effects, and runs it through the existing host authority. The release replaces duplicate planning and execution machinery.
 

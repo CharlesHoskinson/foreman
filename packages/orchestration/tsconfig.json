@@ -8,10 +8,23 @@
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts"],
   "references": [
-    { "path": "../core" },
-    { "path": "../event-log" },
-    { "path": "../policy" },
-    { "path": "../session-store" },
-    { "path": "../pel" }
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../event-log"
+    },
+    {
+      "path": "../policy"
+    },
+    {
+      "path": "../session-store"
+    },
+    {
+      "path": "../pel"
+    },
+    {
+      "path": "../providers"
+    }
   ]
 }

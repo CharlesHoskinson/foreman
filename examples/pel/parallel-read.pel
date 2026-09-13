@@ -1,0 +1,3 @@
+(do/async
+  (fm/research :id "read-a" :query "Find requirements" :bundle "artifact:source-a" :limit 2)
+  (fm/research :id "read-b" :query "Find constraints" :bundle "artifact:source-b" :limit 2))
