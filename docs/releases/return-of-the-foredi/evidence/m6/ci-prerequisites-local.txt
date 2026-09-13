@@ -1,0 +1,29 @@
+✔ T-M6-007 closed implement-verify-review import preserves exact registered semantics (82.97793ms)
+✔ T-M6-007 closed bounded-rework import preserves exact registered semantics (44.451711ms)
+✔ T-M6-007 unknown command, schema, field, shell, Council, or gate fails at the original source locator (1.955313ms)
+✔ T-M6-008 active and uncertain legacy observations refuse without consuming or rewriting the input (1.249592ms)
+✔ migration publication creates a hash-bound pair and refuses overwrite or symlink inputs (7.139371ms)
+✔ T-M6-008 real active legacy owner, reservation and completed tool evidence survive migration refusal (68.073101ms)
+✔ T-M6-007 compiled migrate and actual host execution preserve implement-verify-review trace and original limits (1952.062808ms)
+✔ T-M6-007 compiled migrate and actual host execution preserve bounded-rework trace and original limits (3819.605751ms)
+✔ migration distinguishes input I/O from malformed contract at its original locator (1.945598ms)
+✔ T-M6-009 all twelve retired shell entries are absent and live caller scopes contain no references (44.578623ms)
+✔ T-M5-001 native boundary uses real namespaces to limit writes and hide ambient credentials (143.514218ms)
+✔ T-M5-002 native boundary refuses unsupported transports and unmatched grants before launch (1.679804ms)
+✔ T-M5-002 native boundary never claims enforcement when the installed boundary is unavailable (1.976517ms)
+✔ native launch rejects a writable grant replaced after its enforcement probe (15.454535ms)
+✔ live native policy derives only original workspace and authority identity; API versions require no native lookup (20.384148ms)
+✔ live native discovery uses exact metadata argv and minimal environment; missing installation stays unsupported (46.508677ms)
+✔ native coding qualification uses actual mount probes, durable permission, and exact changed bytes: exact (260.046554ms)
+✔ native coding qualification uses actual mount probes, durable permission, and exact changed bytes: ignored-extra (165.559957ms)
+✔ native coding qualification uses actual mount probes, durable permission, and exact changed bytes: late-write (192.861826ms)
+✔ product native coding qualification resolves only the selected credential before allocating evidence (4.80573ms)
+✔ native coding qualification rejects unsupported or fixture/product substitutions before filesystem changes (1.524949ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 21
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7301.852982

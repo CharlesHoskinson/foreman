@@ -24,6 +24,15 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Install native test prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap ripgrep
+          /usr/bin/bwrap --ro-bind / / --unshare-user --unshare-pid --proc /proc --dev /dev /usr/bin/true
+          rg --version
+
       - name: Root Node workspace gates
         shell: bash
         run: |

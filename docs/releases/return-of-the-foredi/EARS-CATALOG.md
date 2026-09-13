@@ -1,8 +1,8 @@
 # Return of the ForeDi EARS catalog
 
-Status: specified. These requirements describe the release to implement.
+Status: M1–M6 implementation candidate, acceptance incomplete. M7 K semantics is planned.
 
-Six milestones contain 36 features and 125 EARS requirements. Each requirement has at least one test in the [test plan](TEST-PLAN.md).
+Seven milestones contain 42 features and 145 EARS requirements. Each requirement has at least one test in the [test plan](TEST-PLAN.md).
 
 See the [EARS method](EARS-METHOD.md) for syntax and coverage rules.
 
@@ -673,3 +673,111 @@ Tests: [T-M6-021](TEST-PLAN.md#t-m6-021).
 **R-M6-023** (event). When an archive build is requested, the Foreman packaging tool SHALL emit the manifest-bound installable archive at its declared build-identity path.
 
 Tests: [T-M6-023](TEST-PLAN.md#t-m6-023).
+
+## M7: Executable Pel semantics in K (planned)
+
+[OpenSpec](../../../openspec/changes/foredi-07-k-semantics/specs/foredi-07-k-semantics/spec.md) · [Implementation tasks](../../../openspec/changes/foredi-07-k-semantics/tasks.md)
+
+### F-M7-01: Pinned profile and executable syntax
+
+Pinned profile and executable syntax.
+
+**R-M7-001** (event). When the K semantics toolchain is selected, the semantics harness SHALL record its exact K revision, backend, executable hashes and Pel profile digest before compiling.
+
+Tests: [T-M7-001](TEST-PLAN.md#t-m7-001).
+
+**R-M7-002** (event). When Pel source is parsed by the K definition, the definition SHALL produce the selected M1 syntax and source locations independently of the TypeScript parser.
+
+Tests: [T-M7-002](TEST-PLAN.md#t-m7-002).
+
+**R-M7-003** (event). When numeric expressions execute, the K definition SHALL reproduce the finite binary64 and safe-integer restrictions of the selected Pel profile.
+
+Tests: [T-M7-003](TEST-PLAN.md#t-m7-003).
+
+### F-M7-02: Values, closures and native control
+
+Values, closures and native control.
+
+**R-M7-004** (event). When a Pel value or callable list is evaluated, the K definition SHALL preserve M1 tags, pair presence, nil, quoting and one-based selection.
+
+Tests: [T-M7-004](TEST-PLAN.md#t-m7-004).
+
+**R-M7-005** (event). When a closure is called, the K definition SHALL use its captured lexical environment and the selected argument-binding rules.
+
+Tests: [T-M7-005](TEST-PLAN.md#t-m7-005).
+
+**R-M7-006** (event). When native control flow selects work, the K definition SHALL implement M1 non-strict branches, scoped loops, blocks and single-evaluation pipe injection.
+
+Tests: [T-M7-006](TEST-PLAN.md#t-m7-006).
+
+### F-M7-03: Scheduling, bounds and diagnostics
+
+Scheduling, bounds and diagnostics.
+
+**R-M7-007** (event). When top-level dependencies become ready, the K definition SHALL reproduce ordered and automatic M1 evaluation with ready/already-emitted batches and the last-source result.
+
+Tests: [T-M7-007](TEST-PLAN.md#t-m7-007).
+
+**R-M7-008** (event). When a Pel semantic limit is reached, the K definition SHALL stop at the same pre-operation boundary and preserve the same counters as M1.
+
+Tests: [T-M7-008](TEST-PLAN.md#t-m7-008).
+
+**R-M7-009** (unwanted). If execution encounters an invalid state or operation, then the K definition SHALL return a located domain diagnostic without inventing a host result.
+
+Tests: [T-M7-009](TEST-PLAN.md#t-m7-009).
+
+### F-M7-04: Abstract host effects
+
+Abstract host effects.
+
+**R-M7-010** (event). When a host expression suspends, the K definition SHALL emit a bounded abstract request and accept only its matching supplied receipt.
+
+Tests: [T-M7-010](TEST-PLAN.md#t-m7-010).
+
+**R-M7-011** (unwanted). If a receipt conflicts with source, registry, schema or request identity, then the K definition SHALL reject it without completing another request.
+
+Tests: [T-M7-011](TEST-PLAN.md#t-m7-011).
+
+**R-M7-012** (ubiquitous). The K host model SHALL treat provider behavior, resource grants and publication authority as explicit external assumptions rather than derived language facts.
+
+Tests: [T-M7-012](TEST-PLAN.md#t-m7-012).
+
+### F-M7-05: Continuations and replay
+
+Continuations and replay.
+
+**R-M7-013** (event). When a suspended configuration is serialized and restored, the K definition SHALL preserve lexical values, pending identities, selected options and consumed counters.
+
+Tests: [T-M7-013](TEST-PLAN.md#t-m7-013).
+
+**R-M7-014** (event). When completed-prefix replay or a source revision is modeled, the K definition SHALL preserve completed receipt bindings and the selected M1 replay boundary.
+
+Tests: [T-M7-014](TEST-PLAN.md#t-m7-014).
+
+**R-M7-015** (event). When an M1 child continuation is allocated or merged, the K definition SHALL preserve one-based child identity and charge child counters exactly once.
+
+Tests: [T-M7-015](TEST-PLAN.md#t-m7-015).
+
+### F-M7-06: Differential evidence and proof status
+
+Differential evidence and proof status.
+
+**R-M7-016** (event). When differential conformance runs, the TypeScript harness SHALL compare independently specified expected observations, K execution and the existing M1 engine for every mapped fixture.
+
+Tests: [T-M7-016](TEST-PLAN.md#t-m7-016).
+
+**R-M7-017** (event). When conformance evidence is recorded, the TypeScript harness SHALL bind source, K definition, toolchain, runtime, corpus and comparator digests to executed case counts.
+
+Tests: [T-M7-017](TEST-PLAN.md#t-m7-017).
+
+**R-M7-018** (event). When a semantic mutation changes a required rule, the conformance suite SHALL detect the changed observable behavior.
+
+Tests: [T-M7-018](TEST-PLAN.md#t-m7-018).
+
+**R-M7-019** (event). When a mechanized claim is assessed, its claim record SHALL name its domain, assumptions, exact semantics digest, backend and checked result separately from differential evidence.
+
+Tests: [T-M7-019](TEST-PLAN.md#t-m7-019).
+
+**R-M7-020** (ubiquitous). The semantics guide SHALL distinguish planned work, executable definitions, conformance evidence, mechanized claims and open correspondence assumptions.
+
+Tests: [T-M7-020](TEST-PLAN.md#t-m7-020).

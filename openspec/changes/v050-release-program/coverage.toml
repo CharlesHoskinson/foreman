@@ -772,3 +772,13 @@ owner = "v050-release-program"
 target_release = "v0.5"
 reconcile = "required"
 reason = "Return of the ForeDi replaces runtime behavior covered by the active release program. Reconcile retained, replaced, and deferred obligations before numerical release assignment. This entry does not mark implementation or v0.5 complete."
+
+[[entry]]
+key = "change:foredi-07-k-semantics"
+source_kind = "openspec_change"
+source_path = "openspec/changes/foredi-07-k-semantics"
+disposition = "v050_dependency"
+owner = "v050-release-program"
+target_release = "v0.5"
+reconcile = "required"
+reason = "User added executable K semantics and TypeScript differential conformance to the ForeDi release plan. This sprint is planned. It does not establish semantic equivalence or complete numerical release acceptance."

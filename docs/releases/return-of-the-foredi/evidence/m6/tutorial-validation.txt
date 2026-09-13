@@ -1,0 +1,11 @@
+lesson 1: compiled check/plan pass, pure evaluator result 42
+lesson 2: compiled check/plan pass, pure evaluator result 20
+lesson 3: compiled check/plan pass, pure evaluator result 15
+lesson 4: compiled check/plan pass, pure evaluator result 0
+lesson 5: compiled check/plan pass, pure evaluator result "large"
+lesson 6: compiled check/plan pass, pure evaluator result "large"
+lesson 7: compiled check/plan pass, pure evaluator result [2 4 6]
+lesson 8: compiled check/plan pass, pure evaluator result 12
+lesson 9: compiled check/plan pass, configured effects not dispatched
+lesson 10: compiled check/plan pass, configured effects not dispatched
+10 snippets validated; no live provider calls.

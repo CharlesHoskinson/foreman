@@ -1,8 +1,8 @@
 # Return of the ForeDi test plan
 
-Status: planned. The tests below have not been executed against a Pel implementation.
+Status: M1–M6 have executed implementation tests recorded in their coverage and acceptance reports. M7 tests remain planned.
 
-This plan contains 127 test scenarios for 125 requirements. Each entry states a concrete fixture, action, expected result, and target file.
+This plan contains 147 test scenarios for 145 requirements. Each entry states a concrete fixture, action, expected result, and target file.
 
 Run the milestone commands in each OpenSpec `tasks.md` after its implementation exists. Unit and contract fixtures run without provider accounts. Live qualification uses the exact profile and transport combinations stated in M3. Record unsupported or inaccessible combinations as such. Do not substitute a different model to claim a pass.
 
@@ -1172,3 +1172,207 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 - Fixture: Compiled Node24 producer, exact candidate revision and runtime/assets/examples/docs payload with invalid-path counterfixtures.
 - Action: npm run package:pel -- --candidate <git-commit> --out artifacts/foredi.
 - Expected: Successful build emits artifacts/foredi/<buildId>.tar.gz and matching archive hash with exit 0. Invalid paths/options exit 2 and archive I/O fails with exit 1. Payload digest excludes manifest self-reference.
+
+## M7: Executable Pel semantics in K (planned)
+
+[OpenSpec](../../../openspec/changes/foredi-07-k-semantics/specs/foredi-07-k-semantics/spec.md) · [Implementation tasks](../../../openspec/changes/foredi-07-k-semantics/tasks.md)
+
+### T-M7-001
+
+- Status: planned.
+- Requirements: R-M7-001.
+- Level: conformance.
+- Target: `packages/pel/test/k/toolchain.test.ts`.
+- Fixture: Pinned K7.1.337 and a mismatched executable hash.
+- Action: Compile a closed arithmetic definition, then repeat with the mismatched lock.
+- Expected: The matching toolchain executes the example; the mismatch is unavailable, never a passing skipped run.
+
+### T-M7-002
+
+- Status: planned.
+- Requirements: R-M7-002.
+- Level: conformance.
+- Target: `packages/pel/test/k/syntax.test.ts`.
+- Fixture: Every lexical and grammar row in paper-v2.json, including escapes, quoted pairs, caret, malformed numbers and Unicode spans.
+- Action: Parse with K and TypeScript independently and compare normalized trees or diagnostic locations.
+- Expected: All selected syntax cases agree; unsupported syntax is a located rejection, not an assumed AST translation.
+
+### T-M7-003
+
+- Status: planned.
+- Requirements: R-M7-003.
+- Level: conformance.
+- Target: `packages/pel/test/k/values.test.ts`.
+- Fixture: Negative zero,0.1+0.2,maximum safe integer,overflow,division by zero and out-of-range literals.
+- Action: Execute each expression and compare canonical tagged values or diagnostic codes.
+- Expected: Finite values agree bitwise after the profile normalization; invalid numbers reject. Unbounded K integers do not replace Pel numeric behavior.
+
+### T-M7-004
+
+- Status: planned.
+- Requirements: R-M7-004.
+- Level: conformance.
+- Target: `packages/pel/test/k/values.test.ts`.
+- Fixture: Nil/empty list,standalone keyword,pair with explicit nil,quoted symbol,multiple indices,slices,index zero and missing key.
+- Action: Execute positive and distinguishing negative value fixtures.
+- Expected: Exact tagged values and selection errors match M1; syntax and closures cannot become ordinary host data.
+
+### T-M7-005
+
+- Status: planned.
+- Requirements: R-M7-005.
+- Level: conformance.
+- Target: `packages/pel/test/k/closures.test.ts`.
+- Fixture: Shadowed capture,partial application,required versus nil-default parameter,strict/syntax arguments,mixed named/positional call and bounded recursion.
+- Action: Execute closure fixtures with distinct capture environments and deferred calls.
+- Expected: Default timing,capture identity,partial values and call errors match M1 without dynamic scoping.
+
+### T-M7-006
+
+- Status: planned.
+- Requirements: R-M7-006.
+- Level: conformance.
+- Target: `packages/pel/test/k/control.test.ts`.
+- Fixture: If/case unselected host branch,for local scope,do/do-async,leading call chains,nested and repeated caret.
+- Action: Execute with a finite abstract host script and count emitted requests.
+- Expected: Only selected branches execute; pipe operands are evaluated once and source-defined scope is retained.
+
+### T-M7-007
+
+- Status: planned.
+- Requirements: R-M7-007.
+- Level: conformance.
+- Target: `packages/pel/test/k/scheduling.test.ts`.
+- Fixture: Independent requests with both receipt orders,dependent definitions,conflicting symbol bindings and a slow first expression.
+- Action: Run both M1 options and all bounded receipt schedules.
+- Expected: Request identity and ready batches agree; completion order does not change the selected last-source result. Permitted independent interleavings are compared explicitly.
+
+### T-M7-008
+
+- Status: planned.
+- Requirements: R-M7-008.
+- Level: conformance.
+- Target: `packages/pel/test/k/limits.test.ts`.
+- Fixture: Source,token,AST,syntax depth,reduction,iteration,call depth and value-byte limits at N-1,N,N+1.
+- Action: Run limit boundary fixtures and repeat after serialization.
+- Expected: Counters and rejection boundaries agree; administrative K rewrites do not debit Pel counters.
+
+### T-M7-009
+
+- Status: planned.
+- Requirements: R-M7-009.
+- Level: conformance.
+- Target: `packages/pel/test/k/diagnostics.test.ts`.
+- Fixture: Unknown symbol,arity/type errors,malformed closure graph,host failure and a deliberately stuck semantics rule.
+- Action: Execute invalid fixtures and remove one required rule in a temporary mutation definition.
+- Expected: Defined failures agree with M1; stuck/timeout/tool failure is harness failure, distinct from a Pel diagnostic.
+
+### T-M7-010
+
+- Status: planned.
+- Requirements: R-M7-010.
+- Level: conformance.
+- Target: `packages/pel/test/k/host.test.ts`.
+- Fixture: Two requests with separate IDs,success and failure receipts,print and natural-language predicate descriptors.
+- Action: Supply a finite data-only host script and project ordered boundary observations.
+- Expected: No provider or shell runs; requests,receipt consumption,pending sets and output observations match M1.
+
+### T-M7-011
+
+- Status: planned.
+- Requirements: R-M7-011.
+- Level: conformance.
+- Target: `packages/pel/test/k/host.test.ts`.
+- Fixture: Wrong request/profile/registry,duplicate conflicting receipt,closure-bearing provider value and missing receipt.
+- Action: Inject each invalid receipt at the same suspension boundary.
+- Expected: Exact mismatches fail; missing external evidence stays suspended. No fabricated cancellation or authority is accepted.
+
+### T-M7-012
+
+- Status: planned.
+- Requirements: R-M7-012.
+- Level: conformance.
+- Target: `packages/pel/test/k/host.test.ts`.
+- Fixture: Abstract retry/race/checkpoint handlers and a publication-shaped ordinary data value.
+- Action: Execute request scripts with success,unknown and rejected host responses.
+- Expected: Only the supplied abstract response is modeled; no budget authority,remote completion or publication milestone is inferred from source data.
+
+### T-M7-013
+
+- Status: planned.
+- Requirements: R-M7-013.
+- Level: conformance.
+- Target: `packages/pel/test/k/continuation.test.ts`.
+- Fixture: Nested closures,syntax arguments,ready/already-emitted effects and malformed environment references.
+- Action: Roundtrip K state and the M1 continuation through the declared correspondence projection.
+- Expected: Equivalent configurations resume to identical observations; broken graph/profile bindings reject. Raw wire-byte equality is required only where explicitly specified.
+
+### T-M7-014
+
+- Status: planned.
+- Requirements: R-M7-014.
+- Level: conformance.
+- Target: `packages/pel/test/k/replay.test.ts`.
+- Fixture: Completed pure prefix,pending suffix,changed executed effect argument,unchanged closure capture and changed options.
+- Action: Replay the retained prefix and compare accepted/rejected revisions with M1.
+- Expected: No completed host request is emitted twice; invalid revisions reject and original counters remain charged.
+
+### T-M7-015
+
+- Status: planned.
+- Requirements: R-M7-015.
+- Level: conformance.
+- Target: `packages/pel/test/k/children.test.ts`.
+- Fixture: Two child closures,duplicate merge,cancelled/failed child and nested child replay.
+- Action: Compare start-child and merge-child observations with the M1 public APIs.
+- Expected: Child identities,remaining limits and parent charges agree; M4 retry/race policy remains outside this language-model proof domain.
+
+### T-M7-016
+
+- Status: planned.
+- Requirements: R-M7-016.
+- Level: conformance.
+- Target: `packages/pel/test/k/differential.test.ts`.
+- Fixture: All paper-v2 rows and current M1 control,closure,limits,host,replay and child regression cases.
+- Action: Execute the closed corpus plus fixed-seed bounded programs using the same explicit host schedules.
+- Expected: Every included constructor has positive and negative cases; missing rows or mismatches fail and retain a minimal source/receipt counterexample.
+
+### T-M7-017
+
+- Status: planned.
+- Requirements: R-M7-017.
+- Level: conformance.
+- Target: `packages/pel/test/k/harness.test.ts`.
+- Fixture: One real execution report,missing K executable,stale source hash and interrupted child process.
+- Action: Run and validate reports with finite timeout/output bounds and scoped cleanup.
+- Expected: Only actually executed cases count; missing prerequisites are unavailable, interrupted cases incomplete, and stale evidence cannot pass.
+
+### T-M7-018
+
+- Status: planned.
+- Requirements: R-M7-018.
+- Level: conformance.
+- Target: `packages/pel/test/k/mutations.test.ts`.
+- Fixture: Mutations make indexing zero-based,evaluate both if branches,recapture closures dynamically,duplicate pipe effects or reset replay counters.
+- Action: Run each temporary mutation against its distinguishing unchanged fixture.
+- Expected: Every mutation is detected; merely parsing or compiling a definition cannot pass conformance.
+
+### T-M7-019
+
+- Status: planned.
+- Requirements: R-M7-019.
+- Level: conformance.
+- Target: `packages/pel/test/k/claims.test.ts`.
+- Fixture: Claims for at-most-once receipt consumption and nondecreasing counters in a finite closed host-script domain,plus a deliberately false invariant.
+- Action: Use the pinned proof backend for the selected claims; retain counterexample,timeout or unsupported results.
+- Expected: Only discharged scoped claims say proved; the false control is not proved. No full TypeScript/K equivalence,host safety or termination theorem is inferred.
+
+### T-M7-020
+
+- Status: planned.
+- Requirements: R-M7-020.
+- Level: conformance.
+- Target: `packages/pel/test/k/status.test.ts`.
+- Fixture: No implementation,trace-only results,scoped proof results and a changed semantics digest.
+- Action: Render the status table and verify linked claim/trace artifacts and changed-domain invalidation.
+- Expected: PLANNED remains the current sprint state until implementation evidence exists. Changed semantics reopen affected claims; historical evidence remains intact.

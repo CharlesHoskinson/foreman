@@ -18,6 +18,7 @@ Each row delivers an observable capability. Its OpenSpec contains the feature re
 | M4 | Run concurrent work, inspect progress, cancel, and recover interrupted work. | [Durable execution](../../../openspec/changes/foredi-04-durable-execution/proposal.md) | M1, M2, M3 |
 | M5 | Deliver a candidate through implementation, verification, independent review, and authorized publication. | [Task delivery](../../../openspec/changes/foredi-05-task-delivery/proposal.md) | M1–M4 |
 | M6 | Install the release, migrate existing workflows, and remove the replaced machinery. | [Adoption](../../../openspec/changes/foredi-06-adoption/proposal.md) | M1–M5 |
+| M7 (planned) | Execute Pel semantics in K and compare observable behavior with the TypeScript evaluator. | [K semantics](../../../openspec/changes/foredi-07-k-semantics/proposal.md) | M1, M4 |
 
 M2 owns the minimal provider package and generation port. M3 extends that package. Adapter implementation can start after this M2 contract task. M3 completion depends on M2's shared CLI and authoring contract. Production integration uses M4. Each stage first demonstrates its behavior with deterministic fixtures. Provider claims require the additional live tests defined in M3.
 
@@ -43,7 +44,7 @@ The `fm/task` operation requires a native coding transport with exact live capab
 
 ## Source and scope decisions
 
-The [research design](research-design.md), [paper compatibility review](../../research/pel-release/PAPER-AND-COMPATIBILITY.md), [model evidence](../../research/pel-release/ADAPTER-EVIDENCE.md), and [deletion map](../../research/pel-release/ARCHITECTURE-AND-DELETION-MAP.md) provide the source baseline. The six OpenSpecs are the implementation specification for this release. Their explicit Pel compatibility decisions refine the earlier research alternatives.
+The [research design](research-design.md), [paper compatibility review](../../research/pel-release/PAPER-AND-COMPATIBILITY.md), [model evidence](../../research/pel-release/ADAPTER-EVIDENCE.md), and [deletion map](../../research/pel-release/ARCHITECTURE-AND-DELETION-MAP.md) provide the source baseline. The original six OpenSpecs specify the implemented candidate. The added M7 OpenSpec specifies the planned K semantics sprint. Their explicit Pel compatibility decisions refine the earlier research alternatives.
 
 The [PixelRAG reading record](../../research/pel-release/sources/pel/pixelrag-reading.md) preserves all 29 rendered PDF pages and the exact reader version. Visual inspection corrected text-extraction errors in the pipe and keyword glyphs. The release uses `|>` as an explicit ASCII normalization and keeps `^` as the value placeholder.
 
@@ -65,3 +66,14 @@ The [vault receipt](evidence/m6/instruction-vault-apply.json) records 16 immutab
 The [vault health check](evidence/m6/instruction-vault-lint.json) reports no issues across 28 pages.
 The [reconciliation proposal](reconciliation-proposal.md) identifies remaining release obligations for review.
 It does not change their criteria or declare them complete.
+
+## Release documentation and semantics extension
+
+The release includes [comprehensive notes](RELEASE-NOTES.md), a [Pel tutorial](../../guides/pel/tutorial.md), and a [semantics page](../../guides/pel/semantics.md).
+The repository README introduces the release with original prose adapted using Inkwell’s Grothendieck profile.
+The [release artwork](../../../assets/return-of-the-foredi.png) continues the blue-and-gold painted George Foreman theme.
+
+M7 adds executable K semantics, a pinned toolchain, and differential conformance tests to the release plan.
+Its feature requirements, EARS catalog, and test plan remain planned work.
+Moriarty provides the documentation pattern: distinguish execution evidence, correspondence tests, assumptions, and unproved claims.
+The sprint does not add another runtime owner or claim a general equivalence proof.
