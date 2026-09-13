@@ -11,6 +11,7 @@
     { "path": "../core" },
     { "path": "../event-log" },
     { "path": "../policy" },
-    { "path": "../session-store" }
+    { "path": "../session-store" },
+    { "path": "../pel" }
   ]
 }

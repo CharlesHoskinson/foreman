@@ -8,6 +8,7 @@
     { "path": "packages/graph-store" },
     { "path": "packages/session-store" },
     { "path": "packages/memory" },
-    { "path": "packages/launcher" }
+    { "path": "packages/launcher" },
+    { "path": "packages/pel" }
   ]
 }

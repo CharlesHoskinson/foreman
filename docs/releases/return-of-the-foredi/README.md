@@ -1,6 +1,6 @@
 # Return of the ForeDi
 
-Status: release specification. Implementation and release qualification remain open.
+Status: M1 is implemented. M2–M6 and release qualification remain open. See the [M1 implementation report](m1-implementation.md) and [M1 EARS coverage](m1-ears-coverage.md).
 
 Pel is the common language for Foreman planning and execution. A person or model writes one program. Foreman checks the program, explains its effects, and runs it through the existing host authority. The release replaces duplicate planning and execution machinery.
 
@@ -29,7 +29,7 @@ M2 owns the minimal provider package and generation port. M3 extends that packag
 - [EARS method](EARS-METHOD.md): requirement syntax, identifiers, and coverage rules.
 - [Audit report](AUDIT.md): three Opus reviews, findings, and their resolution.
 
-Each OpenSpec `catalog.json` owns its milestone records. The release catalog combines those records without changing their identifiers or wording. Requirement text in the catalog matches the corresponding OpenSpec requirement. Tests in this program describe future implementation acceptance. They are not claims that the runtime already passes.
+Each OpenSpec `catalog.json` owns its milestone records. The release catalog combines those records without changing their identifiers or wording. Requirement text in the catalog matches the corresponding OpenSpec requirement. M1 has executable acceptance tests linked in its coverage matrix. M2–M6 test records describe future implementation acceptance.
 
 ## Keep the implementation small
 
