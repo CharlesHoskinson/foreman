@@ -1,0 +1,383 @@
+{
+  "milestone": "M2",
+  "change": "foredi-02-plan-authoring",
+  "title": "Return of the ForeDi: Pel plan authoring",
+  "depends_on": [
+    "M1"
+  ],
+  "features": [
+    {
+      "id": "F-M2-01",
+      "title": "Source checking",
+      "description": "Check Pel source and surface errors before execution.",
+      "requirements": [
+        "R-M2-001",
+        "R-M2-002"
+      ]
+    },
+    {
+      "id": "F-M2-02",
+      "title": "Pure effect previews",
+      "description": "Explain source behavior without dispatching host effects.",
+      "requirements": [
+        "R-M2-003",
+        "R-M2-004"
+      ]
+    },
+    {
+      "id": "F-M2-03",
+      "title": "Capability and dynamic-region analysis",
+      "description": "Constrain unresolved effects with finite checked envelopes.",
+      "requirements": [
+        "R-M2-005",
+        "R-M2-006"
+      ]
+    },
+    {
+      "id": "F-M2-04",
+      "title": "Exact preview binding",
+      "description": "Bind derived previews to exact source and environment digests.",
+      "requirements": [
+        "R-M2-007",
+        "R-M2-014"
+      ]
+    },
+    {
+      "id": "F-M2-05",
+      "title": "Bounded natural-language generation",
+      "description": "Generate locally checked Pel through an explicit capped repair loop.",
+      "requirements": [
+        "R-M2-008",
+        "R-M2-009",
+        "R-M2-010",
+        "R-M2-015"
+      ]
+    },
+    {
+      "id": "F-M2-06",
+      "title": "Operator diagnostics and draft editing",
+      "description": "Provide useful examples, precise diagnostics, and bounded draft revision tools.",
+      "requirements": [
+        "R-M2-011",
+        "R-M2-012",
+        "R-M2-013"
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "id": "R-M2-001",
+      "feature": "F-M2-01",
+      "pattern": "event",
+      "text": "When an operator checks a Pel file, the Foreman authoring service SHALL report source validity against the selected immutable authoring snapshot.",
+      "tests": [
+        "T-M2-001",
+        "T-M2-016"
+      ]
+    },
+    {
+      "id": "R-M2-002",
+      "feature": "F-M2-01",
+      "pattern": "unwanted",
+      "text": "If a selected authoring input is unavailable or invalid, then the Foreman authoring service SHALL return an input diagnostic without probing external services.",
+      "tests": [
+        "T-M2-002"
+      ]
+    },
+    {
+      "id": "R-M2-003",
+      "feature": "F-M2-02",
+      "pattern": "event",
+      "text": "When a Pel file is previewed, the Foreman authoring service SHALL derive host-effect descriptions without executing those effects.",
+      "tests": [
+        "T-M2-003"
+      ]
+    },
+    {
+      "id": "R-M2-004",
+      "feature": "F-M2-02",
+      "pattern": "event",
+      "text": "When preview values remain unresolved, the Foreman authoring service SHALL preserve native control-flow alternatives and explain their dependencies.",
+      "tests": [
+        "T-M2-004"
+      ]
+    },
+    {
+      "id": "R-M2-005",
+      "feature": "F-M2-03",
+      "pattern": "unwanted",
+      "text": "If a reachable effect violates the authoring snapshot, then the Foreman authoring service SHALL reject it with the source location and violated constraint.",
+      "tests": [
+        "T-M2-005"
+      ]
+    },
+    {
+      "id": "R-M2-006",
+      "feature": "F-M2-03",
+      "pattern": "event",
+      "text": "When future effects depend on unresolved values, the Foreman authoring service SHALL require finite capability, resource, model, and resource-consumption envelopes.",
+      "tests": [
+        "T-M2-006"
+      ]
+    },
+    {
+      "id": "R-M2-007",
+      "feature": "F-M2-04",
+      "pattern": "event",
+      "text": "When any source or environment binding changes, the Foreman authoring service SHALL require a newly checked preview.",
+      "tests": [
+        "T-M2-007"
+      ]
+    },
+    {
+      "id": "R-M2-008",
+      "feature": "F-M2-05",
+      "pattern": "event",
+      "text": "When an operator requests natural-language generation, the Foreman authoring service SHALL produce locally checked Pel through the selected exact model and transport.",
+      "tests": [
+        "T-M2-008"
+      ]
+    },
+    {
+      "id": "R-M2-009",
+      "feature": "F-M2-05",
+      "pattern": "unwanted",
+      "text": "If three generated candidates fail local validation, then the Foreman authoring service SHALL stop with all attempt diagnostics and no accepted plan.",
+      "tests": [
+        "T-M2-009"
+      ]
+    },
+    {
+      "id": "R-M2-010",
+      "feature": "F-M2-05",
+      "pattern": "unwanted",
+      "text": "If generation exceeds its limits or encounters a fatal provider failure, then the Foreman authoring service SHALL stop without further repair calls.",
+      "tests": [
+        "T-M2-010"
+      ]
+    },
+    {
+      "id": "R-M2-011",
+      "feature": "F-M2-06",
+      "pattern": "event",
+      "text": "When an operator receives a diagnostic, the Foreman authoring service SHALL show the source range, cause, and applicable registered usage.",
+      "tests": [
+        "T-M2-011"
+      ]
+    },
+    {
+      "id": "R-M2-012",
+      "feature": "F-M2-06",
+      "pattern": "event",
+      "text": "When an operator edits an interactive draft, the Foreman authoring service SHALL preserve bounded revision history and recheck each source revision.",
+      "tests": [
+        "T-M2-012"
+      ]
+    },
+    {
+      "id": "R-M2-013",
+      "feature": "F-M2-06",
+      "pattern": "event",
+      "text": "When built authoring examples are checked and previewed, the Foreman authoring service SHALL produce their documented native Pel outcomes.",
+      "tests": [
+        "T-M2-013"
+      ]
+    },
+    {
+      "id": "R-M2-014",
+      "feature": "F-M2-04",
+      "pattern": "event",
+      "text": "When an authoring snapshot is loaded, the Foreman authoring service SHALL validate its full content and exact model selections against their canonical digests.",
+      "tests": [
+        "T-M2-014"
+      ]
+    },
+    {
+      "id": "R-M2-015",
+      "feature": "F-M2-05",
+      "pattern": "event",
+      "text": "When a generation attempt is admitted, the Foreman authoring service SHALL supply a complete provider request context within its separate generation budget.",
+      "tests": [
+        "T-M2-015"
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "id": "T-M2-001",
+      "requirements": [
+        "R-M2-001"
+      ],
+      "level": "acceptance",
+      "fixture": "Valid arithmetic source, unmatched delimiter, unknown symbol, mixed argument call, and quoted unknown symbol. Branch-introduced definitions use the T-M2-016 definite-binding matrix.",
+      "action": "foreman check <fixture.pel> --context fixtures/authoring-snapshot.json --json.",
+      "expected": "Valid and quoted-data fixtures exit 0. Invalid fixtures exit 2 with the expected PEL_PARSE, PEL_UNBOUND_SYMBOL, or PEL_ARGUMENT_MODE span.",
+      "target": "packages/orchestration/src/pel-authoring-cli.test.ts"
+    },
+    {
+      "id": "T-M2-002",
+      "requirements": [
+        "R-M2-002"
+      ],
+      "level": "acceptance",
+      "fixture": "Missing source, oversized snapshot, mismatched registry content/digest, missing default snapshot, and unsupported profile with provider/network/process/write spies.",
+      "action": "foreman check <fixture.pel> --context <snapshot.json> --json.",
+      "expected": "Input failures exit 2 and name the failing input. Full snapshot digest mismatch is rejected. All external probe, provider, process, write, and reservation counts remain zero.",
+      "target": "packages/orchestration/src/pel-authoring-cli.test.ts"
+    },
+    {
+      "id": "T-M2-003",
+      "requirements": [
+        "R-M2-003"
+      ],
+      "level": "acceptance",
+      "fixture": "Canonical implement-verify-review.pel with role bindings to grok-4.6/grok-acp and gpt-5.6-sol/codex-app-server, plus an exact-profile call with two transports and no selector. Registry declarations come only from M2 pel-host-descriptors.ts without M4/M5 implementation imports.",
+      "action": "foreman plan examples/pel/implement-verify-review.pel --context fixtures/authoring-snapshot.json --json.",
+      "expected": "The preview shows three ordered effects, concrete transport IDs, resolved controls, capabilities, and gates. Ambiguous transport selection fails PEL_PROFILE_UNSUPPORTED. All external effect counts remain zero.",
+      "target": "packages/orchestration/src/pel-authoring-cli.test.ts"
+    },
+    {
+      "id": "T-M2-004",
+      "requirements": [
+        "R-M2-004"
+      ],
+      "level": "unit",
+      "fixture": "Unknown Boolean verification association with required :passed, list schema maxItems=4, overlapping writes, and a literal case string with admitted gpt-5.6-sol/openai-responses nlConditionProfile.",
+      "action": "checkPel then planPel using schema-constrained host descriptors.",
+      "expected": "Both conditional branches remain visible. The loop bound is four. Overlapping writes have a serialization edge. The predicate effect shows exact gpt-5.6-sol/openai-responses controls. Missing predicate selection fails PEL_PROFILE_UNSUPPORTED.",
+      "target": "packages/pel/test/preview.test.ts"
+    },
+    {
+      "id": "T-M2-005",
+      "requirements": [
+        "R-M2-005"
+      ],
+      "level": "unit",
+      "fixture": "Calls to known descriptors with denied capability, unsupported effect kind, unavailable exact model/transport pair, and invalid output schema.",
+      "action": "checkPel each hostile fixture.",
+      "expected": "PEL_CAPABILITY_DENIED, PEL_UNSUPPORTED_EFFECT, PEL_PROFILE_UNSUPPORTED, or PEL_SCHEMA identifies the offending call. No alternate model is substituted.",
+      "target": "packages/pel/test/analysis.test.ts"
+    },
+    {
+      "id": "T-M2-006",
+      "requirements": [
+        "R-M2-006"
+      ],
+      "level": "unit",
+      "fixture": "Unknown path constrained to workspace A, list schema maxItems=4, unknown callable with two registered alternatives, and variants missing these content bounds.",
+      "action": "checkPel then planPel each dynamic fixture.",
+      "expected": "Bounded fixtures derive their envelopes from actual snapshot schemas and policy. The loop bound is four. Missing bounds or arbitrary unknown callables fail PEL_DYNAMIC_EFFECT_UNBOUNDED.",
+      "target": "packages/pel/test/analysis.test.ts"
+    },
+    {
+      "id": "T-M2-007",
+      "requirements": [
+        "R-M2-007"
+      ],
+      "level": "contract",
+      "fixture": "One checked preview followed by independent changes to whitespace, language, registry, provider controls, role bindings, nlConditionProfile, policy, and artifact digest. Change dependencyMode or effective project selection.",
+      "action": "Compute PlanBindingV1 and validate each mutated exported preview against the current snapshot.",
+      "expected": "Every content change invalidates snapshot or source binding. Equivalent ASTs with different source bytes have different source digests. Edited capability or profile JSON is rejected. The optionsDigest and effective snapshotDigest change together.",
+      "target": "packages/pel/test/binding.test.ts"
+    },
+    {
+      "id": "T-M2-008",
+      "requirements": [
+        "R-M2-008"
+      ],
+      "level": "integration",
+      "fixture": "Fixture generation for gpt-6-astra/openai-responses with controls from snapshot, grammar mode auto without qualified grammar, returning {pelSource:\"(+ 1 2)\"}.",
+      "action": "Run plan --prompt with selected credential profile in default and --json modes, and counterfixtures with unknown control keys or unsupported effort.",
+      "expected": "Successful default and JSON modes exit 0. Default stdout is exact Pel source. JSON stdout has preview.finalValueSummary.kind=\"known\" and preview.finalValueSummary.value={tag:\"number\",value:3}. One complete envelope request occurs. Invalid controls fail locally. No execution ledger or generated operation runs.",
+      "target": "packages/orchestration/src/pel-generation.test.ts"
+    },
+    {
+      "id": "T-M2-009",
+      "requirements": [
+        "R-M2-009"
+      ],
+      "level": "integration",
+      "fixture": "Fixture provider returns malformed Pel on attempt 0, a forbidden capability on attempt 1, and an unbounded dynamic call on attempt 2.",
+      "action": "Run generatePelPlan with maxRepairs=2 and a finite generation budget.",
+      "expected": "Exactly three generation calls have attempt IDs 0, 1, and 2. PEL_GENERATION_EXHAUSTED carries all diagnostics and cumulative usage. CLI exits 1 and dispatch count is zero.",
+      "target": "packages/orchestration/src/pel-generation.test.ts"
+    },
+    {
+      "id": "T-M2-010",
+      "requirements": [
+        "R-M2-010"
+      ],
+      "level": "integration",
+      "fixture": "Fake-clock deadlines, generation budget exhaustion, cancellation, refusal, and one fixture for every canonical ProviderFailure tag. Every tag uses the shared _tag,message,retryClass record and optional requestId,usage,fieldPath,providerIdentity,retryAfterMs fields.",
+      "action": "Run generatePelPlan under an Effect scope and advance the fixture clock to each boundary.",
+      "expected": "The Effect scope closes with no later request. Exhaustive tag handling preserves typed causes and usage. Fatal failures exit 1, cancellation exits 4, and local invalid selections exit 2.",
+      "target": "packages/orchestration/src/pel-generation.test.ts"
+    },
+    {
+      "id": "T-M2-011",
+      "requirements": [
+        "R-M2-011"
+      ],
+      "level": "acceptance",
+      "fixture": "Mixed positional/named fm/task call, unsupported model, unresolved branch, and unknown symbol near a registered function name.",
+      "action": "Render human and JSON check/plan output for each fixture.",
+      "expected": "Human output includes filename, line, column, caret range, cause, and useful signature. JSON preserves structured fields and unresolved reasons without invented success.",
+      "target": "packages/orchestration/src/pel-authoring-cli.test.ts"
+    },
+    {
+      "id": "T-M2-012",
+      "requirements": [
+        "R-M2-012"
+      ],
+      "level": "integration",
+      "fixture": "A draft session uses replace-expression, replace-suffix, replace-program, history, undo, completion, export, abort, and a run-bound continuation input.",
+      "action": "Drive pel-draft-session through fixture readline input, including 101 small revisions and a large revision sequence.",
+      "expected": "Each replacement creates a new digest, undo restores exact bytes, history stays within 100 revisions and 16 MiB, export writes source, and run-bound input returns PEL_DRAFT_EXECUTED.",
+      "target": "packages/orchestration/src/pel-draft-session.test.ts"
+    },
+    {
+      "id": "T-M2-013",
+      "requirements": [
+        "R-M2-013"
+      ],
+      "level": "acceptance",
+      "fixture": "M2-built checkout foreman.js and generated snapshot assets, implement-verify-review.pel, conditional.pel, parallel-read.pel, repair.pel, and separate repair-invalid.pel. No installer or M4/M5/M6 implementation is present.",
+      "action": "Build M1/M2 and run node skills/foreman/runtime/dist/foreman.js check and plan for each checkout example.",
+      "expected": "Valid examples exit 0 using the M2 declaration module. The negative repair fixture exits 2 with PEL_ARGUMENT_MODE. No provider or host handler executes, and installation is not required.",
+      "target": "packages/orchestration/src/pel-authoring-cli.test.ts"
+    },
+    {
+      "id": "T-M2-014",
+      "requirements": [
+        "R-M2-014"
+      ],
+      "level": "contract",
+      "fixture": "Installed default snapshot with complete registry/schema/provider/policy content, roleBindings, nlConditionProfile, and one altered content field without a changed digest. The effective selection overrides base role/predicate defaults within admitted bounds, and a mismatch counterfixture uses a different effective digest.",
+      "action": "buildEffectiveAuthoringSnapshotV1, regenerate default snapshot from pel-host-descriptors.ts, and check role and predicate examples.",
+      "expected": "Valid snapshot resolves exact profile, transport, controls, account reference, and finite schemas. Altered content fails with exit 2 before any provider or execution action. Generated snapshot bytes match the packaged asset. Configured check and run use one effective digest, while mismatched selections fail exit 2 before dispatch. Narrowed limits are identical in check, plan, and run, and attempted widening is rejected.",
+      "target": "packages/orchestration/src/pel-authoring-cli.test.ts"
+    },
+    {
+      "id": "T-M2-015",
+      "requirements": [
+        "R-M2-015"
+      ],
+      "level": "contract",
+      "fixture": "Prompt digest, snapshot digest, session nonce, attempt 1, account:test, no-tools policy, artifact references, and a GenerationBudgetPort reservation.",
+      "action": "Construct GenerationRequest and lower through the fixture ProviderGenerationPort.",
+      "expected": "Effect ID ends /attempt/1. Exact controls, credential reference, pinned template, artifacts, token/deadline limits, and generation reservation are present. Execution ledger call count is zero.",
+      "target": "packages/orchestration/src/pel-generation.test.ts"
+    },
+    {
+      "id": "T-M2-016",
+      "requirements": [
+        "R-M2-001"
+      ],
+      "level": "unit",
+      "fixture": "Unknown Boolean c with (if c (def x 1) (def x 2)) x, (if c (def x 1) 7) x, and known #t with (if #t (def x 1) 7) x.",
+      "action": "checkPel each branch-definition fixture and render its command result.",
+      "expected": "Both-branch definitions pass with exit 0 and a numeric summary. A one-branch definition followed by use returns PEL_CONDITIONAL_BINDING and exit 2 with branch spans. A provably selected definition passes with known value 1.",
+      "target": "packages/pel/test/analysis.test.ts"
+    }
+  ]
+}

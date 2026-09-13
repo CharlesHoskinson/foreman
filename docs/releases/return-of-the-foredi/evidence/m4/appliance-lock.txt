@@ -1,0 +1,5 @@
+
+> verify:appliance-lock
+> tsx scripts/appliance-lock.ts --check
+
+appliance-lock: ok

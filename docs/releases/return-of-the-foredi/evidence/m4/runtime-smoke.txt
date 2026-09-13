@@ -1,0 +1,5 @@
+
+> smoke:dst-0060
+> tsx scripts/smoke-dst-0060.ts
+
+smoke:dst-0060 ok Denied state_blocked

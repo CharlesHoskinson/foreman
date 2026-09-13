@@ -1,0 +1,5450 @@
+{
+  "profileId": "pel-paper-v2-foreman-1",
+  "fixtures": [
+    {
+      "id": "PV2-001-P",
+      "decision": "Programs, §4.1",
+      "class": "extension",
+      "paperSection": "§4.1",
+      "paperPage": "p10",
+      "paperLocator": "§4.1, p10",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "1 2",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 2
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "number",
+          "value": 1
+        },
+        {
+          "kind": "number",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "id": "PV2-001-N",
+      "decision": "Programs, §4.1",
+      "class": "extension",
+      "paperSection": "§4.1",
+      "paperPage": "p10",
+      "paperLocator": "§4.1, p10",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "1 missing",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_UNBOUND_SYMBOL"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "number",
+          "value": 1
+        },
+        {
+          "kind": "symbol",
+          "name": "missing"
+        }
+      ]
+    },
+    {
+      "id": "PV2-002-P",
+      "decision": "Lexing, §4.1",
+      "class": "extension",
+      "paperSection": "§4.1",
+      "paperPage": "p11",
+      "paperLocator": "§4.1, p11",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "; comment\r\n(def café 7) café",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 7
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "café"
+            },
+            {
+              "kind": "number",
+              "value": 7
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "name": "café"
+        }
+      ]
+    },
+    {
+      "id": "PV2-002-N",
+      "decision": "Lexing, §4.1",
+      "class": "extension",
+      "paperSection": "§4.1",
+      "paperPage": "p11",
+      "paperLocator": "§4.1, p11",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "#unknown",
+      "resultOrError": {
+        "phase": "parse",
+        "code": "PEL_LEX"
+      },
+      "effects": [],
+      "ast": null
+    },
+    {
+      "id": "PV2-003-P",
+      "decision": "Token boundaries",
+      "class": "extension",
+      "paperSection": "§4.1",
+      "paperPage": "p11",
+      "paperLocator": "§4.1, p11",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "a^b",
+      "resultOrError": {
+        "phase": "parse",
+        "accepted": true
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "symbol",
+          "name": "a"
+        },
+        {
+          "kind": "caret"
+        },
+        {
+          "kind": "symbol",
+          "name": "b"
+        }
+      ]
+    },
+    {
+      "id": "PV2-003-N",
+      "decision": "Token boundaries",
+      "class": "extension",
+      "paperSection": "§4.1",
+      "paperPage": "p11",
+      "paperLocator": "§4.1, p11",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "a>b",
+      "resultOrError": {
+        "phase": "parse",
+        "code": "PEL_LEX"
+      },
+      "effects": [],
+      "ast": null
+    },
+    {
+      "id": "PV2-004-P",
+      "decision": "Constants",
+      "class": "extension",
+      "paperSection": "§4.1 and §4.2",
+      "paperPage": "p11 and p12",
+      "paperLocator": "§4.1 p11 and §4.2 p12",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "[#t #f #nil]",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "boolean",
+              "value": true
+            },
+            {
+              "tag": "boolean",
+              "value": false
+            },
+            {
+              "tag": "nil"
+            }
+          ]
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "list",
+          "items": [
+            {
+              "kind": "boolean",
+              "value": true
+            },
+            {
+              "kind": "boolean",
+              "value": false
+            },
+            {
+              "kind": "nil"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-004-N",
+      "decision": "Constants",
+      "class": "extension",
+      "paperSection": "§4.1 and §4.2",
+      "paperPage": "p11 and p12",
+      "paperLocator": "§4.1 p11 and §4.2 p12",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "#true",
+      "resultOrError": {
+        "phase": "parse",
+        "code": "PEL_LEX"
+      },
+      "effects": [],
+      "ast": null
+    },
+    {
+      "id": "PV2-005-P",
+      "decision": "Numbers",
+      "class": "extension",
+      "paperSection": "§4.1 and §4.2",
+      "paperPage": "p11 and p12",
+      "paperLocator": "§4.1 p11 and §4.2 p12",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "[-0 9007199254740991 1.25]",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "number",
+              "value": 0
+            },
+            {
+              "tag": "number",
+              "value": 9007199254740991
+            },
+            {
+              "tag": "number",
+              "value": 1.25
+            }
+          ]
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "list",
+          "items": [
+            {
+              "kind": "number",
+              "value": 0
+            },
+            {
+              "kind": "number",
+              "value": 9007199254740991
+            },
+            {
+              "kind": "number",
+              "value": 1.25
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-005-N",
+      "decision": "Numbers",
+      "class": "extension",
+      "paperSection": "§4.1 and §4.2",
+      "paperPage": "p11 and p12",
+      "paperLocator": "§4.1 p11 and §4.2 p12",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "1e5",
+      "resultOrError": {
+        "phase": "parse",
+        "code": "PEL_LEX"
+      },
+      "effects": [],
+      "ast": null
+    },
+    {
+      "id": "PV2-006-P",
+      "decision": "Strings",
+      "class": "extension",
+      "paperSection": "§4.1 and §4.2",
+      "paperPage": "p11 and p12",
+      "paperLocator": "§4.1 p11 and §4.2 p12",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "\"\\x41\\u03B1\\U0001F600\"",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "string",
+          "value": "Aα😀"
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "string",
+          "value": "Aα😀"
+        }
+      ]
+    },
+    {
+      "id": "PV2-006-N",
+      "decision": "Strings",
+      "class": "extension",
+      "paperSection": "§4.1 and §4.2",
+      "paperPage": "p11 and p12",
+      "paperLocator": "§4.1 p11 and §4.2 p12",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "\"\\uD800\"",
+      "resultOrError": {
+        "phase": "parse",
+        "code": "PEL_LEX"
+      },
+      "effects": [],
+      "ast": null
+    },
+    {
+      "id": "PV2-007-P",
+      "decision": "Keywords",
+      "class": "extension",
+      "paperSection": "§4.1",
+      "paperPage": "p11",
+      "paperLocator": "§4.1, p11",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "[':* ':< ':a>]",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "key",
+              "name": "*"
+            },
+            {
+              "tag": "key",
+              "name": "<"
+            },
+            {
+              "tag": "key",
+              "name": "a>"
+            }
+          ]
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "list",
+          "items": [
+            {
+              "kind": "quote",
+              "expression": {
+                "kind": "key",
+                "name": "*"
+              }
+            },
+            {
+              "kind": "quote",
+              "expression": {
+                "kind": "key",
+                "name": "<"
+              }
+            },
+            {
+              "kind": "quote",
+              "expression": {
+                "kind": "key",
+                "name": "a>"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-007-N",
+      "decision": "Keywords",
+      "class": "extension",
+      "paperSection": "§4.1",
+      "paperPage": "p11",
+      "paperLocator": "§4.1, p11",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": ":",
+      "resultOrError": {
+        "phase": "parse",
+        "code": "PEL_LEX"
+      },
+      "effects": [],
+      "ast": null
+    },
+    {
+      "id": "PV2-008-P",
+      "decision": "Pair formation",
+      "class": "extension",
+      "paperSection": "§4.2",
+      "paperPage": "p12",
+      "paperLocator": "§4.2, p12",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "[:a 1 :flag :b #nil]",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "pair",
+              "key": "a",
+              "value": {
+                "tag": "number",
+                "value": 1
+              }
+            },
+            {
+              "tag": "pair",
+              "key": "flag",
+              "value": {
+                "tag": "nil"
+              }
+            },
+            {
+              "tag": "pair",
+              "key": "b",
+              "value": {
+                "tag": "nil"
+              }
+            }
+          ]
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "list",
+          "items": [
+            {
+              "kind": "pair",
+              "key": "a",
+              "value": {
+                "kind": "number",
+                "value": 1
+              },
+              "valuePresent": true
+            },
+            {
+              "kind": "pair",
+              "key": "flag",
+              "value": {
+                "kind": "nil"
+              },
+              "valuePresent": false
+            },
+            {
+              "kind": "pair",
+              "key": "b",
+              "value": {
+                "kind": "nil"
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-008-N",
+      "decision": "Pair formation",
+      "class": "extension",
+      "paperSection": "§4.2",
+      "paperPage": "p12",
+      "paperLocator": "§4.2, p12",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "[:a 1",
+      "resultOrError": {
+        "phase": "parse",
+        "code": "PEL_PARSE"
+      },
+      "effects": [],
+      "ast": null
+    },
+    {
+      "id": "PV2-009-P",
+      "decision": "Quotes",
+      "class": "extension",
+      "paperSection": "§4.1",
+      "paperPage": "pp10–11",
+      "paperLocator": "§4.1, pp10–11",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "'[:a 1] |> (f)",
+      "resultOrError": {
+        "phase": "parse",
+        "accepted": true
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "quote",
+          "expression": {
+            "kind": "pipe",
+            "left": {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "key",
+                  "name": "a"
+                },
+                {
+                  "kind": "number",
+                  "value": 1
+                }
+              ]
+            },
+            "right": {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "f"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "PV2-009-N",
+      "decision": "Quotes",
+      "class": "extension",
+      "paperSection": "§4.1",
+      "paperPage": "pp10–11",
+      "paperLocator": "§4.1, pp10–11",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "'",
+      "resultOrError": {
+        "phase": "parse",
+        "code": "PEL_PARSE"
+      },
+      "effects": [],
+      "ast": null
+    },
+    {
+      "id": "PV2-010-P",
+      "decision": "Quoted data",
+      "class": "extension",
+      "paperSection": "§4.1",
+      "paperPage": "pp10–11",
+      "paperLocator": "§4.1, pp10–11",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "':a",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "key",
+          "name": "a"
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "quote",
+          "expression": {
+            "kind": "key",
+            "name": "a"
+          }
+        }
+      ]
+    },
+    {
+      "id": "PV2-010-N",
+      "decision": "Quoted data",
+      "class": "extension",
+      "paperSection": "§4.1",
+      "paperPage": "pp10–11",
+      "paperLocator": "§4.1, pp10–11",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(eval '(+ 1 2))",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_UNBOUND_SYMBOL"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "eval"
+            },
+            {
+              "kind": "quote",
+              "expression": {
+                "kind": "call",
+                "items": [
+                  {
+                    "kind": "symbol",
+                    "name": "+"
+                  },
+                  {
+                    "kind": "number",
+                    "value": 1
+                  },
+                  {
+                    "kind": "number",
+                    "value": 2
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-011-P",
+      "decision": "Nil, §4.2",
+      "class": "extension",
+      "paperSection": "§4.2",
+      "paperPage": "p12",
+      "paperLocator": "§4.2, p12",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "[() #nil []]",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "nil"
+            },
+            {
+              "tag": "nil"
+            },
+            {
+              "tag": "list",
+              "items": []
+            }
+          ]
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "list",
+          "items": [
+            {
+              "kind": "nil"
+            },
+            {
+              "kind": "nil"
+            },
+            {
+              "kind": "list",
+              "items": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-011-N",
+      "decision": "Nil, §4.2",
+      "class": "extension",
+      "paperSection": "§4.2",
+      "paperPage": "p12",
+      "paperLocator": "§4.2, p12",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(if #nil 1 2)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_TYPE"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "if"
+            },
+            {
+              "kind": "nil"
+            },
+            {
+              "kind": "number",
+              "value": 1
+            },
+            {
+              "kind": "number",
+              "value": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-012-P",
+      "decision": "Lists, §4.5",
+      "class": "extension",
+      "paperSection": "§4.5",
+      "paperPage": "pp15–16",
+      "paperLocator": "§4.5, pp15–16",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "([5 6 7] 1)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 5
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 5
+                },
+                {
+                  "kind": "number",
+                  "value": 6
+                },
+                {
+                  "kind": "number",
+                  "value": 7
+                }
+              ]
+            },
+            {
+              "kind": "number",
+              "value": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-012-N",
+      "decision": "Lists, §4.5",
+      "class": "extension",
+      "paperSection": "§4.5",
+      "paperPage": "pp15–16",
+      "paperLocator": "§4.5, pp15–16",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "([5 6 7] 0)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_INDEX"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 5
+                },
+                {
+                  "kind": "number",
+                  "value": 6
+                },
+                {
+                  "kind": "number",
+                  "value": 7
+                }
+              ]
+            },
+            {
+              "kind": "number",
+              "value": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-013-P",
+      "decision": "List calls",
+      "class": "extension",
+      "paperSection": "§4.5",
+      "paperPage": "p15",
+      "paperLocator": "§4.5, p15",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "([1 2] :at #nil :from #nil :to #nil)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "number",
+              "value": 1
+            },
+            {
+              "tag": "number",
+              "value": 2
+            }
+          ]
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 1
+                },
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "kind": "pair",
+              "key": "at",
+              "value": {
+                "kind": "nil"
+              },
+              "valuePresent": true
+            },
+            {
+              "kind": "pair",
+              "key": "from",
+              "value": {
+                "kind": "nil"
+              },
+              "valuePresent": true
+            },
+            {
+              "kind": "pair",
+              "key": "to",
+              "value": {
+                "kind": "nil"
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-013-N",
+      "decision": "List calls",
+      "class": "extension",
+      "paperSection": "§4.5",
+      "paperPage": "p15",
+      "paperLocator": "§4.5, p15",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "([1 2] :at 1 :from 1)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_ARGUMENT_MODE"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 1
+                },
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "kind": "pair",
+              "key": "at",
+              "value": {
+                "kind": "number",
+                "value": 1
+              },
+              "valuePresent": true
+            },
+            {
+              "kind": "pair",
+              "key": "from",
+              "value": {
+                "kind": "number",
+                "value": 1
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-014-P",
+      "decision": "Slices",
+      "class": "extension",
+      "paperSection": "§4.5",
+      "paperPage": "pp15–16",
+      "paperLocator": "§4.5, pp15–16",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "([1 2 3] :from 3 :to 1)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": []
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 1
+                },
+                {
+                  "kind": "number",
+                  "value": 2
+                },
+                {
+                  "kind": "number",
+                  "value": 3
+                }
+              ]
+            },
+            {
+              "kind": "pair",
+              "key": "from",
+              "value": {
+                "kind": "number",
+                "value": 3
+              },
+              "valuePresent": true
+            },
+            {
+              "kind": "pair",
+              "key": "to",
+              "value": {
+                "kind": "number",
+                "value": 1
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-014-N",
+      "decision": "Slices",
+      "class": "extension",
+      "paperSection": "§4.5",
+      "paperPage": "pp15–16",
+      "paperLocator": "§4.5, pp15–16",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "([] :from 1)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_INDEX"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "list",
+              "items": []
+            },
+            {
+              "kind": "pair",
+              "key": "from",
+              "value": {
+                "kind": "number",
+                "value": 1
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-015-P",
+      "decision": "Selection",
+      "class": "extension",
+      "paperSection": "§4.5",
+      "paperPage": "pp15–16",
+      "paperLocator": "§4.5, pp15–16",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "([:a 1 :b 2] :at [':b ':a ':b])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "number",
+              "value": 2
+            },
+            {
+              "tag": "number",
+              "value": 1
+            },
+            {
+              "tag": "number",
+              "value": 2
+            }
+          ]
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "pair",
+                  "key": "a",
+                  "value": {
+                    "kind": "number",
+                    "value": 1
+                  },
+                  "valuePresent": true
+                },
+                {
+                  "kind": "pair",
+                  "key": "b",
+                  "value": {
+                    "kind": "number",
+                    "value": 2
+                  },
+                  "valuePresent": true
+                }
+              ]
+            },
+            {
+              "kind": "pair",
+              "key": "at",
+              "value": {
+                "kind": "list",
+                "items": [
+                  {
+                    "kind": "quote",
+                    "expression": {
+                      "kind": "key",
+                      "name": "b"
+                    }
+                  },
+                  {
+                    "kind": "quote",
+                    "expression": {
+                      "kind": "key",
+                      "name": "a"
+                    }
+                  },
+                  {
+                    "kind": "quote",
+                    "expression": {
+                      "kind": "key",
+                      "name": "b"
+                    }
+                  }
+                ]
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-015-N",
+      "decision": "Selection",
+      "class": "extension",
+      "paperSection": "§4.5",
+      "paperPage": "pp15–16",
+      "paperLocator": "§4.5, pp15–16",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "([1 2] :at [1 3])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_INDEX"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 1
+                },
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "kind": "pair",
+              "key": "at",
+              "value": {
+                "kind": "list",
+                "items": [
+                  {
+                    "kind": "number",
+                    "value": 1
+                  },
+                  {
+                    "kind": "number",
+                    "value": 3
+                  }
+                ]
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-016-P",
+      "decision": "Keys",
+      "class": "extension",
+      "paperSection": "§4.5",
+      "paperPage": "p16",
+      "paperLocator": "§4.5, p16",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(def x [:a 1 :a 2]) [(x ':a) (x ':missing)]",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "number",
+              "value": 1
+            },
+            {
+              "tag": "nil"
+            }
+          ]
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "x"
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "pair",
+                  "key": "a",
+                  "value": {
+                    "kind": "number",
+                    "value": 1
+                  },
+                  "valuePresent": true
+                },
+                {
+                  "kind": "pair",
+                  "key": "a",
+                  "value": {
+                    "kind": "number",
+                    "value": 2
+                  },
+                  "valuePresent": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "list",
+          "items": [
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "x"
+                },
+                {
+                  "kind": "quote",
+                  "expression": {
+                    "kind": "key",
+                    "name": "a"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "x"
+                },
+                {
+                  "kind": "quote",
+                  "expression": {
+                    "kind": "key",
+                    "name": "missing"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-016-N",
+      "decision": "Keys",
+      "class": "extension",
+      "paperSection": "§4.5",
+      "paperPage": "p16",
+      "paperLocator": "§4.5, p16",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "([:a 1] :at 0)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_INDEX"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "pair",
+                  "key": "a",
+                  "value": {
+                    "kind": "number",
+                    "value": 1
+                  },
+                  "valuePresent": true
+                }
+              ]
+            },
+            {
+              "kind": "pair",
+              "key": "at",
+              "value": {
+                "kind": "number",
+                "value": 0
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-017-P",
+      "decision": "Index errata",
+      "class": "erratum",
+      "paperSection": "§4.2 and §4.5",
+      "paperPage": "p12 and pp15–16",
+      "paperLocator": "§4.2 p12 and §4.5 pp15–16",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "([5 6 7 8] () 1 3)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "number",
+              "value": 5
+            },
+            {
+              "tag": "number",
+              "value": 6
+            },
+            {
+              "tag": "number",
+              "value": 7
+            }
+          ]
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 5
+                },
+                {
+                  "kind": "number",
+                  "value": 6
+                },
+                {
+                  "kind": "number",
+                  "value": 7
+                },
+                {
+                  "kind": "number",
+                  "value": 8
+                }
+              ]
+            },
+            {
+              "kind": "nil"
+            },
+            {
+              "kind": "number",
+              "value": 1
+            },
+            {
+              "kind": "number",
+              "value": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-017-N",
+      "decision": "Index errata",
+      "class": "erratum",
+      "paperSection": "§4.2 and §4.5",
+      "paperPage": "p12 and pp15–16",
+      "paperLocator": "§4.2 p12 and §4.5 pp15–16",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "([5 6 7 8] 0)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_INDEX"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 5
+                },
+                {
+                  "kind": "number",
+                  "value": 6
+                },
+                {
+                  "kind": "number",
+                  "value": 7
+                },
+                {
+                  "kind": "number",
+                  "value": 8
+                }
+              ]
+            },
+            {
+              "kind": "number",
+              "value": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-018-P",
+      "decision": "Definitions, §4.3",
+      "class": "extension",
+      "paperSection": "§4.3",
+      "paperPage": "p13",
+      "paperLocator": "§4.3, p13",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(def x 3) x",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 3
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "x"
+            },
+            {
+              "kind": "number",
+              "value": 3
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "name": "x"
+        }
+      ]
+    },
+    {
+      "id": "PV2-018-N",
+      "decision": "Definitions, §4.3",
+      "class": "extension",
+      "paperSection": "§4.3",
+      "paperPage": "p13",
+      "paperLocator": "§4.3, p13",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(def x 1) (def x 2)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_DUPLICATE_BINDING"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "x"
+            },
+            {
+              "kind": "number",
+              "value": 1
+            }
+          ]
+        },
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "x"
+            },
+            {
+              "kind": "number",
+              "value": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-019-P",
+      "decision": "Lexical capture",
+      "class": "extension",
+      "paperSection": "§4.3",
+      "paperPage": "p13",
+      "paperLocator": "§4.3, p13",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(def x 1) (def f (lambda [] x)) (do (def x 2) (f))",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 1
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "x"
+            },
+            {
+              "kind": "number",
+              "value": 1
+            }
+          ]
+        },
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "f"
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "lambda"
+                },
+                {
+                  "kind": "list",
+                  "items": []
+                },
+                {
+                  "kind": "symbol",
+                  "name": "x"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "do"
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "def"
+                },
+                {
+                  "kind": "symbol",
+                  "name": "x"
+                },
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "f"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-019-N",
+      "decision": "Lexical capture",
+      "class": "extension",
+      "paperSection": "§4.3",
+      "paperPage": "p13",
+      "paperLocator": "§4.3, p13",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(def f (lambda [] later)) (def later 2) (f)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_UNBOUND_SYMBOL"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "f"
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "lambda"
+                },
+                {
+                  "kind": "list",
+                  "items": []
+                },
+                {
+                  "kind": "symbol",
+                  "name": "later"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "later"
+            },
+            {
+              "kind": "number",
+              "value": 2
+            }
+          ]
+        },
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "f"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-020-P",
+      "decision": "Arguments",
+      "class": "extension",
+      "paperSection": "§4.3",
+      "paperPage": "pp13–14",
+      "paperLocator": "§4.3, pp13–14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "((lambda [:x #nil] x))",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "nil"
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "lambda"
+                },
+                {
+                  "kind": "list",
+                  "items": [
+                    {
+                      "kind": "pair",
+                      "key": "x",
+                      "value": {
+                        "kind": "nil"
+                      },
+                      "valuePresent": true
+                    }
+                  ]
+                },
+                {
+                  "kind": "symbol",
+                  "name": "x"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-020-N",
+      "decision": "Arguments",
+      "class": "extension",
+      "paperSection": "§4.3",
+      "paperPage": "pp13–14",
+      "paperLocator": "§4.3, pp13–14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "((lambda [:x] x) 1 2)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_ARITY"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "lambda"
+                },
+                {
+                  "kind": "list",
+                  "items": [
+                    {
+                      "kind": "pair",
+                      "key": "x",
+                      "value": {
+                        "kind": "nil"
+                      },
+                      "valuePresent": false
+                    }
+                  ]
+                },
+                {
+                  "kind": "symbol",
+                  "name": "x"
+                }
+              ]
+            },
+            {
+              "kind": "number",
+              "value": 1
+            },
+            {
+              "kind": "number",
+              "value": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-021-P",
+      "decision": "Defaults",
+      "class": "extension",
+      "paperSection": "§4.3",
+      "paperPage": "p14",
+      "paperLocator": "§4.3, p14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "((lambda [:x 1 :y] (+ x y)) :y 2)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 3
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "lambda"
+                },
+                {
+                  "kind": "list",
+                  "items": [
+                    {
+                      "kind": "pair",
+                      "key": "x",
+                      "value": {
+                        "kind": "number",
+                        "value": 1
+                      },
+                      "valuePresent": true
+                    },
+                    {
+                      "kind": "pair",
+                      "key": "y",
+                      "value": {
+                        "kind": "nil"
+                      },
+                      "valuePresent": false
+                    }
+                  ]
+                },
+                {
+                  "kind": "call",
+                  "items": [
+                    {
+                      "kind": "symbol",
+                      "name": "+"
+                    },
+                    {
+                      "kind": "symbol",
+                      "name": "x"
+                    },
+                    {
+                      "kind": "symbol",
+                      "name": "y"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "pair",
+              "key": "y",
+              "value": {
+                "kind": "number",
+                "value": 2
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-021-N",
+      "decision": "Defaults",
+      "class": "extension",
+      "paperSection": "§4.3",
+      "paperPage": "p14",
+      "paperLocator": "§4.3, p14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(lambda [:x missing] x)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_UNBOUND_SYMBOL"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "lambda"
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "pair",
+                  "key": "x",
+                  "value": {
+                    "kind": "symbol",
+                    "name": "missing"
+                  },
+                  "valuePresent": true
+                }
+              ]
+            },
+            {
+              "kind": "symbol",
+              "name": "x"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-022-P",
+      "decision": "Binding",
+      "class": "extension",
+      "paperSection": "§4.3",
+      "paperPage": "pp13–14",
+      "paperLocator": "§4.3, pp13–14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "((+ 5) 4)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 9
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "+"
+                },
+                {
+                  "kind": "number",
+                  "value": 5
+                }
+              ]
+            },
+            {
+              "kind": "number",
+              "value": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-022-N",
+      "decision": "Binding",
+      "class": "extension",
+      "paperSection": "§4.3",
+      "paperPage": "pp13–14",
+      "paperLocator": "§4.3, pp13–14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "((+ 5) :x 4)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_ARGUMENT_NAME"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "+"
+                },
+                {
+                  "kind": "number",
+                  "value": 5
+                }
+              ]
+            },
+            {
+              "kind": "pair",
+              "key": "x",
+              "value": {
+                "kind": "number",
+                "value": 4
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-023-P",
+      "decision": "Errors",
+      "class": "extension",
+      "paperSection": "§4.3",
+      "paperPage": "p14",
+      "paperLocator": "§4.3, p14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(+ :x 1 :y 2)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 3
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "+"
+            },
+            {
+              "kind": "pair",
+              "key": "x",
+              "value": {
+                "kind": "number",
+                "value": 1
+              },
+              "valuePresent": true
+            },
+            {
+              "kind": "pair",
+              "key": "y",
+              "value": {
+                "kind": "number",
+                "value": 2
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-023-N",
+      "decision": "Errors",
+      "class": "extension",
+      "paperSection": "§4.3",
+      "paperPage": "p14",
+      "paperLocator": "§4.3, p14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(+ 1 :y 2)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_ARGUMENT_MODE"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "+"
+            },
+            {
+              "kind": "number",
+              "value": 1
+            },
+            {
+              "kind": "pair",
+              "key": "y",
+              "value": {
+                "kind": "number",
+                "value": 2
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-024-P",
+      "decision": "Strictness",
+      "class": "extension",
+      "paperSection": "§4.3",
+      "paperPage": "p14",
+      "paperLocator": "§4.3, p14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(if #f missing 7)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 7
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "if"
+            },
+            {
+              "kind": "boolean",
+              "value": false
+            },
+            {
+              "kind": "symbol",
+              "name": "missing"
+            },
+            {
+              "kind": "number",
+              "value": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-024-N",
+      "decision": "Strictness",
+      "class": "extension",
+      "paperSection": "§4.3",
+      "paperPage": "p14",
+      "paperLocator": "§4.3, p14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "((lambda [:x] 1) missing)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_UNBOUND_SYMBOL"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "lambda"
+                },
+                {
+                  "kind": "list",
+                  "items": [
+                    {
+                      "kind": "pair",
+                      "key": "x",
+                      "value": {
+                        "kind": "nil"
+                      },
+                      "valuePresent": false
+                    }
+                  ]
+                },
+                {
+                  "kind": "number",
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "kind": "symbol",
+              "name": "missing"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-025-P",
+      "decision": "Pipes, §4.4",
+      "class": "extension",
+      "paperSection": "§4.4",
+      "paperPage": "pp14–15",
+      "paperLocator": "§4.4, pp14–15",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "3 |> (+ ^ ^)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 6
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "pipe",
+          "left": {
+            "kind": "number",
+            "value": 3
+          },
+          "right": {
+            "kind": "call",
+            "items": [
+              {
+                "kind": "symbol",
+                "name": "+"
+              },
+              {
+                "kind": "caret"
+              },
+              {
+                "kind": "caret"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "PV2-025-N",
+      "decision": "Pipes, §4.4",
+      "class": "extension",
+      "paperSection": "§4.4",
+      "paperPage": "pp14–15",
+      "paperLocator": "§4.4, pp14–15",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "3 |> 4",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_TYPE"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "pipe",
+          "left": {
+            "kind": "number",
+            "value": 3
+          },
+          "right": {
+            "kind": "number",
+            "value": 4
+          }
+        }
+      ]
+    },
+    {
+      "id": "PV2-026-P",
+      "decision": "Pipe normalization",
+      "class": "erratum",
+      "paperSection": "§4.1 and §4.4",
+      "paperPage": "p11 and p14",
+      "paperLocator": "§4.1 p11 and §4.4 p14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "3 |> (+ 4)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 7
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "pipe",
+          "left": {
+            "kind": "number",
+            "value": 3
+          },
+          "right": {
+            "kind": "call",
+            "items": [
+              {
+                "kind": "symbol",
+                "name": "+"
+              },
+              {
+                "kind": "number",
+                "value": 4
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "PV2-026-N",
+      "decision": "Pipe normalization",
+      "class": "erratum",
+      "paperSection": "§4.1 and §4.4",
+      "paperPage": "p11 and p14",
+      "paperLocator": "§4.1 p11 and §4.4 p14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "3 ^> (+ 4)",
+      "resultOrError": {
+        "phase": "parse",
+        "code": "PEL_LEX"
+      },
+      "effects": [],
+      "ast": null
+    },
+    {
+      "id": "PV2-027-P",
+      "decision": "Caret scope",
+      "class": "extension",
+      "paperSection": "§4.4 and §4.6.2",
+      "paperPage": "pp14–15 and p17",
+      "paperLocator": "§4.4 pp14–15 and §4.6.2 p17",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "7 |> (case ^ [(gt ^ 5) \"big\" #t \"small\"])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "string",
+          "value": "big"
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "pipe",
+          "left": {
+            "kind": "number",
+            "value": 7
+          },
+          "right": {
+            "kind": "call",
+            "items": [
+              {
+                "kind": "symbol",
+                "name": "case"
+              },
+              {
+                "kind": "caret"
+              },
+              {
+                "kind": "list",
+                "items": [
+                  {
+                    "kind": "call",
+                    "items": [
+                      {
+                        "kind": "symbol",
+                        "name": "gt"
+                      },
+                      {
+                        "kind": "caret"
+                      },
+                      {
+                        "kind": "number",
+                        "value": 5
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "string",
+                    "value": "big"
+                  },
+                  {
+                    "kind": "boolean",
+                    "value": true
+                  },
+                  {
+                    "kind": "string",
+                    "value": "small"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "PV2-027-N",
+      "decision": "Caret scope",
+      "class": "extension",
+      "paperSection": "§4.4 and §4.6.2",
+      "paperPage": "pp14–15 and p17",
+      "paperLocator": "§4.4 pp14–15 and §4.6.2 p17",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "^",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_CARET_SCOPE"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "caret"
+        }
+      ]
+    },
+    {
+      "id": "PV2-028-P",
+      "decision": "Lambda pipe scope",
+      "class": "extension",
+      "paperSection": "§4.3 and §4.4",
+      "paperPage": "p13 and pp14–15",
+      "paperLocator": "§4.3 p13 and §4.4 pp14–15",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(def f (7 |> (lambda [:x] (+ x ^)))) (f 2)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 9
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "f"
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "pipe",
+                  "left": {
+                    "kind": "number",
+                    "value": 7
+                  },
+                  "right": {
+                    "kind": "call",
+                    "items": [
+                      {
+                        "kind": "symbol",
+                        "name": "lambda"
+                      },
+                      {
+                        "kind": "list",
+                        "items": [
+                          {
+                            "kind": "pair",
+                            "key": "x",
+                            "value": {
+                              "kind": "nil"
+                            },
+                            "valuePresent": false
+                          }
+                        ]
+                      },
+                      {
+                        "kind": "call",
+                        "items": [
+                          {
+                            "kind": "symbol",
+                            "name": "+"
+                          },
+                          {
+                            "kind": "symbol",
+                            "name": "x"
+                          },
+                          {
+                            "kind": "caret"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "f"
+            },
+            {
+              "kind": "number",
+              "value": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-028-N",
+      "decision": "Lambda pipe scope",
+      "class": "extension",
+      "paperSection": "§4.3 and §4.4",
+      "paperPage": "p13 and pp14–15",
+      "paperLocator": "§4.3 p13 and §4.4 pp14–15",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "((lambda [] ^))",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_CARET_SCOPE"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "lambda"
+                },
+                {
+                  "kind": "list",
+                  "items": []
+                },
+                {
+                  "kind": "caret"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-029-P",
+      "decision": "`if`, §4.6.1",
+      "class": "extension",
+      "paperSection": "§4.6.1",
+      "paperPage": "p17",
+      "paperLocator": "§4.6.1, p17",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(if #t 1 missing)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 1
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "if"
+            },
+            {
+              "kind": "boolean",
+              "value": true
+            },
+            {
+              "kind": "number",
+              "value": 1
+            },
+            {
+              "kind": "symbol",
+              "name": "missing"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-029-N",
+      "decision": "`if`, §4.6.1",
+      "class": "extension",
+      "paperSection": "§4.6.1",
+      "paperPage": "p17",
+      "paperLocator": "§4.6.1, p17",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(if 1 2 3)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_TYPE"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "if"
+            },
+            {
+              "kind": "number",
+              "value": 1
+            },
+            {
+              "kind": "number",
+              "value": 2
+            },
+            {
+              "kind": "number",
+              "value": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-030-P",
+      "decision": "`case`, §4.6.2",
+      "class": "extension",
+      "paperSection": "§4.6.2",
+      "paperPage": "p17",
+      "paperLocator": "§4.6.2, p17",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(case 7 [(gt ^ 5) \"big\" #t \"small\"])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "string",
+          "value": "big"
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "case"
+            },
+            {
+              "kind": "number",
+              "value": 7
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "call",
+                  "items": [
+                    {
+                      "kind": "symbol",
+                      "name": "gt"
+                    },
+                    {
+                      "kind": "caret"
+                    },
+                    {
+                      "kind": "number",
+                      "value": 5
+                    }
+                  ]
+                },
+                {
+                  "kind": "string",
+                  "value": "big"
+                },
+                {
+                  "kind": "boolean",
+                  "value": true
+                },
+                {
+                  "kind": "string",
+                  "value": "small"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-030-N",
+      "decision": "`case`, §4.6.2",
+      "class": "extension",
+      "paperSection": "§4.6.2",
+      "paperPage": "p17",
+      "paperLocator": "§4.6.2, p17",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(case 7 [#t 1 #f])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_TYPE"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "case"
+            },
+            {
+              "kind": "number",
+              "value": 7
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "boolean",
+                  "value": true
+                },
+                {
+                  "kind": "number",
+                  "value": 1
+                },
+                {
+                  "kind": "boolean",
+                  "value": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-031-P",
+      "decision": "Case conditions",
+      "class": "extension",
+      "paperSection": "§4.6.2",
+      "paperPage": "p17",
+      "paperLocator": "§4.6.2, p17",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(case [1 2 3 4 5 6] [(len) |> (gt 5) \"big\" #t \"small\"])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "string",
+          "value": "big"
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "case"
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 1
+                },
+                {
+                  "kind": "number",
+                  "value": 2
+                },
+                {
+                  "kind": "number",
+                  "value": 3
+                },
+                {
+                  "kind": "number",
+                  "value": 4
+                },
+                {
+                  "kind": "number",
+                  "value": 5
+                },
+                {
+                  "kind": "number",
+                  "value": 6
+                }
+              ]
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "pipe",
+                  "left": {
+                    "kind": "call",
+                    "items": [
+                      {
+                        "kind": "symbol",
+                        "name": "len"
+                      }
+                    ]
+                  },
+                  "right": {
+                    "kind": "call",
+                    "items": [
+                      {
+                        "kind": "symbol",
+                        "name": "gt"
+                      },
+                      {
+                        "kind": "number",
+                        "value": 5
+                      }
+                    ]
+                  }
+                },
+                {
+                  "kind": "string",
+                  "value": "big"
+                },
+                {
+                  "kind": "boolean",
+                  "value": true
+                },
+                {
+                  "kind": "string",
+                  "value": "small"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-031-N",
+      "decision": "Case conditions",
+      "class": "extension",
+      "paperSection": "§4.6.2",
+      "paperPage": "p17",
+      "paperLocator": "§4.6.2, p17",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(case 7 [(+ 1) 2])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_TYPE"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "case"
+            },
+            {
+              "kind": "number",
+              "value": 7
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "call",
+                  "items": [
+                    {
+                      "kind": "symbol",
+                      "name": "+"
+                    },
+                    {
+                      "kind": "number",
+                      "value": 1
+                    }
+                  ]
+                },
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-032-P",
+      "decision": "Natural-language case, §4.7",
+      "class": "extension",
+      "paperSection": "§4.7",
+      "paperPage": "pp18–19",
+      "paperLocator": "§4.7, pp18–19",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(case 7 [\"is positive\" 1 #t 0])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 1
+        }
+      },
+      "effects": [
+        "pel/nl-condition"
+      ],
+      "nlSelection": true,
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "case"
+            },
+            {
+              "kind": "number",
+              "value": 7
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "string",
+                  "value": "is positive"
+                },
+                {
+                  "kind": "number",
+                  "value": 1
+                },
+                {
+                  "kind": "boolean",
+                  "value": true
+                },
+                {
+                  "kind": "number",
+                  "value": 0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-032-N",
+      "decision": "Natural-language case, §4.7",
+      "class": "extension",
+      "paperSection": "§4.7",
+      "paperPage": "pp18–19",
+      "paperLocator": "§4.7, pp18–19",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(case 7 [\"is positive\" 1 #t 0])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_REGISTRY"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "case"
+            },
+            {
+              "kind": "number",
+              "value": 7
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "string",
+                  "value": "is positive"
+                },
+                {
+                  "kind": "number",
+                  "value": 1
+                },
+                {
+                  "kind": "boolean",
+                  "value": true
+                },
+                {
+                  "kind": "number",
+                  "value": 0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-033-P",
+      "decision": "`for`, §4.6.3",
+      "class": "extension",
+      "paperSection": "§4.6.3",
+      "paperPage": "p18",
+      "paperLocator": "§4.6.3, p18",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(for [1 2] i (* i 2))",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "number",
+              "value": 2
+            },
+            {
+              "tag": "number",
+              "value": 4
+            }
+          ]
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "for"
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 1
+                },
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "kind": "symbol",
+              "name": "i"
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "*"
+                },
+                {
+                  "kind": "symbol",
+                  "name": "i"
+                },
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-033-N",
+      "decision": "`for`, §4.6.3",
+      "class": "extension",
+      "paperSection": "§4.6.3",
+      "paperPage": "p18",
+      "paperLocator": "§4.6.3, p18",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(for 1 i i)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_TYPE"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "for"
+            },
+            {
+              "kind": "number",
+              "value": 1
+            },
+            {
+              "kind": "symbol",
+              "name": "i"
+            },
+            {
+              "kind": "symbol",
+              "name": "i"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-034-P",
+      "decision": "`do`, §4.6.4",
+      "class": "extension",
+      "paperSection": "§4.6.4",
+      "paperPage": "p18",
+      "paperLocator": "§4.6.4, p18",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(do [(def x 1) (+ x 2)])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 3
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "do"
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "call",
+                  "items": [
+                    {
+                      "kind": "symbol",
+                      "name": "def"
+                    },
+                    {
+                      "kind": "symbol",
+                      "name": "x"
+                    },
+                    {
+                      "kind": "number",
+                      "value": 1
+                    }
+                  ]
+                },
+                {
+                  "kind": "call",
+                  "items": [
+                    {
+                      "kind": "symbol",
+                      "name": "+"
+                    },
+                    {
+                      "kind": "symbol",
+                      "name": "x"
+                    },
+                    {
+                      "kind": "number",
+                      "value": 2
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-034-N",
+      "decision": "`do`, §4.6.4",
+      "class": "extension",
+      "paperSection": "§4.6.4",
+      "paperPage": "p18",
+      "paperLocator": "§4.6.4, p18",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(do (def x 1)) x",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_UNBOUND_SYMBOL"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "do"
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "def"
+                },
+                {
+                  "kind": "symbol",
+                  "name": "x"
+                },
+                {
+                  "kind": "number",
+                  "value": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "symbol",
+          "name": "x"
+        }
+      ]
+    },
+    {
+      "id": "PV2-035-P",
+      "decision": "`do/async`, §4.6.5",
+      "class": "extension",
+      "paperSection": "§4.6.5",
+      "paperPage": "p18",
+      "paperLocator": "§4.6.5, p18",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(do/async (test/echo 1) (test/echo 2))",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 2
+        }
+      },
+      "effects": [
+        "test/echo",
+        "test/echo"
+      ],
+      "receiptOrder": "reverse",
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "do/async"
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "test/echo"
+                },
+                {
+                  "kind": "number",
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "test/echo"
+                },
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-035-N",
+      "decision": "`do/async`, §4.6.5",
+      "class": "extension",
+      "paperSection": "§4.6.5",
+      "paperPage": "p18",
+      "paperLocator": "§4.6.5, p18",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(do/async (def a b) (def b a))",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_DEPENDENCY_CYCLE"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "do/async"
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "def"
+                },
+                {
+                  "kind": "symbol",
+                  "name": "a"
+                },
+                {
+                  "kind": "symbol",
+                  "name": "b"
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "def"
+                },
+                {
+                  "kind": "symbol",
+                  "name": "b"
+                },
+                {
+                  "kind": "symbol",
+                  "name": "a"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-036-P",
+      "decision": "Sequence arity correction",
+      "class": "erratum",
+      "paperSection": "§3 and §4.6.4",
+      "paperPage": "p9 and p18",
+      "paperLocator": "§3 p9 and §4.6.4 p18",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(do)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "nil"
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "do"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-036-N",
+      "decision": "Sequence arity correction",
+      "class": "erratum",
+      "paperSection": "§3 and §4.6.4",
+      "paperPage": "p9 and p18",
+      "paperLocator": "§3 p9 and §4.6.4 p18",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(if #t 1 2 3)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_ARITY"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "if"
+            },
+            {
+              "kind": "boolean",
+              "value": true
+            },
+            {
+              "kind": "number",
+              "value": 1
+            },
+            {
+              "kind": "number",
+              "value": 2
+            },
+            {
+              "kind": "number",
+              "value": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-037-P",
+      "decision": "Dependencies, §5.2",
+      "class": "extension",
+      "paperSection": "§5.2",
+      "paperPage": "p22",
+      "paperLocator": "§5.2, p22",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(test/echo 1) (test/echo 2)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 2
+        }
+      },
+      "effects": [
+        "test/echo",
+        "test/echo"
+      ],
+      "dependencyMode": "automatic",
+      "receiptOrder": "reverse",
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "test/echo"
+            },
+            {
+              "kind": "number",
+              "value": 1
+            }
+          ]
+        },
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "test/echo"
+            },
+            {
+              "kind": "number",
+              "value": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-037-N",
+      "decision": "Dependencies, §5.2",
+      "class": "extension",
+      "paperSection": "§5.2",
+      "paperPage": "p22",
+      "paperLocator": "§5.2, p22",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(def a b) (def b a)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_DEPENDENCY_CYCLE"
+      },
+      "effects": [],
+      "dependencyMode": "automatic",
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "a"
+            },
+            {
+              "kind": "symbol",
+              "name": "b"
+            }
+          ]
+        },
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "b"
+            },
+            {
+              "kind": "symbol",
+              "name": "a"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-038-P",
+      "decision": "Binding dependencies",
+      "class": "extension",
+      "paperSection": "§5.2",
+      "paperPage": "p22",
+      "paperLocator": "§5.2, p22",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(do/async (def y (+ x 1)) (def x 2) y)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 3
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "do/async"
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "def"
+                },
+                {
+                  "kind": "symbol",
+                  "name": "y"
+                },
+                {
+                  "kind": "call",
+                  "items": [
+                    {
+                      "kind": "symbol",
+                      "name": "+"
+                    },
+                    {
+                      "kind": "symbol",
+                      "name": "x"
+                    },
+                    {
+                      "kind": "number",
+                      "value": 1
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "def"
+                },
+                {
+                  "kind": "symbol",
+                  "name": "x"
+                },
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "kind": "symbol",
+              "name": "y"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-038-N",
+      "decision": "Binding dependencies",
+      "class": "extension",
+      "paperSection": "§5.2",
+      "paperPage": "p22",
+      "paperLocator": "§5.2, p22",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(do/async (def x y) (def y x))",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_DEPENDENCY_CYCLE"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "do/async"
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "def"
+                },
+                {
+                  "kind": "symbol",
+                  "name": "x"
+                },
+                {
+                  "kind": "symbol",
+                  "name": "y"
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "def"
+                },
+                {
+                  "kind": "symbol",
+                  "name": "y"
+                },
+                {
+                  "kind": "symbol",
+                  "name": "x"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-039-P",
+      "decision": "Restart, §5.1",
+      "class": "extension",
+      "paperSection": "§5.1",
+      "paperPage": "pp19–22",
+      "paperLocator": "§5.1, pp19–22",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(test/echo 4)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 4
+        }
+      },
+      "effects": [
+        "test/echo"
+      ],
+      "roundTrip": true,
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "test/echo"
+            },
+            {
+              "kind": "number",
+              "value": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-039-N",
+      "decision": "Restart, §5.1",
+      "class": "extension",
+      "paperSection": "§5.1",
+      "paperPage": "pp19–22",
+      "paperLocator": "§5.1, pp19–22",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(test/echo 4)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_CONTINUATION_MISMATCH"
+      },
+      "effects": [
+        "test/echo"
+      ],
+      "resumeMismatch": true,
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "test/echo"
+            },
+            {
+              "kind": "number",
+              "value": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-040-P",
+      "decision": "Builtin ArgSpecs and required/default presence",
+      "class": "extension",
+      "paperSection": "§4.3",
+      "paperPage": "pp13–14",
+      "paperLocator": "§4.3, pp13–14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "((lambda [:x :y 3] (+ x y)) 2)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 5
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "lambda"
+                },
+                {
+                  "kind": "list",
+                  "items": [
+                    {
+                      "kind": "pair",
+                      "key": "x",
+                      "value": {
+                        "kind": "nil"
+                      },
+                      "valuePresent": false
+                    },
+                    {
+                      "kind": "pair",
+                      "key": "y",
+                      "value": {
+                        "kind": "number",
+                        "value": 3
+                      },
+                      "valuePresent": true
+                    }
+                  ]
+                },
+                {
+                  "kind": "call",
+                  "items": [
+                    {
+                      "kind": "symbol",
+                      "name": "+"
+                    },
+                    {
+                      "kind": "symbol",
+                      "name": "x"
+                    },
+                    {
+                      "kind": "symbol",
+                      "name": "y"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "number",
+              "value": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-040-N",
+      "decision": "Builtin ArgSpecs and required/default presence",
+      "class": "extension",
+      "paperSection": "§4.3",
+      "paperPage": "pp13–14",
+      "paperLocator": "§4.3, pp13–14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(+ :unknown 1)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_ARGUMENT_NAME"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "+"
+            },
+            {
+              "kind": "pair",
+              "key": "unknown",
+              "value": {
+                "kind": "number",
+                "value": 1
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-041-P",
+      "decision": "Pure builtin set and single-list + overload",
+      "class": "extension",
+      "paperSection": "§4.3 and §4.4",
+      "paperPage": "p13 and p14",
+      "paperLocator": "§4.3 p13 and §4.4 p14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "[ (+ [1 2 3]) (len \"😀é\") (sqrt 9) ]",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "number",
+              "value": 6
+            },
+            {
+              "tag": "number",
+              "value": 2
+            },
+            {
+              "tag": "number",
+              "value": 3
+            }
+          ]
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "list",
+          "items": [
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "+"
+                },
+                {
+                  "kind": "list",
+                  "items": [
+                    {
+                      "kind": "number",
+                      "value": 1
+                    },
+                    {
+                      "kind": "number",
+                      "value": 2
+                    },
+                    {
+                      "kind": "number",
+                      "value": 3
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "len"
+                },
+                {
+                  "kind": "string",
+                  "value": "😀é"
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "sqrt"
+                },
+                {
+                  "kind": "number",
+                  "value": 9
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-041-N",
+      "decision": "Pure builtin set and single-list + overload",
+      "class": "extension",
+      "paperSection": "§4.3 and §4.4",
+      "paperPage": "p13 and p14",
+      "paperLocator": "§4.3 p13 and §4.4 p14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "((+ 5) [1 2])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_TYPE"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "+"
+                },
+                {
+                  "kind": "number",
+                  "value": 5
+                }
+              ]
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 1
+                },
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-042-P",
+      "decision": "Def/for/if/do scope and recursion restrictions",
+      "class": "extension",
+      "paperSection": "§4.3 and §4.6",
+      "paperPage": "p13 and pp17–18",
+      "paperLocator": "§4.3 p13 and §4.6 pp17–18",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(for [1 2] i (do (def x i) x))",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "number",
+              "value": 1
+            },
+            {
+              "tag": "number",
+              "value": 2
+            }
+          ]
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "for"
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 1
+                },
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "kind": "symbol",
+              "name": "i"
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "do"
+                },
+                {
+                  "kind": "call",
+                  "items": [
+                    {
+                      "kind": "symbol",
+                      "name": "def"
+                    },
+                    {
+                      "kind": "symbol",
+                      "name": "x"
+                    },
+                    {
+                      "kind": "symbol",
+                      "name": "i"
+                    }
+                  ]
+                },
+                {
+                  "kind": "symbol",
+                  "name": "x"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-042-N",
+      "decision": "Def/for/if/do scope and recursion restrictions",
+      "class": "extension",
+      "paperSection": "§4.3 and §4.6",
+      "paperPage": "p13 and pp17–18",
+      "paperLocator": "§4.3 p13 and §4.6 pp17–18",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(def x x)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_UNINITIALIZED_BINDING"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "x"
+            },
+            {
+              "kind": "symbol",
+              "name": "x"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-043-P",
+      "decision": "Canonical wire values and registry schemas",
+      "class": "extension",
+      "paperSection": "§4.2",
+      "paperPage": "p12",
+      "paperLocator": "§4.2, p12",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "[ #nil :a 1 ':a \"é\" ]",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "nil"
+            },
+            {
+              "tag": "pair",
+              "key": "a",
+              "value": {
+                "tag": "number",
+                "value": 1
+              }
+            },
+            {
+              "tag": "key",
+              "name": "a"
+            },
+            {
+              "tag": "string",
+              "value": "é"
+            }
+          ]
+        }
+      },
+      "effects": [],
+      "canonicalRoundTrip": true,
+      "ast": [
+        {
+          "kind": "list",
+          "items": [
+            {
+              "kind": "nil"
+            },
+            {
+              "kind": "pair",
+              "key": "a",
+              "value": {
+                "kind": "number",
+                "value": 1
+              },
+              "valuePresent": true
+            },
+            {
+              "kind": "quote",
+              "expression": {
+                "kind": "key",
+                "name": "a"
+              }
+            },
+            {
+              "kind": "string",
+              "value": "é"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-043-N",
+      "decision": "Canonical wire values and registry schemas",
+      "class": "extension",
+      "paperSection": "§4.2",
+      "paperPage": "p12",
+      "paperLocator": "§4.2, p12",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(test/echo 1)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_HOST_RESULT"
+      },
+      "effects": [
+        "test/echo"
+      ],
+      "invalidHostResult": true,
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "test/echo"
+            },
+            {
+              "kind": "number",
+              "value": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-044-P",
+      "decision": "Print list argument and defaults",
+      "class": "extension",
+      "paperSection": "§4.3 and §5.1",
+      "paperPage": "p13 and p21",
+      "paperLocator": "§4.3 p13 and §5.1 p21",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(print :vals [\"a\" \"b\"])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "string",
+              "value": "a"
+            },
+            {
+              "tag": "string",
+              "value": "b"
+            }
+          ]
+        }
+      },
+      "effects": [
+        "print"
+      ],
+      "assertPrintDefaults": true,
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "print"
+            },
+            {
+              "kind": "pair",
+              "key": "vals",
+              "value": {
+                "kind": "list",
+                "items": [
+                  {
+                    "kind": "string",
+                    "value": "a"
+                  },
+                  {
+                    "kind": "string",
+                    "value": "b"
+                  }
+                ]
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-044-N",
+      "decision": "Print list argument and defaults",
+      "class": "extension",
+      "paperSection": "§4.3 and §5.1",
+      "paperPage": "p13 and p21",
+      "paperLocator": "§4.3 p13 and §5.1 p21",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(print [\"a\"] :sep \" \")",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_ARGUMENT_MODE"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "print"
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "string",
+                  "value": "a"
+                }
+              ]
+            },
+            {
+              "kind": "pair",
+              "key": "sep",
+              "value": {
+                "kind": "string",
+                "value": " "
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-045-P",
+      "decision": "Nested router generation without implicit eval",
+      "class": "extension",
+      "paperSection": "§6",
+      "paperPage": "pp22–24",
+      "paperLocator": "§6, pp22–24",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "\"(+ 1 2)\"",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "string",
+          "value": "(+ 1 2)"
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "string",
+          "value": "(+ 1 2)"
+        }
+      ]
+    },
+    {
+      "id": "PV2-045-N",
+      "decision": "Nested router generation without implicit eval",
+      "class": "extension",
+      "paperSection": "§6",
+      "paperPage": "pp22–24",
+      "paperLocator": "§6, pp22–24",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(eval \"(+ 1 2)\")",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_UNBOUND_SYMBOL"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "eval"
+            },
+            {
+              "kind": "string",
+              "value": "(+ 1 2)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-046-P",
+      "decision": "Keyword precedence and numeric malformed tokens",
+      "class": "extension",
+      "paperSection": "§4.1",
+      "paperPage": "p11",
+      "paperLocator": "§4.1, p11",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "':a>",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "key",
+          "name": "a>"
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "quote",
+          "expression": {
+            "kind": "key",
+            "name": "a>"
+          }
+        }
+      ]
+    },
+    {
+      "id": "PV2-046-N",
+      "decision": "Keyword precedence and numeric malformed tokens",
+      "class": "extension",
+      "paperSection": "§4.1",
+      "paperPage": "p11",
+      "paperLocator": "§4.1, p11",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "12abc",
+      "resultOrError": {
+        "phase": "parse",
+        "code": "PEL_LEX"
+      },
+      "effects": [],
+      "ast": null
+    },
+    {
+      "id": "PV2-047-P",
+      "decision": "Bounds, host suspension, and failure receipts",
+      "class": "extension",
+      "paperSection": "§5.1",
+      "paperPage": "pp19–22",
+      "paperLocator": "§5.1, pp19–22",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(test/echo 5)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 5
+        }
+      },
+      "effects": [
+        "test/echo"
+      ],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "test/echo"
+            },
+            {
+              "kind": "number",
+              "value": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-047-N",
+      "decision": "Bounds, host suspension, and failure receipts",
+      "class": "extension",
+      "paperSection": "§5.1",
+      "paperPage": "pp19–22",
+      "paperLocator": "§5.1, pp19–22",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(test/echo 5)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_HOST_FAILURE"
+      },
+      "effects": [
+        "test/echo"
+      ],
+      "hostFailure": {
+        "code": "provider-failure",
+        "message": "fixture failure"
+      },
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "test/echo"
+            },
+            {
+              "kind": "number",
+              "value": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-048-P",
+      "decision": "Nil representations",
+      "class": "paper",
+      "paperSection": "§4.2",
+      "paperPage": "p12",
+      "paperLocator": "§4.2, p12",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(eq #nil ())",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "boolean",
+          "value": true
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "eq"
+            },
+            {
+              "kind": "nil"
+            },
+            {
+              "kind": "nil"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-048-N",
+      "decision": "Nil representations",
+      "class": "paper",
+      "paperSection": "§4.2",
+      "paperPage": "p12",
+      "paperLocator": "§4.2, p12",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(eq #nil [])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "boolean",
+          "value": false
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "eq"
+            },
+            {
+              "kind": "nil"
+            },
+            {
+              "kind": "list",
+              "items": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-049-P",
+      "decision": "Mixed argument prohibition",
+      "class": "paper",
+      "paperSection": "§4.3",
+      "paperPage": "p14",
+      "paperLocator": "§4.3, p14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(+ :x 1 :y 2)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 3
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "+"
+            },
+            {
+              "kind": "pair",
+              "key": "x",
+              "value": {
+                "kind": "number",
+                "value": 1
+              },
+              "valuePresent": true
+            },
+            {
+              "kind": "pair",
+              "key": "y",
+              "value": {
+                "kind": "number",
+                "value": 2
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-049-N",
+      "decision": "Mixed argument prohibition",
+      "class": "paper",
+      "paperSection": "§4.3",
+      "paperPage": "p14",
+      "paperLocator": "§4.3, p14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(+ 1 :y 2)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_ARGUMENT_MODE"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "+"
+            },
+            {
+              "kind": "number",
+              "value": 1
+            },
+            {
+              "kind": "pair",
+              "key": "y",
+              "value": {
+                "kind": "number",
+                "value": 2
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-050-P",
+      "decision": "Multiple index selection",
+      "class": "paper",
+      "paperSection": "§4.5",
+      "paperPage": "pp15–16",
+      "paperLocator": "§4.5, pp15–16",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "([5 6 7] [3 1 3])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "number",
+              "value": 7
+            },
+            {
+              "tag": "number",
+              "value": 5
+            },
+            {
+              "tag": "number",
+              "value": 7
+            }
+          ]
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 5
+                },
+                {
+                  "kind": "number",
+                  "value": 6
+                },
+                {
+                  "kind": "number",
+                  "value": 7
+                }
+              ]
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 3
+                },
+                {
+                  "kind": "number",
+                  "value": 1
+                },
+                {
+                  "kind": "number",
+                  "value": 3
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-050-N",
+      "decision": "Multiple index selection",
+      "class": "paper",
+      "paperSection": "§4.5",
+      "paperPage": "pp15–16",
+      "paperLocator": "§4.5, pp15–16",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "([5 6 7] [0])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_INDEX"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 5
+                },
+                {
+                  "kind": "number",
+                  "value": 6
+                },
+                {
+                  "kind": "number",
+                  "value": 7
+                }
+              ]
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-051-P",
+      "decision": "Definition environment capture",
+      "class": "paper",
+      "paperSection": "§4.3",
+      "paperPage": "p13",
+      "paperLocator": "§4.3, p13",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(def x 5) (def f (lambda [] x)) (do (def x 9) (f))",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 5
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "x"
+            },
+            {
+              "kind": "number",
+              "value": 5
+            }
+          ]
+        },
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "f"
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "lambda"
+                },
+                {
+                  "kind": "list",
+                  "items": []
+                },
+                {
+                  "kind": "symbol",
+                  "name": "x"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "do"
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "def"
+                },
+                {
+                  "kind": "symbol",
+                  "name": "x"
+                },
+                {
+                  "kind": "number",
+                  "value": 9
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "f"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-051-N",
+      "decision": "Definition environment capture",
+      "class": "paper",
+      "paperSection": "§4.3",
+      "paperPage": "p13",
+      "paperLocator": "§4.3, p13",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(def x 5) (def f (lambda [] x)) (do (def x 9) (f))",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 5
+        }
+      },
+      "effects": [],
+      "forbiddenValue": {
+        "tag": "number",
+        "value": 9
+      },
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "x"
+            },
+            {
+              "kind": "number",
+              "value": 5
+            }
+          ]
+        },
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "def"
+            },
+            {
+              "kind": "symbol",
+              "name": "f"
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "lambda"
+                },
+                {
+                  "kind": "list",
+                  "items": []
+                },
+                {
+                  "kind": "symbol",
+                  "name": "x"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "do"
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "def"
+                },
+                {
+                  "kind": "symbol",
+                  "name": "x"
+                },
+                {
+                  "kind": "number",
+                  "value": 9
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "items": [
+                {
+                  "kind": "symbol",
+                  "name": "f"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-052-P",
+      "decision": "Builtin strictness",
+      "class": "paper",
+      "paperSection": "§4.3",
+      "paperPage": "p14",
+      "paperLocator": "§4.3, p14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(if #f missing 3)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 3
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "if"
+            },
+            {
+              "kind": "boolean",
+              "value": false
+            },
+            {
+              "kind": "symbol",
+              "name": "missing"
+            },
+            {
+              "kind": "number",
+              "value": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-052-N",
+      "decision": "Builtin strictness",
+      "class": "paper",
+      "paperSection": "§4.3",
+      "paperPage": "p14",
+      "paperLocator": "§4.3, p14",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(+ missing 1)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_UNBOUND_SYMBOL"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "+"
+            },
+            {
+              "kind": "symbol",
+              "name": "missing"
+            },
+            {
+              "kind": "number",
+              "value": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-053-P",
+      "decision": "If branch selection",
+      "class": "paper",
+      "paperSection": "§4.6.1",
+      "paperPage": "p17",
+      "paperLocator": "§4.6.1, p17",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(if #t 4 missing)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 4
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "if"
+            },
+            {
+              "kind": "boolean",
+              "value": true
+            },
+            {
+              "kind": "number",
+              "value": 4
+            },
+            {
+              "kind": "symbol",
+              "name": "missing"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-053-N",
+      "decision": "If branch selection",
+      "class": "paper",
+      "paperSection": "§4.6.1",
+      "paperPage": "p17",
+      "paperLocator": "§4.6.1, p17",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(if #f 4 missing)",
+      "resultOrError": {
+        "phase": "evaluate",
+        "code": "PEL_UNBOUND_SYMBOL"
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "if"
+            },
+            {
+              "kind": "boolean",
+              "value": false
+            },
+            {
+              "kind": "number",
+              "value": 4
+            },
+            {
+              "kind": "symbol",
+              "name": "missing"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-054-P",
+      "decision": "Case ordering and pipe chain",
+      "class": "paper",
+      "paperSection": "§4.6.2",
+      "paperPage": "p17",
+      "paperLocator": "§4.6.2, p17",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(case [1 2 3 4 5 6] [(len) |> (gt 5) \"big\" #t \"small\"])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "string",
+          "value": "big"
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "case"
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "number",
+                  "value": 1
+                },
+                {
+                  "kind": "number",
+                  "value": 2
+                },
+                {
+                  "kind": "number",
+                  "value": 3
+                },
+                {
+                  "kind": "number",
+                  "value": 4
+                },
+                {
+                  "kind": "number",
+                  "value": 5
+                },
+                {
+                  "kind": "number",
+                  "value": 6
+                }
+              ]
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "pipe",
+                  "left": {
+                    "kind": "call",
+                    "items": [
+                      {
+                        "kind": "symbol",
+                        "name": "len"
+                      }
+                    ]
+                  },
+                  "right": {
+                    "kind": "call",
+                    "items": [
+                      {
+                        "kind": "symbol",
+                        "name": "gt"
+                      },
+                      {
+                        "kind": "number",
+                        "value": 5
+                      }
+                    ]
+                  }
+                },
+                {
+                  "kind": "string",
+                  "value": "big"
+                },
+                {
+                  "kind": "boolean",
+                  "value": true
+                },
+                {
+                  "kind": "string",
+                  "value": "small"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-054-N",
+      "decision": "Case ordering and pipe chain",
+      "class": "paper",
+      "paperSection": "§4.6.2",
+      "paperPage": "p17",
+      "paperLocator": "§4.6.2, p17",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "(case 7 [#t 1 #t 2])",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "number",
+          "value": 1
+        }
+      },
+      "effects": [],
+      "forbiddenValue": {
+        "tag": "number",
+        "value": 2
+      },
+      "ast": [
+        {
+          "kind": "call",
+          "items": [
+            {
+              "kind": "symbol",
+              "name": "case"
+            },
+            {
+              "kind": "number",
+              "value": 7
+            },
+            {
+              "kind": "list",
+              "items": [
+                {
+                  "kind": "boolean",
+                  "value": true
+                },
+                {
+                  "kind": "number",
+                  "value": 1
+                },
+                {
+                  "kind": "boolean",
+                  "value": true
+                },
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-055-P",
+      "decision": "Quoted expression grammar",
+      "class": "paper",
+      "paperSection": "§4.1",
+      "paperPage": "pp10–11",
+      "paperLocator": "§4.1, pp10–11",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "'[:a [:b 1]]",
+      "resultOrError": {
+        "phase": "parse",
+        "accepted": true
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "quote",
+          "expression": {
+            "kind": "list",
+            "items": [
+              {
+                "kind": "key",
+                "name": "a"
+              },
+              {
+                "kind": "list",
+                "items": [
+                  {
+                    "kind": "key",
+                    "name": "b"
+                  },
+                  {
+                    "kind": "number",
+                    "value": 1
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "PV2-055-N",
+      "decision": "Quoted expression grammar",
+      "class": "paper",
+      "paperSection": "§4.1",
+      "paperPage": "pp10–11",
+      "paperLocator": "§4.1, pp10–11",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "'",
+      "resultOrError": {
+        "phase": "parse",
+        "code": "PEL_PARSE"
+      },
+      "effects": [],
+      "ast": null
+    },
+    {
+      "id": "PV2-056-P",
+      "decision": "Literal-list pair formation",
+      "class": "paper",
+      "paperSection": "§4.2",
+      "paperPage": "p12",
+      "paperLocator": "§4.2, p12",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "[:a 1 :flag]",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "pair",
+              "key": "a",
+              "value": {
+                "tag": "number",
+                "value": 1
+              }
+            },
+            {
+              "tag": "pair",
+              "key": "flag",
+              "value": {
+                "tag": "nil"
+              }
+            }
+          ]
+        }
+      },
+      "effects": [],
+      "ast": [
+        {
+          "kind": "list",
+          "items": [
+            {
+              "kind": "pair",
+              "key": "a",
+              "value": {
+                "kind": "number",
+                "value": 1
+              },
+              "valuePresent": true
+            },
+            {
+              "kind": "pair",
+              "key": "flag",
+              "value": {
+                "kind": "nil"
+              },
+              "valuePresent": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PV2-056-N",
+      "decision": "Literal-list pair formation",
+      "class": "paper",
+      "paperSection": "§4.2",
+      "paperPage": "p12",
+      "paperLocator": "§4.2, p12",
+      "sourceDigest": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+      "input": "[:a :b 1]",
+      "resultOrError": {
+        "phase": "evaluate",
+        "value": {
+          "tag": "list",
+          "items": [
+            {
+              "tag": "pair",
+              "key": "a",
+              "value": {
+                "tag": "nil"
+              }
+            },
+            {
+              "tag": "pair",
+              "key": "b",
+              "value": {
+                "tag": "number",
+                "value": 1
+              }
+            }
+          ]
+        }
+      },
+      "effects": [],
+      "forbiddenValue": {
+        "tag": "list",
+        "items": [
+          {
+            "tag": "pair",
+            "key": "a",
+            "value": {
+              "tag": "key",
+              "name": "b"
+            }
+          },
+          {
+            "tag": "number",
+            "value": 1
+          }
+        ]
+      },
+      "ast": [
+        {
+          "kind": "list",
+          "items": [
+            {
+              "kind": "pair",
+              "key": "a",
+              "value": {
+                "kind": "nil"
+              },
+              "valuePresent": false
+            },
+            {
+              "kind": "pair",
+              "key": "b",
+              "value": {
+                "kind": "number",
+                "value": 1
+              },
+              "valuePresent": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

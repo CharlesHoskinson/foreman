@@ -2,11 +2,13 @@
  * One-shot resume supervisor core (R5D).
  *
  * Injectable Effect services for run discovery, typed journal reads,
- * per-run leases, safety observation, restore, and queue. Uses
+ * per-run leases and read-only legacy safety observation. Uses
  * decideRoundResume; derives worktrees only from ownership events.
  */
 
-import { Context, Effect } from "effect";
+import type { Scope } from "effect";
+import type { PelOwnedRunContextV1, RunFailure, RunResultV1 } from "./pel-run-contract.js";
+import { Context, Effect, Option } from "effect";
 import {
   decodeLaneId,
   decodeRunId,
@@ -28,19 +30,18 @@ import {
   observeResumeSafety,
   type ResumeSafetyObservationV1,
 } from "./resume-safety-services.js";
-import {
-  runResumeQueueExecution,
-  type QueueSubmissionV1,
-  type ResumeQueueExecutionResultV1,
-} from "./resume-queue-execution.js";
-import { WorktreeRestore } from "./resume-worktree-restore.js";
-import { QueueSubmitter } from "./resume-queue-execution.js";
+import { runResumeQueueExecution, activeLegacyRun, type ActiveLegacyRun } from './resume-queue-execution.js';
 import { RunJournal } from "@foreman/event-log";
 import { join } from "node:path";
 
 // ---------------------------------------------------------------------------
 // Injectable services
 // ---------------------------------------------------------------------------
+
+/** Optional Pel branch. The installed closure supplies run services without another owner. */
+export class PelSupervisorRecovery extends Context.Tag("PelSupervisorRecovery")<PelSupervisorRecovery, {
+  readonly recover: (runId: RunId, owner: PelOwnedRunContextV1["owner"]) => Effect.Effect<RunResultV1, RunFailure, Scope.Scope>;
+}>() {}
 
 export class RunDiscovery extends Context.Tag("RunDiscovery")<
   RunDiscovery,
@@ -220,19 +221,16 @@ export type SupervisorLaneActionV1 =
       readonly dryRun: true;
     }
   | {
-      readonly _tag: "Executed";
+      readonly _tag: "LegacyControllerRequired";
       readonly runId: RunId;
       readonly laneId: LaneId;
-      readonly result: ResumeQueueExecutionResultV1;
-    }
-  | {
-      readonly _tag: "ExecutionFailed";
-      readonly runId: RunId;
-      readonly laneId: LaneId;
-      readonly reason: string;
+      readonly diagnostic: ActiveLegacyRun;
     };
 
 export type SupervisorRunResultV1 =
+  | { readonly _tag: "PelSwept"; readonly runId: RunId; readonly result: RunResultV1 }
+  | { readonly _tag: "PelPlanned"; readonly runId: RunId }
+  | { readonly _tag: "PelFailed"; readonly runId: RunId; readonly failure: RunFailure | null }
   | {
       readonly _tag: "Swept";
       readonly runId: RunId;
@@ -244,25 +242,20 @@ export type SupervisorRunResultV1 =
 
 export type SupervisorConfig = {
   readonly resumeMaxAttempts: number;
-  readonly shellBinary: string;
-  readonly laneRunScript: string;
   readonly dryRun: boolean;
-  readonly queueGroup?: string;
 };
 
 export type SupervisorServices =
   | RunDiscovery
   | TypedJournalReader
   | RunLease
-  | WorktreeRestore
   | RunJournal
-  | QueueSubmitter
   | import("./resume-safety-services.js").ResumeProcessProbe
   | import("./resume-safety-services.js").ResumeLockProbe;
 
 /**
  * Sweep one run: acquire lease, read journal, decide per lane, optionally
- * execute resume queue path.
+ * recover Pel under the existing owner. Legacy rounds remain read-only.
  */
 export function sweepOneRun(
   runId: RunId,
@@ -287,6 +280,14 @@ export function sweepOneRun(
 
       const records = read.records;
       const events = eventsFromRecords(records);
+      if (events.some(event => event.type === "pel.run.v1")) {
+        if (config.dryRun) return { _tag: "PelPlanned" as const, runId };
+        const recovery = yield* Effect.serviceOption(PelSupervisorRecovery);
+        if (Option.isNone(recovery)) return { _tag: "PelFailed" as const, runId, failure: null };
+        const owner = { runId, release: () => Effect.void };
+        const resumed = yield* Effect.either(Effect.scoped(runResumeQueueExecution({kind: "pel", runId, owner, resume: held => recovery.value.recover(runId, held)})));
+        return resumed._tag === "Left" ? { _tag: "PelFailed" as const, runId, failure: resumed.left } : { _tag: "PelSwept" as const, runId, result: resumed.right };
+      }
       const lanes = lanesFromEvents(events);
       const actions: SupervisorLaneActionV1[] = [];
 
@@ -423,35 +424,7 @@ function decideAndMaybeExecuteLane(
       };
     }
 
-    const execEither = yield* Effect.either(
-      runResumeQueueExecution({
-        plan: decision.roundPlan,
-        checkpointIdentity: decision.checkpointIdentity,
-        worktree: ownership.worktree,
-        resumeMaxAttempts: config.resumeMaxAttempts,
-        shellBinary: config.shellBinary,
-        laneRunScript: config.laneRunScript,
-        ...(config.queueGroup !== undefined
-          ? { group: config.queueGroup }
-          : {}),
-      }),
-    );
-
-    if (execEither._tag === "Left") {
-      return {
-        _tag: "ExecutionFailed" as const,
-        runId,
-        laneId,
-        reason: execEither.left.reason,
-      };
-    }
-
-    return {
-      _tag: "Executed" as const,
-      runId,
-      laneId,
-      result: execEither.right,
-    };
+    return { _tag: "LegacyControllerRequired" as const, runId, laneId, diagnostic: activeLegacyRun(runId) };
   });
 }
 
@@ -517,16 +490,9 @@ export function formatLaneActionLine(action: SupervisorLaneActionV1): string {
       return `${base}: noop`;
     }
     case "Planned":
-      return `${base}: [dry-run] would resume worktree=${action.worktree} checkpoint=${action.decision.checkpointIdentity.commit}`;
-    case "Executed": {
-      const sub = action.result.submission;
-      if (sub._tag === "Queued") {
-        return `${base}: resumed queued task=${sub.taskId}`;
-      }
-      return `${base}: resumed ready-to-run`;
-    }
-    case "ExecutionFailed":
-      return `${base}: execution failed ${action.reason}`;
+      return `${base}: [dry-run] legacy checkpoint requires original controller; worktree=${action.worktree} checkpoint=${action.decision.checkpointIdentity.commit}`;
+    case "LegacyControllerRequired":
+      return `${base}: ActiveLegacyRun ${action.diagnostic.message}`;
     default: {
       const _e: never = action;
       void _e;
@@ -539,6 +505,9 @@ export function formatRunResultLines(
   result: SupervisorRunResultV1,
 ): readonly string[] {
   switch (result._tag) {
+    case "PelSwept": return [`run ${String(result.runId)}: Pel ${result.result.state}`];
+    case "PelPlanned": return [`run ${String(result.runId)}: [dry-run] would recover Pel`];
+    case "PelFailed": return [`run ${String(result.runId)}: Pel recovery failed ${result.failure?.code ?? "service-unavailable"}`];
     case "Busy":
       return [
         `run ${String(result.runId)}: .supervise.lock held by another sweep`,
@@ -559,5 +528,3 @@ export function formatRunResultLines(
     }
   }
 }
-
-export type { QueueSubmissionV1 };

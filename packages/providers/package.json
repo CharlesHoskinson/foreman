@@ -1,0 +1,21 @@
+{
+  "name": "@foreman/providers",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/providers.js"
+    }
+  },
+  "dependencies": {
+    "@foreman/core": "0.4.0",
+    "@foreman/launcher": "0.4.0",
+    "@foreman/pel": "0.4.0",
+    "effect": "3.22.1"
+  },
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/providers.js"
+  }
+}

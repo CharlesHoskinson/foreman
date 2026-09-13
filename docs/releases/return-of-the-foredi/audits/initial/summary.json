@@ -1,0 +1,932 @@
+[
+  {
+    "role": "language",
+    "verdict": "needs_revision",
+    "findings": [
+      {
+        "id": "LANGUAGE-001",
+        "severity": "blocker",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-014",
+          "R-M4-012",
+          "R-M4-014"
+        ],
+        "problem": "Paper section 5.1 restarts keep completed results after an expression is replaced. The design prevents this. Request IDs hash the source digest and node ID, and node IDs also embed the whole-source digest. resumePel rejects any continuation under a different source digest. No M1 function applies replace-expression or replace-suffix to a failed or suspended continuation. M4 effectIds include the revision digest and reuse receipts only on an exact mapping match. Any source edit therefore changes every request ID, so completed receipts can never be reused. The 'unchanged effect identities' required by R-M4-014 cannot be computed. The M4 --decision revision schema is also undefined, because PelRecoveryDecisionV1 only has accept-result, confirm-no-dispatch and abandon.",
+        "required_change": "Define an M1 revision operation, for example revisePel(oldContinuation, revisedProgram, choice). It must specify an identity rule for the completed prefix: either prefix-structural node identity, or an explicit mapping from old to new request IDs recorded in the revision. It must also say which frames and environments survive, and what happens to receipts inside the replaced region. Define the revision decision schema in M4. Add an M1 requirement and test.",
+        "validation": "Use a program with two completed host calls whose third expression fails. Replace the third expression and assert both receipts are reused with zero redispatch. Edit a completed expression and assert PEL_CONTINUATION_MISMATCH before any request is emitted."
+      },
+      {
+        "id": "LANGUAGE-002",
+        "severity": "blocker",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-005",
+          "R-M1-006"
+        ],
+        "problem": "lambda and def have no signature, strictness, partial-application rule, body arity or ArgSpec parsing contract. An ArgSpec is a bracket list, so pair formation applies to it. That makes [:x] and [:x #nil] both pair(:x, nil), and [:x :y] pairs both keys with nil. Yet the profile says a bare key is required and an explicit nil is a default. The distinction between required and nil-default cannot be recovered from the value or AST as specified. It is also unstated whether the ArgSpec list is evaluated, and whether the def symbol position is unevaluated.",
+        "required_change": "Add builtin descriptors for lambda and def with ArgSpec, strictness and unevaluated positions. Specify ArgSpec as syntax whose parser records whether a value was present, separately from an explicit #nil. State body arity and the behavior of a partial def.",
+        "validation": "Extend T-M1-005 and T-M1-006. (lambda [:x] x) called with no arguments must return a partial closure. (lambda [:x #nil] x) called with no arguments must return nil. Add a binding matrix for [:x :y 3] and [:x 1 :y]."
+      },
+      {
+        "id": "LANGUAGE-003",
+        "severity": "major",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-009",
+          "R-M1-012",
+          "R-M1-014"
+        ],
+        "problem": "The suspend step requires a nonempty ready request list, and receipts may arrive in any completion order. Suppose B's receipt arrives while A is still pending and nothing new is ready. No PelStep variant fits. Re-listing A as ready invites double dispatch, and done or failed would be wrong. It is also unstated whether resumePel accepts a subset of receipts, or how the ready array is ordered.",
+        "required_change": "Add a waiting step, or split the list into newlyReady and pending. Specify that ready contains only requests never emitted before. Allow subset receipts. Order ready requests deterministically by invocation path.",
+        "validation": "In T-M1-009, supply only B's receipt. Assert a waiting step with pending [A] and no re-emitted request. Then supply A's receipt and assert done."
+      },
+      {
+        "id": "LANGUAGE-004",
+        "severity": "major",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-012",
+          "R-M1-014"
+        ],
+        "problem": "The continuation stores digests and AST locations, but not the AST or registry. resumePel(continuation, receipts) therefore cannot rebuild frames or compare digests. The startPel environment type is undefined. There is no registry constructor, no registry digest algorithm, and no rule for binding host names such as test/once or fm/task. Result schema IDs are validated, but no schema format is defined.",
+        "required_change": "Change the signature to resumePel(program, registry, continuation, receipts), or embed the source. Define PelEnvironmentV1 and HostRegistryV1 construction, including the canonical digest and symbol binding. Define the data schema format that result and failure schema IDs refer to.",
+        "validation": "Decode a continuation against a program with one byte changed, and against a registry with one descriptor changed. Both must return PEL_CONTINUATION_MISMATCH. A receipt violating its declared schema must return PEL_HOST_RESULT."
+      },
+      {
+        "id": "LANGUAGE-005",
+        "severity": "major",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-012",
+          "R-M4-009",
+          "R-M5-003"
+        ],
+        "problem": "HostReceiptV1 has a failure outcome, but M1 never defines what evaluation does with it. There is no diagnostic code for it; PEL_HOST_RESULT covers only invalid receipts. It is unstated whether a failure yields a failed step, what happens to pending do/async siblings, how the failure code and cause are exposed, and how a child-closure failure propagates through mergeClosureResult. M4 fm/retry depends on this. No M1 test covers a failure receipt.",
+        "required_change": "Define a diagnostic, for example PEL_HOST_FAILURE, that carries the HostEffectFailure. Define do/async sibling handling: whether pending requests remain recorded and whether new dispatch stops. Define child failure merge semantics. Add a requirement and test.",
+        "validation": "Use a do/async with a failure receipt for A while B is pending. Assert the step kind, the diagnostic code and cause, and that no new request is emitted. Add a child-closure failure merge fixture."
+      },
+      {
+        "id": "LANGUAGE-006",
+        "severity": "major",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-014",
+          "R-M4-008",
+          "R-M4-009"
+        ],
+        "problem": "evaluateClosure and mergeClosureResult are exported, but no M1 requirement or test covers them. The derivation of child invocation IDs, and of child request IDs from the parent request ID, is undefined. Retry attempts or race contenders running the same closure node could therefore receive identical M1 request IDs. M4 puts the retry ordinal only in effectId, while M1 validates receipts by requestId. No API extracts the lexical environment table from a parent continuation. mergeClosureResult takes a data-only receipt, so it cannot return a closure result, and losing race children's counters are never merged.",
+        "required_change": "Specify childInvocationId as a hash of parentRequestId and an ordinal or contender index, and include it in child invocation paths. Export environment extraction. Define counter accounting for abandoned children. Add an M1 requirement and contract test.",
+        "validation": "Evaluate the same closure with ordinals 0 and 1 and assert the request IDs differ. Assert an ordinal-0 receipt is rejected for ordinal 1. Assert aggregate counters include the abandoned child."
+      },
+      {
+        "id": "LANGUAGE-007",
+        "severity": "major",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-003",
+          "R-M1-014",
+          "R-M4-005"
+        ],
+        "problem": "No wire encoding is defined for PelDataValue: key, pair and nil tags, number normalization and string representation. Several contracts depend on it: the 16 MiB encoded-value limit, M4 canonical result hashes, HostReceiptV1 JSON, and M2 --json output. formatPel output rules are also unspecified, yet M2 requires exact documented output.",
+        "required_change": "Define a canonical PelDataValue JSON encoding hashed with the packages/core canonicalize function. Define formatPel rules for numbers, strings, pairs and closures.",
+        "validation": "Golden round-trip fixtures. Equal values must produce equal sha256. Negative zero must normalize. A pair and a two-element list must encode differently."
+      },
+      {
+        "id": "LANGUAGE-008",
+        "severity": "major",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-002",
+          "R-M1-007",
+          "R-M1-008"
+        ],
+        "problem": "case pipes the scrutinee into its conditions, but a bare caret outside a pipe is a parse or caret-scope error. A condition such as (gt ^ 5) sits outside any syntactic pipe, so it is either rejected or handled inconsistently. The design does not say the scrutinee is evaluated only once, so a host-call scrutinee could emit a request per condition. It is also unclear whether a string literal or any string-valued condition triggers pel/nl-condition.",
+        "required_change": "Declare case condition expressions a caret scope bound to the scrutinee. State that the scrutinee is evaluated exactly once. State which string forms trigger pel/nl-condition.",
+        "validation": "(case 7 [(gt ^ 5) 'big' #t 'small']) returns big. (case (test/once) [(gt 2) 1 #t 0]) emits exactly one request. A symbol bound to a string follows the documented rule."
+      },
+      {
+        "id": "LANGUAGE-009",
+        "severity": "major",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-001",
+          "R-M1-002"
+        ],
+        "problem": "The Token boundaries row makes caret a delimiter, but the Keywords row allows caret and greater-than in keywords, following the paper's KEY regex. Inputs such as :a^b or :x^> tokenize differently depending on which rule wins. Tokens like 1e5, Infinity and a lone minus are unclassified. T-M1-002 expects nonfinite numeric text to fail parsing, but Infinity is a legal symbol under the delimiter rule.",
+        "required_change": "State keyword and caret precedence; for example, remove caret from KEY as a documented erratum. Add a rule that a token starting with an optional minus and a digit that does not match NUMBER is PEL_LEX. Enumerate the nonfinite fixtures.",
+        "validation": "Tokenizer span fixtures for :a^b, :a ^> (f), 1e5, a lone minus and Infinity, each with the expected token kind or diagnostic."
+      },
+      {
+        "id": "LANGUAGE-010",
+        "severity": "major",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-001",
+          "R-M1-005",
+          "R-M1-008",
+          "R-M1-009"
+        ],
+        "problem": "Fixtures must be classed as paper, erratum or extension, and every correction needs positive and negative fixtures. The profile table does not mark which is which. Only the index, caret, sequence-arity and print-signature rows are named errata. Other rows are unmarked Foreman decisions: defaults evaluated at lambda formation, duplicate-def failure, quote consuming a pipe chain, no mutual recursion, do/async intra-block dependency waiting, safe-integer limits, the single-list + overload, the frozen builtin set and the added escape set. Implementers cannot separate deliberate corrections from accidental changes.",
+        "required_change": "Add a normative class column to each profile row: paper with page, erratum quoting the conflicting paper text, or extension/restriction with a rationale. Mirror this in compatibility.md with fixture IDs.",
+        "validation": "Catalog check: every profile row has a class and page, and every erratum or extension row lists positive and negative fixture IDs present in paper-v2.json."
+      },
+      {
+        "id": "PLAN-011",
+        "severity": "major",
+        "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+        "requirement_ids": [
+          "R-M2-001",
+          "R-M2-005",
+          "R-M2-006"
+        ],
+        "problem": "AuthoringSnapshotV1 contains only digests and limits. Checking needs actual content: descriptors, allowed capabilities, model/transport pairs, resource scope, schemas and dynamic bounds. The design itself says the installed snapshot supplies these. No schema language defines output schemas, and nothing says where an unknown collection's iteration bound is declared, although T-M2-006 uses one bounded to 4 iterations. The location of the default snapshot is undefined.",
+        "required_change": "Define AuthoringSnapshotV1 as full content plus digests computed over that content. Define a Pel data schema language, including list bounds and association-list keys, shared with M1 result schema IDs and M5 output schemas. State the default snapshot path.",
+        "validation": "T-M2-002: a snapshot whose digest does not match its content exits 3. T-M2-006: the iteration bound derives from a declared maximum of 4 items."
+      },
+      {
+        "id": "PLAN-012",
+        "severity": "major",
+        "file": "openspec/changes/foredi-05-task-delivery/design.md",
+        "requirement_ids": [
+          "R-M5-003",
+          "R-M5-009",
+          "R-M2-013"
+        ],
+        "problem": "The fm/verify result-key table lists prior keys plus verification, checks and findings. The prose says fm/verify returns :passed #t or #f and a verification-failed status. The M2 conditional example reads (result :at ':passed). The passed and status keys are absent from the declared result schema, so the example cannot pass schema checking.",
+        "required_change": "Add passed as a Boolean and status as a string to the fm/verify result keys and schema. Keep the M2 and M5 examples consistent with that schema.",
+        "validation": "The M2 conditional example checks without PEL_SCHEMA. T-M5-003 asserts passed is #t or #f from host results."
+      },
+      {
+        "id": "PROVIDER-013",
+        "severity": "major",
+        "file": "openspec/changes/foredi-03-model-adapters/design.md",
+        "requirement_ids": [
+          "R-M2-010",
+          "R-M3-019",
+          "R-M4-009"
+        ],
+        "problem": "The provider failure vocabularies disagree although both claim to be the same shared union. M2 uses auth, timeout, cancelled, refused, identity-mismatch, unavailable-model, malformed-output and transport. M3 uses tags such as AuthenticationRequired, ModelMismatch, ModelUnavailable, OutputInvalid, RateLimited and TransportDisconnected, with no Timeout, Cancelled or Refused tags. The fm/retry :on categories and the 'rate-limit' category in T-M4-009 have no defined vocabulary.",
+        "required_change": "Define one union in packages/providers/src/errors.ts. Give an explicit mapping from provider events and refusals to failures. Enumerate the retry category names accepted by fm/retry.",
+        "validation": "Exhaustive type-checked switches in pel-generation.ts and fm/retry. Add a per-category fixture to T-M2-010 and T-M4-009."
+      },
+      {
+        "id": "PROVIDER-014",
+        "severity": "major",
+        "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+        "requirement_ids": [
+          "R-M2-008",
+          "R-M3-019"
+        ],
+        "problem": "M3 maps GenerationRequest to ProviderRequestV1. That request requires effectId, trustedInstructions, artifacts, toolPolicy, and limits with a spend reservation reference. It also needs a credential account. GenerationRequest supplies no effectId, toolPolicy, reservation reference or account. M2 forbids execution reservations but refuses a call whose reservation exceeds the generation budget, without naming a reservation port. The plan --prompt CLI has no credential or account selection.",
+        "required_change": "Specify how each missing field is derived: a generation effectId from the prompt digest and attempt, toolPolicy none, a generation-budget port that is not the ledger, and a credential profile flag. Apply the same definitions in both the M2 and M3 designs.",
+        "validation": "T-M3-019 asserts a complete ProviderRequestV1 built from the fixture GenerationRequest, with zero ledger calls."
+      },
+      {
+        "id": "BUILD-015",
+        "severity": "major",
+        "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+        "requirement_ids": [
+          "R-M2-008",
+          "R-M2-009",
+          "R-M2-012"
+        ],
+        "problem": "The validation commands rely on shell brace expansion of {a,b} for npx esbuild and node --test, and the tasks add them to package scripts. npm runs scripts with /bin/sh, which is dash on Linux and does not expand braces; esbuild would receive literal paths. scripts/run-tests.ts exists because of exactly this shell globbing problem. M4 and M5 run the same orchestration package's tests through run-tests.ts, and the root npm test already runs packages/orchestration/src/**/*.test.ts via tsx.",
+        "required_change": "Replace the brace forms with explicit expanded paths, or use npx tsx scripts/run-tests.ts with quoted patterns, matching M4 and M5.",
+        "validation": "Run the package script under sh -c. Confirm run-tests.ts rejects zero-match patterns and every named test file executes."
+      },
+      {
+        "id": "PLAN-016",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M2-001",
+          "R-M4-011"
+        ],
+        "problem": "One foreman binary uses conflicting exit codes. For check and plan, 3 means an input error and 4 means generation exhausted. For run and status, 3 means needs-action and 4 means cancelled. The exit code of run for a missing file or source error is unstated.",
+        "required_change": "Publish a per-subcommand exit code table covering the input and source failures of run.",
+        "validation": "A CLI table test asserts the codes for each subcommand and failure class."
+      },
+      {
+        "id": "DELIVERY-017",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-06-adoption/design.md",
+        "requirement_ids": [
+          "R-M5-008",
+          "R-M6-001",
+          "R-M6-002"
+        ],
+        "problem": "The same standard workflow example has three names: M2 sequential.pel, M5 implement-verify-review.pel and M6 implement-review.pel.",
+        "required_change": "Choose one path, or state the relationship between the files.",
+        "validation": "Every test target references the same existing example path."
+      },
+      {
+        "id": "DELIVERY-018",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M4-003",
+          "R-M5-004"
+        ],
+        "problem": "M4 reserves every host request through the ledger before dispatch. M5 says repeating an unchanged verification consumes no new verification action.",
+        "required_change": "Define a pre-reservation reuse lookup for matching verification receipts, or a rule that releases the reservation.",
+        "validation": "T-M5-004 asserts the ledger action count is unchanged on the second unchanged fm/verify."
+      },
+      {
+        "id": "BUILD-019",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-001"
+        ],
+        "problem": "tsconfig.all.json includes packages/**/*.ts and excludes only **/dist/**. Declarations emitted into packages/pel/dist-test would therefore be included in typecheck. The orchestration project reference to packages/pel is also not listed.",
+        "required_change": "Exclude **/dist-test/** or disable declaration output in tsconfig.test.json. Add the pel project reference for orchestration.",
+        "validation": "Run npm run typecheck after compiling the tests, and confirm no duplicate declarations."
+      },
+      {
+        "id": "ADOPTION-020",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-06-adoption/design.md",
+        "requirement_ids": [
+          "R-M6-003",
+          "R-M6-010"
+        ],
+        "problem": "Two M6 test commands are not concrete. T-M6-003 uses an unspecified 'planned TypeScript install command'. T-M6-010 runs dist/pel-simplification.js, but no main file or build-runtime entry is declared for it.",
+        "required_change": "Name the install command and add the simplification main file and its build entry.",
+        "validation": "npm run build emits pel-simplification.js, and the test invokes the documented install command."
+      },
+      {
+        "id": "LANGUAGE-021",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-005",
+          "R-M1-008"
+        ],
+        "problem": "for does not state whether each iteration gets a child scope. (for [1 2] i (def y i)) could therefore fail as a duplicate definition. The binding scope of a def nested in an if branch is also unspecified.",
+        "required_change": "Specify per-iteration scopes and the target scope of a nested def.",
+        "validation": "Fixtures for a def inside a for body and inside an if branch, with the expected results."
+      },
+      {
+        "id": "LANGUAGE-022",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-003",
+          "R-M1-004",
+          "R-M1-006"
+        ],
+        "problem": "Several errors have no mapped diagnostic code: unknown names, duplicate names, combining at with slice bounds, and nonfinite or unsafe arithmetic other than division by zero. T-M1-004 nonetheless expects PEL_ARGUMENT_MODE for the at-with-slice case.",
+        "required_change": "Map each rejection rule to a diagnostic code.",
+        "validation": "The fixture matrix asserts the exact code for each rejection."
+      },
+      {
+        "id": "PROVIDER-023",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-03-model-adapters/design.md",
+        "requirement_ids": [
+          "R-M2-008",
+          "R-M3-019"
+        ],
+        "problem": "Both M2 and M3 say they create packages/providers package.json and contract.ts. The generation grammar-mode enum is undefined. The catalogs use inconsistent depends_on identifier formats.",
+        "required_change": "Assign package bootstrap ownership to one milestone. Define the grammar-mode enum and its fallback rule. Normalize depends_on identifiers.",
+        "validation": "Catalog lint passes, and T-M2-008 and T-M3-019 use the enum values."
+      }
+    ],
+    "summary": "The M1\u2013M6 set is well structured and faithful to much of Pel. It includes explicit index, caret, sequence-arity and print errata, data-only host suspension, non-resetting counters and no provider fallback. It still needs revision. Several M1 evaluator contracts cannot be implemented as written: restart after an edit, ArgSpec required versus nil-default, suspension while requests are pending, host failure receipts, resume inputs, and child closure identity. The M2/M3/M5 interfaces also disagree on the snapshot content, failure vocabulary, generation request mapping and the fm/verify result shape. M2 validation commands depend on shell brace expansion, which npm's sh does not perform. This is a specification audit only; no runtime was executed."
+  },
+  {
+    "role": "execution",
+    "verdict": "needs_revision",
+    "findings": [
+      {
+        "id": "EXECUTION-001",
+        "severity": "blocker",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M4-014",
+          "R-M1-014",
+          "R-M4-003"
+        ],
+        "problem": "A source revision cannot reuse completed receipts under the stated identity rules. M1 node IDs combine the source SHA-256 with the child-index path. M1 request IDs hash the source digest and node ID. M1 rejects a continuation under a different source digest. M4 effectId additionally hashes the admitted revision digest, and replay reuses a receipt only when the complete mapping matches. Any revision changes the source digest, so every completed-prefix call gets a new requestId and effectId. The design also says completed effects keep their old identities and that the revision records unchanged effect identities, but no mapping from old identity to revised node exists. T-M4-014 therefore cannot pass: the completed prefix either redispatches or is refused.",
+        "required_change": "Define a PelRevisionMappingV1 in M4, or a helper in M1. It maps each completed old requestId/effectId to a revised node and invocation path, determined by a prefix-equivalence rule such as identical normalized AST subtree plus identical invocation path in the unchanged top-level prefix. Specify that the revised program is re-evaluated from the start and that receipts are supplied through this mapping, not through the old continuation. State whether effectId for mapped effects keeps the parent revision digest.",
+        "validation": "Add a T-M4-014 fixture assertion: after a valid revision, the completed-prefix host dispatch count stays 1 and the journal shows mapped old\u2192new identities. A revision that changes a completed call's arguments fails continuation-incompatible before dispatch."
+      },
+      {
+        "id": "EXECUTION-002",
+        "severity": "major",
+        "file": "openspec/changes/foredi-03-model-adapters/design.md",
+        "requirement_ids": [
+          "R-M3-002",
+          "R-M3-011",
+          "R-M3-012",
+          "R-M3-019"
+        ],
+        "problem": "Several validated controls have no request field. ProviderRequestV1 lists schemaVersion, effectId, profileId, transportId, trustedInstructions, artifacts, toolPolicy, outputSchema, limits and continuation. It has no reasoning effort, thinking mode or manual budget, sampling parameters, tool_choice, or background/store mode. R-M3-002 and T-M3-002 validate Grok max, Astra none, Fable disabled thinking, manual budget, forced tool choice and Opus disabled thinking, but the request cannot express those values. OpenAI and Gemini cursor reconnect and cancel exist only in background mode, and no field selects that mode. GenerationRequest (M2) and fm/task/fm/review arguments (M5) also cannot carry effort.",
+        "required_change": "Add a typed `controls` object to ProviderRequestV1 containing effort, thinking ({mode, budgetTokens?}), sampling, toolChoice and execution mode (foreground | background, store). Define per-profile validation over these fields. State where M2 GenerationRequest and M5 task/review descriptors obtain them: named arguments or admitted profile defaults.",
+        "validation": "T-M3-002 fixtures construct each invalid control through the new field and assert UnsupportedCapability with that exact field path. A decoder test rejects unknown control keys."
+      },
+      {
+        "id": "EXECUTION-003",
+        "severity": "major",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M3-008",
+          "R-M3-012",
+          "R-M4-003",
+          "R-M4-004"
+        ],
+        "problem": "Durability for work inside a provider session is unspecified. M3 assigns tool execution, deduplication and durable event persistence to M4, and says a replay reuses the recorded tool result through the host journal. M4 defines only pel.effect.intent, observed, result, checkpoint and cancel records, all keyed by the Pel host request. It defines no record or key for provider tool-call intents and results (effectId + provider call ID) and no record for the stream cursor that ProviderTransport.resume(request, identity, cursor) requires. ToolResultV1 carries a call ID, authorization binding and receipt reference but no result payload, so the adapter cannot send content without reading host storage itself. M3 also says checkpoint events reference blobs 'in the existing session store', which makes the adapter a persistence owner.",
+        "required_change": "Add pel.tool.intent.v1, pel.tool.result.v1 and pel.provider.cursor.v1 payload types. The tool dedup key is (effectId, provider identity, callId). Add a bounded result payload, or a host-resolved content field, to ToolResultV1. State that M4 persists checkpoint blobs and cursors and that adapters only emit them.",
+        "validation": "T-M3-008 and T-M4-004 extensions: crash after a tool result is appended, then resume the provider stream. Assert tool effect count 1, the recorded payload is resent, and the cursor is read from the journal."
+      },
+      {
+        "id": "EXECUTION-004",
+        "severity": "major",
+        "file": "openspec/changes/foredi-03-model-adapters/design.md",
+        "requirement_ids": [
+          "R-M4-013",
+          "R-M5-013",
+          "R-M3-012"
+        ],
+        "problem": "M4 reconciles unknown outcomes 'through M3 when supported' and task 5.4 requires observation-based reconciliation without redispatch. ProviderTransport exposes only probe, start, sendToolResult, cancel and resume. There is no observe or poll operation (for example GET response or interaction by ID) and no capability flag stating whether reconciliation is supported. resume returns a live stream and cannot represent a terminal already-completed or not-found observation. cancel returns a single CancellationObservationV1, while remote outcome can change later.",
+        "required_change": "Add `observe(identity): Effect<RemoteObservationV1, ProviderFailure>` returning pending | completed(result ref) | cancelled | not-found | unsupported. Add a per-transport `reconcile` capability with evidence state. Define how later cancellation observations reach M4, either through a stream `cancelled` event or through observe.",
+        "validation": "T-M4-013 uses observe on a fake OpenAI background response and on an xAI transport with unsupported reconcile. Assert a receipt is recorded in the first case and needs-action with zero dispatch in the second."
+      },
+      {
+        "id": "EXECUTION-005",
+        "severity": "major",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M5-004",
+          "R-M5-011",
+          "R-M5-012",
+          "R-M6-012"
+        ],
+        "problem": "M4's generic protocol reserves every host request through the ledger (step 2) and appends intent before the handler runs. M5 needs three things that protocol does not allow. Unchanged fm/verify must 'consume no new verification action'. fm/publish without a grant must perform zero mutation and return needs-action. commit must reserve integrate or publish through EndstopLedger.executeChild. As written, a verification reuse still consumes a reservation, an unauthorized publish still reserves an action, and an authorized publish reserves twice.",
+        "required_change": "Let host descriptors declare a reservation policy (`generic` | `handler-owned`), or add a pre-dispatch `resolveReuse/prepare` hook that runs before step 2. Define which ledger action kind each fm/* function consumes and when.",
+        "validation": "Ledger spy assertions: T-M5-004 unchanged verification adds 0 reservations; T-M5-011 adds 0 publish/integrate reservations; T-M5-012 adds exactly 1."
+      },
+      {
+        "id": "EXECUTION-006",
+        "severity": "major",
+        "file": "openspec/changes/foredi-05-task-delivery/design.md",
+        "requirement_ids": [
+          "R-M5-001",
+          "R-M5-003",
+          "R-M5-006",
+          "R-M5-009"
+        ],
+        "problem": "The result-value contract breaks native lookup. M1 key lookup returns the first matching pair. M5 builds each result as 'prior keys plus' new keys, so duplicate keys shadow newer ones: fm/verify inherits fm/task's `status` and `findings`, and fm/review inherits both again. `(result :at ':status)` on a verify result returns the task status, not 'verification-failed'. `:findings` returns the implementation findings. The fm/verify key table also omits `passed`, which the prose and the M2 conditional example `(result :at ':passed)` rely on.",
+        "required_change": "Specify exact key order and uniqueness for each result schema. Either nest prior evidence under distinct keys (`:task`, `:verification`) or place new keys before inherited ones and forbid duplicates. Add `passed` to the fm/verify schema. State that result schema IDs define the exact key list.",
+        "validation": "Schema decoder tests reject duplicate keys. T-M5-003 asserts `(r :at ':status)` equals \"verification-failed\" and `(r :at ':passed)` is #f. The M2 conditional example previews both branches with the corrected schema."
+      },
+      {
+        "id": "EXECUTION-007",
+        "severity": "major",
+        "file": "openspec/changes/foredi-05-task-delivery/design.md",
+        "requirement_ids": [
+          "R-M5-009"
+        ],
+        "problem": "The repair example uses 'native if and bounded for', but M1 `for` evaluates every body independently. M1 has no mutation, no accumulator or fold, and no early exit, and a duplicate def fails. A for-based loop cannot pass the corrected candidate from one round to the next or stop after approval, so every round would dispatch fm/task. The contract also does not say what happens when the host correction bound is hit: a typed budget failure would make the run failed, while T-M5-009 expects needs-action.",
+        "required_change": "Specify the repair example as bounded self-recursion, which M1 supports, with an explicit round counter. Alternatively, add a documented pure fold builtin to the frozen library as an explicit extension. Define that exceeding the admitted correction bound yields an ordinary `status \"needs-action\"` value or a mapped needs-action run state, and give the exact mechanism.",
+        "validation": "Check the repair-and-publish.pel source with M2. T-M5-009 asserts fm/task dispatch counts of 2 for correct-then-approve and N+1 for exhaustion, and exit 3 in both counterfixtures."
+      },
+      {
+        "id": "EXECUTION-008",
+        "severity": "major",
+        "file": "openspec/changes/foredi-05-task-delivery/design.md",
+        "requirement_ids": [
+          "R-M4-007",
+          "R-M4-008",
+          "R-M5-001"
+        ],
+        "problem": "Worktree and resource allocation is undefined for parallel and raced tasks. fm/race requires separate writable worktrees for all contenders. fm/task has no workspace argument and HostContextV1 has one 'admitted workspace', so two fm/task contenders in race or do/async resolve to the same writable worktree, and the T-M4-008 positive fixture cannot be written. M1 HostFunctionDescriptorV1 declares static reads/writes, while T-M4-002 needs argument-dependent resources (a write path outside the worktree). No per-request resource resolver exists.",
+        "required_change": "Define a host-side `resolveResources(descriptor, boundArgs, ctx): ResourceSetV1` contract. Define how M4 allocates isolated worktrees per race contender or per `:workspace` grant, either as a fm/task named argument or through a race-scoped allocation in HostContextV1. Include the canonical path rules.",
+        "validation": "T-M4-008 builds two fm/task closures and asserts distinct canonical worktree IDs. T-M4-002 asserts that the resolver output, not the static descriptor, triggers resource-denied."
+      },
+      {
+        "id": "EXECUTION-009",
+        "severity": "major",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-012",
+          "R-M4-009",
+          "R-M4-015"
+        ],
+        "problem": "Valid failure receipts have no defined semantics. M1 accepts `{tag:\"failure\"}` receipts with registered codes but does not say what PelStep follows. PEL_HOST_RESULT covers malformed receipts only, and no diagnostic code carries a legitimate HostEffectFailure. M4 never maps HostEffectFailure codes (capability-denied, unknown-external-outcome, reconciliation-required, M5 codes) to RunStatusV1 state and exit code, and needs-action versus failed is decided only in prose for some cases. fm/retry must intercept a child failure, but evaluateClosure and mergeClosureResult do not define how a failed child step is observed.",
+        "required_change": "Add a `PEL_HOST_FAILURE` diagnostic (or a failed step variant) that carries the HostEffectFailure verbatim. Add an M4 table mapping each base and registered failure code to run state and lifecycle exit code. Specify that evaluateClosure returning `failed` with PEL_HOST_FAILURE is what fm/retry classifies.",
+        "validation": "T-M1-012 adds a failure-receipt case asserting the step and diagnostic shape. T-M4-015 tabulates each failure code against the expected state and exit code."
+      },
+      {
+        "id": "EXECUTION-010",
+        "severity": "major",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M4-009",
+          "R-M2-010",
+          "R-M3-012"
+        ],
+        "problem": "Three incompatible failure taxonomies exist. M2 exports lowercase ProviderFailure categories (auth, timeout, cancelled, refused, identity-mismatch, unavailable-model, malformed-output, transport) and says M3 'extends' that union. M3 defines disjoint tags (AuthenticationRequired, ModelMismatch, RateLimited, TransportDisconnected, OutputInvalid...) with no Timeout, Cancelled or Refused tags. M4 fm/retry `:on [categories]` and T-M4-009 use 'rate-limit', and the categories that may retry are never enumerated. M2's rule to stop on refusal and M4's non-retryable list cannot be implemented against M3's union.",
+        "required_change": "Publish one ProviderFailure union in packages/providers, with an exact tag list and a retry classification per tag. Add the corresponding Pel keyword spelling accepted by `:on`. Define M2's stop set and M4's retryable set in terms of those tags.",
+        "validation": "Type-level test that M2's generation loop and fm/retry switch exhaustively over the union. T-M4-009 uses the canonical `:rate-limited` spelling."
+      },
+      {
+        "id": "EXECUTION-011",
+        "severity": "major",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M4-009",
+          "R-M4-008"
+        ],
+        "problem": "Retry attempts can collide on request identity. fm/retry reruns a body closure through evaluateClosure, but M1 request IDs depend only on source, registry, node ID and invocation path. Unless the child invocation ID encodes the attempt index, attempt 2's inner fm/task has the same requestId as attempt 1. M4's retry ordinal belongs to the effect being retried, not to requests nested inside a retried closure, so replay could complete attempt 2 with attempt 1's recorded failure.",
+        "required_change": "Specify that the ClosureEvaluationContextV1 child invocation ID for fm/retry and fm/race includes the parent request ID plus the attempt or contender index, and that it forms part of the nested invocation path. Alternatively, define how the retry ordinal propagates to nested effects.",
+        "validation": "T-M4-009 asserts distinct inner requestIds and effectIds per attempt, and that restart after attempt 1 does not reuse attempt 1's receipt for attempt 2."
+      },
+      {
+        "id": "EXECUTION-012",
+        "severity": "major",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M4-010",
+          "R-M4-011",
+          "R-M3-011"
+        ],
+        "problem": "Cancellation has no terminal rule when remote confirmation is impossible. M3 remoteOutcome includes `unsupported` (xAI and some native CLIs), which has no counterpart in M4 externalOutcome (none | pending | confirmed-complete | confirmed-cancelled | unknown). M4 reports cancelled only after 'required cancellation confirmation' but never defines what is required when confirmation is unobtainable, so the run and `foreman cancel` would stay at exit 5 indefinitely. T-M4-010 expects 'cancel-requested or needs-action', which cannot be asserted deterministically.",
+        "required_change": "Map each M3 remoteOutcome to an M4 externalOutcome. Define the rule: once local cleanup completes and the remote outcome is unsupported or unknown after the admitted observation window, state becomes needs-action (exit 3) with externalOutcome unknown. Define 'required confirmation' for effects with no remote component.",
+        "validation": "T-M4-010 asserts exactly needs-action with unknown. A new xAI-style fixture asserts that cancel returns 3, not 5, after the window."
+      },
+      {
+        "id": "EXECUTION-013",
+        "severity": "major",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M4-012",
+          "R-M4-016",
+          "R-M5-010"
+        ],
+        "problem": "Resume does not state what source is replayed. runProgram takes a process-local CheckedProgramV1 (M2 says it is not persisted), and resumeProgram must reconstruct evaluation after a crash. pel.run.v1 stores the checked digest, not the source bytes or the AuthoringSnapshotV1/registry snapshot. If the operator's workflow.pel changes or the installed default snapshot changes, resume cannot rebuild the same program, and the spec does not say whether resume reads the file again or uses stored bytes.",
+        "required_change": "Require pel.run.v1 to reference an immutable stored artifact holding the exact source bytes and snapshot, with digests. resumeProgram re-checks from those stored bytes, ignores the working-tree file, and fails binding-mismatch if the stored artifact is missing or mismatched.",
+        "validation": "T-M4-016 fixture: edit workflow.pel on disk after start, then resume. The run resumes from the stored bytes, and a removed artifact yields binding-mismatch."
+      },
+      {
+        "id": "EXECUTION-014",
+        "severity": "major",
+        "file": "openspec/changes/foredi-03-model-adapters/design.md",
+        "requirement_ids": [
+          "R-M3-018",
+          "R-M5-015",
+          "R-M6-006",
+          "R-M5-008"
+        ],
+        "problem": "The admission rule for provider cells is undefined. M3 says a cell stays unavailable 'until a cell has its required evidence' and that fixture success cannot label a model ready. M5 and M6 tests run 'qualified recorded' and 'fake qualified' profiles. No spec states which evidence level (documented, fixture-tested or live-qualified) M4 and M5 admission require, whether it applies per capability, or how deterministic tests inject that evidence without faking live qualification.",
+        "required_change": "Define `admitCell(profile, transport, requiredCapabilities, evidence)`, including the minimum evidence kind per capability for execution. Define a test-only evidence source that the fixture binding explicitly marks and that the product never labels as live-qualified.",
+        "validation": "T-M5-015 and T-M6-006 assert rejection with documented-only and fixture-only evidence. T-M5-008 assert admission uses the explicit fixture evidence source, and `providers list` still shows it as not live-qualified."
+      },
+      {
+        "id": "EXECUTION-015",
+        "severity": "major",
+        "file": "openspec/changes/foredi-05-task-delivery/design.md",
+        "requirement_ids": [
+          "R-M2-003",
+          "R-M5-001",
+          "R-M3-006"
+        ],
+        "problem": "Transport selection and the tool surface for fm/task are unspecified. fm/task and fm/review take `:model` but no transport. M2 previews must show an exact transport, and the snapshot may allow both an API and a native pair per profile (for example xai-responses and grok-acp). fm/task writes files in a worktree, which needs either a native coding transport or an API transport plus host file tools, and no host tool catalog or toolPolicy content is defined anywhere. The canonical transportId strings are also never enumerated, although M2 uses 'openai-responses'.",
+        "required_change": "Enumerate the eight transportId literals in M3. Specify how each fm/* call resolves exactly one transport: a `:transport` argument or a unique admitted mapping, with an ambiguity error. Define the minimal host tool set or toolPolicy for API-transport fm/task, or require native coding transports for fm/task.",
+        "validation": "T-M2-003 preview shows a concrete transportId. A new M2 fixture with two allowed transports and no selector fails with PEL_PROFILE_UNSUPPORTED or an ambiguity code. T-M5-001 asserts the resolved transport and tool policy in the ProviderRequestV1."
+      },
+      {
+        "id": "EXECUTION-016",
+        "severity": "major",
+        "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+        "requirement_ids": [
+          "R-M2-008",
+          "R-M2-009",
+          "R-M2-012"
+        ],
+        "problem": "Several M2 validation commands will not run as npm scripts. They use brace expansion: `npx esbuild packages/orchestration/src/{pel-authoring-cli,pel-generation,pel-draft-session}.test.ts ...`, `node --test packages/orchestration/dist-pel-test/{...}.test.js` and `node --test packages/pel/dist-test/test/{checker,analysis,preview,binding}.test.js`. Task F-M2-06 adds them to package scripts. scripts/run-tests.ts documents that npm runs scripts with sh (dash), which performs no brace expansion, so the literal paths fail. The commands also bypass run-tests.ts's zero-match guard.",
+        "required_change": "List explicit file paths, or route the tests through `tsx scripts/run-tests.ts` with quoted globs as the rest of the repository does. If a compiled bundle is required, add a TypeScript build script that enumerates the entries.",
+        "validation": "Run the new npm script under `sh -c` (dash) in CI and confirm every intended test file executes and a missing file fails."
+      },
+      {
+        "id": "EXECUTION-017",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-03-model-adapters/tasks.md",
+        "requirement_ids": [
+          "R-M3-019",
+          "R-M2-008"
+        ],
+        "problem": "M2 and M3 both claim to create packages/providers/package.json, tsconfig.json and src/contract.ts, and the release README lets M2 and M3 proceed in parallel. Dependency metadata is also inconsistent: M2 depends_on uses 'foredi-01-pel-language'; M3\u2013M6 use 'M1'; M6 omits M1 although the README says M1\u2013M5; M3 implements the M2 GenerationRequest without declaring M2.",
+        "required_change": "Assign package bootstrap to one milestone and make the other extend it. Normalize depends_on to one identifier form and make it match the README.",
+        "validation": "Catalog verification checks that depends_on uses one form and agrees with the README table. Only one tasks.md creates each providers bootstrap file."
+      },
+      {
+        "id": "EXECUTION-018",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-03-model-adapters/design.md",
+        "requirement_ids": [
+          "R-M3-017",
+          "R-M3-018"
+        ],
+        "problem": "`foreman providers list/qualify` are placed on 'the existing orchestration CLI', but no unified foreman router exists in build-runtime ENTRIES. M2 creates the foreman.js bundle and tells later milestones not to add another command parser.",
+        "required_change": "State that providers subcommands extend M2's pel-authoring-cli/pel-authoring-main in dist/foreman.js.",
+        "validation": "The build manifest has a single foreman.js entry, and T-M3-018 invokes `node skills/foreman/runtime/dist/foreman.js providers list --json`."
+      },
+      {
+        "id": "EXECUTION-019",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M4-001",
+          "R-M5-015",
+          "R-M6-006"
+        ],
+        "problem": "Exit codes are incomplete across commands. M2 uses 3 for input/environment errors and 4 for exhausted generation. M4 lifecycle uses 3 for needs-action and 4 for cancelled. `foreman run` never defines the code for a missing source file, a check failure or an unavailable profile; M6 says only 'nonzero'.",
+        "required_change": "Add run/resume input, check and admission failure codes to the M4 table, reusing 2 for invalid request consistently or stating the distinction explicitly.",
+        "validation": "T-M5-015 and T-M6-006 assert an exact exit code."
+      },
+      {
+        "id": "EXECUTION-020",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-012",
+          "R-M4-006"
+        ],
+        "problem": "Suspension after partial receipts is ambiguous. After resumePel with a subset of receipts, the spec does not say whether `suspend.ready` repeats still-pending requests or lists only newly ready ones, and M4's scheduler dedup depends on this.",
+        "required_change": "Define `ready` as newly released requests only, or as all unreceipted requests flagged with `alreadyEmitted`.",
+        "validation": "T-M1-009 asserts the ready contents after a B-before-A partial resume."
+      },
+      {
+        "id": "EXECUTION-021",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-06-adoption/design.md",
+        "requirement_ids": [
+          "R-M6-002",
+          "R-M5-008",
+          "R-M2-003"
+        ],
+        "problem": "The same standard workflow ships under three example names: M2 examples/pel/sequential.pel, M5 implement-verify-review.pel and M6 implement-review.pel. The repair workflow is M5 repair-and-publish.pel and M6 bounded-rework.pel. Package, quickstart and parity tests will reference inconsistent files.",
+        "required_change": "Choose one filename per workflow and use it in all milestones.",
+        "validation": "A catalog check verifies that every example path named in tests exists in the M6 package manifest."
+      },
+      {
+        "id": "EXECUTION-022",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-013",
+          "R-M2-003"
+        ],
+        "problem": "pel/nl-condition 'uses the same host interface as every other model call', but case syntax carries no model or transport. M2 previews must show an exact model profile per effect, and no snapshot or admission field binds the predicate's profile.",
+        "required_change": "Add an admitted `nlConditionProfile` (profile and transport) to AuthoringSnapshotV1 and the execution binding, and show it in previews.",
+        "validation": "T-M2-004 case fixture previews the predicate effect with the exact profile and transport."
+      }
+    ],
+    "summary": "The six OpenSpecs are unusually disciplined. They keep identities exact, report cancellation and readiness truthfully, and state throughout that no live or runtime evidence exists. The cross-milestone execution interfaces are not yet implementable as written. Five areas break across M1/M3/M4/M5: (1) source revision replay contradicts the digest-derived request identity; (2) ProviderRequestV1 has no fields for the reasoning and mode controls that M3 validates; (3) provider tool calls, cursors and reconciliation have no durable journal or transport contract; (4) M4 reserves every host request before its handler runs, which conflicts with M5 verification reuse, needs-action publication and executeChild; (5) M5 result values, repair-loop structure and worktree allocation are not expressible or unambiguous under the M1/M4 contracts. Failure taxonomies differ across M2/M3/M4, and several M2 validation commands rely on brace expansion that npm's sh does not perform. All findings are specification defects found by reading. Nothing was executed."
+  },
+  {
+    "role": "release",
+    "verdict": "needs_revision",
+    "findings": [
+      {
+        "id": "RELEASE-001",
+        "severity": "blocker",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M4-001",
+          "R-M5-008",
+          "R-M5-009",
+          "R-M5-011",
+          "R-M6-002"
+        ],
+        "problem": "`foreman run FILE` 'resolves the configured project state root and existing execution authority' and requires no separately authored JSON plan. No spec defines that project configuration: its location, schema, or setup command. No spec says how ExecutionBindingV1 and ExecutionContractV1 are derived from it. The derivation must supply limits, concurrency, correction and progress bounds, required milestones (review, publication), gate argv registry, publication destination descriptors and workspace grants. M5 and M6 depend on these values, but only `--binding` fixture overrides are concrete. M6 quickstart step 5 ('configure the project's existing authority') names no command or file.",
+        "required_change": "Specify the project configuration contract. Give its file path, a versioned schema listing the fields above, and the setup command (existing or new) that writes it. Define a pure derivation function from configuration plus CheckedProgramV1 to ExecutionBindingV1 and contract. Specify diagnostics and exit codes for a missing or invalid configuration.",
+        "validation": "Add a T-M4 acceptance variant that runs `foreman run fixture.pel` with no `--binding` against a fixture configuration and asserts the derived binding fields. T-M6-002 names the exact configuration fixture. A missing-configuration fixture returns the specified code with zero dispatch."
+      },
+      {
+        "id": "RELEASE-002",
+        "severity": "major",
+        "file": "openspec/changes/foredi-05-task-delivery/design.md",
+        "requirement_ids": [
+          "R-M2-003",
+          "R-M3-006",
+          "R-M5-008",
+          "R-M5-015",
+          "R-M6-005"
+        ],
+        "problem": "`fm/task` and `fm/review` accept only `:model`, but M3 requires an explicit transport with no fallback. M2 previews must show the transport, and M6 promises transport choice 'through the supported admission configuration', which is never defined. R-M5-008 reruns with 'a second admitted provider assignment and unchanged control flow' while the model is a literal string in the source. No rebinding mechanism is specified.",
+        "required_change": "Define one mechanism that resolves the exact transport and permits reassignment without editing control flow. Either add a `:transport` argument or define a configuration or binding map from logical role or model to an exact profile/transport pair. State how that map enters AuthoringSnapshotV1 and ExecutionBindingV1 digests.",
+        "validation": "T-M2-003 asserts the preview transport derived from the named source. T-M5-008 runs the second assignment using only the defined mapping and asserts identical control flow with a changed binding digest."
+      },
+      {
+        "id": "RELEASE-003",
+        "severity": "major",
+        "file": "openspec/changes/foredi-03-model-adapters/design.md",
+        "requirement_ids": [
+          "R-M3-017",
+          "R-M3-018",
+          "R-M6-007",
+          "R-M6-013",
+          "R-M6-017",
+          "R-M6-018"
+        ],
+        "problem": "M3 adds `foreman providers` 'through the existing orchestration CLI', and M6 'extends the existing CLI router'. scripts/build-runtime.ts has no `foreman` router, only separate `*-main` bundles. M2 creates `pel-authoring-cli.ts` and `dist/foreman.js`, and M4 forbids another command parser. The owner module for the providers, migrate, research, support and install subcommands is therefore contradictory.",
+        "required_change": "Name `packages/orchestration/src/pel-authoring-cli.ts` (or one renamed router module) as the sole `foreman` subcommand router. Update M3 and M6 file tables and tasks to register their subcommands there and bundle them into `dist/foreman.js`.",
+        "validation": "Every CLI action in the M3 and M6 catalogs resolves to a subcommand registered in the named router. Only one `foreman` bundle entry exists in the build-runtime tasks."
+      },
+      {
+        "id": "RELEASE-004",
+        "severity": "major",
+        "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+        "requirement_ids": [
+          "R-M2-001",
+          "R-M2-002",
+          "R-M4-011",
+          "R-M6-003",
+          "R-M6-006"
+        ],
+        "problem": "One bundle uses conflicting exit-code meanings. For check and plan, 3 means input/environment error and 4 means generation exhausted. For lifecycle commands, 3 means needs-action and 4 means cancelled. `foreman run` also performs check and admission, but the specs do not say what it returns for a source error, a missing snapshot, owner-busy, or ModelUnavailable. R-M6-006 says only 'nonzero'. providers, migrate, research, install and support have no exit codes at all.",
+        "required_change": "Publish a per-subcommand exit-code table covering run-time check, admission, provider-unavailable and RunFailure codes. Cover every M3 and M6 subcommand. Avoid reusing a code with a different meaning for the same outcome class.",
+        "validation": "Each acceptance test that invokes the CLI asserts the exact code from the table, including T-M6-006 and T-M6-003."
+      },
+      {
+        "id": "RELEASE-005",
+        "severity": "major",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M4-014",
+          "R-M1-014"
+        ],
+        "problem": "M1 node IDs and request IDs hash the source digest, and continuations are rejected when the source digest changes. Any source revision therefore changes every node and request ID, including the unchanged completed prefix. Yet M4 requires 'unchanged effect identities' and receipt reuse after `--revision`. No old-to-new identity mapping is defined. PelRecoveryDecisionV1 allows only accept-result, confirm-no-dispatch and abandon, so the `--decision revision.json` used by T-M4-014 has no schema.",
+        "required_change": "Define a revision identity rule, for example matching completed-prefix subtrees by normalized AST and path under a parent digest, plus an explicit request-ID remap record. Specify how a revised continuation is accepted under a new source digest. Add a revision decision variant or a separate schema.",
+        "validation": "Extend T-M4-014 so a revision changing only the pending expression reuses prior receipts with zero dispatch through the remap. Altering one completed subtree fails `continuation-incompatible`."
+      },
+      {
+        "id": "RELEASE-006",
+        "severity": "major",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M4-003",
+          "R-M4-004",
+          "R-M1-011"
+        ],
+        "problem": "Only `fm/checkpoint` records a PelContinuationV1. The spec never says whether crash recovery without a checkpoint re-evaluates from program start by replaying receipts or restores a continuation persisted with each intent or result. With replay, pure fuel and iteration counters are re-consumed. That conflicts with 'repeated resume never resets counters' and 'budgets never increase', and replay could hit a limit the original run did not.",
+        "required_change": "State the recovery source explicitly: either persist the continuation with each suspension batch, or define deterministic replay with counters restored from the journal rather than recomputed. Define which record supplies counters.",
+        "validation": "In T-M4-003 and T-M4-004, assert that consumed reduction and iteration counters after resume equal the pre-crash journaled values, with no PEL_LIMIT caused by replay."
+      },
+      {
+        "id": "RELEASE-007",
+        "severity": "major",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-012",
+          "R-M2-004",
+          "R-M4-007"
+        ],
+        "problem": "'Only the host registry can create descriptors', yet M1 exports no registry constructor or type, and `startPel(program, environment, limits)` takes no registry. Request IDs nevertheless hash a registry digest, and M5 calls `makeForemanHostRegistry()` 'extending M2 descriptors'. Descriptors carry static `reads`/`writes`/`unknown`, but real resources depend on arguments (worktree from `:id`, destination). No argument-to-resource resolution contract exists for M2 analysis or M4 `acquireEffectResources`.",
+        "required_change": "Export a registry builder (for example `createHostRegistry(descriptors): HostRegistryV1` with a digest) and pass it to startPel, resumePel and parsePel or checkPel. Define a host-side, data-described resource resolution contract from bound arguments to canonical resource sets, used by both M2 and M4.",
+        "validation": "T-M1-012 constructs the registry through the export. T-M4-007 obtains write sets through the resolver from arguments rather than hand-written sets."
+      },
+      {
+        "id": "RELEASE-008",
+        "severity": "major",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-012",
+          "R-M2-010",
+          "R-M3-019",
+          "R-M4-009"
+        ],
+        "problem": "The specs never say what the evaluator does with `{tag:'failure'}` receipts: which PelStep results and which diagnostic code (no code exists beyond PEL_HOST_RESULT, which covers invalid receipts). Failure vocabularies also diverge: M2 uses kebab-case categories (auth, refused, ...), M3 uses PascalCase tags (RateLimited, OutputIncomplete, CapabilityUnverified, ...) with no mapping, and M4 uses HostEffectFailure codes. `fm/retry :on [categories]` has no defined value set, although T-M4-009 relies on 'rate-limit'.",
+        "required_change": "Add a diagnostic code (for example PEL_HOST_FAILURE) carrying HostEffectFailure, and specify the failed-step semantics. Publish one mapping table from M3 tags to M2 categories and HostEffectFailure codes. Define `fm/retry :on` as an enumerated string or key set drawn from that table.",
+        "validation": "Table-driven tests in generation.test.ts and pel-control-functions.test.ts assert each M3 tag maps to the declared category and retry eligibility. A failure receipt test in host-contract.test.ts asserts the new code."
+      },
+      {
+        "id": "RELEASE-009",
+        "severity": "major",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M1-013",
+          "R-M2-004",
+          "R-M4-006"
+        ],
+        "problem": "M1 makes `pel/nl-condition` and `print` host descriptors, but no milestone registers their executable handlers, gives them output schemas, or selects a model and transport for the natural-language predicate. The paper feature therefore cannot run in M4 or M5, and M2 cannot preview its exact model. `print` writes to stdout, which conflicts with the `--json` rule of exactly one object on stdout.",
+        "required_change": "Assign handler ownership (M4 or M5 host library) for `pel/nl-condition` and `print`. Define how the predicate's exact profile and transport is selected, per the RELEASE-002 mechanism. Route `print` output to a journaled output stream or stderr in JSON mode.",
+        "validation": "Add an M4 or M5 test that runs a `case` with a string condition through a fixture provider with a journaled Boolean result and replay. A `print` test under `--json` asserts that stdout contains exactly one JSON object."
+      },
+      {
+        "id": "RELEASE-010",
+        "severity": "major",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-005",
+          "R-M1-006",
+          "R-M1-010"
+        ],
+        "problem": "The frozen library lists names but not ArgSpec parameter names, so named calls, partial application of builtins and signature rendering are undefined. The `+` list overload makes one-argument calls ambiguous: `(+ 5)` must be partial for T-M1-007, but `(+ [a b])` must complete, and the dispatch rule is not stated. `lambda` has no signature. The AST representation that distinguishes a bare required `:x` from `:x #nil` (explicit nil default) is not specified, although pair formation gives both nil values.",
+        "required_change": "Give each builtin an exact ArgSpec (for example `+ :x :y`) and state the overload rule (for example, one list argument completes, one non-list argument is partial). Specify the `lambda` signature with non-strict params and body. Specify that pair AST nodes record value presence so ArgSpec reads syntax, not evaluated pairs.",
+        "validation": "Fixtures cover `(+ :x 1 :y 2)`, `((+ 5) 4)`, `(+ [1 2])` and `((+ 5) [1 2])` yielding PEL_TYPE, plus `(lambda [:x #nil] x)` called with zero arguments returning nil while `(lambda [:x] x)` returns a partial closure."
+      },
+      {
+        "id": "RELEASE-011",
+        "severity": "major",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-001",
+          "R-M1-002"
+        ],
+        "problem": "The profile is drawn from `arxiv-2505.13453v2.txt`, which shows glyph-collapse artifacts: `(^^.)` stands for an ellipsis and `; ^> 9` stands for '=> 9', alongside a literal `; => 5`. The profile's KEY character set includes caret and greater-than but omits `*` and `<`. The pipe token `^>` coexists with an unexplained 'vertical bar is a delimiter' rule, although the paper cites Elixir's pipe. These lexical choices may be accidental changes from extraction rather than explicit corrections.",
+        "required_change": "Verify the KEY class, SYMBOL exclusions and PIPE token against the PDF whose digest is in manifest.json. Record each glyph decision in compatibility.md as paper, erratum or extension with the page reference.",
+        "validation": "The paper-v2.json fixtures for \u00a74.1 cite the PDF page, and a reviewer confirms the character sets from the PDF rather than the text capture."
+      },
+      {
+        "id": "RELEASE-012",
+        "severity": "major",
+        "file": "openspec/changes/foredi-05-task-delivery/design.md",
+        "requirement_ids": [
+          "R-M5-009"
+        ],
+        "problem": "The repair example is specified as 'native `if` and bounded `for`'. `for` evaluates every body, has no early exit, and cannot pass one iteration's candidate or findings to the next, because bindings are immutable and the body sees only the element. 'Repair until approved, at most N rounds' is not expressible that way.",
+        "required_change": "Specify the repair program as a recursive lambda with an explicit round counter, bounded by the admitted correction limit, which M1 self-reference supports. Include the exact expected source in the design.",
+        "validation": "T-M5-009 checks `repair-and-publish.pel` and asserts that approval on round 1 dispatches no further fm/task calls. Exhaustion stops at the admitted bound."
+      },
+      {
+        "id": "RELEASE-013",
+        "severity": "major",
+        "file": "openspec/changes/foredi-05-task-delivery/design.md",
+        "requirement_ids": [
+          "R-M5-004",
+          "R-M6-012",
+          "R-M4-003"
+        ],
+        "problem": "M5 says repeated unchanged verification 'consumes no new verification action'. M4 reserves an action through the ledger for every external effect before dispatch, and a second `fm/verify` call has a distinct request and effect ID, so the reservation happens before the handler can decide to reuse the receipt. The two specs contradict each other.",
+        "required_change": "Define a pre-reservation reuse lookup keyed by the candidate, gate, environment, policy and freshness binding, or classify matched reuse as a non-reserving host read. State this in both the M4 dispatch steps and the M5 design.",
+        "validation": "T-M5-004 asserts that the ledger reservation count is unchanged for the second unchanged `fm/verify` call and increments for each changed binding."
+      },
+      {
+        "id": "RELEASE-014",
+        "severity": "major",
+        "file": "openspec/changes/foredi-06-adoption/design.md",
+        "requirement_ids": [
+          "R-M6-001",
+          "R-M6-003",
+          "R-M6-017"
+        ],
+        "problem": "M6 defers the install command ('after the existing installer interface is selected'). It leaves undefined how a clean machine runs the installer before `foreman` exists, the install prefix and version-retention layout needed for `rollback --to`, and how the `foreman` executable reaches PATH without a new shell launcher, which AGENTS.md forbids. It also does not say which state roots rollback checks for journal and checkpoint compatibility. T-M6-001 and T-M6-003 depend on this unspecified command.",
+        "required_change": "Specify the install entry point (for example `node <archive>/install.js` from the TS build, or an npm tarball bin), the install directory layout with retained versions, the PATH mechanism that complies with AGENTS.md, and the rollback scope for state roots.",
+        "validation": "T-M6-001, T-M6-003 and T-M6-017 name the exact commands and paths. A test asserts that no new non-TypeScript executable source was added."
+      },
+      {
+        "id": "RELEASE-015",
+        "severity": "major",
+        "file": "openspec/changes/foredi-06-adoption/design.md",
+        "requirement_ids": [
+          "R-M6-007",
+          "R-M6-009"
+        ],
+        "problem": "`foreman migrate` accepts 'supported recorded or dormant plans', but the formats and versions (RoundPlanV1, ExecutionContractV1, lane configurations?) and the corpus location are not enumerated. The parity corpus includes Council review with blinding and quorum, yet no milestone defines a Pel host function for Council review, so migrated Council workflows have no Pel target.",
+        "required_change": "Enumerate the supported legacy input schemas and versions with example fixture paths. Either add a Council review host function (arguments, result keys, policy binding) to M5 or M6, or explicitly exclude Council from the parity corpus and deletion cohort.",
+        "validation": "T-M6-007 lists each input format fixture path, and every corpus case checks against registered descriptors."
+      },
+      {
+        "id": "RELEASE-016",
+        "severity": "major",
+        "file": "openspec/changes/foredi-06-adoption/design.md",
+        "requirement_ids": [
+          "R-M6-010",
+          "R-M6-011"
+        ],
+        "problem": "The deletion cohort, instruction corpus and tokenizer are chosen later during implementation, and legacy dispositions read 'delete ... or retain a thin compatibility adapter'. Because the implementer can shape the denominators, the 40% glue and 50% instruction thresholds are not falsifiable at spec approval.",
+        "required_change": "Fix in the spec the cohort file list (or ranges), the required instruction source files, the tokenizer package and version, and a single disposition per legacy path. Freezing then records hashes only.",
+        "validation": "The baseline JSON is compared against the spec-listed cohort, and T-M6-010 fails if cohort membership differs from the spec."
+      },
+      {
+        "id": "RELEASE-017",
+        "severity": "major",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M2-008",
+          "R-M4-001",
+          "R-M5-008",
+          "R-M6-002",
+          "R-M6-004"
+        ],
+        "problem": "Many acceptance tests run the compiled `foreman.js` (or the installed product) with fixture or fake providers, but no spec defines how recorded transports and registry fixtures are injected into the compiled CLI. Examples would be a flag, an environment variable, or a fixture registry file bound to the state root. The specs also do not prevent production from accepting fixtures as qualified evidence.",
+        "required_change": "Define a test-only transport fixture selection mechanism with its binding to state or binding data. Require that fixture-backed runs are labeled and can never produce live-qualified evidence.",
+        "validation": "The CLI acceptance tests use the named mechanism. A negative test shows that `providers list` never labels fixture-backed cells live-qualified."
+      },
+      {
+        "id": "RELEASE-018",
+        "severity": "major",
+        "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+        "requirement_ids": [
+          "R-M2-001",
+          "R-M2-004",
+          "R-M2-007",
+          "R-M2-012"
+        ],
+        "problem": "M2's test commands use brace expansion: `{pel-authoring-cli,...}.test.ts` and `dist-test/test/{checker,analysis,preview,binding}.test.js`. Tasks add these to package test scripts, which npm runs under sh/dash without brace expansion (scripts/run-tests.ts documents dash behavior). `checker.test.js` has no catalog test. The esbuild path also duplicates the root tsx runner, which already globs `packages/orchestration/src/**/*.test.ts`.",
+        "required_change": "Replace the brace-expanded commands with explicit file lists or `tsx scripts/run-tests.ts` quoted globs. Remove the `checker.test.js` reference or add catalog tests targeting it. Use one test runner convention per package.",
+        "validation": "`npm run test` selects every M2 catalog target file with no zero-match pattern, as enforced by run-tests.ts."
+      },
+      {
+        "id": "RELEASE-019",
+        "severity": "major",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M4-011",
+          "R-M4-015",
+          "R-M6-002"
+        ],
+        "problem": "The specs do not say whether `foreman run` stays attached as the owner until terminal state or detaches. They do not say when and where the run ID is emitted, or when `run` itself returns exit 5 (pending). Quickstart step 7 needs the run ID for status and cancel while the run is active.",
+        "required_change": "Specify run attachment behavior, emission of the run ID (a JSON field and stderr line at start), the exit semantics of `run` for each state, and how an operator obtains the ID for a running program.",
+        "validation": "T-M4-011 and T-M6-002 read the run ID from the specified output before the run finishes and invoke status and cancel concurrently."
+      },
+      {
+        "id": "RELEASE-020",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-06-adoption/design.md",
+        "requirement_ids": [
+          "R-M2-013",
+          "R-M5-008",
+          "R-M6-004"
+        ],
+        "problem": "Three overlapping task/verify/review examples exist: M2 `sequential.pel`, M5 `implement-verify-review.pel` and M6 `implement-review.pel`. The quickstart names the M6 file, which M5 does not create. M2's conditional example looks up `:passed`, but the M5 `fm/verify` result-key table omits `passed`.",
+        "required_change": "Consolidate on one standard example path used by M2, M5 and M6. Add `passed` to the `fm/verify` result keys.",
+        "validation": "All examples referenced across the catalogs exist in one list in M6, and T-M2-013 plus T-M5-008 use the same file."
+      },
+      {
+        "id": "RELEASE-021",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-06-adoption/spec.md",
+        "requirement_ids": [
+          "R-M6-001",
+          "R-M6-016"
+        ],
+        "problem": "T-M6-001 runs `foreman --version` and expects it to match the archive, while R-M6-016 forbids an invented numerical version and the version is unassigned. No milestone defines the version command or its output.",
+        "required_change": "Define the `--version` output (release name, candidate hash and optional numeric version once assigned) and which milestone implements it.",
+        "validation": "T-M6-001 asserts the exact format with a null or absent numeric version."
+      },
+      {
+        "id": "RELEASE-022",
+        "severity": "minor",
+        "file": "docs/reference/pel/compatibility.md",
+        "requirement_ids": [
+          "R-M1-009",
+          "R-M1-010"
+        ],
+        "problem": "Some profile decisions are not classified as erratum or extension. `do` evaluates in a child scope, so defines do not escape. The paper's `(print \"Hello, \" name)` would silently bind `name` as `:sep` under the frozen signature. \u00a76 runtime Pel generation by router agents has no path, because there is no eval and no nested run, and this is not declared out of scope.",
+        "required_change": "Add these as classified entries with fixtures, or state them as unsupported in extensions.md.",
+        "validation": "paper-v2.json contains classified fixtures for each decision."
+      },
+      {
+        "id": "RELEASE-023",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-06-adoption/tasks.md",
+        "requirement_ids": [
+          "R-M6-010",
+          "R-M2-001"
+        ],
+        "problem": "T-M6-010 executes `dist/pel-simplification.js`, but no task adds that bundle entry to scripts/build-runtime.ts. M2's 'installed immutable default authoring snapshot' is never listed in build or package contents.",
+        "required_change": "Add the build entry and the packaging of the default authoring snapshot to the M6 (or M2) tasks and InstallManifestV1.",
+        "validation": "The build manifest lists both artifacts, and T-M6-016 asserts their hashes."
+      },
+      {
+        "id": "RELEASE-024",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-01-pel-language/catalog.json",
+        "requirement_ids": [
+          "R-M1-011"
+        ],
+        "problem": "Catalog `depends_on` uses inconsistent identifier forms: `[]`, a change ID in M2, `M1` in M3, and M6 omits M1 although the README says M1\u2013M5. The limits and counters types are unnamed, yet T-M1-011 uses `maxIterations`.",
+        "required_change": "Normalize `depends_on` identifiers. Define the PelLimitsV1 and PelCounters field names.",
+        "validation": "The release catalog verification checks the dependency identifier form, and T-M1-011 uses the declared field names."
+      },
+      {
+        "id": "RELEASE-025",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-04-durable-execution/design.md",
+        "requirement_ids": [
+          "R-M4-008"
+        ],
+        "problem": "The `fm/race` return value (winner value versus a record of winner and losers) is unspecified. The spec does not say how shared writable resources are detected before dispatch, when contender effects are only known after evaluating their closures.",
+        "required_change": "Specify the race result shape. Require contenders to declare resources through analyzable closure effect sets (M2) or through explicit `:resources` arguments.",
+        "validation": "T-M4-008 asserts the result shape and a pre-dispatch rejection derived from the declared mechanism."
+      },
+      {
+        "id": "RELEASE-026",
+        "severity": "minor",
+        "file": "openspec/changes/foredi-01-pel-language/design.md",
+        "requirement_ids": [
+          "R-M1-002"
+        ],
+        "problem": "Digit-leading tokens that fail the number grammar (for example `1e5`) are not classified as a lex error or a symbol, so the T-M1-002 'nonfinite numeric text' fixture has no deterministic expected code. `packages/pel/dist-test` is not excluded from the `packages/**/*.ts` include in tsconfig.all.json if declaration output is emitted.",
+        "required_change": "State the lexical classification and diagnostic code for such tokens. Exclude `dist-test` in tsconfig.all.json or disable declaration emit in tsconfig.test.json.",
+        "validation": "T-M1-002 asserts the exact code for `1e5` and for an overlong decimal, and `npm run typecheck` passes after the test build."
+      }
+    ],
+    "summary": "The six OpenSpecs are feature-shaped and mostly EARS-complete, with every requirement mapped to a planned test. The M1 language profile is unusually precise. The release is still not implementable end to end. `foreman run` resolves project configuration that no spec defines. Several cross-milestone seams have no owner or contradict each other: model-to-transport selection, the CLI router, host registry construction, failure vocabularies, revision identity, verification reuse versus reservation, and handlers for `pel/nl-condition` and `print`. M6 install and rollback, the migration inputs, and the deletion cohort are deferred, so R-M6-001, R-M6-007 and R-M6-011 cannot be falsified. Some fixture commands conflict with the declared npm/dash test setup."
+  }
+]

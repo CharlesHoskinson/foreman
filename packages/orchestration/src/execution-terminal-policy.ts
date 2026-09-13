@@ -418,6 +418,14 @@ export function evolveExecution(
       return {
         ...state,
         currentCandidateSha256: event.candidateSha256,
+        milestoneCandidateSha256:
+          state.milestoneCandidateSha256 === event.candidateSha256
+            ? state.milestoneCandidateSha256
+            : null,
+        milestones:
+          state.milestoneCandidateSha256 === event.candidateSha256
+            ? state.milestones
+            : {},
         lastProductChangeAt:
           event.candidateSha256 === state.currentCandidateSha256
             ? state.lastProductChangeAt

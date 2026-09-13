@@ -1,3 +1,4 @@
+import {makePelInstalledAdmission} from './pel-install-admission.js';
 import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -1331,55 +1332,67 @@ export function main(): number | Promise<number> {
         );
         return 0;
       }
-      if (!ensureProjectRegistryParent(registryPath)) {
-        process.stderr.write("refusing: project registry is unavailable\n");
+      // Registry lookup, identity selection, store binding and publication share
+      // the existing admission transaction. Another writer cannot invalidate the choice.
+      const registration = Effect.runSync(makePelInstalledAdmission(import.meta.url,dirname(registryPath))(Effect.try({try:()=>{
+        if (!ensureProjectRegistryParent(registryPath)) {
+          process.stderr.write("refusing: project registry is unavailable\n");
+          exitCli(1);
+        }
+        const loaded = loadProjectRegistryFileV1(registryPath);
+        if (loaded._tag === "Invalid") {
+          process.stderr.write("refusing: project registry is unavailable\n");
+          exitCli(1);
+        }
+        const commonMatch = loaded.value.projects.find(
+          (project) => project.git_common_dir === identity.gitCommonDir,
+        );
+        const storeMatch = loaded.value.projects.find(
+          (project) => project.store_location === storeLocation,
+        );
+        if (
+          (commonMatch === undefined) !== (storeMatch === undefined) ||
+          (commonMatch !== undefined && commonMatch !== storeMatch)
+        ) {
+          process.stderr.write("refusing: project registration failed\n");
+          exitCli(1);
+        }
+        const storedProjectId = store.projectId();
+        const registeredProjectId = commonMatch?.project_id ?? null;
+        if (
+          storedProjectId !== null &&
+          registeredProjectId !== null &&
+          storedProjectId !== registeredProjectId
+        ) {
+          process.stderr.write("refusing: project store binding is conflicted\n");
+          exitCli(1);
+        }
+        const projectId =
+          registeredProjectId ?? storedProjectId ?? randomUUID();
+        try {
+          store.bindProject(projectId);
+        } catch {
+          process.stderr.write("refusing: project store binding failed\n");
+          exitCli(1);
+        }
+        return registerProjectFileV1(registryPath, {
+          project_id: projectId,
+          operation_id: randomUUID(),
+          git_common_dir: identity.gitCommonDir,
+          worktree_path: identity.worktreePath,
+          store_backend:
+            selection.locationKind === "directory" ? "files-only" : "sqlite",
+          store_location: storeLocation,
+        });
+      },catch:(error:unknown)=>error instanceof CliRefusal?error:{_tag:'ProjectRegistrationFailure' as const}})).pipe(Effect.either));
+      if(registration._tag==='Left'){
+        if(registration.left instanceof CliRefusal)throw registration.left;
+        process.stderr.write(registration.left._tag==='PelRunFailure'
+          ? `refusing: ${registration.left.diagnostic.message}\n`
+          : 'refusing: project registration failed\n');
         exitCli(1);
       }
-      const loaded = loadProjectRegistryFileV1(registryPath);
-      if (loaded._tag === "Invalid") {
-        process.stderr.write("refusing: project registry is unavailable\n");
-        exitCli(1);
-      }
-      const commonMatch = loaded.value.projects.find(
-        (project) => project.git_common_dir === identity.gitCommonDir,
-      );
-      const storeMatch = loaded.value.projects.find(
-        (project) => project.store_location === storeLocation,
-      );
-      if (
-        (commonMatch === undefined) !== (storeMatch === undefined) ||
-        (commonMatch !== undefined && commonMatch !== storeMatch)
-      ) {
-        process.stderr.write("refusing: project registration failed\n");
-        exitCli(1);
-      }
-      const storedProjectId = store.projectId();
-      const registeredProjectId = commonMatch?.project_id ?? null;
-      if (
-        storedProjectId !== null &&
-        registeredProjectId !== null &&
-        storedProjectId !== registeredProjectId
-      ) {
-        process.stderr.write("refusing: project store binding is conflicted\n");
-        exitCli(1);
-      }
-      const projectId =
-        registeredProjectId ?? storedProjectId ?? randomUUID();
-      try {
-        store.bindProject(projectId);
-      } catch {
-        process.stderr.write("refusing: project store binding failed\n");
-        exitCli(1);
-      }
-      const registered = registerProjectFileV1(registryPath, {
-        project_id: projectId,
-        operation_id: randomUUID(),
-        git_common_dir: identity.gitCommonDir,
-        worktree_path: identity.worktreePath,
-        store_backend:
-          selection.locationKind === "directory" ? "files-only" : "sqlite",
-        store_location: storeLocation,
-      });
+      const registered=registration.right;
       if (registered._tag === "Refused") {
         process.stderr.write("refusing: project registration failed\n");
         exitCli(1);
@@ -1922,7 +1935,7 @@ async function mainWithSidecar(): Promise<void> {
 // test executed. It also made production behaviour depend on an environment
 // variable: anything setting NODE_ENV=test would silently get a no-op CLI.
 const invokedDirectly =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+  process.argv[1] !== undefined && /(?:^|[/\\])fm-session(?:-main\.ts|\.js)$/u.test(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invokedDirectly) {
   void mainWithSidecar().catch((e) => {
     // Promise-safe direct entry: no unhandled rejection, no stack dump.

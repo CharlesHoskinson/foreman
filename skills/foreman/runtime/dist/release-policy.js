@@ -30587,6 +30587,78 @@ function isCommitSha40(value) {
   return COMMIT_SHA40.test(value);
 }
 
+// packages/core/src/kernel-lock.ts
+import { closeSync, constants, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readSync, realpathSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+var same = (a, b) => a.dev === b.dev && a.ino === b.ino;
+var protectedEntry = (info, mode) => info.uid === process.geteuid() && (info.mode & 4095) === mode;
+function installedFlock() {
+  for (const path of ["/usr/bin/flock", "/bin/flock"]) {
+    try {
+      const real = realpathSync(path), info = lstatSync(real);
+      if (info.isFile() && info.uid === 0 && (info.mode & 18) === 0 && (info.mode & 73) !== 0) return real;
+    } catch {
+    }
+  }
+  return null;
+}
+function acquireKernelDirectoryLock(runFd, entryName, protocol) {
+  if (process.platform !== "linux" || !process.geteuid || !/^[-a-zA-Z0-9_.]{1,160}$/.test(entryName) || entryName === "." || entryName === ".." || !protocol || protocol.length > 120) return null;
+  const executable = installedFlock();
+  if (!executable) return null;
+  let directoryFd, lockFd;
+  try {
+    const run = fstatSync(runFd);
+    if (!run.isDirectory() || run.uid !== process.geteuid() || (run.mode & 18) !== 0) return null;
+    const directoryPath = `/proc/self/fd/${runFd}/${entryName}`;
+    let created = false;
+    try {
+      mkdirSync(directoryPath, { mode: 448 });
+      created = true;
+    } catch (error) {
+      if (error.code !== "EEXIST") return null;
+    }
+    directoryFd = openSync(directoryPath, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+    const directory = fstatSync(directoryFd);
+    if (!directory.isDirectory() || !protectedEntry(directory, 448) || !same(directory, lstatSync(directoryPath))) return null;
+    const lockPath = `/proc/self/fd/${directoryFd}/owner-v1.lock`;
+    lockFd = openSync(lockPath, constants.O_RDWR | constants.O_NOFOLLOW | (created ? constants.O_CREAT | constants.O_EXCL : 0), 384);
+    const lock = fstatSync(lockFd);
+    if (!lock.isFile() || lock.nlink !== 1 || !protectedEntry(lock, 384) || !same(lock, lstatSync(lockPath))) return null;
+    const marker = Buffer.from(JSON.stringify({ protocol, runDevice: run.dev, runInode: run.ino, directoryDevice: directory.dev, directoryInode: directory.ino, lockDevice: lock.dev, lockInode: lock.ino }) + "\n");
+    if (created) {
+      writeFileSync(lockFd, marker);
+      fsyncSync(lockFd);
+      fsyncSync(directoryFd);
+      fsyncSync(runFd);
+    } else {
+      if (lock.size !== marker.length) return null;
+      const bytes = Buffer.alloc(marker.length);
+      if (readSync(lockFd, bytes, 0, bytes.length, 0) !== bytes.length || !bytes.equals(marker)) return null;
+    }
+    const acquired = spawnSync(executable, ["--exclusive", "--nonblock", "3"], { stdio: ["ignore", "ignore", "ignore", lockFd], timeout: 5e3, env: { PATH: "/usr/bin:/bin", LANG: "C" } });
+    if (acquired.status !== 0 || acquired.error || !same(run, fstatSync(runFd)) || !same(directory, lstatSync(directoryPath)) || !same(lock, lstatSync(lockPath)) || !protectedEntry(fstatSync(lockFd), 384)) return null;
+    const heldDirectory = directoryFd, heldLock = lockFd;
+    directoryFd = void 0;
+    lockFd = void 0;
+    let held = true;
+    return { release: () => {
+      if (!held) return;
+      held = false;
+      try {
+        closeSync(heldLock);
+      } finally {
+        closeSync(heldDirectory);
+      }
+    } };
+  } catch {
+    return null;
+  } finally {
+    if (lockFd !== void 0) closeSync(lockFd);
+    if (directoryFd !== void 0) closeSync(directoryFd);
+  }
+}
+
 // packages/event-log/src/bounds.ts
 var MAX_EVENT_NESTING_DEPTH = 64;
 var MAX_EVENT_JSON_NODES = 1e5;
@@ -31077,19 +31149,19 @@ function extractPayloadAttempt(payload) {
 
 // packages/event-log/src/run-journal.ts
 import {
-  closeSync,
+  closeSync as closeSync2,
   constants as fsConstants,
-  fstatSync,
-  fsyncSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-  readSync,
+  fstatSync as fstatSync2,
+  fsyncSync as fsyncSync2,
+  lstatSync as lstatSync2,
+  mkdirSync as mkdirSync2,
+  openSync as openSync2,
+  readSync as readSync2,
   renameSync,
   unlinkSync,
   writeSync
 } from "node:fs";
-import { dirname, join as join3 } from "node:path";
+import { basename, dirname, join as join3 } from "node:path";
 import { randomBytes } from "node:crypto";
 var RUN_JOURNAL_FAILURE_BRAND = Symbol(
   "@foreman/event-log/RunJournalFailure"
@@ -31151,7 +31223,7 @@ function isEexist(e) {
 function observePathKind(path) {
   let st;
   try {
-    st = lstatSync(path);
+    st = lstatSync2(path);
   } catch (e) {
     if (isEnoent(e)) return "missing";
     return "other";
@@ -31181,7 +31253,7 @@ function ensureLayoutDirs(stateRoot, segments) {
     }
     if (kind === "missing") {
       try {
-        mkdirSync(current, { recursive: false });
+        mkdirSync2(current, { recursive: false });
       } catch (e) {
         if (isEexist(e)) {
         } else if (isEnoent(e)) {
@@ -31201,7 +31273,7 @@ function ensureLayoutDirs(stateRoot, segments) {
 function pathMatchesOpenedFd(path, fd) {
   let pathSt;
   try {
-    pathSt = lstatSync(path);
+    pathSt = lstatSync2(path);
   } catch (e) {
     if (isEnoent(e)) return "identity_changed";
     return "read_failed";
@@ -31210,7 +31282,7 @@ function pathMatchesOpenedFd(path, fd) {
   if (!pathSt.isFile()) return "invalid_path";
   let fdSt;
   try {
-    fdSt = fstatSync(fd);
+    fdSt = fstatSync2(fd);
   } catch {
     return "identity_changed";
   }
@@ -31228,82 +31300,49 @@ function defaultWaitMs(ms) {
 }
 function acquireLockSync(lockPath, timing) {
   const kind = observePathKind(lockPath);
-  if (kind === "symlink" || kind === "directory" || kind === "other") {
+  if (kind === "symlink" || kind === "other") return runJournalFailure("invalid_path");
+  let parentFd;
+  try {
+    parentFd = openSync2(dirname(lockPath), fsConstants.O_RDONLY | fsConstants.O_DIRECTORY | fsConstants.O_NOFOLLOW);
+  } catch {
     return runJournalFailure("invalid_path");
   }
-  const start3 = timing.nowMs();
-  const deadline = start3 + timing.boundMs;
-  while (true) {
-    try {
-      const fd = openSync(
-        lockPath,
-        fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
-        384
-      );
-      let st;
-      try {
-        st = fstatSync(fd);
-      } catch {
-        try {
-          closeSync(fd);
-        } catch {
+  const deadline = timing.nowMs() + timing.boundMs;
+  let transferred = false;
+  try {
+    while (true) {
+      const parent = fstatSync2(parentFd), current = lstatSync2(dirname(lockPath));
+      if (!current.isDirectory() || !identitiesEqual(identityOf(parent), identityOf(current))) return runJournalFailure("identity_changed");
+      const lock = acquireKernelDirectoryLock(parentFd, basename(lockPath), "foreman-journal-transaction/flock/v1");
+      if (lock) {
+        const after3 = lstatSync2(dirname(lockPath));
+        if (!after3.isDirectory() || !identitiesEqual(identityOf(parent), identityOf(after3))) {
+          lock.release();
+          return runJournalFailure("identity_changed");
         }
-        try {
-          unlinkSync(lockPath);
-        } catch {
-        }
-        return runJournalFailure("write_failed");
+        transferred = true;
+        let held = true;
+        return { release: () => {
+          if (!held) return;
+          held = false;
+          try {
+            lock.release();
+          } finally {
+            closeSync2(parentFd);
+          }
+        } };
       }
-      if (!st.isFile()) {
-        try {
-          closeSync(fd);
-        } catch {
-        }
-        try {
-          unlinkSync(lockPath);
-        } catch {
-        }
-        return runJournalFailure("invalid_path");
-      }
-      const match12 = pathMatchesOpenedFd(lockPath, fd);
-      if (match12 !== "ok") {
-        try {
-          closeSync(fd);
-        } catch {
-        }
-        try {
-          unlinkSync(lockPath);
-        } catch {
-        }
-        return runJournalFailure(
-          match12 === "identity_changed" ? "identity_changed" : "invalid_path"
-        );
-      }
-      return { fd, path: lockPath, identity: identityOf(st) };
-    } catch (e) {
-      if (isEexist(e)) {
-        if (timing.nowMs() >= deadline) {
-          return runJournalFailure("journal_busy");
-        }
-        timing.waitMs(timing.spinMs);
-        continue;
-      }
-      return runJournalFailure("write_failed");
+      if (timing.nowMs() >= deadline) return runJournalFailure("journal_busy");
+      timing.waitMs(timing.spinMs);
     }
+  } catch {
+    return runJournalFailure("write_failed");
+  } finally {
+    if (!transferred) closeSync2(parentFd);
   }
 }
 function releaseLockSync(lock) {
-  try {
-    closeSync(lock.fd);
-  } catch {
-  }
-  try {
-    const st = lstatSync(lock.path);
-    if (st.isFile() && identitiesEqual(identityOf(st), lock.identity)) {
-      unlinkSync(lock.path);
-    }
-  } catch {
-  }
+  lock.release();
 }
 function withLockSync(lockPath, timing, body) {
   const lock = acquireLockSync(lockPath, timing);
@@ -31322,14 +31361,14 @@ function posixDirSync(dirPath) {
   }
   let fd;
   try {
-    fd = openSync(dirPath, fsConstants.O_RDONLY);
-    fsyncSync(fd);
+    fd = openSync2(dirPath, fsConstants.O_RDONLY);
+    fsyncSync2(fd);
   } catch {
     throw new Error("dir_sync_failed");
   } finally {
     if (fd !== void 0) {
       try {
-        closeSync(fd);
+        closeSync2(fd);
       } catch {
       }
     }
@@ -31346,7 +31385,7 @@ function durableReplaceFile(targetPath, content) {
   const tmpPath = join3(dir, tmpName);
   let fd;
   try {
-    fd = openSync(
+    fd = openSync2(
       tmpPath,
       fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
       384
@@ -31356,8 +31395,8 @@ function durableReplaceFile(targetPath, content) {
       const n = writeSync(fd, content, offset, content.byteLength - offset);
       offset += n;
     }
-    fsyncSync(fd);
-    closeSync(fd);
+    fsyncSync2(fd);
+    closeSync2(fd);
     fd = void 0;
     renameSync(tmpPath, targetPath);
     try {
@@ -31369,7 +31408,7 @@ function durableReplaceFile(targetPath, content) {
   } catch {
     if (fd !== void 0) {
       try {
-        closeSync(fd);
+        closeSync2(fd);
       } catch {
       }
     }
@@ -31410,8 +31449,8 @@ function allocateSync(stateRoot, runId, laneId, options) {
     } else {
       let fd;
       try {
-        fd = openSync(counterPath, noFollowReadFlags());
-        const st = fstatSync(fd);
+        fd = openSync2(counterPath, noFollowReadFlags());
+        const st = fstatSync2(fd);
         if (!st.isFile()) {
           return runJournalFailure("invalid_path");
         }
@@ -31419,7 +31458,7 @@ function allocateSync(stateRoot, runId, laneId, options) {
           return runJournalFailure("corrupt_state");
         }
         const buf = Buffer.allocUnsafe(MAX_ATTEMPT_COUNTER_BYTES);
-        const n = readSync(fd, buf, 0, MAX_ATTEMPT_COUNTER_BYTES, 0);
+        const n = readSync2(fd, buf, 0, MAX_ATTEMPT_COUNTER_BYTES, 0);
         if (n > MAX_ATTEMPT_COUNTER_BYTES) {
           return runJournalFailure("corrupt_state");
         }
@@ -31435,7 +31474,7 @@ function allocateSync(stateRoot, runId, laneId, options) {
         }
         let after3;
         try {
-          after3 = fstatSync(fd);
+          after3 = fstatSync2(fd);
         } catch {
           return runJournalFailure("identity_changed");
         }
@@ -31481,7 +31520,7 @@ function allocateSync(stateRoot, runId, laneId, options) {
       } finally {
         if (fd !== void 0) {
           try {
-            closeSync(fd);
+            closeSync2(fd);
           } catch {
           }
         }
@@ -31547,8 +31586,8 @@ function readJournalLocked(journalPath) {
   if (kind === "regular") {
     let fd;
     try {
-      fd = openSync(journalPath, noFollowReadFlags());
-      const st = fstatSync(fd);
+      fd = openSync2(journalPath, noFollowReadFlags());
+      const st = fstatSync2(fd);
       if (!st.isFile()) {
         return runJournalFailure("invalid_path");
       }
@@ -31560,7 +31599,7 @@ function readJournalLocked(journalPath) {
         const buf = Buffer.allocUnsafe(st.size);
         let offset = 0;
         while (offset < st.size) {
-          const n = readSync(fd, buf, offset, st.size - offset, offset);
+          const n = readSync2(fd, buf, offset, st.size - offset, offset);
           if (n === 0) break;
           offset += n;
         }
@@ -31575,7 +31614,7 @@ function readJournalLocked(journalPath) {
       }
       let after3;
       try {
-        after3 = fstatSync(fd);
+        after3 = fstatSync2(fd);
       } catch {
         return runJournalFailure("identity_changed");
       }
@@ -31590,7 +31629,7 @@ function readJournalLocked(journalPath) {
     } finally {
       if (fd !== void 0) {
         try {
-          closeSync(fd);
+          closeSync2(fd);
         } catch {
         }
       }
@@ -31678,7 +31717,7 @@ function writeAppendLocked(journalPath, view, draft, options) {
         options.beforeJournalCreate(journalPath);
       }
       try {
-        wfd = openSync(
+        wfd = openSync2(
           journalPath,
           fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
           384
@@ -31690,13 +31729,13 @@ function writeAppendLocked(journalPath, view, draft, options) {
         return runJournalFailure("write_failed");
       }
     } else {
-      wfd = openSync(
+      wfd = openSync2(
         journalPath,
         noFollowWriteFlags(fsConstants.O_WRONLY | fsConstants.O_APPEND),
         384
       );
     }
-    const opened = fstatSync(wfd);
+    const opened = fstatSync2(wfd);
     if (!opened.isFile()) {
       return runJournalFailure("invalid_path");
     }
@@ -31729,7 +31768,7 @@ function writeAppendLocked(journalPath, view, draft, options) {
       );
       offset += n;
     }
-    fsyncSync(wfd);
+    fsyncSync2(wfd);
     if (options.afterJournalWriteSync !== void 0) {
       options.afterJournalWriteSync({ path: journalPath, fd: wfd });
     }
@@ -31742,7 +31781,7 @@ function writeAppendLocked(journalPath, view, draft, options) {
         return runJournalFailure("invalid_path");
       }
     }
-    const after3 = fstatSync(wfd);
+    const after3 = fstatSync2(wfd);
     if (after3.ino !== opened.ino || after3.dev !== opened.dev) {
       return runJournalFailure("identity_changed");
     }
@@ -31755,7 +31794,7 @@ function writeAppendLocked(journalPath, view, draft, options) {
   } finally {
     if (wfd !== void 0) {
       try {
-        closeSync(wfd);
+        closeSync2(wfd);
       } catch {
       }
     }
@@ -31867,6 +31906,18 @@ function inspectResumeAttemptBudget(records, attemptIdentity, resumeMaxAttempts)
   for (const rec of records) {
     const event = rec.event;
     if (event.lane !== lane) {
+      continue;
+    }
+    if (event.type === "pel.run.v1") {
+      const scoped4 = event.payload["attempt"];
+      if (event.payload["schemaVersion"] !== 1 || scoped4 === null || typeof scoped4 !== "object" || Array.isArray(scoped4)) {
+        latestPromptAttempt = "malformed";
+      } else {
+        const identity2 = scoped4;
+        const keys5 = Object.keys(identity2);
+        const value = identity2["attemptId"];
+        latestPromptAttempt = keys5.length === 3 && keys5.every((key) => ["runId", "laneId", "attemptId"].includes(key)) && identity2["runId"] === attemptIdentity.runId && identity2["laneId"] === lane && typeof value === "number" && isPositiveSafeInteger2(value) ? value : "malformed";
+      }
       continue;
     }
     if (event.type === "prompt") {
@@ -32558,14 +32609,14 @@ var liveArchitectureGit = Layer_exports.succeed(ArchitectureGit, {
 
 // packages/policy/src/install-verify-fs.ts
 import {
-  closeSync as closeSync2,
+  closeSync as closeSync3,
   constants as fsConstants2,
-  fstatSync as fstatSync2,
-  lstatSync as lstatSync2,
-  openSync as openSync2,
+  fstatSync as fstatSync3,
+  lstatSync as lstatSync3,
+  openSync as openSync3,
   readdirSync,
-  readSync as readSync2,
-  realpathSync
+  readSync as readSync3,
+  realpathSync as realpathSync2
 } from "node:fs";
 var InstallFsError = class {
   constructor(kind) {
@@ -32598,7 +32649,7 @@ function readFdBoundedSync(fd, maxBytes) {
   const buf = Buffer.allocUnsafe(cap);
   let offset = 0;
   while (offset < cap) {
-    const n = readSync2(fd, buf, offset, cap - offset, offset);
+    const n = readSync3(fd, buf, offset, cap - offset, offset);
     if (n === 0) break;
     offset += n;
   }
@@ -32609,11 +32660,11 @@ function readFdBoundedSync(fd, maxBytes) {
 }
 var liveInstallFs = Layer_exports.succeed(InstallFs, {
   resolvePath: (path) => Effect_exports.try({
-    try: () => realpathSync(path),
+    try: () => realpathSync2(path),
     catch: () => new InstallFsError("not_resolved")
   }),
   lstat: (path) => Effect_exports.try({
-    try: () => identityFromStats(lstatSync2(path)),
+    try: () => identityFromStats(lstatSync3(path)),
     catch: (e) => {
       const err = e;
       if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
@@ -32625,12 +32676,12 @@ var liveInstallFs = Layer_exports.succeed(InstallFs, {
   withOpenFile: (path, use) => Effect_exports.acquireUseRelease(
     Effect_exports.try({
       try: () => {
-        const fd = openSync2(path, openFlags());
+        const fd = openSync3(path, openFlags());
         try {
-          const st = fstatSync2(fd);
+          const st = fstatSync3(fd);
           return { fd, identity: identityFromStats(st) };
         } catch (e) {
-          closeSync2(fd);
+          closeSync3(fd);
           throw e;
         }
       },
@@ -32650,13 +32701,13 @@ var liveInstallFs = Layer_exports.succeed(InstallFs, {
         catch: (e) => e instanceof InstallFsError ? e : new InstallFsError("unreadable")
       }),
       recheckIdentity: () => Effect_exports.try({
-        try: () => identityFromStats(fstatSync2(fd)),
+        try: () => identityFromStats(fstatSync3(fd)),
         catch: () => new InstallFsError("unreadable")
       })
     }),
     ({ fd }) => Effect_exports.sync(() => {
       try {
-        closeSync2(fd);
+        closeSync3(fd);
       } catch {
       }
     })
@@ -35151,13 +35202,13 @@ function evaluateReleaseAdmissionV1(input) {
 import { execFile as execFile2 } from "node:child_process";
 import {
   accessSync,
-  closeSync as closeSync3,
+  closeSync as closeSync4,
   constants as fsConstants3,
-  fstatSync as fstatSync3,
-  lstatSync as lstatSync3,
-  openSync as openSync3,
-  readSync as readSync3,
-  realpathSync as realpathSync2,
+  fstatSync as fstatSync4,
+  lstatSync as lstatSync4,
+  openSync as openSync4,
+  readSync as readSync4,
+  realpathSync as realpathSync3,
   statSync
 } from "node:fs";
 import { devNull } from "node:os";
@@ -35189,16 +35240,16 @@ function isSha40(value) {
 }
 function readBoundedRegularFile(path, maxBytes) {
   const noFollow = typeof fsConstants3.O_NOFOLLOW === "number" ? fsConstants3.O_NOFOLLOW : 0;
-  const descriptor3 = openSync3(path, fsConstants3.O_RDONLY | noFollow);
+  const descriptor3 = openSync4(path, fsConstants3.O_RDONLY | noFollow);
   try {
-    const stat = fstatSync3(descriptor3);
+    const stat = fstatSync4(descriptor3);
     if (!stat.isFile() || stat.isSymbolicLink()) {
       throw new Error("authority file is not regular");
     }
     const buffer = Buffer.allocUnsafe(maxBytes + 1);
     let offset = 0;
     while (offset < buffer.byteLength) {
-      const count = readSync3(
+      const count = readSync4(
         descriptor3,
         buffer,
         offset,
@@ -35211,7 +35262,7 @@ function readBoundedRegularFile(path, maxBytes) {
     if (offset > maxBytes) throw new Error("authority file is oversized");
     return Uint8Array.from(buffer.subarray(0, offset));
   } finally {
-    closeSync3(descriptor3);
+    closeSync4(descriptor3);
   }
 }
 function isContainedPath(root, path) {
@@ -35219,7 +35270,7 @@ function isContainedPath(root, path) {
   return rel.length === 0 || !isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`);
 }
 function resolveTrustedGitContext(repository) {
-  const physicalRepository = realpathSync2(repository);
+  const physicalRepository = realpathSync3(repository);
   const searchPath = process.env.PATH;
   if (searchPath === void 0) throw new Error("Git path is unavailable");
   const executableNames = process.platform === "win32" ? ["git.exe"] : ["git"];
@@ -35228,14 +35279,14 @@ function resolveTrustedGitContext(repository) {
     for (const name of executableNames) {
       const candidate = resolve(directory, name);
       try {
-        lstatSync3(candidate);
+        lstatSync4(candidate);
       } catch (error) {
         if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
           continue;
         }
         throw error;
       }
-      const physicalExecutable = realpathSync2(candidate);
+      const physicalExecutable = realpathSync3(candidate);
       if (isContainedPath(repository, candidate) || isContainedPath(physicalRepository, physicalExecutable)) {
         throw new Error("repository-selected Git is forbidden");
       }
@@ -35446,14 +35497,14 @@ import { isAbsolute as isAbsolute3 } from "node:path";
 
 // packages/orchestration/src/release-coverage-cli.ts
 import {
-  closeSync as closeSync6,
+  closeSync as closeSync7,
   constants as fsConstants5,
-  fstatSync as fstatSync5,
-  lstatSync as lstatSync4,
-  openSync as openSync6,
+  fstatSync as fstatSync6,
+  lstatSync as lstatSync5,
+  openSync as openSync7,
   readdirSync as readdirSync2,
-  readSync as readSync5,
-  realpathSync as realpathSync3
+  readSync as readSync6,
+  realpathSync as realpathSync4
 } from "node:fs";
 import { devNull as devNull2 } from "node:os";
 import {
@@ -35471,12 +35522,12 @@ import {
 import { spawn } from "node:child_process";
 import {
   accessSync as accessSync2,
-  closeSync as closeSync4,
+  closeSync as closeSync5,
   constants as fsConstants4,
   existsSync,
-  fstatSync as fstatSync4,
-  openSync as openSync4,
-  readSync as readSync4,
+  fstatSync as fstatSync5,
+  openSync as openSync5,
+  readSync as readSync5,
   statSync as statSync2
 } from "node:fs";
 import { delimiter as delimiter2, join as join4 } from "node:path";
@@ -35561,8 +35612,8 @@ function readFileBoundedSync(path, maxBytes) {
     if (!before2.isFile()) {
       return { _tag: "Unreadable" };
     }
-    fd = openSync4(path, fsConstants4.O_RDONLY);
-    const opened = fstatSync4(fd);
+    fd = openSync5(path, fsConstants4.O_RDONLY);
+    const opened = fstatSync5(fd);
     if (opened.ino !== before2.ino || opened.dev !== before2.dev || opened.size !== before2.size) {
       return { _tag: "IdentityChanged" };
     }
@@ -35570,7 +35621,7 @@ function readFileBoundedSync(path, maxBytes) {
     const buf = Buffer.allocUnsafe(cap);
     let offset = 0;
     while (offset < cap) {
-      const n = readSync4(fd, buf, offset, cap - offset, offset);
+      const n = readSync5(fd, buf, offset, cap - offset, offset);
       if (n === 0) break;
       offset += n;
     }
@@ -35579,7 +35630,7 @@ function readFileBoundedSync(path, maxBytes) {
     }
     let afterOpen;
     try {
-      afterOpen = fstatSync4(fd);
+      afterOpen = fstatSync5(fd);
     } catch {
       return { _tag: "IdentityChanged" };
     }
@@ -35600,7 +35651,7 @@ function readFileBoundedSync(path, maxBytes) {
   } finally {
     if (fd !== void 0) {
       try {
-        closeSync4(fd);
+        closeSync5(fd);
       } catch {
       }
     }
@@ -36521,15 +36572,15 @@ function executionContractFamilySha256(family) {
 // packages/orchestration/src/execution-ledger.ts
 import { randomUUID } from "node:crypto";
 import {
-  closeSync as closeSync5,
+  closeSync as closeSync6,
   existsSync as existsSync2,
-  fsyncSync as fsyncSync2,
-  mkdirSync as mkdirSync2,
-  openSync as openSync5,
+  fsyncSync as fsyncSync3,
+  mkdirSync as mkdirSync3,
+  openSync as openSync6,
   readFileSync,
   renameSync as renameSync2,
   unlinkSync as unlinkSync2,
-  writeFileSync
+  writeFileSync as writeFileSync2
 } from "node:fs";
 import { dirname as dirname3, join as join5 } from "node:path";
 
@@ -36745,6 +36796,8 @@ function evolveExecution(state, event) {
       return {
         ...state,
         currentCandidateSha256: event.candidateSha256,
+        milestoneCandidateSha256: state.milestoneCandidateSha256 === event.candidateSha256 ? state.milestoneCandidateSha256 : null,
+        milestones: state.milestoneCandidateSha256 === event.candidateSha256 ? state.milestones : {},
         lastProductChangeAt: event.candidateSha256 === state.currentCandidateSha256 ? state.lastProductChangeAt : event.at,
         lastEventAt: event.at
       };
@@ -37912,7 +37965,9 @@ function replayHistory(events, loadManifest) {
       if (family === null || item.rootContractId !== decoded.contractId || item.rootContractSha256 !== hash2 || item.familySha256 !== family.familySha256 || evaluationVerdicts.some(
         (existing) => existing.childId === item.childId
       ) || Date.parse(item.registeredAt) < Date.parse(family.children[item.childId].lastEventAt) || childAuthorities.every(
-        (registered) => registered.childId !== item.childId || registered.effectiveAction !== "evaluate" || registered.candidate.candidateSha256 !== item.candidateSha256 || registered.evaluationManifestSha256 !== item.evaluationAuthorityReceiptSha256
+        (registered) => registered.childId !== item.childId || registered.effectiveAction !== "evaluate" || registered.candidate.candidateSha256 !== item.candidateSha256 || !registered.receiptSchemas.some(
+          (schema, index) => schema === "foreman.evaluation-authority.v1" && registered.receiptSha256s[index] === item.evaluationAuthorityReceiptSha256
+        )
       ) || evaluationRunSetSha256(family) !== item.runSetSha256) {
         return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
       }
@@ -38034,7 +38089,7 @@ function publishFamilyManifestLive(stateRoot, manifest, familySha256) {
 `);
   const path = familyManifestPath(stateRoot, familySha256);
   const parent = dirname3(path);
-  mkdirSync2(parent, { recursive: true, mode: 448 });
+  mkdirSync3(parent, { recursive: true, mode: 448 });
   if (existsSync2(path)) {
     const current = readFileSync(path);
     if (current.equals(Buffer.from(bytes))) return;
@@ -38043,20 +38098,20 @@ function publishFamilyManifestLive(stateRoot, manifest, familySha256) {
   const temporary = join5(parent, `.manifest-${randomUUID()}.tmp`);
   let fd = null;
   try {
-    fd = openSync5(temporary, "wx", 384);
-    writeFileSync(fd, bytes);
-    fsyncSync2(fd);
-    closeSync5(fd);
+    fd = openSync6(temporary, "wx", 384);
+    writeFileSync2(fd, bytes);
+    fsyncSync3(fd);
+    closeSync6(fd);
     fd = null;
     renameSync2(temporary, path);
-    const parentFd = openSync5(parent, "r");
+    const parentFd = openSync6(parent, "r");
     try {
-      fsyncSync2(parentFd);
+      fsyncSync3(parentFd);
     } finally {
-      closeSync5(parentFd);
+      closeSync6(parentFd);
     }
   } catch (error) {
-    if (fd !== null) closeSync5(fd);
+    if (fd !== null) closeSync6(fd);
     try {
       unlinkSync2(temporary);
     } catch {
@@ -38064,8 +38119,8 @@ function publishFamilyManifestLive(stateRoot, manifest, familySha256) {
     throw error;
   }
 }
-function makeLiveEndstopLedgerLayer(stateRoot) {
-  const journalLayer = makeLiveRunJournalLayer(stateRoot);
+function makeLiveEndstopLedgerLayer(stateRoot, journalOptions = {}) {
+  const journalLayer = makeLiveRunJournalLayer(stateRoot, journalOptions);
   const loadManifest = (familySha256) => loadFamilyManifestLive(stateRoot, familySha256);
   const readHistory = (contractId) => {
     const runId = decodeRunId(contractId);
@@ -38188,6 +38243,17 @@ function makeLiveEndstopLedgerLayer(stateRoot) {
                   failure: ledgerFailure("family_active")
                 }
               };
+            }
+            if (command._tag === "ReserveAction" && !isExecutionTerminal(history.state.root) && isUtcSecondTimestamp(command.at) && Date.parse(command.at) >= Date.parse(history.state.root.lastEventAt) && Date.parse(command.at) < Date.parse(history.state.root.contract.deadlineAt) && Date.parse(command.at) - Date.parse(history.state.root.lastProductChangeAt) < history.state.root.contract.limits.noProductChangeMs) {
+              for (const stored of events) {
+                if (stored.type !== DECISION_EVENT || !isRecord2(stored.payload) || !Array.isArray(stored.payload.events)) continue;
+                for (const raw of stored.payload.events) {
+                  const previous = executionEventFromUnknown(raw);
+                  if (previous?._tag !== "ActionReserved" || previous.reservationId !== command.reservationId) continue;
+                  const same2 = previous.action === command.action && previous.candidateSha256 === command.candidateSha256 && previous.commandSha256 === command.commandSha256;
+                  return { _tag: "Return", value: { _tag: "Ok", value: { decision: same2 ? { _tag: "Accepted", events: [] } : { _tag: "Refused", reason: "invalid_command" }, state: history.state.root } } };
+                }
+              }
             }
             const decision = decideExecutionCommand(history.state.root, command);
             if (decision._tag === "Refused" || decision._tag === "ReusedVerification" || decision.events.length === 0) {
@@ -38614,7 +38680,9 @@ function makeLiveEndstopLedgerLayer(stateRoot) {
           const family = history.state.family;
           const child = family?.children[decoded.childId];
           if (family === null || family === void 0 || child === void 0 || family.familySha256 !== decoded.familySha256 || Date.parse(decoded.registeredAt) < Date.parse(child.lastEventAt) || evaluationRunSetSha256(family) !== decoded.runSetSha256 || history.state.childAuthorities.every(
-            (authority) => authority.childId !== decoded.childId || authority.effectiveAction !== "evaluate" || authority.candidate.candidateSha256 !== decoded.candidateSha256 || authority.evaluationManifestSha256 !== decoded.evaluationAuthorityReceiptSha256
+            (authority) => authority.childId !== decoded.childId || authority.effectiveAction !== "evaluate" || authority.candidate.candidateSha256 !== decoded.candidateSha256 || !authority.receiptSchemas.some(
+              (schema, index) => schema === "foreman.evaluation-authority.v1" && authority.receiptSha256s[index] === decoded.evaluationAuthorityReceiptSha256
+            )
           )) {
             return {
               _tag: "Return",
@@ -38745,6 +38813,14 @@ function makeLiveEndstopLedgerLayer(stateRoot) {
                 failure: ledgerFailure("family_missing")
               }
             };
+          }
+          if (operation._tag === "ReserveAction" && family._tag === "Running" && family.children[input.childId]?._tag === "Running") {
+            const previous = family.children[input.childId]?.reservations[operation.reservationId];
+            const currentDecision = previous === void 0 ? null : decideExecutionChildOperationV2({ state: family, childId: input.childId, operation, at: input.at });
+            if (previous !== void 0 && currentDecision?._tag === "Refused" && currentDecision.reason === "invalid_operation") {
+              const same2 = canonicalize({ ...previous, _tag: "ReserveAction" }) === canonicalize(operation);
+              return { _tag: "Return", value: { _tag: "Ok", value: { decision: same2 ? { _tag: "Accepted", events: [] } : { _tag: "Refused", reason: "invalid_operation" }, state: family } } };
+            }
           }
           if (operation._tag === "ReserveAction" && !hasAvailableChildAuthority(
             history.state.childAuthorities,
@@ -38912,7 +38988,7 @@ function physicalNodeBasenameIsTrusted(physicalNode, platform) {
 function findWorktreeRootLive(startPath) {
   let physical;
   try {
-    physical = realpathSync3(resolve2(startPath));
+    physical = realpathSync4(resolve2(startPath));
   } catch {
     throw Object.assign(new Error("worktree start path is unreadable"), {
       _tag: "WorktreeRootUnavailable"
@@ -38920,7 +38996,7 @@ function findWorktreeRootLive(startPath) {
   }
   let stats;
   try {
-    stats = lstatSync4(physical);
+    stats = lstatSync5(physical);
   } catch {
     throw Object.assign(new Error("worktree start path is unreadable"), {
       _tag: "WorktreeRootUnavailable"
@@ -38936,7 +39012,7 @@ function findWorktreeRootLive(startPath) {
     const marker = join6(current, ".git");
     let markerStats;
     try {
-      markerStats = lstatSync4(marker);
+      markerStats = lstatSync5(marker);
     } catch (error) {
       if (!isEnoentLive(error)) {
         throw Object.assign(new Error("worktree marker is unreadable"), {
@@ -40126,7 +40202,7 @@ function validateContainmentLive(path, containmentRoot) {
       current = resolve2(current, segments[index]);
       let component;
       try {
-        component = lstatSync4(current);
+        component = lstatSync5(current);
       } catch (error) {
         if (isEnoentLive(error)) {
           readFailureLive("NotFound", "file not found");
@@ -40143,13 +40219,13 @@ function validateContainmentLive(path, containmentRoot) {
   }
   let physicalRoot;
   try {
-    physicalRoot = realpathSync3(absoluteRoot);
+    physicalRoot = realpathSync4(absoluteRoot);
   } catch {
     readFailureLive("Unreadable", "containment root is unreadable");
   }
   let physicalRootStats;
   try {
-    physicalRootStats = lstatSync4(physicalRoot);
+    physicalRootStats = lstatSync5(physicalRoot);
   } catch {
     readFailureLive("Unreadable", "physical containment root is unreadable");
   }
@@ -40158,7 +40234,7 @@ function validateContainmentLive(path, containmentRoot) {
   }
   let physicalPath;
   try {
-    physicalPath = realpathSync3(absolutePath);
+    physicalPath = realpathSync4(absolutePath);
   } catch (error) {
     if (isEnoentLive(error)) readFailureLive("NotFound", "file not found");
     throw error;
@@ -40175,7 +40251,7 @@ function readBoundedBytesLive(path, maxBytes, containmentRoot) {
     }
     let before2;
     try {
-      before2 = lstatSync4(path);
+      before2 = lstatSync5(path);
     } catch (error) {
       if (isEnoentLive(error)) readFailureLive("NotFound", "file not found");
       throw error;
@@ -40183,14 +40259,14 @@ function readBoundedBytesLive(path, maxBytes, containmentRoot) {
     if (before2.isSymbolicLink()) readFailureLive("Symlink", "leaf is a symlink");
     if (!before2.isFile()) readFailureLive("NotFile", "leaf is not a regular file");
     try {
-      fd = openSync6(path, boundedReadOpenFlagsLive());
+      fd = openSync7(path, boundedReadOpenFlagsLive());
     } catch (error) {
       if (isEnoentLive(error)) {
         readFailureLive("IdentityChanged", "leaf changed before open");
       }
       throw error;
     }
-    const opened = fstatSync5(fd);
+    const opened = fstatSync6(fd);
     if (!sameRegularFileIdentityLive(before2, opened)) {
       readFailureLive("IdentityChanged", "leaf identity changed during open");
     }
@@ -40198,20 +40274,20 @@ function readBoundedBytesLive(path, maxBytes, containmentRoot) {
     const buffer = Buffer.allocUnsafe(cap);
     let offset = 0;
     while (offset < cap) {
-      const count = readSync5(fd, buffer, offset, cap - offset, offset);
+      const count = readSync6(fd, buffer, offset, cap - offset, offset);
       if (count === 0) break;
       offset += count;
     }
     if (offset > maxBytes) readFailureLive("Oversize", "file exceeds the read bound");
     let afterOpen;
     try {
-      afterOpen = fstatSync5(fd);
+      afterOpen = fstatSync6(fd);
     } catch {
       readFailureLive("IdentityChanged", "opened descriptor became unreadable");
     }
     let afterPath;
     try {
-      afterPath = lstatSync4(path);
+      afterPath = lstatSync5(path);
     } catch {
       readFailureLive("IdentityChanged", "leaf changed after read");
     }
@@ -40225,7 +40301,7 @@ function readBoundedBytesLive(path, maxBytes, containmentRoot) {
   } finally {
     if (fd !== void 0) {
       try {
-        closeSync6(fd);
+        closeSync7(fd);
       } catch {
       }
     }
@@ -40242,7 +40318,7 @@ function classifyPathLive(path, containmentRoot) {
   }
   let stats;
   try {
-    stats = lstatSync4(path);
+    stats = lstatSync5(path);
   } catch (error) {
     if (isEnoentLive(error)) return { _tag: "NotFound" };
     throw error;
@@ -40258,7 +40334,7 @@ function listDirectoryLive(path, containmentRoot) {
   }
   let stats;
   try {
-    stats = lstatSync4(path);
+    stats = lstatSync5(path);
   } catch (error) {
     if (isEnoentLive(error)) readFailureLive("NotFound", "directory not found");
     throw error;
@@ -40403,7 +40479,7 @@ var baseLiveReleaseCoverageCliServices = makeLiveReleaseCoverageCliServices({
     return yield* lookup.which(name);
   }).pipe(Effect_exports.provide(livePathLookup)),
   realpath: (path) => Effect_exports.try({
-    try: () => realpathSync3(path),
+    try: () => realpathSync4(path),
     catch: (error) => error
   }),
   findWorktreeRoot: (path) => Effect_exports.try({

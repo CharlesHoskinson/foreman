@@ -1,0 +1,12 @@
+{
+  "role": "execution",
+  "focus": "Lead focus: four adapters and all six exact model profiles, actual transport capability semantics, provider events/tools/opaque state, durable execution and recovery, budgets/cancellation/concurrency, hosttask/review/verify/publish behavior in M3/M4/M5. Check cross-milestone interface contradictions.",
+  "requested_model": "claude-opus-5",
+  "effort": "high",
+  "prompt_sha256": "46fd68191506c34f7970b60a20c6e54700c06e7d03fd75b6e372c9b4e4f9d19b",
+  "input_manifest_sha256": "e4eec8af46d29fe8111466e310c469b9a61f6815bcefbdd5c64de32923159aac",
+  "prompt_bytes": 422177,
+  "tools": [],
+  "permission_mode": "plan",
+  "safe_mode": true
+}

@@ -1,0 +1,28 @@
+(def assess (lambda [:candidate]
+  (do
+    (def checked (fm/verify :id "verify" :input candidate :gate "candidate-full"))
+    (if (checked :at ':passed)
+      (fm/review :id "review" :model "role:reviewer"
+        :input checked :policy "independent-review")
+      checked))))
+(def repair (lambda [:current :round :maximum]
+  (if (eq (current :at ':status) "approved")
+    current
+    (if (lt round maximum)
+      (do
+        (def corrected (fm/task :id "correct" :model "role:implementer"
+          :input current :output "schema:candidate-v1"))
+        (if (eq (corrected :at ':status) "no-change")
+          [:status "needs-action" :candidate (current :at ':candidate)
+           :delivery current :reason "no-product-change" :round-count (+ round 1)
+           :findings (current :at ':findings)]
+          (repair (assess corrected) (+ round 1) maximum)))
+      [:status "needs-action" :candidate (current :at ':candidate)
+       :delivery current :reason "correction-limit" :round-count round
+       :findings (current :at ':findings)]))))
+(def initial (fm/task :id "implement" :model "role:implementer"
+  :input "artifact:approved-spec" :output "schema:candidate-v1"))
+(def delivery (repair (assess initial) 0 1))
+(if (eq (delivery :at ':status) "approved")
+  (fm/publish :id "publish" :input delivery :destination "reviewed-branch")
+  delivery)

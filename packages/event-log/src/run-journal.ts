@@ -6,7 +6,7 @@
  */
 
 import { Context, Effect, Layer } from "effect";
-import { canonicalize } from "@foreman/core";
+import { acquireKernelDirectoryLock, canonicalize } from "@foreman/core";
 import {
   closeSync,
   constants as fsConstants,
@@ -21,7 +21,7 @@ import {
   writeSync,
   type Stats,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { randomBytes } from "node:crypto";
 import {
   decodeAttemptId,
@@ -413,11 +413,7 @@ function pathMatchesOpenedFd(
   return "ok";
 }
 
-type HeldLock = {
-  readonly fd: number;
-  readonly path: string;
-  readonly identity: FileIdentity;
-};
+type HeldLock = { readonly release: () => void };
 
 type LockTiming = {
   readonly boundMs: number;
@@ -434,102 +430,36 @@ function defaultWaitMs(ms: number): void {
   }
 }
 
-/**
- * Acquire exclusive-create lock. Retries until deadline.
- * Caller must ensure parent layout directories already exist.
- */
-function acquireLockSync(
-  lockPath: string,
-  timing: LockTiming,
-): HeldLock | RunJournalFailure {
+/** Persistent marked directory locks reject legacy exclusive-create lockfiles.
+ * The kernel releases ownership on process death; the inode is never unlinked. */
+function acquireLockSync(lockPath: string, timing: LockTiming): HeldLock | RunJournalFailure {
   const kind = observePathKind(lockPath);
-  if (kind === "symlink" || kind === "directory" || kind === "other") {
-    return runJournalFailure("invalid_path");
-  }
-  const start = timing.nowMs();
-  const deadline = start + timing.boundMs;
-  while (true) {
-    try {
-      const fd = openSync(
-        lockPath,
-        fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
-        0o600,
-      );
-      let st: Stats;
-      try {
-        st = fstatSync(fd);
-      } catch {
-        try {
-          closeSync(fd);
-        } catch {
-          /* ignore */
-        }
-        try {
-          unlinkSync(lockPath);
-        } catch {
-          /* ignore */
-        }
-        return runJournalFailure("write_failed");
+  if (kind === "symlink" || kind === "other") return runJournalFailure("invalid_path");
+  let parentFd: number;
+  try { parentFd = openSync(dirname(lockPath), fsConstants.O_RDONLY | fsConstants.O_DIRECTORY | fsConstants.O_NOFOLLOW); }
+  catch { return runJournalFailure("invalid_path"); }
+  const deadline = timing.nowMs() + timing.boundMs;
+  let transferred = false;
+  try {
+    while (true) {
+      const parent = fstatSync(parentFd), current = lstatSync(dirname(lockPath));
+      if (!current.isDirectory() || !identitiesEqual(identityOf(parent), identityOf(current))) return runJournalFailure("identity_changed");
+      const lock = acquireKernelDirectoryLock(parentFd, basename(lockPath), "foreman-journal-transaction/flock/v1");
+      if (lock) {
+        const after = lstatSync(dirname(lockPath));
+        if (!after.isDirectory() || !identitiesEqual(identityOf(parent), identityOf(after))) { lock.release(); return runJournalFailure("identity_changed"); }
+        transferred = true;
+        let held = true;
+        return { release: () => { if (!held) return; held = false; try { lock.release(); } finally { closeSync(parentFd); } } };
       }
-      if (!st.isFile()) {
-        try {
-          closeSync(fd);
-        } catch {
-          /* ignore */
-        }
-        try {
-          unlinkSync(lockPath);
-        } catch {
-          /* ignore */
-        }
-        return runJournalFailure("invalid_path");
-      }
-      // Pathname must still identify the opened lock file.
-      const match = pathMatchesOpenedFd(lockPath, fd);
-      if (match !== "ok") {
-        try {
-          closeSync(fd);
-        } catch {
-          /* ignore */
-        }
-        try {
-          unlinkSync(lockPath);
-        } catch {
-          /* ignore */
-        }
-        return runJournalFailure(
-          match === "identity_changed" ? "identity_changed" : "invalid_path",
-        );
-      }
-      return { fd, path: lockPath, identity: identityOf(st) };
-    } catch (e) {
-      if (isEexist(e)) {
-        if (timing.nowMs() >= deadline) {
-          return runJournalFailure("journal_busy");
-        }
-        timing.waitMs(timing.spinMs);
-        continue;
-      }
-      return runJournalFailure("write_failed");
+      if (timing.nowMs() >= deadline) return runJournalFailure("journal_busy");
+      timing.waitMs(timing.spinMs);
     }
-  }
+  } catch { return runJournalFailure("write_failed"); }
+  finally { if (!transferred) closeSync(parentFd); }
 }
 
-function releaseLockSync(lock: HeldLock): void {
-  try {
-    closeSync(lock.fd);
-  } catch {
-    /* ignore */
-  }
-  try {
-    const st = lstatSync(lock.path);
-    if (st.isFile() && identitiesEqual(identityOf(st), lock.identity)) {
-      unlinkSync(lock.path);
-    }
-  } catch {
-    /* do not remove a changed lock path */
-  }
-}
+function releaseLockSync(lock: HeldLock): void { lock.release(); }
 
 function withLockSync<A>(
   lockPath: string,
@@ -1296,6 +1226,21 @@ export function inspectResumeAttemptBudget(
   for (const rec of records) {
     const event = rec.event;
     if (event.lane !== lane) {
+      continue;
+    }
+    if (event.type === "pel.run.v1") {
+      const scoped = event.payload["attempt"];
+      if (event.payload["schemaVersion"] !== 1 || scoped === null || typeof scoped !== "object" || Array.isArray(scoped)) {
+        latestPromptAttempt = "malformed";
+      } else {
+        const identity = scoped as Readonly<Record<string, unknown>>;
+        const keys = Object.keys(identity);
+        const value = identity["attemptId"];
+        latestPromptAttempt = keys.length === 3 && keys.every(key => ["runId", "laneId", "attemptId"].includes(key))
+          && identity["runId"] === attemptIdentity.runId && identity["laneId"] === lane
+          && typeof value === "number" && isPositiveSafeInteger(value)
+          ? value as AttemptId : "malformed";
+      }
       continue;
     }
     if (event.type === "prompt") {

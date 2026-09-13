@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+Disallow: /tools/
+
+User-agent: GPTBot
+User-agent: ChatGPT-User
+User-agent: PerplexityBot
+User-agent: ClaudeBot
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /tools/
+
+Sitemap: https://x.ai/sitemap.xml
+
+# Content Signals (draft) — declare AI/search usage preferences
+# See: https://contentsignals.org/
+Content-Signal: ai-train=no, search=yes, ai-input=no
+# Guides are written to be cited; allow answer-engine input on this tree only.
+Content-Signal: /bot/guides ai-train=no, search=yes, ai-input=yes

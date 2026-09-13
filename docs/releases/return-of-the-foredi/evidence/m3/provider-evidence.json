@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "evidence": [
+    {
+      "capability": "generation",
+      "state": "live-qualified",
+      "profileId": "claude-opus-5",
+      "transportId": "claude-code",
+      "profileHash": "800f598bedb407587616fe2f8b87171d4a9ed157318929262e713656c1b6b632",
+      "sourceManifestHash": "113b2d6e61761cf7db0e2e2d9de0e5acff16679c80c63adf20188761390ba0a4",
+      "transportVersion": "2.1.270",
+      "controlsHash": "f42806199b4fc350f287e6e8c89a60f13312f3c92de3cf0921f53ea131df616d",
+      "observedAt": 1789285448993,
+      "expiresAt": 1789371846250,
+      "observedIdentity": {
+        "kind": "native",
+        "provider": "anthropic",
+        "profileId": "claude-opus-5",
+        "model": "claude-opus-5",
+        "transportId": "claude-code",
+        "credentialProfileRef": "native:claude:default",
+        "protocolVersion": "2.1.270",
+        "sessionId": "390ebc09-dd53-43d4-904f-ce1555cf304f"
+      },
+      "evidenceRef": "foredi-m3-opus-native-final-20260913"
+    },
+    {
+      "capability": "structuredOutput",
+      "state": "live-qualified",
+      "profileId": "claude-opus-5",
+      "transportId": "claude-code",
+      "profileHash": "800f598bedb407587616fe2f8b87171d4a9ed157318929262e713656c1b6b632",
+      "sourceManifestHash": "113b2d6e61761cf7db0e2e2d9de0e5acff16679c80c63adf20188761390ba0a4",
+      "transportVersion": "2.1.270",
+      "controlsHash": "f42806199b4fc350f287e6e8c89a60f13312f3c92de3cf0921f53ea131df616d",
+      "observedAt": 1789285448994,
+      "expiresAt": 1789371846250,
+      "observedIdentity": {
+        "kind": "native",
+        "provider": "anthropic",
+        "profileId": "claude-opus-5",
+        "model": "claude-opus-5",
+        "transportId": "claude-code",
+        "credentialProfileRef": "native:claude:default",
+        "protocolVersion": "2.1.270",
+        "sessionId": "390ebc09-dd53-43d4-904f-ce1555cf304f"
+      },
+      "evidenceRef": "foredi-m3-opus-native-final-20260913"
+    },
+    {
+      "capability": "toolPolicyNone",
+      "state": "live-qualified",
+      "profileId": "claude-opus-5",
+      "transportId": "claude-code",
+      "profileHash": "800f598bedb407587616fe2f8b87171d4a9ed157318929262e713656c1b6b632",
+      "sourceManifestHash": "113b2d6e61761cf7db0e2e2d9de0e5acff16679c80c63adf20188761390ba0a4",
+      "transportVersion": "2.1.270",
+      "controlsHash": "f42806199b4fc350f287e6e8c89a60f13312f3c92de3cf0921f53ea131df616d",
+      "observedAt": 1789285448994,
+      "expiresAt": 1789371846250,
+      "observedIdentity": {
+        "kind": "native",
+        "provider": "anthropic",
+        "profileId": "claude-opus-5",
+        "model": "claude-opus-5",
+        "transportId": "claude-code",
+        "credentialProfileRef": "native:claude:default",
+        "protocolVersion": "2.1.270",
+        "sessionId": "390ebc09-dd53-43d4-904f-ce1555cf304f"
+      },
+      "evidenceRef": "foredi-m3-opus-native-final-20260913"
+    }
+  ]
+}

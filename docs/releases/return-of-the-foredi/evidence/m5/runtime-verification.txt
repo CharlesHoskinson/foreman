@@ -1,0 +1,5 @@
+
+> verify-runtime
+> tsx scripts/verify-runtime.ts
+
+verify-runtime: ok

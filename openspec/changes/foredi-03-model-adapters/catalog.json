@@ -1,0 +1,645 @@
+{
+  "milestone": "M3",
+  "change": "foredi-03-model-adapters",
+  "title": "Exact model profiles and shared provider adapters",
+  "depends_on": [
+    "M1",
+    "M2"
+  ],
+  "features": [
+    {
+      "id": "F-M3-01",
+      "title": "Exact model profiles",
+      "description": "Resolve six exact profiles across four provider families without silent substitution.",
+      "requirements": [
+        "R-M3-001",
+        "R-M3-002",
+        "R-M3-003",
+        "R-M3-021",
+        "R-M3-025"
+      ]
+    },
+    {
+      "id": "F-M3-02",
+      "title": "API and native coding transports",
+      "description": "Encode direct inference and native coding requests through explicit transport capabilities.",
+      "requirements": [
+        "R-M3-004",
+        "R-M3-005",
+        "R-M3-006",
+        "R-M3-019",
+        "R-M3-024",
+        "R-M3-027"
+      ]
+    },
+    {
+      "id": "F-M3-03",
+      "title": "Semantic events and tool exchange",
+      "description": "Preserve event meaning and validate tool and final results before host use.",
+      "requirements": [
+        "R-M3-007",
+        "R-M3-008",
+        "R-M3-009",
+        "R-M3-020",
+        "R-M3-028"
+      ]
+    },
+    {
+      "id": "F-M3-04",
+      "title": "Continuation and lifecycle",
+      "description": "Preserve opaque provider state and report cancellation and resume outcomes truthfully.",
+      "requirements": [
+        "R-M3-010",
+        "R-M3-011",
+        "R-M3-012",
+        "R-M3-022"
+      ]
+    },
+    {
+      "id": "F-M3-05",
+      "title": "Readiness and authentication diagnostics",
+      "description": "Distinguish authentication, discovery, model identity and capability evidence.",
+      "requirements": [
+        "R-M3-013",
+        "R-M3-014",
+        "R-M3-015",
+        "R-M3-023"
+      ]
+    },
+    {
+      "id": "F-M3-06",
+      "title": "Contract fixtures and live qualification",
+      "description": "Qualify exact model and transport combinations with reproducible bounded tests.",
+      "requirements": [
+        "R-M3-016",
+        "R-M3-017",
+        "R-M3-018",
+        "R-M3-026"
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "id": "R-M3-001",
+      "feature": "F-M3-01",
+      "pattern": "ubiquitous",
+      "text": "The Foreman provider registry SHALL define the six exact model profiles and four provider families listed in the design.",
+      "tests": [
+        "T-M3-001"
+      ]
+    },
+    {
+      "id": "R-M3-002",
+      "feature": "F-M3-01",
+      "pattern": "unwanted",
+      "text": "If requested reasoning controls violate a model profile, then the Foreman provider adapter SHALL return UnsupportedCapability before transport dispatch.",
+      "tests": [
+        "T-M3-002"
+      ]
+    },
+    {
+      "id": "R-M3-003",
+      "feature": "F-M3-01",
+      "pattern": "event",
+      "text": "When a provider request resolves, the Foreman provider registry SHALL bind its profile hash, transport version, source manifest hash and capability evidence.",
+      "tests": [
+        "T-M3-003"
+      ]
+    },
+    {
+      "id": "R-M3-004",
+      "feature": "F-M3-02",
+      "pattern": "ubiquitous",
+      "text": "The Foreman provider adapter SHALL keep API request identities separate from native coding session identities.",
+      "tests": [
+        "T-M3-004"
+      ]
+    },
+    {
+      "id": "R-M3-005",
+      "feature": "F-M3-02",
+      "pattern": "event",
+      "text": "When a native transport receives a prompt, the Foreman provider adapter SHALL deliver its exact bytes through a declared prompt channel.",
+      "tests": [
+        "T-M3-005"
+      ]
+    },
+    {
+      "id": "R-M3-006",
+      "feature": "F-M3-02",
+      "pattern": "unwanted",
+      "text": "If a transport lacks a requested capability, then the Foreman provider adapter SHALL reject dispatch without changing model, permissions or output behavior.",
+      "tests": [
+        "T-M3-006"
+      ]
+    },
+    {
+      "id": "R-M3-007",
+      "feature": "F-M3-03",
+      "pattern": "event",
+      "text": "When a provider event arrives, the Foreman provider adapter SHALL emit a normalized event with its provider identity and original semantic status.",
+      "tests": [
+        "T-M3-007"
+      ]
+    },
+    {
+      "id": "R-M3-008",
+      "feature": "F-M3-03",
+      "pattern": "event",
+      "text": "When a provider requests a tool, the Foreman provider adapter SHALL preserve its call identifier and submit the bounded host-resolved result payload.",
+      "tests": [
+        "T-M3-008"
+      ]
+    },
+    {
+      "id": "R-M3-009",
+      "feature": "F-M3-03",
+      "pattern": "unwanted",
+      "text": "If final output violates the host schema, then the Foreman provider adapter SHALL return OutputInvalid without producing a completed result.",
+      "tests": [
+        "T-M3-009"
+      ]
+    },
+    {
+      "id": "R-M3-010",
+      "feature": "F-M3-04",
+      "pattern": "event",
+      "text": "When a continuation is emitted or resumed, the Foreman provider adapter SHALL preserve opaque reasoning bytes and their originating model, transport and prefix binding.",
+      "tests": [
+        "T-M3-010"
+      ]
+    },
+    {
+      "id": "R-M3-011",
+      "feature": "F-M3-04",
+      "pattern": "event",
+      "text": "When cancellation is requested, the Foreman provider adapter SHALL report request, acknowledgement, local cleanup and observed remote outcome separately.",
+      "tests": [
+        "T-M3-011"
+      ]
+    },
+    {
+      "id": "R-M3-012",
+      "feature": "F-M3-04",
+      "pattern": "unwanted",
+      "text": "If continuation retention expired or remote outcome is unknown, then the Foreman provider adapter SHALL return ResumeUnavailable or OutcomeUnknown without automatic redispatch.",
+      "tests": [
+        "T-M3-012"
+      ]
+    },
+    {
+      "id": "R-M3-013",
+      "feature": "F-M3-05",
+      "pattern": "event",
+      "text": "When readiness is inspected, the Foreman provider adapter SHALL report discovery, authentication, currency, model identity and capabilities as separate evidence-bearing facts.",
+      "tests": [
+        "T-M3-013"
+      ]
+    },
+    {
+      "id": "R-M3-014",
+      "feature": "F-M3-05",
+      "pattern": "unwanted",
+      "text": "If an authentication probe times out or cannot parse its response, then the Foreman provider adapter SHALL report unknown without a login instruction.",
+      "tests": [
+        "T-M3-014"
+      ]
+    },
+    {
+      "id": "R-M3-015",
+      "feature": "F-M3-05",
+      "pattern": "event",
+      "text": "When observed model identity differs from the requested profile, the Foreman provider adapter SHALL return ModelMismatch and retain both identities.",
+      "tests": [
+        "T-M3-015"
+      ]
+    },
+    {
+      "id": "R-M3-016",
+      "feature": "F-M3-06",
+      "pattern": "ubiquitous",
+      "text": "The Foreman provider contract suite SHALL exercise each advertised model and transport combination with provider-specific positive and negative fixtures.",
+      "tests": [
+        "T-M3-016"
+      ]
+    },
+    {
+      "id": "R-M3-017",
+      "feature": "F-M3-06",
+      "pattern": "event",
+      "text": "When an authorized live qualification runs, the Foreman provider adapter SHALL enforce its explicit account, model, transport, time and spend bounds.",
+      "tests": [
+        "T-M3-017"
+      ]
+    },
+    {
+      "id": "R-M3-018",
+      "feature": "F-M3-06",
+      "pattern": "event",
+      "text": "When provider support is displayed, the Foreman provider registry SHALL distinguish documented capabilities from fixture-tested and live-qualified capabilities.",
+      "tests": [
+        "T-M3-018"
+      ]
+    },
+    {
+      "id": "R-M3-019",
+      "feature": "F-M3-02",
+      "pattern": "event",
+      "text": "When Pel generation is requested, the Foreman provider adapter SHALL perform one exact-profile generation attempt using the selected grammar capability or structured envelope.",
+      "tests": [
+        "T-M3-019"
+      ]
+    },
+    {
+      "id": "R-M3-020",
+      "feature": "F-M3-03",
+      "pattern": "event",
+      "text": "When usage or a request limit is observed, the Foreman provider adapter SHALL preserve accounting dimensions and enforce the stricter admitted limit.",
+      "tests": [
+        "T-M3-020"
+      ]
+    },
+    {
+      "id": "R-M3-021",
+      "feature": "F-M3-01",
+      "pattern": "event",
+      "text": "When provider controls resolve, the Foreman provider adapter SHALL validate closed typed controls and preserve the exact admitted defaults or explicit values.",
+      "tests": [
+        "T-M3-021"
+      ]
+    },
+    {
+      "id": "R-M3-022",
+      "feature": "F-M3-04",
+      "pattern": "event",
+      "text": "When remote work is observed, the Foreman provider adapter SHALL return a typed observation for the existing identity without redispatch.",
+      "tests": [
+        "T-M3-022"
+      ]
+    },
+    {
+      "id": "R-M3-023",
+      "feature": "F-M3-05",
+      "pattern": "event",
+      "text": "When a product request is admitted, the Foreman provider registry SHALL require current live evidence for every required capability.",
+      "tests": [
+        "T-M3-023"
+      ]
+    },
+    {
+      "id": "R-M3-024",
+      "feature": "F-M3-02",
+      "pattern": "event",
+      "text": "When a task transport resolves, the Foreman provider registry SHALL select one admitted transport and require native coding capability for file-writing tasks.",
+      "tests": [
+        "T-M3-024"
+      ]
+    },
+    {
+      "id": "R-M3-025",
+      "feature": "F-M3-01",
+      "pattern": "ubiquitous",
+      "text": "The Foreman provider contract SHALL expose one exhaustive failure union with a fixed retry classification for every tag.",
+      "tests": [
+        "T-M3-025"
+      ]
+    },
+    {
+      "id": "R-M3-026",
+      "feature": "F-M3-06",
+      "pattern": "event",
+      "text": "When a provider subcommand terminates, the Foreman CLI SHALL return the exit code assigned to its command outcome in the shared command table.",
+      "tests": [
+        "T-M3-026"
+      ]
+    },
+    {
+      "id": "R-M3-027",
+      "feature": "F-M3-02",
+      "pattern": "ubiquitous",
+      "text": "The Foreman provider package SHALL resolve opaque credential references through an injected port without importing orchestration.",
+      "tests": [
+        "T-M3-027"
+      ]
+    },
+    {
+      "id": "R-M3-028",
+      "feature": "F-M3-03",
+      "pattern": "event",
+      "text": "When provider JSON is decoded, the Foreman provider adapter SHALL construct schema-ordered Pel values before validating the original output schema.",
+      "tests": [
+        "T-M3-028"
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "id": "T-M3-001",
+      "requirements": [
+        "R-M3-001"
+      ],
+      "level": "unit",
+      "fixture": "Six-profile registry fixture and an unrecognized model alias.",
+      "action": "resolveProfile for every declared ID and the alias.",
+      "expected": "Exactly six profiles map to xai, anthropic, openai or google. The alias returns ModelUnavailable without dispatch.",
+      "target": "packages/providers/src/profiles.test.ts"
+    },
+    {
+      "id": "T-M3-002",
+      "requirements": [
+        "R-M3-002"
+      ],
+      "level": "unit",
+      "fixture": "Each declared effort outside the profile allowed set: Grok none/max, Opus none, Fable none, Astra none, Gemini none/xhigh/max. Sol accepts all declared efforts. Gemini minimal is an invalid enum decode case. Add prior thinking/sampling/tool-choice restrictions and nested unknown keys.",
+      "action": "validateRequest for each invalid request and valid adjacent controls.",
+      "expected": "Each rejected field returns UnsupportedCapability with exact fieldPath and zero dispatch. Minimal/unknown fields report decode stage in the safe message; valid-enum profile rejections report profile-validation. Defaults and explicit valid controls stay unchanged.",
+      "target": "packages/providers/src/profiles.test.ts"
+    },
+    {
+      "id": "T-M3-003",
+      "requirements": [
+        "R-M3-003"
+      ],
+      "level": "unit",
+      "fixture": "A sourced profile with supported, unsupported, unknown and verified capability fields.",
+      "action": "resolveRequest for an explicit model and transport.",
+      "expected": "Resolved request retains all evidence identities and unknown fields. Unverified required capabilities return CapabilityUnverified.",
+      "target": "packages/providers/src/registry.test.ts"
+    },
+    {
+      "id": "T-M3-004",
+      "requirements": [
+        "R-M3-004"
+      ],
+      "level": "contract",
+      "fixture": "All four API and four native transport fixtures, including an equal textual response ID and session ID.",
+      "action": "encodeRequest and decodeIdentity for each fixture.",
+      "expected": "Discriminated identities retain provider, exact model, transport and API revision or CLI version. Equal strings do not compare as equal identities.",
+      "target": "packages/providers/src/transport-contract.test.ts"
+    },
+    {
+      "id": "T-M3-005",
+      "requirements": [
+        "R-M3-005"
+      ],
+      "level": "contract",
+      "fixture": "UTF-8 prompt containing newlines, quotes, dollar signs and 128 KiB content. Fixtures declare stdin, file or protocol input.",
+      "action": "start each native fake process or protocol peer and capture delivered bytes.",
+      "expected": "Prompt hashes match for each channel. Stdin bytes reach the launcher. An unsupported channel returns PromptChannelUnsupported before spawn.",
+      "target": "packages/providers/src/native-prompt.test.ts"
+    },
+    {
+      "id": "T-M3-006",
+      "requirements": [
+        "R-M3-006"
+      ],
+      "level": "contract",
+      "fixture": "Native fixture lacks permission round trips or schema output. API fixture lacks grammar support.",
+      "action": "start with each required capability and inspect captured process/API calls.",
+      "expected": "UnsupportedCapability reports the missing field and zero dispatches. No headless, weaker schema or alternate model fallback occurs.",
+      "target": "packages/providers/src/transport-contract.test.ts"
+    },
+    {
+      "id": "T-M3-007",
+      "requirements": [
+        "R-M3-007"
+      ],
+      "level": "contract",
+      "fixture": "Per-transport started, text, tool, usage, checkpoint, completion, refusal, truncation, malformed and duplicate event fixtures.",
+      "action": "decodeEvents with fragmented byte chunks and repeated cursors.",
+      "expected": "Events use the shared vocabulary. Refusal remains refused, truncation becomes failed/OutputIncomplete, and duplicates retain deduplication identity without another tool dispatch.",
+      "target": "packages/providers/src/events.test.ts"
+    },
+    {
+      "id": "T-M3-008",
+      "requirements": [
+        "R-M3-008"
+      ],
+      "level": "contract",
+      "fixture": "Host journal fixtures pel.tool.intent.v1/result.v1 and provider.cursor.v1 keyed by effectId, full identity and callId; two calls, denied/invalid calls and crash after result append.",
+      "action": "Decode tool requests, persist bounded result payload, crash, load recorded cursor and resend ToolResultV1 content through sendToolResult.",
+      "expected": "One committed tool effect occurs. The recorded payload is resent with its exact callId/content hash. Invalid and denied calls perform zero effects. Adapter storage I/O count is zero.",
+      "target": "packages/providers/src/tools.test.ts"
+    },
+    {
+      "id": "T-M3-009",
+      "requirements": [
+        "R-M3-009"
+      ],
+      "level": "contract",
+      "fixture": "OutputSchemaV1 with immutable id and PelDataSchemaV1 content, reversed JSON field order, duplicate/unknown keys, missing required fields, null, numeric bounds and union variants. Include pelSource association and Boolean value envelope.",
+      "action": "lowerProviderSchema for each profile subset, parse duplicate-aware raw JSON, decode in schema field order and validate against original Pel schema.",
+      "expected": "Reversed JSON keys yield identical canonical association order and pass. Duplicate/unknown keys and invalid numbers fail OutputInvalid with fieldPath. Null becomes nil. Generation and Boolean envelopes round-trip. Unsupported required schema structure fails before dispatch.",
+      "target": "packages/providers/src/output.test.ts"
+    },
+    {
+      "id": "T-M3-010",
+      "requirements": [
+        "R-M3-010"
+      ],
+      "level": "contract",
+      "fixture": "OpenAI reasoning items, xAI encrypted thinking, Fable thinking blocks and Gemini Interactions thought steps with exact byte hashes.",
+      "action": "encodeContinuation then resume with matching and changed model, transport and prefix.",
+      "expected": "Matching round trips preserve hashes and tool IDs. Changed bindings return ContinuationMismatch. No opaque reasoning appears in text events or research exports. Opaque checkpoints emit bounded bytes/cursor to M4 and perform zero direct storage I/O.",
+      "target": "packages/providers/src/continuation.test.ts"
+    },
+    {
+      "id": "T-M3-011",
+      "requirements": [
+        "R-M3-011"
+      ],
+      "level": "contract",
+      "fixture": "OpenAI and Gemini asynchronous cancellation, xAI unverified remote cancellation, Claude SIGTERM versus interrupt, and a native process tree.",
+      "action": "cancel under Effect scope with a fake clock, then observe terminal events.",
+      "expected": "Local children exit within the configured cleanup bound. Remote outcome remains pending, unknown or unsupported until observed. No local signal fabricates remote cancelled.",
+      "target": "packages/providers/src/lifecycle.test.ts"
+    },
+    {
+      "id": "T-M3-012",
+      "requirements": [
+        "R-M3-012"
+      ],
+      "level": "contract",
+      "fixture": "Expired API ID, interrupted stream before receipt, Gemini in_progress interaction, and missing native session.",
+      "action": "Observe existing identities, then resume only supported pending streams with their journal cursors.",
+      "expected": "Expired state returns ResumeUnavailable. Completed observation carries validated result and terminal cursor. Not-found and unsupported remain OutcomeUnknown to the host. In-progress Google work is observed before chaining. New dispatch count is zero.",
+      "target": "packages/providers/src/lifecycle.test.ts"
+    },
+    {
+      "id": "T-M3-013",
+      "requirements": [
+        "R-M3-013"
+      ],
+      "level": "contract",
+      "fixture": "Installed old CLI, authenticated account, unavailable exact model and unknown permission capability.",
+      "action": "probe using read-only fake commands and metadata endpoints.",
+      "expected": "Each fact has independent value, evidence kind, observation time and safe diagnostic. No update, login or model workload runs in a metadata-only probe.",
+      "target": "packages/providers/src/readiness.test.ts"
+    },
+    {
+      "id": "T-M3-014",
+      "requirements": [
+        "R-M3-014"
+      ],
+      "level": "contract",
+      "fixture": "Timeout, network failure, changed banner, explicit signed-out response and explicit signed-in response.",
+      "action": "probe and render diagnostic for each fixture.",
+      "expected": "Uncertain responses report unknown. Only explicit signed-out evidence reports not-authenticated and login remediation. Secrets are absent from diagnostics.",
+      "target": "packages/providers/src/readiness.test.ts"
+    },
+    {
+      "id": "T-M3-015",
+      "requirements": [
+        "R-M3-015"
+      ],
+      "level": "contract",
+      "fixture": "A native CLI routes gpt-6-astra to another model, or provides no trustworthy identity metadata.",
+      "action": "qualifyIdentity using protocol metadata rather than generated answer text.",
+      "expected": "Mismatch returns ModelMismatch. Missing metadata remains unknown and unusable for exact-model qualification. No self-reported answer establishes identity.",
+      "target": "packages/providers/src/readiness.test.ts"
+    },
+    {
+      "id": "T-M3-016",
+      "requirements": [
+        "R-M3-016"
+      ],
+      "level": "contract",
+      "fixture": "Six profiles on each family API/native protocol, with codingTask unsupported on APIs and explicit negative fixtures for unsupported cells.",
+      "action": "npm run test:providers after wiring the planned script to scripts/run-tests.ts.",
+      "expected": "Fixture report covers every declared cell, chunk boundaries, limits, tools, refusal, malformed output, continuity and cancellation. Unsupported cells have negative tests. Typechecking and dependency lint assert no providers-to-orchestration or Pel-to-providers import. CLI tests reside in orchestration.",
+      "target": "packages/providers/src/conformance.test.ts"
+    },
+    {
+      "id": "T-M3-017",
+      "requirements": [
+        "R-M3-017"
+      ],
+      "level": "acceptance",
+      "fixture": "M2 fixture manifest template packages/providers/src/fixtures/qualification/fixture-manifest.json copied to temporary storage with assetRoot/assetManifestSha256, fake credential port, protocol peers and qualification bounds. No live account is selected.",
+      "action": "node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> providers qualify --profile <exact-id> --transport <id> --limits qualification.json",
+      "expected": "Report records observed identity, versions, source/profile hashes, requested and observed lifecycle outcomes, usage and failures. Cap exhaustion stops the cell without widening limits. Successful qualification exits 0. Invalid selected account/profile/controls/limits exits 2. A completed failed capability check exits 1. Admitted remote uncertainty exits 3. Confirmed cancellation exits 4. Every credential access uses the injected fake port. Any network or live-account access fails the deterministic test. Real qualification is outside npm test.",
+      "target": "packages/orchestration/src/pel-provider-qualification.test.ts"
+    },
+    {
+      "id": "T-M3-018",
+      "requirements": [
+        "R-M3-018"
+      ],
+      "level": "contract",
+      "fixture": "Documented-only, fixture-only, current live-qualified, expired and changed-version evidence records.",
+      "action": "node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> providers list --json, then admitCell through injected services",
+      "expected": "Only exact current live evidence labels a product capability live-qualified. Documented-only, fixture-only, expired and mismatched evidence fail product admission. Test-layer cells display test-fixture, never live-qualified. Successful listing exits 0 even when it displays unavailable or stale cells. Invalid registry schema exits 2 and registry read/output failure exits 1.",
+      "target": "packages/orchestration/src/pel-provider-list.test.ts"
+    },
+    {
+      "id": "T-M3-019",
+      "requirements": [
+        "R-M3-019"
+      ],
+      "level": "contract",
+      "fixture": "M2 GenerationRequest with generationId, attempt, credentialProfileRef, generationBudgetReservationRef, exact modelProfileId/transportId/controls, grammar selection, pinned prompt template, catalog and bounded artifacts.",
+      "action": "ProviderGenerationPort.generate with supported grammar, envelope-only, invalid envelope and 1 MiB overflow fixtures.",
+      "expected": "One request per call uses effectId generationId/attempt/attempt-index, original reservation, toolPolicy/toolChoice none and validated envelope. No adapter repair/execution occurs. Unsupported grammar fails explicitly. ProviderRequestV1 includes opaque credentialProfileRef and outputSchema {id,content}; no secret bytes or execution-ledger call occurs.",
+      "target": "packages/providers/src/generation.test.ts"
+    },
+    {
+      "id": "T-M3-020",
+      "requirements": [
+        "R-M3-020"
+      ],
+      "level": "contract",
+      "fixture": "Each profile has cache-read/write counters, dated pricing metadata, long-context thresholds and missing cost fields. Requests exhaust tokens, time and tool bounds.",
+      "action": "Normalize usage and run each bounded stream under a fake clock and recording host reservation port.",
+      "expected": "Observed counters and price identity survive normalization. Unknown cost remains unknown with conservative reservation. Limits stop the stream without widening budget or silently retrying.",
+      "target": "packages/providers/src/usage.test.ts"
+    },
+    {
+      "id": "T-M3-021",
+      "requirements": [
+        "R-M3-021"
+      ],
+      "level": "contract",
+      "fixture": "Every profile with omitted controls and explicit overrides, invalid nested keys, and unsupported background/store settings.",
+      "action": "resolveControls then encodeRequest and inspect preview/request bindings.",
+      "expected": "Resolved controls contain all five closed fields. Defaults match design.md. Invalid combinations fail before dispatch and controls cannot silently change.",
+      "target": "packages/providers/src/controls.test.ts"
+    },
+    {
+      "id": "T-M3-022",
+      "requirements": [
+        "R-M3-022"
+      ],
+      "level": "contract",
+      "fixture": "OpenAI background completion, pending Google interaction, cancelled native turn, missing identity and unsupported xAI reconcile fixtures.",
+      "action": "observe(identity), then deliver resulting events to a recording host.",
+      "expected": "Results are pending, completed with validated payload, cancelled, not-found or unsupported. Late cancellation can be observed. No start call occurs.",
+      "target": "packages/providers/src/observation.test.ts"
+    },
+    {
+      "id": "T-M3-023",
+      "requirements": [
+        "R-M3-023"
+      ],
+      "level": "contract",
+      "fixture": "Required identity/tool/schema/cancellation capability set with documented-only, fixture-only, matching live, expired live and test-fixture evidence.",
+      "action": "admitCell under product and TestFixtureProviderLayer bindings.",
+      "expected": "Product admission accepts only matching current live evidence. Explicit test bindings may accept matching fixtures but never emit live-qualified evidence or product authority.",
+      "target": "packages/providers/src/admission.test.ts"
+    },
+    {
+      "id": "T-M3-024",
+      "requirements": [
+        "R-M3-024"
+      ],
+      "level": "contract",
+      "fixture": "Eight canonical transport IDs, one profile with two allowed mappings, an explicit selector, API coding request and native review lacking tool denial.",
+      "action": "resolveTransport and validate ToolPolicyV1 before task/review dispatch.",
+      "expected": "Unselected ambiguous mapping fails. Explicit mapping stays exact. API coding and unenforceable native review fail without fallback. Native coding carries workspace and permission grants.",
+      "target": "packages/providers/src/transport-selection.test.ts"
+    },
+    {
+      "id": "T-M3-025",
+      "requirements": [
+        "R-M3-025"
+      ],
+      "level": "contract",
+      "fixture": "M2 generation and provider retry consumers compile against one ProviderFailure record: required _tag/message/retryClass and optional requestId/usage/fieldPath/providerIdentity/retryAfterMs. Retry arguments include quoted data keys, quoted whole-list syntax and unquoted nil-pair lists.",
+      "action": "Compile shared error-record fixtures, exhaustively classify tags and decode :on [':rate-limited ':transport-disconnected].",
+      "expected": "Only RateLimited and TransportDisconnected are transient. Quoted key values decode correctly; whole-list syntax and nil-pair lists fail before retry-body evaluation. M2 alone creates errors.ts, all consumers use the same optional fields.",
+      "target": "packages/providers/src/errors.test.ts"
+    },
+    {
+      "id": "T-M3-026",
+      "requirements": [
+        "R-M3-026"
+      ],
+      "level": "acceptance",
+      "fixture": "Table-driven provider list and qualification cases from design.md Command outcomes, with recorded services, invalid inputs, failed assertions, remote uncertainty and confirmed cancellation.",
+      "action": "node packages/orchestration/dist-test/pel-cli-fixture.js --fixture-manifest <manifest.json> providers <list-or-qualify> with injected recorded services for every outcome",
+      "expected": "List with unavailable rows exits 0. Invalid input exits 2, failed qualification 1, uncertain admitted remote work 3 and confirmed cancellation 4. No final pending 5 or fabricated live evidence appears.",
+      "target": "packages/orchestration/src/pel-provider-cli.test.ts"
+    },
+    {
+      "id": "T-M3-027",
+      "requirements": [
+        "R-M3-027"
+      ],
+      "level": "contract",
+      "fixture": "Fake CredentialPort with scoped redacted material and exact credentialProfileRef on start/resume/observe identities.",
+      "action": "Run credential-port fixtures, source dependency lint and npm run typecheck.",
+      "expected": "All requests use the selected reference without secret serialization. Credential scopes release leases. Providers never imports orchestration and Pel never imports providers.",
+      "target": "packages/providers/src/credentials.test.ts"
+    },
+    {
+      "id": "T-M3-028",
+      "requirements": [
+        "R-M3-028"
+      ],
+      "level": "contract",
+      "fixture": "Immutable schema ID/content pairs, provider subset fixtures and reordered/duplicate/malformed output envelopes.",
+      "action": "lowerProviderSchema then decodeProviderOutput and validateFinal.",
+      "expected": "Canonical schema order is stable across JSON key order. Invalid keys/types/bounds fail with field paths. Unsupported required schema structure performs zero dispatch.",
+      "target": "packages/providers/src/output-codec.test.ts"
+    }
+  ]
+}

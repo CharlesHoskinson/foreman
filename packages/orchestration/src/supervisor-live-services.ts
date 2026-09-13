@@ -19,10 +19,10 @@ import {
   readdirSync,
   readSync,
   realpathSync,
-  rmdirSync,
   type Stats,
 } from "node:fs";
 import { join } from "node:path";
+import { acquireKernelRunLease } from "./run-lease-kernel.js";
 import { Effect, Layer } from "effect";
 import {
   decodeRunId,
@@ -37,19 +37,8 @@ import {
   RunDiscovery,
   RunLease,
   TypedJournalReader,
+  PelSupervisorRecovery,
 } from "./supervisor.js";
-import {
-  makeLiveWorktreeRestore,
-  WorktreeRestore,
-} from "./resume-worktree-restore.js";
-import {
-  makeLiveQueueSubmitter,
-  QueueSubmitter,
-} from "./resume-queue-execution.js";
-import {
-  liveProcessExec,
-  liveQueueServices,
-} from "./queue-services.js";
 import {
   liveResumeSafetyServices,
   ResumeLockProbe,
@@ -60,8 +49,8 @@ export type LiveSupervisorContext = {
   /** Preflighted absolute state root (FOREMAN_HOME equivalent). */
   readonly stateRoot: string;
   readonly env?: NodeJS.ProcessEnv;
-  readonly shellBinary?: string;
-  readonly laneRunScript?: string;
+  /** Registered Pel recovery under the same canonical root and held owner. */
+  readonly pelRecovery?: (stateRoot: string) => Layer.Layer<PelSupervisorRecovery>;
 };
 
 // ---------------------------------------------------------------------------
@@ -613,8 +602,8 @@ export function makeLiveRunDiscovery(
 // ---------------------------------------------------------------------------
 
 /**
- * Live per-run lease via exclusive mkdir of `.supervise.lock`.
- * No stale reclaim — busy fails closed.
+ * Live per-run lease via a protected kernel lock in `.supervise.lock`.
+ * Legacy unmarked directories stay Busy. The kernel releases ownership on death.
  * Create and release bind to the opened run-directory identity so a
  * concurrent rename+symlink of runs/ or runs/<runId> cannot redirect
  * the lock outside the validated directory.
@@ -650,74 +639,18 @@ export function makeLiveRunLease(stateRoot: string): Layer.Layer<RunLease> {
             return { _tag: "Busy" as const };
           }
 
-          const lockName = ".supervise.lock";
-          const lockPath = childPathUnder(runDir, lockName);
-          if (lockPath === null) {
-            return { _tag: "Busy" as const };
-          }
-
-          const lockKind = observeDirComponent(lockPath);
-          if (lockKind === "symlink" || lockKind === "other") {
-            return { _tag: "Busy" as const };
-          }
-          if (lockKind === "directory") {
-            return { _tag: "Busy" as const };
-          }
-
-          try {
-            mkdirSync(lockPath, { recursive: false });
-          } catch {
-            return { _tag: "Busy" as const };
-          }
-
-          // Confirm lock is a real directory under the still-bound run dir.
-          if (observeDirComponent(lockPath) !== "directory") {
-            try {
-              rmdirSync(lockPath);
-            } catch {
-              /* ignore */
-            }
-            return { _tag: "Busy" as const };
-          }
-          if (!recheckBoundDir(runDir)) {
-            try {
-              rmdirSync(lockPath);
-            } catch {
-              /* ignore */
-            }
-            return { _tag: "Busy" as const };
-          }
-
-          // Transfer runDir ownership to the Held handle for release.
+          const kernel = acquireKernelRunLease(runDir.fd);
+          if (!kernel) return { _tag: "Busy" as const };
           const heldRun = runDir;
           runDir = undefined;
           let owned = true;
           return {
             _tag: "Held" as const,
-            release: () =>
-              Effect.sync(() => {
-                if (!owned) return;
-                owned = false;
-                try {
-                  if (recheckBoundDir(heldRun)) {
-                    const releasePath = childPathUnder(
-                      heldRun,
-                      ".supervise.lock",
-                    );
-                    if (releasePath !== null) {
-                      // Only remove if still a real directory under the
-                      // original run identity — never a swapped parent.
-                      if (observeDirComponent(releasePath) === "directory") {
-                        rmdirSync(releasePath);
-                      }
-                    }
-                  }
-                } catch {
-                  /* ignore */
-                } finally {
-                  closeQuiet(heldRun.fd);
-                }
-              }),
+            release: () => Effect.sync(() => {
+              if (!owned) return;
+              owned = false;
+              try { kernel.release(); } finally { closeQuiet(heldRun.fd); }
+            }),
           };
         } finally {
           closeQuiet(runDir?.fd);
@@ -735,9 +668,7 @@ export type SupervisorLiveLayer = Layer.Layer<
   | RunDiscovery
   | TypedJournalReader
   | RunLease
-  | WorktreeRestore
   | RunJournal
-  | QueueSubmitter
   | ResumeProcessProbe
   | ResumeLockProbe
 >;
@@ -762,32 +693,12 @@ export function makeLiveSupervisorServices(
   const journal = makeLiveRunJournalLayer(stateRoot);
   const safety = liveResumeSafetyServices;
 
-  const restore = makeLiveWorktreeRestore({
-    env: ctx.env ?? process.env,
-  }).pipe(Layer.provide(liveProcessExec));
-
-  const queue = makeLiveQueueSubmitter().pipe(
-    Layer.provide(liveQueueServices),
-  );
-
   return Layer.mergeAll(
     discovery,
     journalReader,
     lease,
     journal,
     safety,
-    restore,
-    queue,
+    ...(ctx.pelRecovery ? [ctx.pelRecovery(stateRoot)] : []),
   ) as SupervisorLiveLayer;
-}
-
-/** Default shell and lane-run paths for the installed skill layout. */
-export function defaultSupervisorPaths(skillRoot: string): {
-  readonly shellBinary: string;
-  readonly laneRunScript: string;
-} {
-  return {
-    shellBinary: process.platform === "win32" ? "bash" : "/bin/bash",
-    laneRunScript: join(skillRoot, "scripts", "lane-run.sh"),
-  };
 }

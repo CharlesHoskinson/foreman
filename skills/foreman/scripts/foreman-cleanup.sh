@@ -55,7 +55,7 @@ RD="$(run_dir "$RUN_ID")"
 #   it is still alive (kill -0). A signal-delivery failure (already dead, no
 #   permission, no such pid) is silently tolerated -- this is a courtesy
 #   heads-up before worktree removal, never a hard gate on cleanup
-#   proceeding. Mirrors lane-supervise.sh's own ownership-pid liveness check
+#   proceeding. Mirrors the historical controller's own ownership-pid liveness check
 #   (launcher_pid falling back to pid) so the two scripts agree on what
 #   "alive" means for a lane.
 # @arg $1 events full run event log (newline-delimited JSON, CR-free)

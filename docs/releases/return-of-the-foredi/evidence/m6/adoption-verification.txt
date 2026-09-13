@@ -1,0 +1,176 @@
+
+> pretest:adoption
+> npm run build --workspace @foreman/pel && npm run build --workspace @foreman/providers && npm run test:pel-fixture-build
+
+
+> @foreman/pel@0.4.0 build
+> esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/pel.js
+
+
+  dist/pel.js  259.8kb
+
+⚡ Done in 14ms
+
+> @foreman/providers@0.4.0 build
+> esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/providers.js
+
+
+  dist/providers.js  1.1mb ⚠️
+
+⚡ Done in 141ms
+
+> test:pel-fixture-build
+> tsx scripts/build-pel-test-fixture.ts
+
+
+> test:adoption
+> tsx scripts/run-tests.ts "packages/orchestration/src/pel-adoption*.test.ts" "packages/orchestration/src/pel-install*.test.ts" "packages/orchestration/src/pel-package.test.ts" "packages/orchestration/src/pel-support.test.ts" "packages/orchestration/src/pel-migration*.test.ts" "packages/orchestration/src/pel-research*.test.ts" "packages/orchestration/src/pel-simplification*.test.ts" "packages/orchestration/src/pel-control-examples-cli.test.ts" "packages/orchestration/src/pel-model-examples-cli.test.ts" "packages/orchestration/src/pel-legacy-status.test.ts" "packages/orchestration/src/pel-host-verify.test.ts" "packages/orchestration/src/pel-cli-fixture.test.ts" "packages/orchestration/src/pel-provider-readiness-live.test.ts"
+
+✔ T-M6-021 installed version uses exact nullable identity in JSON and readable human output (9.125793ms)
+✔ T-M6-021 rollback routes its reachable outcomes (6.396826ms)
+✔ T-M6-021 support routes its reachable outcomes (0.634794ms)
+✔ T-M6-021 version routes its reachable outcomes (0.310077ms)
+✔ T-M6-021 malformed adoption commands fail before invoking services (0.766699ms)
+✔ T-M6-001 compiled command follows the installed foreman symlink entry (601.813679ms)
+✔ T-M6-023 all canonical workflow and exact profile examples check against the same installed language contract (520.348172ms)
+✔ T-M6-002/T-M6-019 compiled project configure writes canonical settings and bare run uses the registered project (9136.069194ms)
+ℹ {"evidenceKind":"test-fixture","files":[{"byteLength":63519,"relativePath":"runtime/assets/pel/default-authoring-snapshot.json","sha256":"42a6bf180a286175c1528a29b4afc4ac719667d0513cb797454a7ec4613e415a"},{"byteLength":267,"relativePath":"examples/pel/implement-verify-review.pel","sha256":"9cea3c10124da4a2d6548b7700dd0ec5b8ff60bdc50ca6bf10722cf8cd538779"}],"packageBuildId":"a618549b88aaee006f2eaafeaeba9b96a13917767ac831a14fa0758001d08cf4","packageSource":"synthetic-test-package","runId":"pel-60be9122-0de8-449d-af2e-445dc52cf78b"}
+✔ T-M6-017 terminal failure permits rollback and retained original build can admit a later revision (2679.35815ms)
+✔ T-M6-017 rollback verifies retained bytes and every registered root before switching current (2755.176493ms)
+✔ T-M6-018 support export writes only the safe projection and reports unknown runs without output (551.250921ms)
+✔ T-M6-017 equal numeric schema versions do not admit a different active registry or handler (599.10157ms)
+✔ T-M6-018 support refuses an existing output and cancellation leaves no output (372.155678ms)
+✔ T-M6-018 live export resolves an actual retained run through the original project registry (735.532628ms)
+✔ T-M6-017 a terminal result before a revision cannot hide the new active checkpoint (624.252484ms)
+✔ T-M6-018 an absent original project registry has no known runs and is not created by export (484.668337ms)
+✔ T-M6-017 suspended and cancel-requested durable results remain active for rollback (557.27125ms)
+✔ T-M6-017 registry and prefix transaction failures are I/O refusals before compatibility inspection (2215.69446ms)
+✔ T-M4-021 compiled lifecycle recovers checkpoint and race decisions with the same durable receipts (6607.833982ms)
+✔ T-M4-021 compiled run status and cancel share one owner across processes (3025.680379ms)
+✔ T-M4-021 compiled provider scripts retain structured failures usage and retry reservation identity (11363.290888ms)
+✔ T-M4-021 compiled provider cancellation distinguishes confirmed cleanup from unknown remote work (4033.889358ms)
+✔ T-M4-021 compiled manifest rejects expanded authority shell fields and changed provider scripts before allocation (2050.928221ms)
+✔ T-M4-008 compiled provider race retains its winner and unknown remote loser across resume (7445.176534ms)
+✔ T-M4-020 compiled string predicate uses actual V2 evaluate and print receipts across recovery (4728.475775ms)
+✔ compiled fixture entry checks source and emits one preview (535.034922ms)
+✔ fixture main import performs no invocation (1834.013114ms)
+✔ compiled production resolves its installed asset and rejects fixture manifest (1821.230743ms)
+✔ compiled fixture generation returns exact source and performs bounded local repair (1082.104369ms)
+✔ fixture manifest requires asset root, asset digest and bounded fixture records (798.1941ms)
+✔ fixture assets reject tampered content or manifest hashes before generation (836.147677ms)
+✔ fixture assets reject traversal, symlinks and context paths outside the bound root (1295.647066ms)
+✔ fixture resolves bound examples and default snapshot independently of cwd (438.813125ms)
+✔ T-M6-023 exact race-cancel source selects an immutable candidate from separate real Git grants (6989.49011ms)
+✔ T-M6-023 exact resume-checkpoint source survives provider completion death without another implementation (6178.499643ms)
+✔ M6 race crash after winner decision settles the known completed loser without another task completion (8501.095582ms)
+✔ direct artifact verification permits nil task while preserving Boolean pass and closed result keys (2.635517ms)
+✔ host verification pass preserves its original evidence and reservation (499.486463ms)
+✔ host verification fail preserves its original evidence and reservation (310.205941ms)
+✔ host verification crash-after-report preserves its original evidence and reservation (358.928348ms)
+✔ host verification crash-before-report preserves its original evidence and reservation (256.541067ms)
+✔ T-M6-012 owner reuses exact verification and executes the gate again for changed candidate (814.222221ms)
+✔ T-M6-012 owner reuses exact verification and executes the gate again for changed gate (777.835067ms)
+✔ T-M6-012 owner reuses exact verification and executes the gate again for changed environment (894.08961ms)
+✔ T-M6-012 owner reuses exact verification and executes the gate again for changed policy (879.790696ms)
+✔ T-M6-012 owner reuses exact verification and executes the gate again for changed freshness (915.087701ms)
+✔ T-M6-012 owner reuses exact verification and executes the gate again for changed future (828.134569ms)
+✔ T-M6-012 owner reuses exact verification and executes the gate again for changed freshness-recovery (862.111059ms)
+✔ installed admission freezes invoking identity, preserves operation failures, and releases its lock (1632.252505ms)
+✔ checkout admission has no installation requirement and invalid invoking paths fail closed (180.79521ms)
+✔ T-M6-001/002/017 compiled clean install exposes exact version, checks source, and rolls back without a checkout (8454.333298ms)
+✔ T-M6-001 install verifies complete payload and atomically selects an immutable retained build (1524.901889ms)
+✔ T-M6-003 invalid prerequisite and tampered payload preserve the selected installation (729.846876ms)
+✔ T-M6-003 linked and undeclared package files are rejected before any prefix mutation (235.534704ms)
+✔ T-M6-003 staging failure preserves the prior current pointer (1008.966654ms)
+✔ T-M6-003 interruption during staging removes partial bytes and preserves current (1107.00043ms)
+✔ T-M6-001 restrictive caller umasks preserve declared installed file modes (1741.476007ms)
+✔ T-M6-003 a symlink ancestor is invalid input before prefix creation (360.252436ms)
+✔ T-M6-003 a regular-file ancestor is invalid input and leaves its bytes unchanged (469.520721ms)
+✔ T-M6-009 service unified status reads active and terminal legacy identity without allocation or owner transfer (474.934045ms)
+✔ T-M6-009 compiled unified status reads active and terminal legacy identity without allocation or owner transfer (3401.498376ms)
+✔ T-M6-021 migration retains active-owner needs-action and maps success/invalid/io (5.337201ms)
+✔ installed migration instantiates only the registered project contract, immutable spec and exact slots (921.899639ms)
+✔ T-M6-007 closed implement-verify-review import preserves exact registered semantics (146.894642ms)
+✔ T-M6-007 closed bounded-rework import preserves exact registered semantics (66.104488ms)
+✔ T-M6-007 unknown command, schema, field, shell, Council, or gate fails at the original source locator (1.511314ms)
+✔ T-M6-008 active and uncertain legacy observations refuse without consuming or rewriting the input (0.98895ms)
+✔ migration publication creates a hash-bound pair and refuses overwrite or symlink inputs (21.486537ms)
+✔ T-M6-008 real active legacy owner, reservation and completed tool evidence survive migration refusal (159.795875ms)
+✔ T-M6-007 compiled migrate and actual host execution preserve implement-verify-review trace and original limits (4749.926872ms)
+✔ T-M6-007 compiled migrate and actual host execution preserve bounded-rework trace and original limits (9832.37653ms)
+✔ migration distinguishes input I/O from malformed contract at its original locator (5.824194ms)
+✔ T-M6-009 all twelve retired shell entries are absent and live caller scopes contain no references (95.119063ms)
+✔ M6 exact conditional.pel captures a candidate before its approved verification branch (3834.518505ms)
+✔ M6 exact conditional.pel captures a candidate before its gate-failed verification branch (3072.700045ms)
+✔ M6 exact repair.pel performs its corrected named task call and retains pending delivery milestones (2094.002868ms)
+✔ M6 exact gpt-6-astra example uses its recorded native cell and actual M5 candidate capture (2024.241303ms)
+✔ M6 exact gpt-5.6-sol example uses its recorded native cell and actual M5 candidate capture (2111.110577ms)
+✔ M6 exact claude-opus-5 example uses its recorded native cell and actual M5 candidate capture (2072.059356ms)
+✔ M6 exact claude-fable-5-1 example uses its recorded native cell and actual M5 candidate capture (1817.524214ms)
+✔ M6 exact grok-4.6 example uses its recorded native cell and actual M5 candidate capture (1528.377401ms)
+✔ M6 exact gemini-3.8-flash example uses its recorded native cell and actual M5 candidate capture (1626.8206ms)
+✔ M6 recorded profile fixture rejects another exact model before any action reservation (736.896679ms)
+✔ T-M6-016/020 manifest identity binds exact payload without circular self-reference and preserves nullable version (8.147594ms)
+✔ T-M6-016/023 manifest rejects unsafe, duplicate, unsupported and missing canonical payload paths (9.79435ms)
+✔ manifest mode is a closed numeric permission value (0.826665ms)
+✔ T-M6-020 archive bytes are deterministic and retain exact verified modes and payload outside the checkout (4222.226414ms)
+✔ T-M6-020 producer captures an exact clean candidate and refuses later untracked production sources (5988.982811ms)
+✔ T-M3-013 stored current profile-bound metadata remains independent from model and capability evidence (5.151454ms)
+✔ legacy account absence and changed account preserve unknown authentication (3.841692ms)
+✔ expired, future, changed source, installed version and path records cannot supply readiness facts (1.61502ms)
+✔ bounded-workload probe is explicitly rejected before metadata reads or underlying probes (1.339665ms)
+✔ default adapter reuses bounded legacy store and never interprets legacy authentication as selected-account evidence (44.661491ms)
+✔ T-M3-014 only explicit profile-bound signed-out evidence has login remediation (0.819865ms)
+✔ default profile wrapper reader requires current authority identity and never reads credential content (18.427303ms)
+✔ T-M6-021 research query/status/refresh route success, stale and typed failures (5.98996ms)
+✔ T-M6-021 malformed research bounds do not read context (1.22683ms)
+✔ T-M6-013 query preserves bounded provenance, classes, graph identity, and no-match success (55.705544ms)
+✔ T-M6-014 changed and missing sources preserve old readable snapshot with explicit markers (18.693316ms)
+✔ T-M6-014 interrupted refresh preserves prior bytes and stale status, valid refresh publishes matching hashes (14.798161ms)
+✔ T-M6-015 optional vault links remain data and removing the vault does not block repository query (7.970208ms)
+✔ T-M6-013 captured manifest adapter preserves explicit classification and raw/clean binding (0.519232ms)
+✔ T-M6-013 snapshots reject undeclared payload and sources redact secret and private reasoning text (7.131877ms)
+✔ T-M6-014 actual fiber interruption preserves the committed snapshot and refresh marker (10.61102ms)
+✔ T-M6-014 refresh rejects changed capture hashes and source overwrite, preserving prior bytes (6.620068ms)
+✔ T-M6-013 advisory graph cannot claim qualified identity and escaping source symlinks fail (6.22887ms)
+✔ T-M6-013 T-M6-014 CLI services use packaged defaults and one atomic selected-source snapshot (14.89536ms)
+✔ M6 curated excerpts retain full-source hashes and explicit byte ranges (2.195159ms)
+✔ T-M6-015 optional vault skips hidden and symlink notes and bounded read failure preserves core query (6.209988ms)
+✔ T-M6-015 live optional notes disclose observation without captured freshness (3.367099ms)
+✔ T-M6-014 rejected replacement bundle does not mark the valid selected snapshot incomplete (9.614703ms)
+✔ T-M6-022 research preparation returns canonical read-result with no dispatch or reservation port (7.991304ms)
+✔ T-M6-022 external vault requires vault.read and invalid bundles cannot create authority (1.681279ms)
+✔ T-M6-022 immutable host refuses uncaptured CLI observations (0.753344ms)
+✔ M6 immutable research indexes retain exactly one copy of each bound source and reject changed bytes (3.886293ms)
+✔ T-M6-022 actual M4 immutable read persists its preparation digest and resumes after receipt-write interruption without reservation (615.100203ms)
+✔ T-M6-022 compiled research-prepare and parallel-read use admitted assets and zero external reservations (2533.937969ms)
+✔ T-M6-010 metric collection reads exact Git bytes and records generated/test/archive totals separately (180.6509ms)
+✔ T-M6-010 known instruction membership excludes implementation source and marks the missing startup trace (7.210791ms)
+✔ T-M6-010 metric CLI preserves a missed-target report and exits 1 (3.420497ms)
+✔ T-M6-010 invalid metric arguments or changed baseline exit 2 without a success report (1.682953ms)
+✔ T-M6-010 metric CLI forwards the explicit startup trace without changing source selection (0.356726ms)
+✔ T-M6-010 actual M4 standard start captures Grok launcher and RPC instruction bytes without external provider (3762.24144ms)
+✔ T-M6-010 repeated standard startup produces the same instruction corpus despite distinct run IDs (5784.395323ms)
+✔ T-M6-010 complete deterministic startup trace preserves transmitted bytes and fixture identity (2.73758ms)
+✔ T-M6-010 incomplete, changed, forged-shape, and cross-candidate startup traces are refused (0.75407ms)
+✔ T-M6-010 fixed manifest rejects changed membership, tokenizer, counts and rules (20.791878ms)
+✔ T-M6-010 candidate union counts new research and other moved production, full residual files once (8.648498ms)
+✔ T-M6-011 valid missed targets remain measured failures; full surviving instructions are counted (571.033579ms)
+✔ T-M6-010 corrupt original bytes and missing mandatory instruction carriers fail comparison (343.7885ms)
+✔ T-M6-010 an arbitrary sources directory cannot hide added production (0.342405ms)
+✔ T-M6-010 duplicate baseline keys are invalid even when their values agree (0.238688ms)
+✔ T-M6-010 a generated directory name cannot hide new TypeScript implementation (0.164175ms)
+✔ T-M6-011 incomplete startup instructions retain production counts without inventing a reduction (384.341429ms)
+✔ T-M6-010 rendered startup bytes add instruction tokens without changing production totals (667.824017ms)
+✔ T-M6-018 support projection retains exact safe identities and event references without raw nested provider data (2.829241ms)
+✔ T-M6-018 malicious diagnostic codes and forged provider identifiers cannot become exported payload text (0.260257ms)
+✔ T-M6-018 opaque provider revision strings are omitted instead of exposing arbitrary provider text (0.188091ms)
+✔ T-M6-018 package identity never upgrades fixture or unavailable run provenance (0.210915ms)
+ℹ tests 139
+ℹ suites 0
+ℹ pass 139
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 51141.895683

@@ -151,7 +151,7 @@ cmd_check() {
   # breaking the "prints exactly one NOT_MERGEABLE line, or MERGEABLE, never
   # anything else" contract this function's own header promises. The
   # `|| read_rc=$?` form (same required if/||-guarded-assignment pattern
-  # lane-run.sh's own ckpt_snapshot capture uses) captures el_read's
+  # the historical controller's own ckpt_snapshot capture uses) captures el_read's
   # pipeline exit status without tripping errexit, so a corrupt log now
   # yields a clean NOT_MERGEABLE verdict instead of an uncontracted crash.
   local sha read_rc=0

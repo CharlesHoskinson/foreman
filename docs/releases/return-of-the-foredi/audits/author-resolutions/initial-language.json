@@ -1,0 +1,1645 @@
+{
+  "schemaVersion": 1,
+  "scope": "M1/M2 owned and coordinated initial audit findings",
+  "workspace": "/home/charl/fm-wt/foreman-dsl-release",
+  "status": "documents existing corrections; not a new audit or runtime verification",
+  "specificationsModified": false,
+  "sourceReviews": [
+    {
+      "file": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "sha256": "35edca8b53c7e2dc7d35164122230c9f8402d253bbdbc6b374f11de8a5c6e665"
+    },
+    {
+      "file": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "sha256": "364953a3503d18bd112e066cedf949eeaaae4c6b6dea8fc35d4a66f350dd6976"
+    },
+    {
+      "file": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "sha256": "d2d148c676aa19ad44a3dab2474453192b02e3ca0e7bf7d4b4764f7875522663"
+    }
+  ],
+  "correctedDigests": [
+    {
+      "file": "openspec/changes/foredi-01-pel-language/design.md",
+      "sha256": "b8286ff4e74c48ec29fae85128bb5a96b29b4f557bc3c82706e80c18beca3cc4"
+    },
+    {
+      "file": "openspec/changes/foredi-04-durable-execution/design.md",
+      "sha256": "4245efc674caa89e36f521054b45827bd2916751446d2ee1d115f4189b7c38c9"
+    },
+    {
+      "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+      "sha256": "8ff3c8c5e3a27a8d03b6bcab6d07e6bde7ac25d8dd426d691118251f0f929d74"
+    },
+    {
+      "file": "openspec/changes/foredi-03-model-adapters/design.md",
+      "sha256": "d76a0e898a6f0d09d87838dc79981d0da07f531e4123d6989abfbbbb7f8f9ae9"
+    },
+    {
+      "file": "openspec/changes/foredi-05-task-delivery/design.md",
+      "sha256": "37e1a7395eb6926d4b97e04ae2e9d70eecfbbe97946b3b77482298280a7483eb"
+    },
+    {
+      "file": "openspec/changes/foredi-06-adoption/design.md",
+      "sha256": "4ee171bd8f0c3795a34d8f611c68aac5efe6ae0c6cd31bf867eb20d5b9e41357"
+    }
+  ],
+  "findings": [
+    {
+      "id": "EXECUTION-001",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "initialSeverity": "blocker",
+      "initialRequirements": [
+        "R-M4-014",
+        "R-M1-014",
+        "R-M4-003"
+      ],
+      "scope": "Shared with M4",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-020"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-014"
+          ]
+        }
+      ],
+      "resolution": "validateRevisionPrefix checks normalized completed top-level forms, invocation paths, and arguments. M4 records old-to-new mappings and starts revised source afresh, using mapped receipts rather than decoding an old continuation under a new digest. Completed-prefix edits fail before dispatch.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "EXECUTION-002",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M3-002",
+        "R-M3-011",
+        "R-M3-012",
+        "R-M3-019"
+      ],
+      "scope": "Shared with M3",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Controls and generation request lowering",
+          "requirements": [
+            "R-M2-008",
+            "R-M2-015"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Closed controls and transport selection",
+          "requirements": [
+            "R-M3-002"
+          ]
+        }
+      ],
+      "resolution": "GenerationRequest carries the closed ProviderControlsV1 object. Admitted defaults or explicit controls select effort, thinking, sampling, tool choice, and execution mode. Unknown keys and unsupported fields are rejected.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "EXECUTION-006",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M5-001",
+        "R-M5-003",
+        "R-M5-006",
+        "R-M5-009"
+      ],
+      "scope": "Shared with M5",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Registry, schemas, and canonical values",
+          "requirements": [
+            "R-M1-017"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Complete snapshot and selection contract",
+          "requirements": [
+            "R-M2-004",
+            "R-M2-013"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-003"
+          ]
+        }
+      ],
+      "resolution": "Association schemas require ordered unique keys. The verification schema supplies Boolean :passed and status, so the M2 conditional example can use native lookup. The standard example is implement-verify-review.pel.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "EXECUTION-008",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M4-007",
+        "R-M4-008",
+        "R-M5-001"
+      ],
+      "scope": "Shared with M4",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Registry, schemas, and canonical values",
+          "requirements": [
+            "R-M1-012",
+            "R-M1-017"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Capabilities and bounded dynamic regions",
+          "requirements": [
+            "R-M2-004",
+            "R-M2-006"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Native execution and resource ownership",
+          "requirements": [
+            "R-M4-007",
+            "R-M4-008"
+          ]
+        }
+      ],
+      "resolution": "Registry construction validates declarative descriptors and schema references. Descriptors include a resourceResolverId and envelope. M2 resolves abstract resources and M4 resolves concrete argument-dependent resources before effect admission.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "EXECUTION-009",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M1-012",
+        "R-M4-009",
+        "R-M4-015"
+      ],
+      "scope": "Shared with M4",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Public interfaces",
+          "requirements": [
+            "R-M1-015"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-015",
+            "R-M1-016"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-015"
+          ]
+        }
+      ],
+      "resolution": "Valid failure receipts yield PelStep.failed with PEL_HOST_FAILURE and unchanged HostEffectFailure. Pending siblings remain recorded and new release stops. Retry classifies a child failure before parent merge. M4 owns status and exit mappings.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "EXECUTION-010",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M4-009",
+        "R-M2-010",
+        "R-M3-012"
+      ],
+      "scope": "Shared with M3/M4",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Public interfaces",
+          "requirements": [
+            "R-M1-015"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Controls and generation request lowering",
+          "requirements": [
+            "R-M2-010"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared error and generation contract",
+          "requirements": [
+            "R-M3-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Native execution and resource ownership",
+          "requirements": [
+            "R-M4-009"
+          ]
+        }
+      ],
+      "resolution": "M2 bootstraps the full canonical ProviderFailure union in providers/errors.ts. Its generation switch is exhaustive. Transport-emitted failures stop generation. M4 admits only canonical :rate-limited and :transport-disconnected transient retry categories. Host failure receipts preserve the typed cause.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "EXECUTION-011",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M4-009",
+        "R-M4-008"
+      ],
+      "scope": "Shared with M4",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Suspension and restart ownership",
+          "requirements": [
+            "R-M1-016"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-016"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Native execution and resource ownership",
+          "requirements": [
+            "R-M4-008",
+            "R-M4-009"
+          ]
+        }
+      ],
+      "resolution": "Child IDs include the parent request and one-based retry attempt or race contender index, and prefix nested invocation paths. extractClosureEnvironment retrieves lexical data. All child counters, including abandoned losers, are charged once. Foreign-attempt receipts are rejected.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "EXECUTION-015",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M2-003",
+        "R-M5-001",
+        "R-M3-006"
+      ],
+      "scope": "Shared with M3/M5",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Complete snapshot and selection contract",
+          "requirements": [
+            "R-M2-003",
+            "R-M2-014"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Closed controls and transport selection",
+          "requirements": [
+            "R-M3-006"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-001"
+          ]
+        }
+      ],
+      "resolution": "Snapshot roleBindings resolve ordinary role strings to exact profile, transport, controls, and credential references. Explicit :transport must be admitted. Ambiguous exact-profile transport selection fails. Role binding changes invalidate snapshotDigest.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "EXECUTION-016",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M2-008",
+        "R-M2-009",
+        "R-M2-012"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Planned validation",
+          "requirements": [
+            "R-M2-001",
+            "R-M2-004",
+            "R-M2-007",
+            "R-M2-008",
+            "R-M2-009",
+            "R-M2-012"
+          ]
+        }
+      ],
+      "resolution": "The test:pel-authoring script uses the existing run-tests.ts wrapper with six quoted explicit test paths. It has no brace expansion and no unmatched checker.test.js target. Tasks require sh -c execution and the wrapper zero-match negative control.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "EXECUTION-017",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "initialSeverity": "minor",
+      "initialRequirements": [
+        "R-M3-019",
+        "R-M2-008"
+      ],
+      "scope": "Shared with M3",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Compiled acceptance fixtures",
+          "requirements": [
+            "R-M2-008"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Generation and repair",
+          "requirements": [
+            "R-M2-008"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Package and ownership",
+          "requirements": [
+            "R-M3-019"
+          ]
+        }
+      ],
+      "resolution": "M2 alone creates the minimal providers package, contract, errors, and TypeScript metadata. M3 extends it and depends on M1/M2. M2 catalog depends_on now uses the milestone identifier M1.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "EXECUTION-018",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "initialSeverity": "minor",
+      "initialRequirements": [
+        "R-M3-017",
+        "R-M3-018"
+      ],
+      "scope": "Shared with M3",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Exact files",
+          "requirements": [
+            "R-M2-001"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Package and ownership",
+          "requirements": [
+            "R-M3-018"
+          ]
+        }
+      ],
+      "resolution": "All provider subcommands extend M2 pel-authoring-cli.ts and pel-authoring-main.ts in the single dist/foreman.js bundle.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "EXECUTION-020",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "initialSeverity": "minor",
+      "initialRequirements": [
+        "R-M1-012",
+        "R-M4-006"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Suspension and restart ownership",
+          "requirements": [
+            "R-M1-009",
+            "R-M1-012"
+          ]
+        }
+      ],
+      "resolution": "resumePel accepts receipt subsets. Suspend.ready contains all unreceipted released requests in stable invocation-path order with alreadyEmitted flags. A B-only receipt leaves A:true and no newly emitted request. M4 uses journal state rather than emission flags as dispatch evidence. The flagged-list alternative resolves the waiting-state ambiguity.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "EXECUTION-021",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "initialSeverity": "minor",
+      "initialRequirements": [
+        "R-M6-002",
+        "R-M5-008",
+        "R-M2-003"
+      ],
+      "scope": "Shared with M5/M6",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Useful examples",
+          "requirements": [
+            "R-M2-003",
+            "R-M2-013"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Fixture launcher and canonical package examples",
+          "requirements": [
+            "R-M6-002"
+          ]
+        }
+      ],
+      "resolution": "The standard workflow is implement-verify-review.pel and shared parallel example is parallel-read.pel. M2 repair.pel is valid corrected source. The invalid mixed-argument example is a separate repair-invalid.pel test fixture. M5/M6 share repair-and-publish.pel for runtime rework.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "EXECUTION-022",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "initialSeverity": "minor",
+      "initialRequirements": [
+        "R-M1-013",
+        "R-M2-003"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Suspension and restart ownership",
+          "requirements": [
+            "R-M1-013"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Complete snapshot and selection contract",
+          "requirements": [
+            "R-M2-004",
+            "R-M2-014"
+          ]
+        }
+      ],
+      "resolution": "The full snapshot includes nlConditionProfile with exact profile, transport, controls, credentials, and fixed schema:pel-boolean-v1. Its content participates in snapshotDigest. A reachable literal string predicate without this selection is rejected.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "LANGUAGE-001",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "blocker",
+      "initialRequirements": [
+        "R-M1-014",
+        "R-M4-012",
+        "R-M4-014"
+      ],
+      "scope": "Shared with M4",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-020"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-014"
+          ]
+        }
+      ],
+      "resolution": "validateRevisionPrefix checks normalized completed top-level forms, invocation paths, and arguments. M4 records old-to-new mappings and starts revised source afresh, using mapped receipts rather than decoding an old continuation under a new digest. Completed-prefix edits fail before dispatch.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "LANGUAGE-002",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "blocker",
+      "initialRequirements": [
+        "R-M1-005",
+        "R-M1-006"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Complete builtin signatures",
+          "requirements": [
+            "R-M1-005",
+            "R-M1-006"
+          ]
+        }
+      ],
+      "resolution": "All builtins have exact ordered ArgSpecs and strict/syntax positions. Pair AST nodes preserve valuePresent, distinguishing required :x from explicit :x #nil. Partial def/lambda constructors, body arity, and fixed binary versus fresh single-list + overload are specified with concrete fixtures.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "LANGUAGE-003",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M1-009",
+        "R-M1-012",
+        "R-M1-014"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Suspension and restart ownership",
+          "requirements": [
+            "R-M1-009",
+            "R-M1-012"
+          ]
+        }
+      ],
+      "resolution": "resumePel accepts receipt subsets. Suspend.ready contains all unreceipted released requests in stable invocation-path order with alreadyEmitted flags. A B-only receipt leaves A:true and no newly emitted request. M4 uses journal state rather than emission flags as dispatch evidence. The flagged-list alternative resolves the waiting-state ambiguity.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "LANGUAGE-004",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M1-012",
+        "R-M1-014"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Public interfaces",
+          "requirements": [
+            "R-M1-012",
+            "R-M1-014"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Registry, schemas, and canonical values",
+          "requirements": [
+            "R-M1-017"
+          ]
+        }
+      ],
+      "resolution": "resumePel now receives program and registry alongside continuation and receipts. createHostRegistry and createPelEnvironment define validated names, bindings, schemas, canonical hashing, and immutable content. Changed program or registry digests fail before request release.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "LANGUAGE-005",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M1-012",
+        "R-M4-009",
+        "R-M5-003"
+      ],
+      "scope": "Shared with M4",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Public interfaces",
+          "requirements": [
+            "R-M1-015"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-015",
+            "R-M1-016"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-015"
+          ]
+        }
+      ],
+      "resolution": "Valid failure receipts yield PelStep.failed with PEL_HOST_FAILURE and unchanged HostEffectFailure. Pending siblings remain recorded and new release stops. Retry classifies a child failure before parent merge. M4 owns status and exit mappings.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "LANGUAGE-006",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M1-014",
+        "R-M4-008",
+        "R-M4-009"
+      ],
+      "scope": "Shared with M4",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Suspension and restart ownership",
+          "requirements": [
+            "R-M1-016"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-016"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Native execution and resource ownership",
+          "requirements": [
+            "R-M4-008",
+            "R-M4-009"
+          ]
+        }
+      ],
+      "resolution": "Child IDs include the parent request and one-based retry attempt or race contender index, and prefix nested invocation paths. extractClosureEnvironment retrieves lexical data. All child counters, including abandoned losers, are charged once. Foreign-attempt receipts are rejected.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "LANGUAGE-007",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M1-003",
+        "R-M1-014",
+        "R-M4-005"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Registry, schemas, and canonical values",
+          "requirements": [
+            "R-M1-018"
+          ]
+        }
+      ],
+      "resolution": "PelDataValue has a closed tagged JSON representation canonicalized through packages/core. Byte limits and hashes use that encoding. formatPel specifies numbers, Unicode strings, pairs, lists, quoted data, and non-executable closure display.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "LANGUAGE-008",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M1-002",
+        "R-M1-007",
+        "R-M1-008"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Complete builtin signatures",
+          "requirements": [
+            "R-M1-008"
+          ]
+        }
+      ],
+      "resolution": "Case evaluates its scrutinee once and introduces a condition-local caret scope. Only literal string conditions invoke the predicate host function. Nonliteral string results are type errors. Tests cover explicit caret and once-only host scrutinees.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "LANGUAGE-009",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M1-001",
+        "R-M1-002"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-002"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "PDF and compatibility provenance",
+          "requirements": [
+            "R-M1-019"
+          ]
+        }
+      ],
+      "resolution": "PDF verification corrects the KEY class to include * and < but not caret. ASCII |> is an explicit glyph normalization. Keyword precedence, malformed digit-leading numbers, lone minus, Infinity, bare greater-than, and standalone caret have explicit token/error behavior.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "LANGUAGE-010",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M1-001",
+        "R-M1-005",
+        "R-M1-008",
+        "R-M1-009"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Normative profile classification matrix",
+          "requirements": [
+            "R-M1-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "PDF and compatibility provenance",
+          "requirements": [
+            "R-M1-019"
+          ]
+        }
+      ],
+      "resolution": "Every compatibility row has a paper/erratum/extension classification, paper locator, rationale, and planned positive/negative fixture IDs. The matrix also classifies default evaluation, scope, frozen builtins, print corrections, numeric bounds, and unsupported implicit nested router execution.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "PLAN-011",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M2-001",
+        "R-M2-005",
+        "R-M2-006"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Complete snapshot and selection contract",
+          "requirements": [
+            "R-M2-002",
+            "R-M2-006",
+            "R-M2-014"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Registry, schemas, and canonical values",
+          "requirements": [
+            "R-M1-017"
+          ]
+        }
+      ],
+      "resolution": "AuthoringSnapshotV1 contains actual registry, schemas, profiles, policy, resolver, roles, artifacts, and limits plus verified content digests. The installed path is runtime/assets/pel/default-authoring-snapshot.json. Dynamic collection bounds derive from schema maxItems, including the four-item fixture.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "PLAN-012",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M5-003",
+        "R-M5-009",
+        "R-M2-013"
+      ],
+      "scope": "Shared with M5",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Registry, schemas, and canonical values",
+          "requirements": [
+            "R-M1-017"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Complete snapshot and selection contract",
+          "requirements": [
+            "R-M2-004",
+            "R-M2-013"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-003"
+          ]
+        }
+      ],
+      "resolution": "Association schemas require ordered unique keys. The verification schema supplies Boolean :passed and status, so the M2 conditional example can use native lookup. The standard example is implement-verify-review.pel.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "PROVIDER-013",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M2-010",
+        "R-M3-019",
+        "R-M4-009"
+      ],
+      "scope": "Shared with M3/M4",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Public interfaces",
+          "requirements": [
+            "R-M1-015"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Controls and generation request lowering",
+          "requirements": [
+            "R-M2-010"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared error and generation contract",
+          "requirements": [
+            "R-M3-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Native execution and resource ownership",
+          "requirements": [
+            "R-M4-009"
+          ]
+        }
+      ],
+      "resolution": "M2 bootstraps the full canonical ProviderFailure union in providers/errors.ts. Its generation switch is exhaustive. Transport-emitted failures stop generation. M4 admits only canonical :rate-limited and :transport-disconnected transient retry categories. Host failure receipts preserve the typed cause.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "PROVIDER-014",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M2-008",
+        "R-M3-019"
+      ],
+      "scope": "Shared with M3",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Controls and generation request lowering",
+          "requirements": [
+            "R-M2-015"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared error and generation contract",
+          "requirements": [
+            "R-M3-019"
+          ]
+        }
+      ],
+      "resolution": "GenerationRequest supplies generationId and attempt identity, pinned trusted template, bounded artifacts, no-tools policy, exact controls/account, and a separate GenerationBudgetPort reservation. Lowering produces a complete provider request without execution-ledger calls.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "BUILD-015",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M2-008",
+        "R-M2-009",
+        "R-M2-012"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Planned validation",
+          "requirements": [
+            "R-M2-001",
+            "R-M2-004",
+            "R-M2-007",
+            "R-M2-008",
+            "R-M2-009",
+            "R-M2-012"
+          ]
+        }
+      ],
+      "resolution": "The test:pel-authoring script uses the existing run-tests.ts wrapper with six quoted explicit test paths. It has no brace expansion and no unmatched checker.test.js target. Tasks require sh -c execution and the wrapper zero-match negative control.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "PLAN-016",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "minor",
+      "initialRequirements": [
+        "R-M2-001",
+        "R-M4-011"
+      ],
+      "scope": "Shared with M4/M6",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Service boundaries",
+          "requirements": [
+            "R-M2-001",
+            "R-M2-002",
+            "R-M2-009",
+            "R-M2-010"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Command behavior",
+          "requirements": [
+            "R-M4-011"
+          ]
+        }
+      ],
+      "resolution": "The bundle uses shared exit meanings: 0 success, 1 failed, 2 invalid, 3 needs-action, 4 cancelled, 5 pending. M2 input/source/environment errors are 2, exhausted or fatal generation is 1, and cancellation is 4.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "DELIVERY-017",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "minor",
+      "initialRequirements": [
+        "R-M5-008",
+        "R-M6-001",
+        "R-M6-002"
+      ],
+      "scope": "Shared with M5/M6",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Useful examples",
+          "requirements": [
+            "R-M2-003",
+            "R-M2-013"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Fixture launcher and canonical package examples",
+          "requirements": [
+            "R-M6-002"
+          ]
+        }
+      ],
+      "resolution": "The standard workflow is implement-verify-review.pel and shared parallel example is parallel-read.pel. M2 repair.pel is valid corrected source. The invalid mixed-argument example is a separate repair-invalid.pel test fixture. M5/M6 share repair-and-publish.pel for runtime rework.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "BUILD-019",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "minor",
+      "initialRequirements": [
+        "R-M1-001"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "PDF and compatibility provenance",
+          "requirements": [
+            "R-M1-001"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Files and boundaries",
+          "requirements": [
+            "R-M1-001"
+          ]
+        }
+      ],
+      "resolution": "The test configuration disables declaration and declarationMap emit. Tasks exclude dist-test from tsconfig.all.json, add orchestration-to-Pel references, and repeat typecheck after test compilation.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "LANGUAGE-021",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "minor",
+      "initialRequirements": [
+        "R-M1-005",
+        "R-M1-008"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Complete builtin signatures",
+          "requirements": [
+            "R-M1-005",
+            "R-M1-008"
+          ]
+        }
+      ],
+      "resolution": "For creates a fresh child scope for each iteration. If/case selected branches retain the caller scope, while do has its own block scope. Tests cover repeated iteration definitions and branch definitions.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "LANGUAGE-022",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "minor",
+      "initialRequirements": [
+        "R-M1-003",
+        "R-M1-004",
+        "R-M1-006"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-003",
+            "R-M1-004",
+            "R-M1-006"
+          ]
+        }
+      ],
+      "resolution": "The diagnostic table maps duplicate/unknown names, excess arguments, mixed modes, at-plus-slice selection, wrong types, invalid indices, and unsafe arithmetic to exact stable error codes.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "PROVIDER-023",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "initialSeverity": "minor",
+      "initialRequirements": [
+        "R-M2-008",
+        "R-M3-019"
+      ],
+      "scope": "Shared with M3",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Controls and generation request lowering",
+          "requirements": [
+            "R-M2-008",
+            "R-M2-015"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Compiled acceptance fixtures",
+          "requirements": [
+            "R-M2-008"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared error and generation contract",
+          "requirements": [
+            "R-M3-019"
+          ]
+        }
+      ],
+      "resolution": "Grammar mode is auto, grammar-required, or envelope. Auto selects qualified grammar or envelope once, while mandatory unsupported grammar fails. M2 owns package bootstrap and catalogs use milestone dependency IDs.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "RELEASE-002",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M2-003",
+        "R-M3-006",
+        "R-M5-008",
+        "R-M5-015",
+        "R-M6-005"
+      ],
+      "scope": "Shared with M3/M5",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Complete snapshot and selection contract",
+          "requirements": [
+            "R-M2-003",
+            "R-M2-014"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Closed controls and transport selection",
+          "requirements": [
+            "R-M3-006"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-001"
+          ]
+        }
+      ],
+      "resolution": "Snapshot roleBindings resolve ordinary role strings to exact profile, transport, controls, and credential references. Explicit :transport must be admitted. Ambiguous exact-profile transport selection fails. Role binding changes invalidate snapshotDigest.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "RELEASE-004",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M2-001",
+        "R-M2-002",
+        "R-M4-011",
+        "R-M6-003",
+        "R-M6-006"
+      ],
+      "scope": "Shared with M4/M6",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Service boundaries",
+          "requirements": [
+            "R-M2-001",
+            "R-M2-002",
+            "R-M2-009",
+            "R-M2-010"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Command behavior",
+          "requirements": [
+            "R-M4-011"
+          ]
+        }
+      ],
+      "resolution": "The bundle uses shared exit meanings: 0 success, 1 failed, 2 invalid, 3 needs-action, 4 cancelled, 5 pending. M2 input/source/environment errors are 2, exhausted or fatal generation is 1, and cancellation is 4.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "RELEASE-005",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M4-014",
+        "R-M1-014"
+      ],
+      "scope": "Shared with M4",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-020"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-014"
+          ]
+        }
+      ],
+      "resolution": "validateRevisionPrefix checks normalized completed top-level forms, invocation paths, and arguments. M4 records old-to-new mappings and starts revised source afresh, using mapped receipts rather than decoding an old continuation under a new digest. Completed-prefix edits fail before dispatch.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "RELEASE-006",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M4-003",
+        "R-M4-004",
+        "R-M1-011"
+      ],
+      "scope": "M1 contract contribution; primary fix owned by M4",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-011",
+            "R-M1-014"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-003",
+            "R-M4-004"
+          ]
+        }
+      ],
+      "resolution": "M1 defines concrete limits/counter fields and non-resetting continuation accounting. M4 owns the persisted suspension snapshots and recovery source so completed work is not recharged during crash recovery.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "RELEASE-007",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M1-012",
+        "R-M2-004",
+        "R-M4-007"
+      ],
+      "scope": "Shared with M4",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Registry, schemas, and canonical values",
+          "requirements": [
+            "R-M1-012",
+            "R-M1-017"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Capabilities and bounded dynamic regions",
+          "requirements": [
+            "R-M2-004",
+            "R-M2-006"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Native execution and resource ownership",
+          "requirements": [
+            "R-M4-007",
+            "R-M4-008"
+          ]
+        }
+      ],
+      "resolution": "Registry construction validates declarative descriptors and schema references. Descriptors include a resourceResolverId and envelope. M2 resolves abstract resources and M4 resolves concrete argument-dependent resources before effect admission.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "RELEASE-008",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M1-012",
+        "R-M2-010",
+        "R-M3-019",
+        "R-M4-009"
+      ],
+      "scope": "Shared with M3/M4",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Public interfaces",
+          "requirements": [
+            "R-M1-015"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Controls and generation request lowering",
+          "requirements": [
+            "R-M2-010"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared error and generation contract",
+          "requirements": [
+            "R-M3-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Native execution and resource ownership",
+          "requirements": [
+            "R-M4-009"
+          ]
+        }
+      ],
+      "resolution": "M2 bootstraps the full canonical ProviderFailure union in providers/errors.ts. Its generation switch is exhaustive. Transport-emitted failures stop generation. M4 admits only canonical :rate-limited and :transport-disconnected transient retry categories. Host failure receipts preserve the typed cause.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "RELEASE-009",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M1-013",
+        "R-M2-004",
+        "R-M4-006"
+      ],
+      "scope": "Shared with M4",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Registry, schemas, and canonical values",
+          "requirements": [
+            "R-M1-013",
+            "R-M1-017"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Complete snapshot and selection contract",
+          "requirements": [
+            "R-M2-004",
+            "R-M2-014"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Remaining native host functions and test injection",
+          "requirements": [
+            "R-M4-006"
+          ]
+        }
+      ],
+      "resolution": "M1 declares print and predicate result schemas. M2 binds the predicate selection. M4 explicitly owns executable print and pel/nl-condition handlers, journaled Boolean results, and output routing that preserves one JSON object on stdout.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "RELEASE-010",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M1-005",
+        "R-M1-006",
+        "R-M1-010"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Complete builtin signatures",
+          "requirements": [
+            "R-M1-005",
+            "R-M1-006"
+          ]
+        }
+      ],
+      "resolution": "All builtins have exact ordered ArgSpecs and strict/syntax positions. Pair AST nodes preserve valuePresent, distinguishing required :x from explicit :x #nil. Partial def/lambda constructors, body arity, and fixed binary versus fresh single-list + overload are specified with concrete fixtures.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "RELEASE-011",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M1-001",
+        "R-M1-002"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "PDF and compatibility provenance",
+          "requirements": [
+            "R-M1-001",
+            "R-M1-002",
+            "R-M1-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Normative profile classification matrix",
+          "requirements": [
+            "R-M1-019"
+          ]
+        }
+      ],
+      "resolution": "The corrected profile cites PDF page images and independent PixelRAG 0.4.0 rereading. It fixes KEY/SYMBOL glyphs and adopts ASCII |> as an explicit normalization, rejecting the extracted ^> spelling.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "RELEASE-017",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M2-008",
+        "R-M4-001",
+        "R-M5-008",
+        "R-M6-002",
+        "R-M6-004"
+      ],
+      "scope": "Shared with M4",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Compiled acceptance fixtures",
+          "requirements": [
+            "R-M2-008"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Remaining native host functions and test injection",
+          "requirements": [
+            "R-M4-001"
+          ]
+        }
+      ],
+      "resolution": "Compiled fixture tests use the separate pel-cli-fixture.js entry with test-only --fixture-manifest. It injects services before the product router. Production rejects the flag with exit 2, and fixture evidence cannot become live-qualified.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "RELEASE-018",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "initialSeverity": "major",
+      "initialRequirements": [
+        "R-M2-001",
+        "R-M2-004",
+        "R-M2-007",
+        "R-M2-012"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Planned validation",
+          "requirements": [
+            "R-M2-001",
+            "R-M2-004",
+            "R-M2-007",
+            "R-M2-008",
+            "R-M2-009",
+            "R-M2-012"
+          ]
+        }
+      ],
+      "resolution": "The test:pel-authoring script uses the existing run-tests.ts wrapper with six quoted explicit test paths. It has no brace expansion and no unmatched checker.test.js target. Tasks require sh -c execution and the wrapper zero-match negative control.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "RELEASE-020",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "initialSeverity": "minor",
+      "initialRequirements": [
+        "R-M2-013",
+        "R-M5-008",
+        "R-M6-004"
+      ],
+      "scope": "Shared with M5",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Registry, schemas, and canonical values",
+          "requirements": [
+            "R-M1-017"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Complete snapshot and selection contract",
+          "requirements": [
+            "R-M2-004",
+            "R-M2-013"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-003"
+          ]
+        }
+      ],
+      "resolution": "Association schemas require ordered unique keys. The verification schema supplies Boolean :passed and status, so the M2 conditional example can use native lookup. The standard example is implement-verify-review.pel.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "RELEASE-022",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "initialSeverity": "minor",
+      "initialRequirements": [
+        "R-M1-009",
+        "R-M1-010"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Normative profile classification matrix",
+          "requirements": [
+            "R-M1-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "PDF and compatibility provenance",
+          "requirements": [
+            "R-M1-019"
+          ]
+        }
+      ],
+      "resolution": "Every compatibility row has a paper/erratum/extension classification, paper locator, rationale, and planned positive/negative fixture IDs. The matrix also classifies default evaluation, scope, frozen builtins, print corrections, numeric bounds, and unsupported implicit nested router execution.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "RELEASE-023",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "initialSeverity": "minor",
+      "initialRequirements": [
+        "R-M6-010",
+        "R-M2-001"
+      ],
+      "scope": "M2 snapshot packaging contribution; other bundle work owned by M6",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Exact files",
+          "requirements": [
+            "R-M2-001",
+            "R-M2-014"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Complete snapshot and selection contract",
+          "requirements": [
+            "R-M2-014"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Packaging, support and rollback",
+          "requirements": [
+            "R-M6-016"
+          ]
+        }
+      ],
+      "resolution": "M2 tasks create and package the full default authoring snapshot at the fixed runtime assets path. M6 owns manifest hashing and the independent simplification bundle entry.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "RELEASE-024",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "initialSeverity": "minor",
+      "initialRequirements": [
+        "R-M1-011"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-011"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Compiled acceptance fixtures",
+          "requirements": [
+            "R-M2-008"
+          ]
+        }
+      ],
+      "resolution": "PelLimitsV1 and PelCounters now enumerate all fields and aggregation rules. M2 depends_on is [M1], matching the milestone identifier form used across the corrected release.",
+      "status": "existing-spec-correction-documented"
+    },
+    {
+      "id": "RELEASE-026",
+      "review": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "initialSeverity": "minor",
+      "initialRequirements": [
+        "R-M1-002"
+      ],
+      "scope": "M1/M2 correction",
+      "corrected": [
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "Failure, child, and revision details",
+          "requirements": [
+            "R-M1-002"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-01-pel-language/design.md",
+          "section": "PDF and compatibility provenance",
+          "requirements": [
+            "R-M1-001"
+          ]
+        }
+      ],
+      "resolution": "Malformed digit-leading tokens such as 1e5 and out-of-range decimals return PEL_LEX. Test output no longer pollutes aggregate typechecking because declarations are disabled and dist-test is excluded.",
+      "status": "existing-spec-correction-documented"
+    }
+  ]
+}

@@ -16589,39 +16589,26 @@ async function* nodeReadableToAsync(stream) {
 }
 function wrapChild(child) {
   const pid = child.pid ?? 0;
+  const completion = new Promise((resolve) => {
+    child.once("error", () => resolve({ error: { _tag: "SpawnError", message: "child process failed" } }));
+    child.once("exit", (code, signal) => resolve({ code: signal ? 1 : code ?? 0 }));
+  });
+  const input = child.stdin;
+  input?.on("error", () => {
+  });
+  const writeInput = (bytes) => Effect_exports.async((resume2) => {
+    if (!input || input.destroyed || input.writableEnded) {
+      resume2(Effect_exports.fail({ _tag: "SpawnError", message: "child stdin is closed" }));
+      return;
+    }
+    const done9 = (error) => resume2(error ? Effect_exports.fail({ _tag: "SpawnError", message: "child stdin write failed" }) : Effect_exports.void);
+    if (bytes === void 0) input.end(done9);
+    else input.write(bytes, done9);
+  });
   return {
     pid,
-    wait: () => Effect_exports.async((resume2) => {
-      let settled = false;
-      const onError3 = (err) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        resume2(
-          Effect_exports.fail({
-            _tag: "SpawnError",
-            message: err.message || "spawn error"
-          })
-        );
-      };
-      const onExit4 = (code, signal) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        if (signal) {
-          resume2(Effect_exports.succeed(1));
-        } else {
-          resume2(Effect_exports.succeed(code ?? 0));
-        }
-      };
-      const cleanup = () => {
-        child.off("error", onError3);
-        child.off("exit", onExit4);
-      };
-      child.once("error", onError3);
-      child.once("exit", onExit4);
-      return Effect_exports.sync(cleanup);
-    }),
+    wait: () => Effect_exports.promise(() => completion).pipe(Effect_exports.flatMap((result) => "error" in result ? Effect_exports.fail(result.error) : Effect_exports.succeed(result.code))),
+    ...input ? { stdin: { write: (bytes) => writeInput(bytes), end: () => writeInput() } } : {},
     stdout: nodeReadableToAsync(child.stdout),
     stderr: nodeReadableToAsync(child.stderr),
     killSelf: (signal = "SIGKILL") => Effect_exports.sync(() => {
@@ -16636,10 +16623,11 @@ var liveChildSpawner = {
   spawn: (req) => Effect_exports.try({
     try: () => {
       const child = spawn(req.file, [...req.args], {
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: [req.stdinMode ?? "ignore", "pipe", "pipe"],
         detached: req.detachedProcessGroup,
         windowsHide: req.windowsHide,
-        env: req.env ? { ...process.env, ...req.env } : process.env
+        env: req.envMode === "replace" ? { ...req.env } : req.env ? { ...process.env, ...req.env } : process.env,
+        ...req.cwd === void 0 ? {} : { cwd: req.cwd }
       });
       return wrapChild(child);
     },
@@ -16884,6 +16872,10 @@ function supervise(opts) {
       const child = yield* spawner.spawn({
         file,
         args: args2,
+        ...opts.cwd === void 0 ? {} : { cwd: opts.cwd },
+        ...opts.env === void 0 ? {} : { env: opts.env },
+        ...opts.envMode === void 0 ? {} : { envMode: opts.envMode },
+        stdinMode: opts.stdin !== void 0 || opts.interactiveStdin ? "pipe" : "ignore",
         detachedProcessGroup,
         windowsHide: opts.platform === "win32"
       }).pipe(
@@ -17019,6 +17011,14 @@ function supervise(opts) {
           yield* Ref_exports.set(timersClearedRef, true);
         }).pipe(Effect_exports.ignore)
       );
+      yield* Effect_exports.gen(function* () {
+        if (opts.stdin !== void 0) {
+          if (!child.stdin) return yield* Effect_exports.fail({ _tag: "SpawnError", message: "child stdin unavailable" });
+          yield* child.stdin.write(opts.stdin);
+          if (!opts.interactiveStdin) yield* child.stdin.end();
+        }
+        if (opts.onSpawned) yield* opts.onSpawned(child);
+      }).pipe(Effect_exports.mapError((e) => ({ _tag: "SuperviseError", message: e.message })));
       const exitCode = yield* child.wait().pipe(
         Effect_exports.mapError((e) => ({
           _tag: "SuperviseError",

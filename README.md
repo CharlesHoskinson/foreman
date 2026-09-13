@@ -22,6 +22,25 @@ walkthrough, selected command and exit-code reference, and troubleshooting,
 see [`docs/USAGE.md`](docs/USAGE.md). For the install/setup story on Windows
 and WSL/Linux side by side, see [`docs/INSTALL.md`](docs/INSTALL.md).
 
+## In development: Return of the ForeDi
+
+![George Foreman holding a green lightsaber in a Van Gogh-inspired forest landscape](assets/return-of-the-foredi.png)
+
+Orchestration begins with a simple difficulty: the work we describe and the work our tools execute often inhabit different forms. A plan names intentions. A controller supplies the order, the conditions, and the recovery behavior. Each translation becomes another place where the meaning can change. Return of the ForeDi adopts Pel so that these relations can be expressed in one program, shared by people and models.
+
+The useful object is a program whose effects can be inspected before execution. Pel supplies values, calls, closures, pipes, and conditional computation. Foreman supplies the host operations that act on repositories, models, checks, and candidates. This division gives each extension a specific obligation: an adapter must preserve the requested model and controls, while a host operation must respect the authority and limits already granted to it. A successful language check establishes neither permission nor provider readiness.
+
+Consider a task that asks one model to implement a change and another to review it. Its essential structure is the relation between the candidate, the verification result, and the independent review. Pel makes that relation visible in the source. Durable execution retains the observations needed to recover interrupted work. The same language can then express a conditional repair or independent parallel work, without making each workflow require its own controller.
+
+The next question concerns the meaning of these programs. A planned K-semantics sprint will state evaluation rules and compare their observable results with the TypeScript implementation. Executable examples and differential tests will support specific correspondence claims. They will not establish a general equivalence theorem by themselves. The present candidate already meets its instruction-reduction target, but its production-code reduction target remains unmet. The common language is implemented. The promised simplification still has work to do.
+
+**Status:** implemented release candidate, numerical version unassigned. The fixed 40% production-code reduction and complete live qualification remain open.
+
+- [Comprehensive release notes](docs/releases/return-of-the-foredi/RELEASE-NOTES.md)
+- [Pel tutorial](docs/guides/pel/tutorial.md)
+- [Pel semantics and the planned K sprint](docs/guides/pel/semantics.md)
+- [Release plan and acceptance evidence](docs/releases/return-of-the-foredi/README.md)
+
 ## Current release: George's Odyssey (v0.3.1)
 
 ![George's Odyssey release artwork](assets/v031-georges-odyssey.png)

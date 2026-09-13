@@ -1,0 +1,12 @@
+(def selected
+  (fm/race :winner "first-valid" :tasks [
+    (lambda []
+      (fm/task :id "implement" :model "role:implementer"
+        :input "artifact:approved-spec" :output "schema:candidate-v1"))
+    (lambda []
+      (fm/task :id "implement" :model "role:implementer"
+        :input "artifact:approved-spec" :output "schema:candidate-v1"))]))
+(selected :at ':value)
+|> (fm/verify :id "verify" :input ^ :gate "candidate-full")
+|> (fm/review :id "review" :model "role:reviewer"
+  :input ^ :policy "independent-review")

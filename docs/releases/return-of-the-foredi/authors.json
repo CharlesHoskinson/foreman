@@ -1,0 +1,32 @@
+{
+  "schema": "foreman.foredi-author-record.v1",
+  "release": "Return of the ForeDi",
+  "mechanism": "native collaboration agents",
+  "requested_model": "gpt-6-astra",
+  "reasoning_effort": "high",
+  "authors": [
+    {
+      "task": "/root/foredi_language",
+      "milestones": [
+        "M1",
+        "M2"
+      ]
+    },
+    {
+      "task": "/root/foredi_providers",
+      "milestones": [
+        "M3",
+        "M6"
+      ]
+    },
+    {
+      "task": "/root/foredi_execution",
+      "milestones": [
+        "M4",
+        "M5"
+      ]
+    }
+  ],
+  "identity_evidence": "The native spawn requests selected gpt-6-astra. Native agent per-call token and canonical-model receipts are not exposed. Opus CLI result identities are retained separately.",
+  "runtime_implementation": false
+}

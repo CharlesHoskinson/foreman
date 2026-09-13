@@ -1,0 +1,35 @@
+{
+  "allowlisted_dangling_links": [],
+  "ambiguous_targets": [],
+  "as_of": "2026-09-13",
+  "configuration_errors": [],
+  "dead_links": [],
+  "duplicate_basenames": [],
+  "empty_sections": [],
+  "engine_version": "1.1.1",
+  "missing_frontmatter": [],
+  "orphans": [],
+  "provenance_errors": [],
+  "read_errors": [],
+  "stale_index_entries": [],
+  "summary": {
+    "allowlisted_dangling_links": 0,
+    "category_counts": {
+      "ambiguous_targets": 0,
+      "configuration_errors": 0,
+      "dead_links": 0,
+      "duplicate_basenames": 0,
+      "empty_sections": 0,
+      "missing_frontmatter": 0,
+      "orphans": 0,
+      "provenance_errors": 0,
+      "read_errors": 0,
+      "stale_index_entries": 0
+    },
+    "excluded_paths": 0,
+    "issues_found": 0,
+    "links_scanned": 262,
+    "pages_scanned": 28
+  },
+  "version": 1
+}

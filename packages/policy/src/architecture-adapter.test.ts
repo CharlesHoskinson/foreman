@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,28 +7,16 @@ import { describe, it } from "node:test";
 import { inspectLegacyAdapter } from "./architecture-adapter.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
-const LANE_RUN_PATH = "skills/foreman/scripts/lane-run.sh";
-const LANE_SUPERVISE_PATH = "skills/foreman/scripts/lane-supervise.sh";
 const PINNED_LEGACY_MIGRATION_PATHS = [
   "skills/foreman/scripts/gate-eval.sh",
-  "skills/foreman/scripts/adapters/grok.sh",
   "skills/foreman/scripts/lib/lock.sh",
   "skills/foreman/scripts/lib/release-policy.sh",
   "skills/foreman/scripts/maintenance.sh",
   "skills/foreman/scripts/merge-gate.sh",
   "skills/foreman/scripts/vendor-concurrency-test.sh",
 ] as const;
-const LANE_RUN_FORWARDING_BLOCK = [
-  '  lane_gate_runtime="$SCRIPT_DIR/../runtime/dist/credential-profile-lane.js"',
-  '  if [[ -z "$lane_gate_node" ]]; then',
-  '    echo "lane-run: node is required for vendor admission" >&2',
-  '    exit "$EXIT_MISSING_CLI"',
-  "  fi",
-  '  if [[ ! -f "$lane_gate_runtime" ]]; then',
-  '    echo "lane-run: vendor admission runtime is missing" >&2',
-  '    exit "$EXIT_MISSING_CLI"',
-  "  fi",
-].join("\n");
+
+const COMMENT_CLEANUP_PATHS = ["env/wsl-clock-preflight.sh", "skills/foreman/scripts/foreman-cleanup.sh", "skills/foreman/scripts/lane-complete-check.sh", "skills/foreman/scripts/lib/config.sh", "skills/foreman/scripts/lib/eventlog.sh", "skills/foreman/scripts/lib/evidence.sh", "skills/foreman/scripts/lib/launch.sh", "skills/foreman/scripts/lib/telemetry.sh", "skills/foreman/scripts/merge-gate.sh", "skills/foreman/scripts/vendor-concurrency-test.sh", "skills/foreman/scripts/wt-cleanup.sh", "skills/foreman/scripts/wt-new.sh"] as const;
 const GOOD = [
   "#!/usr/bin/env bash",
   "set -euo pipefail",
@@ -604,201 +593,6 @@ describe("inspectLegacyAdapter", () => {
     );
   });
 
-  describe("R4C3 lane-run migration artifact", () => {
-    it("accepts the tracked skills/foreman/scripts/lane-run.sh migration artifact", () => {
-      const body = readFileSync(join(REPO_ROOT, LANE_RUN_PATH), "utf8");
-      assert.equal(inspectLegacyAdapter(LANE_RUN_PATH, body), null);
-    });
-
-    it("rejects a one-byte change inside the forwarding block", () => {
-      const body = readFileSync(join(REPO_ROOT, LANE_RUN_PATH), "utf8");
-      assert.ok(body.includes(LANE_RUN_FORWARDING_BLOCK));
-      const mutated = body.replace(
-        LANE_RUN_FORWARDING_BLOCK,
-        LANE_RUN_FORWARDING_BLOCK.replace(
-          "vendor admission runtime is missing",
-          "vendor admission runtime is Missing",
-        ),
-      );
-      assert.notEqual(mutated, body);
-      assert.equal(
-        inspectLegacyAdapter(LANE_RUN_PATH, mutated),
-        "legacy_adapter_domain_logic",
-      );
-    });
-
-    it("rejects a one-byte change outside the forwarding block", () => {
-      const body = readFileSync(join(REPO_ROOT, LANE_RUN_PATH), "utf8");
-      const idx = body.indexOf(LANE_RUN_FORWARDING_BLOCK);
-      assert.ok(idx > 0);
-      // Flip one remainder byte before the forwarding block.
-      const before = body.slice(0, idx);
-      const after = body.slice(idx);
-      const flipAt = before.lastIndexOf("lane");
-      assert.ok(flipAt >= 0);
-      const mutated =
-        before.slice(0, flipAt) + "Lane" + before.slice(flipAt + 4) + after;
-      assert.notEqual(mutated, body);
-      assert.equal(
-        inspectLegacyAdapter(LANE_RUN_PATH, mutated),
-        "legacy_adapter_domain_logic",
-      );
-    });
-
-    it("rejects an extra probe or parser smuggled beside the forwarding block", () => {
-      const body = readFileSync(join(REPO_ROOT, LANE_RUN_PATH), "utf8");
-      const idx = body.indexOf(LANE_RUN_FORWARDING_BLOCK);
-      assert.ok(idx >= 0);
-      const end = idx + LANE_RUN_FORWARDING_BLOCK.length;
-      const smuggled =
-        body.slice(0, end) +
-        '\n  extra_probe="$(command -v grok)"\n' +
-        body.slice(end);
-      assert.equal(
-        inspectLegacyAdapter(LANE_RUN_PATH, smuggled),
-        "legacy_adapter_domain_logic",
-      );
-    });
-
-    it("does not admit the migration path under a different repository path", () => {
-      const body = readFileSync(join(REPO_ROOT, LANE_RUN_PATH), "utf8");
-      assert.equal(
-        inspectLegacyAdapter("skills/foreman/scripts/other-lane-run.sh", body),
-        "legacy_adapter_domain_logic",
-      );
-    });
-
-    it("rejects relocating the exact forwarding block to the end of the file", () => {
-      // Pure move: concatenated remainder bytes are unchanged, so a single
-      // remainder digest cannot detect this. Position-pinning must reject.
-      const body = readFileSync(join(REPO_ROOT, LANE_RUN_PATH), "utf8");
-      const idx = body.indexOf(LANE_RUN_FORWARDING_BLOCK);
-      assert.ok(idx >= 0);
-      const end = idx + LANE_RUN_FORWARDING_BLOCK.length;
-      const relocated =
-        body.slice(0, idx) + body.slice(end) + LANE_RUN_FORWARDING_BLOCK;
-      assert.notEqual(relocated, body);
-      assert.equal(
-        relocated.indexOf(LANE_RUN_FORWARDING_BLOCK),
-        relocated.length - LANE_RUN_FORWARDING_BLOCK.length,
-      );
-      assert.equal(
-        inspectLegacyAdapter(LANE_RUN_PATH, relocated),
-        "legacy_adapter_domain_logic",
-      );
-    });
-
-    it("rejects relocating the exact forwarding block to the start of the file", () => {
-      // Pure move: concatenated remainder bytes are unchanged, so a single
-      // remainder digest cannot detect this. Position-pinning must reject.
-      const body = readFileSync(join(REPO_ROOT, LANE_RUN_PATH), "utf8");
-      const idx = body.indexOf(LANE_RUN_FORWARDING_BLOCK);
-      assert.ok(idx >= 0);
-      const end = idx + LANE_RUN_FORWARDING_BLOCK.length;
-      const relocated =
-        LANE_RUN_FORWARDING_BLOCK + body.slice(0, idx) + body.slice(end);
-      assert.notEqual(relocated, body);
-      assert.equal(relocated.indexOf(LANE_RUN_FORWARDING_BLOCK), 0);
-      assert.equal(
-        inspectLegacyAdapter(LANE_RUN_PATH, relocated),
-        "legacy_adapter_domain_logic",
-      );
-    });
-
-    it("rejects a duplicate exact forwarding block", () => {
-      const body = readFileSync(join(REPO_ROOT, LANE_RUN_PATH), "utf8");
-      const idx = body.indexOf(LANE_RUN_FORWARDING_BLOCK);
-      assert.ok(idx >= 0);
-      const end = idx + LANE_RUN_FORWARDING_BLOCK.length;
-      const duplicated =
-        body.slice(0, end) +
-        "\n" +
-        LANE_RUN_FORWARDING_BLOCK +
-        body.slice(end);
-      assert.equal(
-        inspectLegacyAdapter(LANE_RUN_PATH, duplicated),
-        "legacy_adapter_domain_logic",
-      );
-    });
-
-    it("rejects a one-byte change in the suffix after the forwarding block", () => {
-      const body = readFileSync(join(REPO_ROOT, LANE_RUN_PATH), "utf8");
-      const idx = body.indexOf(LANE_RUN_FORWARDING_BLOCK);
-      assert.ok(idx >= 0);
-      const end = idx + LANE_RUN_FORWARDING_BLOCK.length;
-      const after = body.slice(end);
-      const flipAt = after.indexOf("Task");
-      assert.ok(flipAt >= 0);
-      const mutated =
-        body.slice(0, end) +
-        after.slice(0, flipAt) +
-        "task" +
-        after.slice(flipAt + 4);
-      assert.notEqual(mutated, body);
-      assert.equal(
-        inspectLegacyAdapter(LANE_RUN_PATH, mutated),
-        "legacy_adapter_domain_logic",
-      );
-    });
-  });
-
-  describe("R5D lane-supervise migration artifact", () => {
-    it("accepts the tracked skills/foreman/scripts/lane-supervise.sh migration artifact", () => {
-      const body = readFileSync(join(REPO_ROOT, LANE_SUPERVISE_PATH), "utf8");
-      assert.equal(inspectLegacyAdapter(LANE_SUPERVISE_PATH, body), null);
-    });
-
-    it("rejects a one-byte change in the thin adapter body", () => {
-      const body = readFileSync(join(REPO_ROOT, LANE_SUPERVISE_PATH), "utf8");
-      const flipAt = body.indexOf("lane-supervise: node is required");
-      assert.ok(flipAt >= 0);
-      const mutated =
-        body.slice(0, flipAt) + "Lane-supervise: node is required" + body.slice(flipAt + "lane-supervise: node is required".length);
-      assert.notEqual(mutated, body);
-      assert.equal(
-        inspectLegacyAdapter(LANE_SUPERVISE_PATH, mutated),
-        "legacy_adapter_domain_logic",
-      );
-    });
-
-    it("rejects domain-logic smuggled into the thin adapter", () => {
-      const body = readFileSync(join(REPO_ROOT, LANE_SUPERVISE_PATH), "utf8");
-      const smuggled = body.replace(
-        'exec "$NODE" "$BUNDLE" --state-root "$FOREMAN_HOME" "$@"',
-        'READY="$(jq -r .status < readiness.json)"\n' +
-          'if [ "$READY" = "not_ready" ]; then remediate; exit 1; fi\n' +
-          'exec "$NODE" "$BUNDLE" --state-root "$FOREMAN_HOME" "$@"',
-      );
-      assert.notEqual(smuggled, body);
-      assert.equal(
-        inspectLegacyAdapter(LANE_SUPERVISE_PATH, smuggled),
-        "legacy_adapter_domain_logic",
-      );
-    });
-
-    it("does not admit the migration body under a different repository path", () => {
-      const body = readFileSync(join(REPO_ROOT, LANE_SUPERVISE_PATH), "utf8");
-      assert.equal(
-        inspectLegacyAdapter(
-          "skills/foreman/scripts/other-lane-supervise.sh",
-          body,
-        ),
-        "legacy_adapter_domain_logic",
-      );
-    });
-
-    it("rejects an empty or null-containing body on the migration path", () => {
-      assert.equal(
-        inspectLegacyAdapter(LANE_SUPERVISE_PATH, ""),
-        "legacy_adapter_domain_logic",
-      );
-      assert.equal(
-        inspectLegacyAdapter(LANE_SUPERVISE_PATH, "x\u0000y"),
-        "legacy_adapter_domain_logic",
-      );
-    });
-  });
-
   describe("pinned legacy migration artifacts", () => {
     for (const path of PINNED_LEGACY_MIGRATION_PATHS) {
       it(`accepts only the tracked ${path} body at its exact path`, () => {
@@ -815,4 +609,14 @@ describe("inspectLegacyAdapter", () => {
       });
     }
   });
+});
+
+describe("M6 reviewed comment cleanup pins",()=>{
+ const executableBytes=(text:string)=>text.split("\n").filter(line=>!line.trimStart().startsWith("#")).join("\n");
+ for(const path of COMMENT_CLEANUP_PATHS)it(`preserves executable bytes and pins only the reviewed ${path} body`,()=>{
+  const before=execFileSync("git",["show",`HEAD:${path}`],{cwd:REPO_ROOT,encoding:"utf8"}),after=readFileSync(join(REPO_ROOT,path),"utf8");
+  assert.equal(executableBytes(after),executableBytes(before));assert.equal(inspectLegacyAdapter(path,after),null);
+  assert.equal(inspectLegacyAdapter(path,after+"# changed\n"),"legacy_adapter_domain_logic");
+  assert.equal(inspectLegacyAdapter("scripts/relocated.sh",after),"legacy_adapter_domain_logic");
+ });
 });

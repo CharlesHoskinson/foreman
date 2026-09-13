@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "profile": "inkwell:grothendieck",
+  "useMode": "diagnostic",
+  "language": "en",
+  "description": "Original English prose adapted with motivated definitions, a concrete reduction, and explicit open obligations. Not attributed to the historical author.",
+  "profileSource": "/home/charl/inkwell/skills/voiceprint/profiles/grothendieck.md",
+  "scorer": {
+    "distribution_distance": null,
+    "verdict": "diagnostic",
+    "detail": {},
+    "panel": [],
+    "joint": null,
+    "failed_features": [],
+    "unverified_features": [],
+    "n_sentences": 22,
+    "diagnostic_verdict": "insufficient"
+  },
+  "review": "Independent reader found no factual blocker. K remains planned; tests do not prove general equivalence; production reduction remains unmet.",
+  "image": {
+    "path": "assets/return-of-the-foredi.png",
+    "generator": "image_gen",
+    "description": "George Foreman holding a green lightsaber in an Endor-inspired forest, in a Vincent van Gogh-inspired palette and brush style."
+  }
+}

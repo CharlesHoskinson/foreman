@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "profileId": "claude-opus-5",
+  "transportId": "claude-code",
+  "requestedIdentity": {
+    "profileId": "claude-opus-5",
+    "credentialProfileRef": "native:claude:default"
+  },
+  "observedIdentity": {
+    "kind": "native",
+    "provider": "anthropic",
+    "profileId": "claude-opus-5",
+    "model": "claude-opus-5",
+    "transportId": "claude-code",
+    "credentialProfileRef": "native:claude:default",
+    "protocolVersion": "2.1.270"
+  },
+  "protocolVersion": "2.1.270",
+  "installedVersion": "2.1.270",
+  "transportVersion": "2.1.270",
+  "profileHash": "800f598bedb407587616fe2f8b87171d4a9ed157318929262e713656c1b6b632",
+  "sourceManifestHash": "113b2d6e61761cf7db0e2e2d9de0e5acff16679c80c63adf20188761390ba0a4",
+  "startedAt": 1789303354427,
+  "completedAt": 1789303358885,
+  "bounds": {
+    "deadline": 1789303414170,
+    "maxInputTokens": 12000,
+    "maxOutputTokens": 1024,
+    "maxToolCalls": 0,
+    "maxOutputBytes": 262144,
+    "maxCostUsd": 0.25,
+    "spendReservationRef": "qualification:claude-opus-5-claude-code"
+  },
+  "outcome": "success",
+  "assertions": [
+    {
+      "capability": "generation",
+      "passed": true,
+      "reason": "The bounded request has a validated terminal result",
+      "evidenceType": "live-observation"
+    },
+    {
+      "capability": "structuredOutput",
+      "passed": true,
+      "reason": "The bounded request has a validated terminal result",
+      "evidenceType": "live-observation"
+    },
+    {
+      "capability": "toolPolicyNone",
+      "passed": true,
+      "reason": "The native protocol reported an empty or reply-formatter-only tool catalog and completed without host tool requests",
+      "evidenceType": "live-observation"
+    }
+  ],
+  "evidence": [
+    {
+      "capability": "generation",
+      "state": "live-qualified",
+      "profileId": "claude-opus-5",
+      "transportId": "claude-code",
+      "profileHash": "800f598bedb407587616fe2f8b87171d4a9ed157318929262e713656c1b6b632",
+      "sourceManifestHash": "113b2d6e61761cf7db0e2e2d9de0e5acff16679c80c63adf20188761390ba0a4",
+      "transportVersion": "2.1.270",
+      "controlsHash": "aaddb27f012f1eddbf49ee1881f39bec6a286bfd37b7239345b318422096d245",
+      "observedAt": 1789303358884,
+      "expiresAt": 1789389754170,
+      "observedIdentity": {
+        "kind": "native",
+        "provider": "anthropic",
+        "profileId": "claude-opus-5",
+        "model": "claude-opus-5",
+        "transportId": "claude-code",
+        "credentialProfileRef": "native:claude:default",
+        "protocolVersion": "2.1.270"
+      },
+      "evidenceRef": "foredi-final:claude-opus-5-claude-code"
+    },
+    {
+      "capability": "structuredOutput",
+      "state": "live-qualified",
+      "profileId": "claude-opus-5",
+      "transportId": "claude-code",
+      "profileHash": "800f598bedb407587616fe2f8b87171d4a9ed157318929262e713656c1b6b632",
+      "sourceManifestHash": "113b2d6e61761cf7db0e2e2d9de0e5acff16679c80c63adf20188761390ba0a4",
+      "transportVersion": "2.1.270",
+      "controlsHash": "aaddb27f012f1eddbf49ee1881f39bec6a286bfd37b7239345b318422096d245",
+      "observedAt": 1789303358885,
+      "expiresAt": 1789389754170,
+      "observedIdentity": {
+        "kind": "native",
+        "provider": "anthropic",
+        "profileId": "claude-opus-5",
+        "model": "claude-opus-5",
+        "transportId": "claude-code",
+        "credentialProfileRef": "native:claude:default",
+        "protocolVersion": "2.1.270"
+      },
+      "evidenceRef": "foredi-final:claude-opus-5-claude-code"
+    },
+    {
+      "capability": "toolPolicyNone",
+      "state": "live-qualified",
+      "profileId": "claude-opus-5",
+      "transportId": "claude-code",
+      "profileHash": "800f598bedb407587616fe2f8b87171d4a9ed157318929262e713656c1b6b632",
+      "sourceManifestHash": "113b2d6e61761cf7db0e2e2d9de0e5acff16679c80c63adf20188761390ba0a4",
+      "transportVersion": "2.1.270",
+      "controlsHash": "aaddb27f012f1eddbf49ee1881f39bec6a286bfd37b7239345b318422096d245",
+      "observedAt": 1789303358885,
+      "expiresAt": 1789389754170,
+      "observedIdentity": {
+        "kind": "native",
+        "provider": "anthropic",
+        "profileId": "claude-opus-5",
+        "model": "claude-opus-5",
+        "transportId": "claude-code",
+        "credentialProfileRef": "native:claude:default",
+        "protocolVersion": "2.1.270"
+      },
+      "evidenceRef": "foredi-final:claude-opus-5-claude-code"
+    }
+  ],
+  "eventTypes": [
+    "started",
+    "checkpoint",
+    "completed"
+  ],
+  "usage": {
+    "inputTokens": 899,
+    "outputTokens": 235,
+    "cachedReadTokens": 0,
+    "cacheWriteTokens": 969,
+    "costUsd": "0.016272000000000002",
+    "providerCounters": {
+      "mainLoop.input_tokens": 2,
+      "mainLoop.cache_creation_input_tokens": 969,
+      "mainLoop.cache_read_input_tokens": 0,
+      "mainLoop.output_tokens": 225,
+      "claude-haiku-4-5-20251001.inputTokens": 897,
+      "claude-haiku-4-5-20251001.outputTokens": 10,
+      "claude-haiku-4-5-20251001.cacheReadInputTokens": 0,
+      "claude-haiku-4-5-20251001.cacheCreationInputTokens": 0,
+      "claude-haiku-4-5-20251001.webSearchRequests": 0,
+      "claude-haiku-4-5-20251001.costUSD": 0.000947,
+      "claude-haiku-4-5-20251001.contextWindow": 200000,
+      "claude-haiku-4-5-20251001.maxOutputTokens": 32000,
+      "claude-haiku-4-5-20251001.thinkingTokens": 0,
+      "claude-haiku-4-5-20251001.canonicalModel": "claude-haiku-4-5",
+      "claude-haiku-4-5-20251001.provider": "firstParty",
+      "claude-haiku-4-5-20251001.costBasis": "list",
+      "claude-opus-5.inputTokens": 2,
+      "claude-opus-5.outputTokens": 225,
+      "claude-opus-5.cacheReadInputTokens": 0,
+      "claude-opus-5.cacheCreationInputTokens": 969,
+      "claude-opus-5.webSearchRequests": 0,
+      "claude-opus-5.costUSD": 0.015325,
+      "claude-opus-5.contextWindow": 1000000,
+      "claude-opus-5.maxOutputTokens": 64000,
+      "claude-opus-5.thinkingTokens": 173,
+      "claude-opus-5.canonicalModel": "claude-opus-5",
+      "claude-opus-5.provider": "firstParty",
+      "claude-opus-5.costBasis": "list"
+    }
+  }
+}

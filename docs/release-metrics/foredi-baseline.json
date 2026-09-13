@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "441c3fb9f6acb2656760d03cc79e7c706fb8b7dd",
+  "capturedAt": "2026-09-13T09:42:24.520Z",
+  "source": "Immutable Git objects at the exact commit fixed by the approved M6 specification; captured during M4 integration.",
+  "countingRule": "full-file-nonblank-lines-including-comments-v1",
+  "candidateMembership": "foredi-06-adoption/design.md#fixed-measurement-membership",
+  "production": [
+    {
+      "path": "skills/foreman/scripts/vendor-multiround.sh",
+      "sha256": "07686f1cad9d660d1b62ccb34de6e0d5171f75a648b1f8fdb6cf380fc917f406",
+      "utf8Bytes": 11790,
+      "nonblankLines": 230
+    },
+    {
+      "path": "skills/foreman/scripts/lib/worker-cmd.sh",
+      "sha256": "47deb36862a7bda1c9a174caf215667378e2d03d0ee9796abd81b2f7e364f508",
+      "utf8Bytes": 2798,
+      "nonblankLines": 55
+    },
+    {
+      "path": "skills/foreman/scripts/adapters/grok.sh",
+      "sha256": "6dcf82398b49681f66129e38f52e7b8c5a70257044028ee1ed7b6381ff3a4232",
+      "utf8Bytes": 11315,
+      "nonblankLines": 249
+    },
+    {
+      "path": "skills/foreman/scripts/adapters/codex.sh",
+      "sha256": "cbfaf8ee7e40ce54e2ca0788a08a59c5dc3e8d380b5ed98c5be67179c96452eb",
+      "utf8Bytes": 13078,
+      "nonblankLines": 299
+    },
+    {
+      "path": "skills/foreman/scripts/adapters/claude.sh",
+      "sha256": "5ab6b2a7e152154d53533cfe4cfeed7d8c46d8664d90fed99ad969b461a4f652",
+      "utf8Bytes": 11458,
+      "nonblankLines": 254
+    },
+    {
+      "path": "skills/foreman/scripts/adapters/agy.sh",
+      "sha256": "ae4440daacdff5edee6174844bed7af932792d4b58cf5c9528561c9f179210be",
+      "utf8Bytes": 12919,
+      "nonblankLines": 282
+    },
+    {
+      "path": "skills/foreman/scripts/lane-run.sh",
+      "sha256": "5368260642cac6d0ff9d38a45597dc359e6c5a0b9a008f49dee3383bc7f16110",
+      "utf8Bytes": 76129,
+      "nonblankLines": 1502
+    },
+    {
+      "path": "skills/foreman/scripts/worker-run.sh",
+      "sha256": "359d694a836c722ff9bb9fca243bdcce24188bef62046c8f9a66d78b456bf480",
+      "utf8Bytes": 21532,
+      "nonblankLines": 391
+    },
+    {
+      "path": "skills/foreman/scripts/audit-run.sh",
+      "sha256": "0cc03c9c20a103d591413fc576619235077ff41c00e8766e6b5d186a4a5e8263",
+      "utf8Bytes": 25342,
+      "nonblankLines": 609
+    },
+    {
+      "path": "skills/foreman/scripts/resume.sh",
+      "sha256": "8509bacc869c9c06d26030eeef6abe8cd61fa326fe307ef7bf7c6be7af16fe97",
+      "utf8Bytes": 10602,
+      "nonblankLines": 272
+    },
+    {
+      "path": "skills/foreman/scripts/watch.sh",
+      "sha256": "6ee0c22f756bf7395c93ff1876d42a877e0c7a0e091b06fe592d23a5b320ff14",
+      "utf8Bytes": 62260,
+      "nonblankLines": 1291
+    },
+    {
+      "path": "skills/foreman/scripts/lane-supervise.sh",
+      "sha256": "a09929d92ce817fc861800b38529300889a62b8324fc67fea9a305ea32ac7062",
+      "utf8Bytes": 935,
+      "nonblankLines": 18
+    },
+    {
+      "path": "packages/orchestration/src/round-reducer.ts",
+      "sha256": "684d16bfdf76c4fac15cf0b191fb16363907fbf05f87bf069877c15e59cfe474",
+      "utf8Bytes": 16792,
+      "nonblankLines": 538
+    },
+    {
+      "path": "packages/orchestration/src/resume-queue-execution.ts",
+      "sha256": "06a7481539770b567fcc0b77b54fe4e3904677f52f1e9c3e2a2522687130b7c3",
+      "utf8Bytes": 13855,
+      "nonblankLines": 409
+    },
+    {
+      "path": "packages/orchestration/src/supervisor.ts",
+      "sha256": "5292a3f46432cee33e7414a28dc39c752da779f32e50f84ace33ad82083cb6e2",
+      "utf8Bytes": 16195,
+      "nonblankLines": 517
+    }
+  ],
+  "instructions": [
+    {
+      "path": "skills/foreman/SKILL.md",
+      "sha256": "8dda6846c95d66d01c35fa446721f332a2163a65a8fe45cead061a614c7d6ac6",
+      "utf8Bytes": 28634
+    },
+    {
+      "path": "skills/foreman/references/roles.md",
+      "sha256": "2f76074816dff476960549a139a61047077bb7a4e202c5557d9c3c67a0ec3ea3",
+      "utf8Bytes": 3442
+    },
+    {
+      "path": "skills/foreman/references/durable-lanes.md",
+      "sha256": "eb6421e260e26c126997c351bfc27db56c4e11b32255eb9ac97210a7b3e7718b",
+      "utf8Bytes": 14886
+    },
+    {
+      "path": "skills/foreman/references/lanes.md",
+      "sha256": "291b071e71d0e133f2b7f5622074a6aa51413c79a84a5b7f5d01b928d5f2fe2f",
+      "utf8Bytes": 10811
+    },
+    {
+      "path": "skills/foreman/references/parallel-worktrees.md",
+      "sha256": "ab29e30ac94d14c4e2e6b42f9394f65b534abef4e327da389b5a26269cff1595",
+      "utf8Bytes": 7561
+    }
+  ],
+  "tokenizer": {
+    "package": "js-tiktoken",
+    "version": "1.0.21",
+    "encoding": "cl100k_base",
+    "integrity": "sha512-biOj/6M5qdgx5TKjDnFT1ymSpM5tbd3ylwDtrQvFQSu0Z7bBYko2dF+W/aUkXUPuk6IVpRxk/3Q2sHOzGlS36g==",
+    "inputRule": "UTF-8 bytes without newline normalization; complete files joined by one LF; no special-token injection"
+  },
+  "instructionCorpusSha256": "a428f22937884f188ab671026c425743aefb6bb020d323169c30f7d19c9b88df",
+  "totals": {
+    "productionNonblankLines": 6916,
+    "requiredInstructionTokens": 16502
+  },
+  "targets": {
+    "glueReduction": 0.4,
+    "instructionReduction": 0.5
+  }
+}

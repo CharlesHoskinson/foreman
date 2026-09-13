@@ -10,7 +10,7 @@
 #     1. FOREMAN_REPORT.md was still the skeleton -- `## Changes`,
 #        `## Verification`, `## Evidence` all read `(TBD)`. The lane wrote the
 #        report first as briefed, then exhausted its turn before filling it in.
-#     2. lane-run.sh contained
+#     2. the historical controller contained
 #          [[ "$durable_enabled" == "__disabled_for_independent_proof__" ]]
 #        a string literal that can never match, so the refusal branch was dead
 #        and every unowned dispatch would have proceeded silently. The lane had

@@ -1,0 +1,70 @@
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {execFileSync,spawnSync} from 'node:child_process';
+import {mkdtempSync,mkdirSync,writeFileSync,rmSync,statSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {Effect} from 'effect';
+import {sha256Hex} from '@foreman/core';
+import {hashAuthoringContent,checkPel,validateRevisionPrefix} from '@foreman/pel';
+import {resolvePelRepository} from './pel-project-live.js';
+import {createDefaultAuthoringSnapshotV1} from './pel-host-descriptors.js';
+import {pelAuthorityFileBytes,pelV1AllowedPathsSha256,type PelProjectAuthorityV1} from './pel-project-authority.js';
+import {strictEndstopLimits,type ExecutionContractV1} from './execution-contract.js';
+import {EndstopLedger,makeLiveEndstopLedgerLayer} from './execution-ledger.js';
+import {makeLivePelLifecycleServices,makeLivePelLifecycleBackend} from './pel-lifecycle-live.js';
+import {PelRuntime,type ForemanProjectV1,type PelArtifactRefV1} from './pel-run-contract.js';
+import {readPelRecords,pelBytesHash} from './pel-journal.js';
+import {readPelExecutionBinding} from './pel-run-status.js';
+
+test('T-M4-001 product backend configures registered authority, runs checkpoints and preserves old status without current settings',async()=>{
+  const root=mkdtempSync(join(tmpdir(),'pel-live-')),cwd=join(root,'repo'),stateRoot=join(root,'state'),foremanHome=join(root,'home');
+  try{
+    for(const dir of [cwd,stateRoot,foremanHome])mkdirSync(dir);
+    execFileSync('git',['init','-q',cwd]);execFileSync('git',['-C',cwd,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--allow-empty','-qm','fixture']);
+    const baseCommit=execFileSync('git',['-C',cwd,'rev-parse','HEAD'],{encoding:'utf8'}).trim(),location=await Effect.runPromise(resolvePelRepository(cwd)),info=statSync(cwd),projectId='11111111-1111-4111-8111-111111111111';
+    const inputDir=join(stateRoot,'project-inputs',projectId);mkdirSync(inputDir,{recursive:true});
+    const put=(value:unknown):PelArtifactRefV1=>{const bytes=pelAuthorityFileBytes(value),sha256=sha256Hex(bytes),ref={artifactId:`sha256-${sha256}`,sha256,byteLength:bytes.length};writeFileSync(join(inputDir,ref.artifactId),bytes,{mode:0o600});return ref;};
+    const scope:PelProjectAuthorityV1={schemaVersion:1,repository:location.repository,stateRoot,workspaceGrants:[{grantId:'workspace-1',repository:location.repository,worktreeId:'main',canonicalRoot:cwd,directoryIdentity:`${info.dev}:${info.ino}`,immutableBase:baseCommit,writablePaths:['src']}],taskActions:{},gates:{},destinations:{}};
+    const authorityRef=put(scope),snapshot=createDefaultAuthoringSnapshotV1(),created=1000*Math.floor(Date.now()/1000),iso=(n:number)=>new Date(n).toISOString().replace('.000Z','Z');
+    const contract:ExecutionContractV1={schemaVersion:1,contractId:'live-contract',packageId:'live-package',objectiveSha256:'a'.repeat(64),acceptanceSha256:'b'.repeat(64),baseCommit,allowedPathsSha256:pelV1AllowedPathsSha256(scope.workspaceGrants),dependencyContractIds:[],authorizationSha256:authorityRef.sha256,createdAt:iso(created),deadlineAt:iso(created+strictEndstopLimits.wallTimeMs),limits:strictEndstopLimits,requiredMilestones:['checks']};
+    await Effect.runPromise(Effect.flatMap(EndstopLedger,ledger=>ledger.create(contract)).pipe(Effect.provide(makeLiveEndstopLedgerLayer(stateRoot))));
+    const project:ForemanProjectV1={schemaVersion:1,projectId,repository:scope.repository,stateRoot,authorityRefs:[{kind:'v1',authoritySha256:authorityRef.sha256,authorityRef}],executionContractTemplate:put(contract),authoringSnapshot:put(snapshot),runtimeHandlerVersion:'1',limits:{execution:strictEndstopLimits,pel:snapshot.limits,maxConcurrentEffects:1,maxInputTokens:1000,maxOutputTokens:1000,maxToolCalls:0,maxOutputBytes:65536,maxCostUsd:1,cancellationObservationMs:100,maxReplayReductions:10000},requiredMilestones:['checks'],workspaces:{poolRoot:cwd,immutableBase:baseCommit,grants:scope.workspaceGrants,maxWorktrees:1,maxRaceContenders:1},gates:{},destinations:{},roleBindings:{},taskActions:{},nlConditionProfile:null,dependencyMode:'ordered',resultContract:{schemaId:'schema:pel-data-v1',schemaSha256:hashAuthoringContent(snapshot.registry.dataSchemas['schema:pel-data-v1']),classification:'generic'}};
+    const printed:string[]=[];
+    const options={cwd,foremanHome,userHome:root,environment:{},output:{stdout:()=>Effect.die('unexpected stdout'),stderr:(text:string)=>Effect.sync(()=>{printed.push(text);})}};
+    const api=makeLivePelLifecycleServices(options),backend=makeLivePelLifecycleBackend(options);
+    await Effect.runPromise(api.configure(pelAuthorityFileBytes(project)));
+    let started=false;
+    const result=await Effect.runPromise(api.run({source:Buffer.from('(print "retained output")\n(fm/checkpoint :name "saved")\n42'),sourcePath:'program.pel',outputMode:'json',started:()=>Effect.sync(()=>{started=true;})}));
+    assert.equal(started,true);assert.equal(result.state,'needs-action');if(result.state==='needs-action')assert.equal(result.resumeMode,'final-value');assert.deepEqual(result.finalValue,{tag:'number',value:42});
+    assert.match(result.diagnostics[0]!.message,/checks/);
+    assert.equal(printed.length,0);assert.equal(result.outputs.length,1);
+    // A trusted operator can revise a failed suffix through the same resume route.
+    const prefixSource='(def x (fm/checkpoint :name "before-failure"))\n';
+    const originalSource=Buffer.from(prefixSource+'(/ 1 (- (len x) 2))'),revision=Buffer.from(prefixSource+'7');
+    const failed=await Effect.runPromise(api.run({source:originalSource,sourcePath:'failed.pel',outputMode:'json',started:()=>Effect.void}));
+    assert.equal(failed.state,'failed');
+    const layer=await Effect.runPromise(backend.servicesForRun(failed.runId));
+    const decision=await Effect.runPromise(Effect.gen(function*(){
+      const binding=yield* readPelExecutionBinding(failed.runId),runtime=yield* PelRuntime,context=yield* runtime.loadRunInputs(binding);
+      const before=checkPel({source:originalSource,snapshot:context.snapshot}),after=checkPel({source:revision,snapshot:context.snapshot});assert.equal(before.tag,'ok');assert.equal(after.tag,'ok');if(before.tag!=='ok'||after.tag!=='ok')throw Error('fixture check');
+      const prefix=validateRevisionPrefix(before.checked.program,after.checked.program,1,[]);assert.equal(prefix.ok,true);if(!prefix.ok)throw Error('fixture prefix');
+      return {schemaVersion:1,runId:failed.runId,parentSourceDigest:binding.sourceDigest,revisedSourceDigest:pelBytesHash(revision),completedPrefixDigest:prefix.value.prefixDigest,completedTopLevelCount:1,pendingSuffixBoundary:1};
+    }).pipe(Effect.provide(layer)));
+    const repaired=await Effect.runPromise(api.resume({runId:failed.runId,decision:pelAuthorityFileBytes(decision),revision,outputMode:'json',started:()=>Effect.void}));
+    assert.equal(repaired.state,'needs-action');assert.deepEqual(repaired.finalValue,{tag:'number',value:7});assert.equal(printed.length,0);
+    const decisions=await Effect.runPromise(readPelRecords(failed.runId).pipe(Effect.provide(layer)));
+    assert.equal(decisions.filter(row=>row.type==='pel.operator-decision.v1').length,1);
+    const compiled=fileURLToPath(new URL('../../../skills/foreman/runtime/dist/foreman.js',import.meta.url)),sourceFile=join(cwd,'compiled.pel');
+    writeFileSync(sourceFile,'(print "compiled retained output")\n42');
+    const product=spawnSync(process.execPath,[compiled,'run',sourceFile,'--json'],{cwd,env:{...process.env,FOREMAN_HOME:foremanHome},encoding:'utf8',timeout:15000});
+    assert.equal(product.status,3,product.stderr+product.stdout);
+    const productResult=JSON.parse(product.stdout);assert.equal(productResult.state,'needs-action');assert.deepEqual(productResult.finalValue,{tag:'number',value:42});assert.equal(productResult.outputs.length,1);
+    const startup=product.stderr.trim().split('\n').map(line=>JSON.parse(line));assert.equal(startup.length,1);assert.equal(startup[0].type,'run-started');assert.equal(startup[0].runId,productResult.runId);
+    rmSync(join(location.repository.gitCommonDir,'foreman','project.json'));rmSync(inputDir,{recursive:true});
+    assert.equal(hashAuthoringContent(await Effect.runPromise(api.status(result.runId))),hashAuthoringContent(result));
+    const resumed=await Effect.runPromise(Effect.either(api.resume({runId:result.runId,started:()=>Effect.void})));
+    assert.equal(resumed._tag,'Left');if(resumed._tag==='Left')assert.equal(resumed.left.code,'terminal-run');
+  }finally{rmSync(root,{recursive:true,force:true});}
+});

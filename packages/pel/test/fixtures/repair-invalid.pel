@@ -1,0 +1,2 @@
+(fm/task "implement" :model "role:implementer"
+  :input "artifact:approved-spec" :output "schema:candidate-v1")

@@ -1,0 +1,3 @@
+(do/async
+  (fm/research :id "read-paper" :query "language requirements" :bundle "bundle:pel-paper" :limit 5)
+  (fm/research :id "read-models" :query "provider constraints" :bundle "bundle:model-evidence" :limit 5))

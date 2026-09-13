@@ -7,8 +7,8 @@
 # only. el_emit's 5-positional signature and the top-level
 # {seq,ts,type,lane,commit?,payload} shape are FROZEN -- top-level additions
 # would be a signature migration, not additive, and are out of scope. The
-# checkpoint SHA stays in the existing top-level `commit` field (resume.sh:74
-# already reads `.commit // .payload.checkpoint // empty`, commit-first).
+# checkpoint SHA stays in the existing top-level `commit` field. Historical
+# recovery reads `.commit // .payload.checkpoint // empty`, commit-first.
 # Documented (not validated -- same as any other payload content) v2
 # payload keys, populated by callers via the payload JSON they already pass:
 #   attempt      - monotonic per-lane attempt id, see el_attempt_new
@@ -27,10 +27,10 @@
 # treat every type opaquely, so no code change was needed for that part.
 # `state` joins it too (v0.2.5 T4b): a dedicated event TYPE (distinct from
 # the payload.state KEY documented above, which any event type may carry)
-# whose payload always carries {state:<label>, attempt}. lane-run.sh's
-# --round mode emits exactly one, `{state:"verifying"}`, right as the gate
-# launcher spawns; watch.sh's v2 typed-state machine (skills/foreman/scripts/
-# watch.sh) is its only consumer. Again opaque to el_emit/el_read/el_compact:
+# whose payload always carries {state:<label>, attempt}. Historical round
+# execution emitted `{state:"verifying"}` when the gate launcher started.
+# The historical watchdog consumed this state. The payload remains opaque to
+# el_emit/el_read/el_compact:
 # is_collapsible only ever matches type=="heartbeat", so a `state` event is
 # already structural/never-collapsed with no code change needed here either.
 # Cursor semantics are UNCHANGED: the integer line-number cursor nats-bridge
@@ -408,7 +408,7 @@ el_compact() {
   fi
 
   # Cutoff computation below needs GNU date's `-d "-N days"` relative-date
-  # parsing (Git Bash and WSL both ship it, same assumption el_emit/watch.sh
+  # parsing (Git Bash and WSL both ship it, the assumption the historical emitters
   # already make elsewhere in this codebase); a BSD/macOS date lacking `-d`
   # fails SAFE here -- the `cutoff=... || ...` guard below returns 1 with the
   # original events.jsonl completely untouched, never a silent misparse.

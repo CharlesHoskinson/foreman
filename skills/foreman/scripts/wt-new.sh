@@ -10,7 +10,7 @@
 #   -- regardless of which vendor (if any) the lane actually runs, since
 #   provisioning is unconditional and cheap. Claude was retired by T7: its
 #   isolated $HOME path is unverified, so we state the absence rather than
-#   provision a dir nothing can use. This is what lane-run.sh's
+#   provision a dir nothing can use. This is what the historical controller's
 #   LANE_CONFIG_DIR default resolves to (see its own header CONTRACT note)
 #   when LANE_VENDOR is set and no explicit LANE_CONFIG_DIR override is
 #   given. The dirs stay empty here -- seeding/exercising real vendor

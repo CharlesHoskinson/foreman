@@ -1,0 +1,15 @@
+{
+  "source_url": "https://arxiv.org/pdf/2505.13453v2",
+  "method": "pdftoppm, PNG, 1800-pixel long edge, visual inspection",
+  "inspected_at": "2026-09-13",
+  "pages": [
+    11,
+    14
+  ],
+  "pdf_page_numbers_are_one_based": true,
+  "files": {
+    "arxiv-2505.13453v2.pdf": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+    "glyph-page-11.png": "2c8d68dbafe837328a8171e72e9353b350ed28698ec2f6cc1906c6f31f56da68",
+    "glyph-page-14.png": "991708bd6ae2b1b2b0791b1ddda93f8ac3fef20d6f7182f3cc21222d309bcb45"
+  }
+}

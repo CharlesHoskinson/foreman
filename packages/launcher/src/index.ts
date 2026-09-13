@@ -81,6 +81,9 @@ export {
   liveUnshareProbe,
   liveCapabilityWriter,
   type CapabilityWriteError,
+  type SpawnedChild,
+  type SpawnRequest,
+  type SpawnError,
 } from "./services.js";
 
 export { LiveLauncherLayer } from "./services.js";

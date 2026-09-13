@@ -1,0 +1,7 @@
+(do
+  (fm/checkpoint :name "before-implementation")
+  (fm/task :id "implement" :model "role:implementer"
+    :input "artifact:approved-spec" :output "schema:candidate-v1")
+  |> (fm/verify :id "verify" :input ^ :gate "candidate-full")
+  |> (fm/review :id "review" :model "role:reviewer"
+    :input ^ :policy "independent-review"))

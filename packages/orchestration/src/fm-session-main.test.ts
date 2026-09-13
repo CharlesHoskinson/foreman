@@ -2711,9 +2711,14 @@ test("project commands register one identity across linked worktrees", () => {
     assert.equal(existsSync(join(home, "projects.json")), true);
     assert.deepEqual(
       fs.readdirSync(home).sort(),
-      ["projects.json"],
-      "registration must not create key material",
+      [".pel-registry-transaction", "projects.json"],
+      "registration creates only the original registry and its transaction lock",
     );
+    const lockDirectory=join(home,".pel-registry-transaction");
+    assert.equal(statSync(lockDirectory).mode & 0o777,0o700);
+    assert.deepEqual(fs.readdirSync(lockDirectory),["owner-v1.lock"]);
+    assert.equal(statSync(join(lockDirectory,"owner-v1.lock")).mode & 0o777,0o600);
+    assert.equal(JSON.parse(readFileSync(join(lockDirectory,"owner-v1.lock"),"utf8")).protocol,"foreman.pel-registry-transaction.v1");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -2810,4 +2815,32 @@ test("recovery evaluates a registered store in its project, never the caller cwd
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('project register reads identity after admission when another registry writer publishes first',async()=>{
+ const {syncBuiltinESMExports}=await import('node:module'),{registerProjectFileV1}=await import('./project-registry.js'),{withPelRegistryTransaction}=await import('./pel-registry-transaction.js');
+ const root=mkdtempSync(join(tmpdir(),'fm-register-admission-')),repo=join(root,'repo'),home=join(root,'home'),db=join(repo,'.foreman','session.db'),savedCwd=process.cwd(),savedArgv=process.argv,savedEnv={...process.env},original=fs.openSync;
+ const projectId='00000000-0000-4000-8000-000000000091';let published=false;
+ try{mkdirSync(repo);mkdirSync(home,{mode:0o700});execFileSync('git',['init','-q'],{cwd:repo});process.chdir(repo);process.argv=[process.argv[0]!,ENTRY,'project','register'];process.env.FOREMAN_HOME=home;process.env.FOREMAN_SESSION_DB=db;delete process.env.FOREMAN_SESSION_BACKEND;delete process.env.FOREMAN_SESSION_DIR;
+  fs.openSync=((...args:Parameters<typeof fs.openSync>)=>{if(args[0]===home&&!published){published=true;const registered=Effect.runSync(withPelRegistryTransaction(home,Effect.sync(()=>registerProjectFileV1(join(home,'projects.json'),{project_id:projectId,operation_id:'00000000-0000-4000-8000-000000000092',git_common_dir:join(repo,'.git'),worktree_path:repo,store_backend:'sqlite',store_location:db}))));assert.equal(registered._tag,'Registered');}return original(...args);}) as typeof fs.openSync;syncBuiltinESMExports();
+  const text=captureStderr(()=>assert.equal(main(),0));assert.equal(text,'');assert.equal(published,true);const store=SqliteSessionStore.open(db,{readOnly:true});try{assert.equal(store.projectId(),projectId);}finally{store.close();}
+ }finally{fs.openSync=original;syncBuiltinESMExports();process.chdir(savedCwd);process.argv=savedArgv;for(const key of Object.keys(process.env))if(!(key in savedEnv))delete process.env[key];Object.assign(process.env,savedEnv);rmSync(root,{recursive:true,force:true});}
+});
+
+test('project register preserves the original CliRefusal when store binding throws',()=>{
+ const root=mkdtempSync(join(tmpdir(),'fm-register-refusal-')),repo=join(root,'repo'),home=join(root,'home'),db=join(repo,'.foreman','session.db'),savedCwd=process.cwd(),savedArgv=process.argv,savedEnv={...process.env},original=SqliteSessionStore.prototype.bindProject;
+ try{mkdirSync(repo);mkdirSync(home,{mode:0o700});execFileSync('git',['init','-q'],{cwd:repo});process.chdir(repo);process.argv=[process.argv[0]!,ENTRY,'project','register'];process.env.FOREMAN_HOME=home;process.env.FOREMAN_SESSION_DB=db;delete process.env.FOREMAN_SESSION_BACKEND;delete process.env.FOREMAN_SESSION_DIR;
+  SqliteSessionStore.prototype.bindProject=()=>{throw Error('private backend detail');};
+  const text=captureStderr(()=>assert.throws(()=>main(),error=>error instanceof CliRefusal&&error.exitCode===1));assert.equal(text,'refusing: project store binding failed\n');assert.equal(existsSync(join(home,'projects.json')),false);
+ }finally{SqliteSessionStore.prototype.bindProject=original;process.chdir(savedCwd);process.argv=savedArgv;for(const key of Object.keys(process.env))if(!(key in savedEnv))delete process.env[key];Object.assign(process.env,savedEnv);rmSync(root,{recursive:true,force:true});}
+});
+
+test('project register reports a busy admission once without binding the store',async()=>{
+ const {withPelRegistryTransaction}=await import('./pel-registry-transaction.js');
+ const root=mkdtempSync(join(tmpdir(),'fm-register-busy-')),repo=join(root,'repo'),home=join(root,'home'),db=join(repo,'.foreman','session.db');
+ try{mkdirSync(repo);mkdirSync(home,{mode:0o700});execFileSync('git',['init','-q'],{cwd:repo});
+  const result=Effect.runSync(withPelRegistryTransaction(home,Effect.sync(()=>spawnSession(repo,db,['project','register'],{FOREMAN_HOME:home}))));
+  assert.equal(result.status,1);assert.equal(result.stdout,'');assert.match(result.stderr,/^refusing: The original project registry transaction is busy or unavailable; admission was not changed\.\n$/u);assert.doesNotMatch(result.stderr,/FiberFailure|CliRefusal|\{"_tag"/u);assert.equal(existsSync(join(home,'projects.json')),false);
+  const store=SqliteSessionStore.open(db,{readOnly:true});try{assert.equal(store.projectId(),null);}finally{store.close();}
+ }finally{rmSync(root,{recursive:true,force:true});}
 });

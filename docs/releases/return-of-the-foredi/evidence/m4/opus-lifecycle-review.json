@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "kind": "independent-code-review",
+  "requestedModel": "claude-opus-5",
+  "observedPrimaryModel": "claude-opus-5",
+  "tools": [
+    "Read",
+    "Glob",
+    "Grep"
+  ],
+  "source": "working M4 tree before audit corrections",
+  "promptSha256": "6d90fefb95faae2ee3bc2d7979029f5f8068ebf7c7e5cf18032de6610bd4af3d",
+  "subtype": "success",
+  "isError": false,
+  "costUsd": 1.6591269999999998,
+  "modelUsage": {
+    "claude-haiku-4-5-20251001": {
+      "inputTokens": 1223,
+      "outputTokens": 14,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0.0012929999999999999,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000,
+      "thinkingTokens": 0,
+      "canonicalModel": "claude-haiku-4-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    },
+    "claude-opus-5": {
+      "inputTokens": 194,
+      "outputTokens": 25748,
+      "cacheReadInputTokens": 291888,
+      "cacheCreationInputTokens": 86722,
+      "webSearchRequests": 0,
+      "costUSD": 1.6578339999999998,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 64000,
+      "thinkingTokens": 19140,
+      "canonicalModel": "claude-opus-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "result": "I found two confirmed defects that can leave an operator decision stuck for good, one smaller ordering defect, and three open questions. I only read code; I ran nothing, so there are no test results.\n\n## Confirmed defects\n\n### 1. High: an operator decision for an effect can never be replaced, which can force the same work to be sent again\n**Where:** `packages/orchestration/src/pel-decision-authority.ts:90-95`\n\n**Trigger:**\n1. The operator registers `confirm-no-dispatch` for effect E.\n2. Resume applies it (`pel-recovery.ts:283-286`), which records the decision and sends E again under the same `effectId`.\n3. That second send ends with an unknown outcome.\n4. The operator now tries to register `accept-result` or `abandon` for E.\n\n**What goes wrong:**\n- Registration finds the earlier decision for the same kind, `effectId` and checked digest, and rejects the new one: \"A conflicting operator decision is already registered\". It never checks whether the earlier decision was already applied or has been replaced.\n- Recovery already expects a later decision for the same effect: `pel-recovery.ts:253` skips a saved `confirm-no-dispatch` once a later observation exists. Registration contradicts that.\n- The only input still accepted is the identical `confirm-no-dispatch`. That returns the old receipt, and resuming with it sends E again. So the operator can either send the work yet again or leave the run stuck.\n- A second path hits the same lock. `validateRecovery` (`:40-48`) checks less than the apply step does at `pel-recovery.ts:281`, where `validateHostReceipt` also checks the failure schema that an `abandon` receipt must match. A decision that registers but then fails to apply can never be corrected.\n- The existing test at `pel-decision-authority.test.ts:50` asserts this lock.\n\n**Fix:**\n- Treat an earlier registration as a conflict only while it is still waiting to be applied. It stops conflicting once a later `pel.recovery-decision.v1` for that effect exists or a later observation replaces it. Alternatively, record an explicit \"supersedes\" link to the earlier decision.\n- Make `validateRecovery` rebuild the pending request and run the same `validateHostReceipt` check the apply step uses.\n\n### 2. Medium: checking a source revision at registration doesn't match applying it\n**Where:** `pel-decision-authority.ts:50-74` compared with `pel-recovery.ts:396-468`\n\n**Trigger A (valid revision rejected):**\n- The run's latest suspension has ready requests with no result yet, for example a partly dispatched batch, or a crash between suspension and intent.\n- Registration fails at `:65` with \"The current source has an unreceipted request\".\n- Applying the revision would accept it: `revisePelRun` treats those requests as the pending suffix (`:436`, `:446`).\n- The design (lines 108-109) says existing release receipts are rejected, so this unsigned path is the only way to authorize a revision on the live product. The run can't be revised at all.\n\n**Trigger B (invalid revision accepted, then locked):**\n- Registration skips checks that the apply step runs: `measurePelPrefix`, the counter check in `preparePelRevision`, and `normalizedPelRevisionArguments` (`pel-recovery.ts:451-468`).\n- A revision can therefore register and then fail to apply with `continuation-incompatible`.\n- Because `sameTarget = kind==='revision'` (`:92`), every corrected revision for that checked digest is then rejected for good.\n\n**Fix:**\n- Move revision preparation into one pure function. Registration runs it without writing anything; apply runs it and writes the records.\n- Apply the \"only while still waiting to be applied\" conflict rule from finding 1 to revisions too.\n\n### 3. Low: a fresh run is recorded and its run ID shown before its stored inputs are checked\n**Where:** `pel-lifecycle-services.ts:88-90`\n\n**Trigger:** `loadRunInputs` fails right after admission. For example, ledger or family state changes between `backend.load` and line 90, and recovery re-checks authority against the current ledger.\n\n**What goes wrong:** `pel.run.v1` is already written and `run-id` already printed, but the command fails with `binding-mismatch` (exit 2). That exit reads like a rejection before allocation, yet a durable run with no activation now exists.\n\n**Fix:** All artifacts are stored by line 87, so call `runtime.loadRunInputs(binding)` before `appendPelRecord(pel.run.v1)`, and only then append the record and print the ID.\n\n## Questions (not confirmed)\n\n**Q1. Recovery re-applies fresh-admission authority checks.**\n- **Where:** `pel-lifecycle-live.ts:99` → `pel-project-authority.ts:89-122`\n- `loadRunInputs` requires the family to be registered and active, and requires exactly one matching child registration.\n- Resume, operator decision registration (`pel-lifecycle-services.ts:113`, which runs before registration) and supervisor recovery all call `loadRunInputs`.\n- So once authority ends or changes, an operator can't even register `abandon` to close an unresolved effect.\n- If the intent is only to fail closed on sending work, consider separating \"original inputs are intact\" (hashes, contract SHA) from \"authority to send work now\". Decisions and final classification would then still work after authority is revoked.\n- This is separate from the known reservation-origin work in progress.\n\n**Q2. Milestone evidence comes from the contract or child, not from this run.**\n- **Where:** `pel-lifecycle-live.ts:103-114`\n- A generic-classification run can report `succeeded` from milestones earned by other work on the current candidate, even if the Pel run did nothing.\n- Design lines 497-498 suggest this may be intended. Please confirm.\n\n**Q3. A saved `confirm-no-dispatch` may be re-applied automatically.**\n- **Where:** `pel-recovery.ts:253`\n- A saved `confirm-no-dispatch` is skipped only when a later `pel.effect.observed.v1` exists.\n- The only place I found that writes that record is recovery reconciliation (`pel-recovery.ts:301`). I didn't find one on the dispatch path, but I didn't read that path fully.\n- If sending doesn't record something first, a crash after the resend would re-apply the old decision and send a third time with no new operator decision.\n- This may overlap with the saved cursor continuation work in progress.\n\n## Checked, no finding\n- **Worktree root differs between fresh run and resume** (grant root vs. current directory): credential resolution uses `worktreeRoot` only for a containment check (`credential-profile.ts:978-1015`), so this doesn't change inputs.\n- **Explicit `--binding` on fresh runs** (`pel-lifecycle-services.ts:76`): it only matches when the binding's time-based deadline equals the one computed now, so in practice it is always rejected. That is unusable but fails safely."
+}

@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "projectId": "00000000-0000-4000-8000-000000000001",
+  "repository": {
+    "gitCommonDir": "/absolute/project/.git",
+    "identitySha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "stateRoot": "/absolute/foreman-state",
+  "authorityRefs": [
+    {
+      "kind": "v1",
+      "authoritySha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "authorityRef": {
+        "artifactId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+        "byteLength": 1,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    }
+  ],
+  "executionContractTemplate": {
+    "artifactId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+    "byteLength": 1,
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "authoringSnapshot": {
+    "artifactId": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+    "byteLength": 1,
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "runtimeHandlerVersion": "1",
+  "limits": {
+    "execution": {
+      "implementationRounds": 2,
+      "correctionRounds": 1,
+      "auditRounds": 1,
+      "councilRounds": 1,
+      "providerRetries": 2,
+      "resumeAttempts": 2,
+      "verificationRunsPerCandidate": 1,
+      "totalActions": 12,
+      "wallTimeMs": 7200000,
+      "noProductChangeMs": 1800000
+    },
+    "pel": {
+      "maxAstNodes": 50000,
+      "maxCallDepth": 256,
+      "maxIterations": 10000,
+      "maxReductions": 100000,
+      "maxSourceBytes": 1048576,
+      "maxSyntaxDepth": 256,
+      "maxTokens": 100000,
+      "maxValueBytes": 16777216
+    },
+    "maxConcurrentEffects": 2,
+    "maxInputTokens": 100000,
+    "maxOutputTokens": 8000,
+    "maxToolCalls": 100,
+    "maxOutputBytes": 1048576,
+    "maxCostUsd": 10,
+    "cancellationObservationMs": 5000,
+    "maxReplayReductions": 100000
+  },
+  "requiredMilestones": [
+    "checks",
+    "audit"
+  ],
+  "workspaces": {
+    "poolRoot": "/absolute/worktrees",
+    "immutableBase": "0000000000000000000000000000000000000000",
+    "maxWorktrees": 2,
+    "maxRaceContenders": 2,
+    "grants": [
+      {
+        "grantId": "candidate-1",
+        "repository": {
+          "gitCommonDir": "/absolute/project/.git",
+          "identitySha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "worktreeId": "candidate-1",
+        "canonicalRoot": "/absolute/worktrees/candidate-1",
+        "directoryIdentity": "0:0",
+        "immutableBase": "0000000000000000000000000000000000000000",
+        "writablePaths": [
+          "src"
+        ]
+      }
+    ]
+  },
+  "gates": {
+    "candidate-full": {
+      "argv": [
+        "/absolute/project/bin/full-verification"
+      ],
+      "environmentRefs": [],
+      "environmentSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "maxOutputBytes": 65536,
+      "timeoutMs": 60000
+    }
+  },
+  "destinations": {},
+  "roleBindings": {
+    "role:implementer": {
+      "controls": {
+        "effort": "high",
+        "execution": {
+          "mode": "foreground",
+          "store": "provider-default"
+        },
+        "sampling": {},
+        "thinking": {
+          "mode": "provider-default"
+        },
+        "toolChoice": "auto"
+      },
+      "credentialProfileRef": "account:default",
+      "profileId": "grok-4.6",
+      "transportId": "grok-acp"
+    },
+    "role:reviewer": {
+      "controls": {
+        "effort": "medium",
+        "execution": {
+          "mode": "foreground",
+          "store": "provider-default"
+        },
+        "sampling": {},
+        "thinking": {
+          "mode": "provider-default"
+        },
+        "toolChoice": "auto"
+      },
+      "credentialProfileRef": "account:default",
+      "profileId": "gpt-5.6-sol",
+      "transportId": "codex-app-server"
+    }
+  },
+  "taskActions": {
+    "implement": "implement",
+    "correct": "correct"
+  },
+  "nlConditionProfile": null,
+  "dependencyMode": "ordered",
+  "resultContract": {
+    "schemaId": "schema:delivery-final-v1",
+    "schemaSha256": "a21040c22bdc88b8bb869599070236e9e0738789a8094a4c062078e05b83001c",
+    "classification": "delivery-v1"
+  }
+}

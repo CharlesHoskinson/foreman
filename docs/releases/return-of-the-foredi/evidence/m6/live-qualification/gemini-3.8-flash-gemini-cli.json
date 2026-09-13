@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "profileId": "gemini-3.8-flash",
+  "transportId": "gemini-cli",
+  "requestedIdentity": {
+    "profileId": "gemini-3.8-flash",
+    "credentialProfileRef": "native:gemini:default"
+  },
+  "installedVersion": "0.59.0",
+  "transportVersion": "1",
+  "profileHash": "e6eecb0984a0889eccfb3ce8eecddeca0b38c568dbf310abde3c761a9cb339a3",
+  "sourceManifestHash": "113b2d6e61761cf7db0e2e2d9de0e5acff16679c80c63adf20188761390ba0a4",
+  "startedAt": 1789303363594,
+  "completedAt": 1789303364345,
+  "bounds": {
+    "deadline": 1789303422127,
+    "maxInputTokens": 12000,
+    "maxOutputTokens": 1024,
+    "maxToolCalls": 0,
+    "maxOutputBytes": 262144,
+    "maxCostUsd": 0.25,
+    "spendReservationRef": "qualification:gemini-3.8-flash-gemini-cli"
+  },
+  "outcome": "needs-action",
+  "assertions": [
+    {
+      "capability": "generation",
+      "passed": false,
+      "reason": "No bounded observation established this capability",
+      "evidenceType": "live-observation"
+    },
+    {
+      "capability": "structuredOutput",
+      "passed": false,
+      "reason": "No bounded observation established this capability",
+      "evidenceType": "live-observation"
+    },
+    {
+      "capability": "toolPolicyNone",
+      "passed": false,
+      "reason": "No bounded observation established this capability",
+      "evidenceType": "live-observation"
+    }
+  ],
+  "evidence": [],
+  "eventTypes": [],
+  "failure": {
+    "_tag": "OutcomeUnknown",
+    "retryClass": "never",
+    "message": "Native process ended without a confirmed provider outcome"
+  }
+}

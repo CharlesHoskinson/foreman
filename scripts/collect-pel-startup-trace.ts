@@ -1,0 +1,7 @@
+/** Unshipped measurement entry. Uses deterministic protocol fixtures; never live accounts. */
+import {resolve}from'node:path';import {writeFile}from'node:fs/promises';import {Effect}from'effect';import {collectCandidateStandardStartTrace}from'../packages/orchestration/src/pel-simplification-trace-fixture.js';
+const flags=new Map<string,string>();let invalid=false;for(let i=2;i<process.argv.length;i+=2){const key=process.argv[i]!,value=process.argv[i+1];if(!['--candidate','--out','--repo'].includes(key)||flags.has(key)||!value||value.startsWith('--')){invalid=true;break;}flags.set(key,value);}
+if(invalid||!/^[a-f0-9]{40}$/u.test(flags.get('--candidate')??'')||!flags.has('--out')){process.stderr.write('Use --candidate EXACT_COMMIT --out NEW_FILE [--repo DIRECTORY].\n');process.exitCode=2;}else{
+ const result=await Effect.runPromise(Effect.either(collectCandidateStandardStartTrace({repositoryRoot:resolve(flags.get('--repo')??process.cwd()),candidateCommit:flags.get('--candidate')!})));
+ if(result._tag==='Left'){process.stderr.write(`${result.left.code}: ${result.left.message}\n`);process.exitCode=2;}else{try{await writeFile(resolve(flags.get('--out')!),JSON.stringify(result.right,null,2)+'\n',{flag:'wx',mode:0o600});process.stdout.write('Captured complete test-fixture standard-start instructions; no live-account qualification.\n');}catch{process.stderr.write('The new trace file cannot be written.\n');process.exitCode=1;}}
+}

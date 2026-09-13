@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "kind": "independent-code-review",
+  "requestedModel": "claude-opus-5",
+  "observedPrimaryModel": "claude-opus-5",
+  "tools": [
+    "Read",
+    "Glob",
+    "Grep"
+  ],
+  "source": "Working M5 tree before the corresponding audit corrections",
+  "promptSha256": "88bde98625ef136bd29c7edcf3052eb197088fe4391a550be58678ced4043d97",
+  "subtype": "success",
+  "isError": false,
+  "costUsd": 2.153924,
+  "modelUsage": {
+    "claude-haiku-4-5-20251001": {
+      "inputTokens": 1275,
+      "outputTokens": 16,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0.001355,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000,
+      "thinkingTokens": 0,
+      "canonicalModel": "claude-haiku-4-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    },
+    "claude-opus-5": {
+      "inputTokens": 226,
+      "outputTokens": 23939,
+      "cacheReadInputTokens": 528348,
+      "cacheCreationInputTokens": 128879,
+      "webSearchRequests": 0,
+      "costUSD": 2.1525689999999997,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 64000,
+      "thinkingTokens": 17035,
+      "canonicalModel": "claude-opus-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "result": "I audited the M5 delivery code read-only and found four confirmed High or Medium defects, two lower-severity ones and three open questions. The two worst mean publication cannot succeed for a candidate produced during the run. I didn't run any tests or commands.\n\n## Confirmed defects\n\n**1. High: publication always fails for a candidate the host captured**\n- **Where:** `pel-publication-service.ts:60-61` against `pel-candidate-capture.ts:121,141-142` and `pel-host-library.ts:164`.\n- **Trigger:** the planned `fm/task |> fm/verify |> fm/review |> fm/publish` flow.\n- **Wrong behaviour:** two checks can never both pass.\n  - Resolving the publish input re-observes the candidate. That requires the worktree to still match the captured state: HEAD at the parent commit, with uncommitted changes.\n  - The publication service then requires HEAD to equal the candidate commit and `git status` to be clean.\n  - Capture only creates the commit object (`commit-tree`); nothing moves HEAD. So publish fails with `candidate-changed` every time.\n- **Why tests pass:** `pel-publication-service.test.ts:20` commits the candidate straight into the workspace, and `pel-host-publish.test.ts:30` stubs the service.\n- **Fix:** validate the immutable candidate objects instead of the workspace (commit exists, tree and diff digests match). Or add an integration step with its own receipt that moves the worktree.\n\n**2. High: publication authority can't be granted for a candidate made during the run**\n- **Where:** `pel-project-authority.ts:65,83,93,100`; `pel-publication-service.ts:72-79`.\n- **Wrong behaviour:**\n  - Each destination's `authorityRef` comes from the registered scope file, whose hash is fixed in the root contract.\n  - The authority bundle at that reference must name the exact candidate, which doesn't exist until capture.\n  - The operator can't register a bundle with the pre-declared hash, and registering a new scope changes the contract binding, so resume is rejected.\n  - The `needs-action` result (\"register authority, then resume\") therefore can never be satisfied.\n- **Fix:** look up publish authority in the ledger's child authorities by action, exact candidate and destination digest, as `actionAuthority` already does in `pel-host-library.ts:76-83`. The destination should bind only the allowed target, not a bundle reference.\n\n**3. High (trust): gitignored files become candidate content**\n- **Where:** `pel-candidate-capture.ts:72-73` (the comment says this is deliberate), `:104`; `pel-gate-execution.ts:39-46`; `pel-host-library.ts:151-157`.\n- **(a) Secret leak.** If writable paths include `.` and the worktree has a gitignored `.env`, its bytes are stored as an artifact and committed into the candidate tree. They are also sent base64-encoded to the other vendor's reviewer and would be published.\n- **(b) Tasks fail.** The scope check covers every current entry, including ignored files that already existed. Any ignored file outside the writable paths (such as `node_modules` or `dist`) fails the task with `candidate-out-of-scope`, and more than 4096 files fails it with `task-output-invalid`.\n- **(c) Verification fails.** Any gate that writes ignored output (builds, coverage, `.tsbuildinfo`) changes the observed state and fails with `candidate-changed`. After one verify, the correction round then hits (b).\n- **Fix:** exclude ignored files from capture (`--exclude-standard`). If they must stay a mutation guard, keep a separate digest that is never committed or sent to providers. Check scope only on paths that changed. Grep found no tests covering ignored files.\n\n**4. Medium (trust): path scope doesn't cover commits between the base and HEAD**\n- **Where:** `pel-candidate-capture.ts:67,104,109,121-122`.\n- **Wrong behaviour:** capture only checks that the base commit exists. The scope check covers uncommitted changes relative to HEAD, but the candidate tree is built on HEAD and its diff runs from the base. Nothing requires HEAD to equal the base; grep found no such check in resource scope or admission.\n- **Trigger:** an admitted worktree with local commits touching paths outside the writable set. Those changes enter the candidate and its product change unchecked.\n- **Fix:** require HEAD to equal the base at inspection, or check scope on `git diff --name-only <base> <candidate>`.\n\n**5. Medium: review preparation writes state and can invalidate a valid approval**\n- **Where:** `pel-host-review.ts:126-129`; `pel-host-evidence.ts:57-63,81`.\n- **Wrong behaviour:** `prepare` appends a `review-in-progress` record before the action is reserved. If the later authority or resource lookups fail, or M4 declines the reservation (budget or attempt limit), the prior approved review for that candidate is already treated as stale. A pending publish then fails, with no replacement review. This also breaks the design's read-only preparation rule.\n- **Fix:** write the in-progress record in `dispatch` after validating the reservation token and before calling the provider.\n\n**6. Low–Medium: recovering a completed review fails once verification is older than the age limit**\n- **Where:** `pel-host-review.ts:51,72`.\n- **Wrong behaviour:** completion re-runs the freshness check against the current time. If a paid review finished but resume (or a long review) passes the 24h limit, it fails `review-invalid` and the audit reservation is spent.\n- **Fix:** check freshness at preparation, bind it into the operation digest, and check only identity on completion or recovery.\n\n**7. Low: a definite push rejection leaves the run pending forever**\n- **Where:** `pel-publication-service.ts:111`; `pel-host-publish.ts:67,93`.\n- **Wrong behaviour:** any non-zero push exit (lease mismatch, auth denied, hook rejection) is recorded as an unknown outcome. Recovery observes the old remote object, still unknown, so the run stays at exit 5 with no actionable failure.\n- **Fix:** after a non-zero exit, re-read the remote ref. If it still holds the expected object and the push output shows a rejection, return a typed non-retryable failure.\n\n## Questions\n- **Codex write checks:** the writable-path check in `pel-native-permissions.ts:11-13,26` looks for fixed argument names. Codex file-change approval requests usually carry none of them (a `grantRoot` field is not checked), so the check passes by default. The bwrap mounts do enforce write roots (`pel-native-boundary.ts:47,59`). Is the mount meant to be the only enforcement?\n- **Unsupported native transports:** `pel-host-task.ts:102` accepts `claude-code` and `gemini-cli` for tasks, but the boundary only supports `grok-acp` and `codex-app-server`. This fails closed, but only at execution, after the implement reservation is consumed. Should task preparation reject them up front?\n- **SHA-256 repositories:** destination decoding accepts 64-hex object IDs (`pel-project-authority.ts:66`), but the publication service requires 40-hex (`pel-publication-service.ts:47`), so SHA-256 repositories are rejected.\n\n## Checked and found correct\n- **Crash recovery reuses the original reservation:** task restore (`:65`), verify recover (`:96`), the publish receipt token, milestone recording (`:17`), and the token taken from the recorded intent (`pel-host-recovery.ts:56-65`).\n- **Stale reviews are rejected** at completion by the newest in-progress record (`pel-host-review.ts:75-80`), and later in-progress records invalidate earlier review receipts.\n- **Same-vendor review** is rejected at completion and in receipt decoding.\n- **One push per reservation:** the push happens only in `dispatch`; recovery only observes the remote and never pushes again.\n- **Candidate identity:** candidate references bind the manifest and diff digests, and candidate commit dates are deterministic."
+}

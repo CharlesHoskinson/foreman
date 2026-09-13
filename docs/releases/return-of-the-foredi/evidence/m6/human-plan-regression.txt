@@ -1,0 +1,25 @@
+✔ CLI rejects misuse before reading files and emits one JSON object (108.847242ms)
+✔ CLI pure plan yields known arithmetic with no provider service (121.122801ms)
+✔ CLI diagnostics retain source range and human caret (67.691671ms)
+✔ CLI rejects changed snapshot digest (43.044066ms)
+✔ generation failures retain attempt diagnostics and cumulative usage in JSON (47.847539ms)
+✔ generation selection and controls fail before any provider call (104.925379ms)
+✔ interactive fragment editing exports exact draft and never invokes provider implicitly (143.18396ms)
+✔ human generation failures show cumulative usage and attempt diagnostics (44.425004ms)
+✔ successful human generation preserves source stdout and reports all attempt usage (83.496846ms)
+✔ T-M2-014 packaged authoring asset is regenerated from the sole declaration module (31.502427ms)
+✔ T-M2-001/002 CLI JSON matrix rejects invalid inputs without an execution service (442.223994ms)
+✔ T-M2-003/005/011 canonical effects and human/JSON diagnostics retain exact selections (633.626002ms)
+✔ T-M2-012 terminal transcript covers draft commands and explicit repair (183.598259ms)
+✔ T-M2-013 all four packaged examples check and plan under Node 24 (3064.782318ms)
+✔ human plan summarizes execution constraints while --json preserves the exact preview contract (228.724125ms)
+✔ T-M2-003 human plan retains exact controls, capabilities, resource uncertainty and dynamic bounds (117.970228ms)
+✔ human plan defines unknown inline schemas once and retains closure branches and diagnostic details (68.829281ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6378.387338

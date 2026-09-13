@@ -1,0 +1,32 @@
+{
+  "status": "pass",
+  "milestones": 6,
+  "features": 36,
+  "requirements": 125,
+  "tests": 127,
+  "checks": [
+    "milestone dependencies",
+    "EARS pattern prefixes",
+    "unique IDs",
+    "feature coverage",
+    "requirement coverage",
+    "reciprocal test links",
+    "exact EARS text",
+    "scenario coverage",
+    "complete test records"
+  ],
+  "inputs": {
+    "openspec/changes/foredi-01-pel-language/catalog.json": "4a3565444e15b3b555e8a698a72cadab364e651c51fdee923ac8f45fc012a7c0",
+    "openspec/changes/foredi-02-plan-authoring/catalog.json": "08b9c6911b11813a9f812ce105296f16220bbc46f011a882f42f0d6980107b61",
+    "openspec/changes/foredi-03-model-adapters/catalog.json": "3e867cfa04b9f2a878e6ab09aa84fbc7149464d3a02fe6f5cdf1f108ff6ac896",
+    "openspec/changes/foredi-04-durable-execution/catalog.json": "5beb03886380c48963b501ff208d87923ac1f1c65eabff2a7bed63c81b59448c",
+    "openspec/changes/foredi-05-task-delivery/catalog.json": "481c10366d2130cde90cac74ccef5da7f942d3af09a033de2c215712023028a7",
+    "openspec/changes/foredi-06-adoption/catalog.json": "3c21ae931fa03706060edca24f2be437ebdb8ed58d45ed09d59eff1cc3274998",
+    "openspec/changes/foredi-01-pel-language/specs/foredi-01-pel-language/spec.md": "3dc0af8a9b8ec4a57c13fb2e46fbafd6e1166a4a2a50eff4f32bd7b8f42de45f",
+    "openspec/changes/foredi-02-plan-authoring/specs/foredi-02-plan-authoring/spec.md": "8e8796236420a26d61c63a052de1e7bd5bed9c4812cda2820ecfd3b785d65797",
+    "openspec/changes/foredi-03-model-adapters/specs/foredi-03-model-adapters/spec.md": "986e3aa04b7e8160ef1b45dc071fc090d96620c28920dafad9ba9310ead6c10e",
+    "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md": "2230d32ee220c4a1d3e440cd96c01dc38fb4bb739c0d4b45e5ba80347bd796bb",
+    "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md": "0ae6f60006b44aabd2647b2a0b6b5b851df5264a870d175e1760e34fc7a7aef3",
+    "openspec/changes/foredi-06-adoption/specs/foredi-06-adoption/spec.md": "1069e6ecea2e8598248460fe0f9eeb40acd0349eef8b6bac10b8f879c0e5b760"
+  }
+}

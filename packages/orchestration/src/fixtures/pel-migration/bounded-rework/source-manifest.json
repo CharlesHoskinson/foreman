@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "test-fixture",
+  "description": "New closed import conformance fixture. Legacy argv and record schema are source-grounded; expected workflow trace is a finite registered policy fixture, not a historical run.",
+  "files": [
+    {
+      "path": "round-v1.json",
+      "sha256": "113ae5c1982f0e2cd6f9fe9ea116a355c7f071f7e1283c3d16ad42c54bc3d6e7"
+    },
+    {
+      "path": "contract-v1.json",
+      "sha256": "3ad1f3fba4582de90ab41e046366f6b8ad419565899223708c4c4421e5584a7e"
+    },
+    {
+      "path": "registered-command-bindings.json",
+      "sha256": "e40052f664bbe3ae2bc42a49fe7fb948e37679ba6017326a6df94fb0475ea09a"
+    },
+    {
+      "path": "expected-trace.json",
+      "sha256": "d9e0b970b79731bf59a98f6278503312a0939f42dc2397facd7c03026c3f117f"
+    }
+  ],
+  "legacySources": [
+    {
+      "commit": "441c3fb9f6acb2656760d03cc79e7c706fb8b7dd",
+      "path": "skills/foreman/scripts/adapters/grok.sh",
+      "sha256": "6dcf82398b49681f66129e38f52e7b8c5a70257044028ee1ed7b6381ff3a4232"
+    },
+    {
+      "commit": "441c3fb9f6acb2656760d03cc79e7c706fb8b7dd",
+      "path": "packages/orchestration/src/round-contract.ts",
+      "sha256": "8aa8276cbea2030ce27c912b3654432a01955eb983305ca70dd39f4f17d7e840"
+    }
+  ],
+  "policySource": "openspec/changes/foredi-06-adoption/design.md#fixed-migration-corpus"
+}

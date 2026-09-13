@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "kind": "independent-code-review",
+  "requestedModel": "claude-opus-5",
+  "observedPrimaryModel": "claude-opus-5",
+  "tools": [
+    "Read",
+    "Glob",
+    "Grep"
+  ],
+  "source": "Working M5 tree before the corresponding audit corrections",
+  "promptSha256": "2914b1d55a215a475de9763ec98dde52622d5741856d7af8f442115feb12e6ac",
+  "subtype": "success",
+  "isError": false,
+  "costUsd": 2.6777949999999997,
+  "modelUsage": {
+    "claude-haiku-4-5-20251001": {
+      "inputTokens": 1316,
+      "outputTokens": 17,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0.001401,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000,
+      "thinkingTokens": 0,
+      "canonicalModel": "claude-haiku-4-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    },
+    "claude-opus-5": {
+      "inputTokens": 290,
+      "outputTokens": 31495,
+      "cacheReadInputTokens": 802958,
+      "cacheCreationInputTokens": 148609,
+      "webSearchRequests": 0,
+      "costUSD": 2.6763939999999997,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 64000,
+      "thinkingTokens": 23966,
+      "canonicalModel": "claude-opus-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "result": "I found two medium defects and one low, plus one question. Nothing here lets unauthorized content get published; the fixes you listed hold where I checked them. I only read code: no tests were run, so nothing below claims a test result.\n\n## Findings\n\n### 1. Medium: the \"real V2\" publication tests don't use the production captured-candidate path\n**Where:** `pel-publication-integration-fixture.ts:29`, `:35`, `:74`, `:81`; `pel-publication-service.ts:72-75`\n\n- **Why it matters:** the tests do show a real V2 family, a later grant, exactly one push and lost-acknowledgement recovery. But they show it on a path production never takes.\n  - `createCandidate` makes the candidate with a real `git commit`, so HEAD equals the candidate.\n  - The fixture builds the publication service without `resolveCapturedCandidate`, so it runs the fallback that requires HEAD to equal the candidate and a clean `git status`.\n  - It also stubs `validateEvidence` and `readAuthorityHash`, and its candidate record uses `manifestRef: report`, which `observePelCapturedCandidate` would reject.\n- **Production path:** `pel-host-library.ts:197` always passes `resolveCapturedCandidate`, and capture requires HEAD to equal the base. So the fallback would reject every real captured candidate.\n- **Other coverage:** the only test of the captured path (`pel-publication-capture.test.ts`) uses V1 and stops at needs-action, with no push, recovery, or hash lookup.\n- **Fix:**\n  - Make `resolveCapturedCandidate` required and delete the fallback branch.\n  - Build the fixture candidate with `inspectPelCandidate`/`capturePelCandidate`, leaving HEAD at base.\n  - Wire the fixture service through `makePelHostLibraryServices`, or at least its resolver, hash lookup and evidence check.\n\n### 2. Medium: the real Git index is part of candidate identity, but outside git processes can rewrite it\n**Where:** `pel-candidate-capture.ts:71-74`, `:101`, `:142-143`; `pel-gate-execution.ts:43`\n\nForeman's own git calls can't rewrite the index, because `sanitizedGitEnv` sets `GIT_OPTIONAL_LOCKS=0`. Other processes can:\n- **Trigger A:** during the paid task, the native agent runs `git add`, or runs `git status` after rewriting a tracked file with identical bytes. That makes git rewrite the index, so the check at line 101 fails with candidate-changed and the paid implementation is thrown away.\n- **Trigger B:** a registered gate runs a git command such as `git status --porcelain`. Gates get only their registered environment, so `GIT_OPTIONAL_LOCKS` isn't set. The after-observation then differs, which breaks verification and the re-observation at publish time.\n- **Opposite problem:** file listing trusts the real index. If `skip-worktree` or `assume-unchanged` was already set on a tracked file, `git diff HEAD` hides its edits. Gates then check worktree bytes that the candidate doesn't contain.\n- **Constraint:** today the index-hash check is also what stops `git add -f .env` from pulling an ignored file into the candidate, so it can't simply be removed.\n- **Fix:**\n  - In `inspectPelCandidate`, list changes against a scratch index: set `GIT_INDEX_FILE`, run `read-tree HEAD`, then `diff --name-only HEAD` and `ls-files --others --exclude-standard`.\n  - Keep `indexSha256` as recorded evidence but drop it from the equality check at line 101.\n  - Trade-off: tracked files are compared by content, since the scratch index has no stat cache.\n\n### 3. Low: which ignored files get dropped depends on the host user's git config\n**Where:** `pel-candidate-capture.ts:44`, `:74`\n\n- **Cause:** `GIT_CONFIG_GLOBAL=/dev/null` removes a configured `core.excludesFile`, but git still reads the default `$XDG_CONFIG_HOME/git/ignore` (or `~/.config/git/ignore`). `sanitizedGitEnv` keeps `HOME` and `XDG_*`.\n- **Trigger:** an operator's global ignore contains `dist/` or `*.local.ts`. A file the repo doesn't ignore is then silently left out of the candidate, the review and the publication on that host only.\n- **Fix:** add `-c core.excludesFile=/dev/null` to the capture git arguments.\n\n## Question\nCan a V2 review be retried? `actionAuthority` (`pel-host-library.ts:79`) only picks non-retry bundles. A `provider_retry` reservation requires `row.action==='provider_retry'` (`pel-effects.ts:162`), and the milestone code requires `bundle.action===reservationAction` (`pel-host-milestone.ts:40`). So a V2 review retry fails hard at reservation rather than returning needs-action. Is that intended? The V1 retry binding looks correct: the action comes from the saved preparation, which the token binds by digest.\n\n## Checked, no issues\n- **Capture:**\n  - HEAD must equal the base (`pel-candidate-capture.ts:66`).\n  - Every change from the base is scope-checked (`:105`).\n  - Ignored files are excluded (`:74`).\n- **Publication:**\n  - The captured candidate is re-checked under the destination lock.\n  - `commit` re-checks authority and the remote under the write lock (`pel-publication-service.ts:135-138`).\n  - A nonzero push exit is recorded as unknown (`:141`).\n  - Recovery never pushes again (`pel-host-publish.ts:91-93`).\n- **Nullable authority:**\n  - A null `authorityRef` is only accepted for publish (`pel-project-config.ts:55`, `pel-project-authority.ts:65`).\n  - The deferred lookup reads by hash from the original project (`pel-lifecycle-live.ts:129-133`) and re-checks the hash (`pel-publication-service.ts:100`).\n- **Review:**\n  - The in-progress marker is written only after the token is validated (`pel-host-review.ts:133-148`).\n  - Completion uses the stored admission time (`:65`).\n  - A later marker invalidates earlier approvals at publication (`pel-host-evidence.ts:57-63`, via `pel-host-library.ts:205`).\n- **V1 ledger:**\n  - `ProductChanged` clears milestones unless the candidate is the same (`execution-terminal-policy.ts:417-434`).\n  - The live path passes the contract's own path hash (`pel-lifecycle-live.ts:142-151`).\n- **Native permissions:** `grantRoot` handles null, rejects `..`, checks it stays inside the workspace, rejects `.git`, and requires a writable path for file changes (`pel-native-permissions.ts:21-26`).\n- **Preflight:** unsupported native modes fail before allocation (`pel-host-preflight.ts:40`)."
+}

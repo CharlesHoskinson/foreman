@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "model": "claude-opus-5",
+  "result": "# M6 adoption audit (read-only): install, package, rollback, support, research\n\nI only read code; I ran nothing. Every test I mention runs on fixtures (`packageFixture`, `pelHostFixture`, fake research readers). None of it is exact live qualification. I skipped race cleanup, native coding, migration legacy status and simplification.\n\n## Confirmed defects\n\n**1. Medium: install fails under a restrictive umask**\n- **Where:** `pel-install.ts:30-31` and the mode check at `pel-package.ts:70`.\n- **Trigger:** run `node <archive>/runtime/dist/install.js --prefix P` from a shell with umask `027` or `077`.\n- **What goes wrong:** the installer creates staged files with `openSync(..., record.mode)`, and the umask trims those modes (for example `0o755` becomes `0o750`). There is no chmod afterwards. Verifying the staged copy compares exact modes, so it fails with `PackageIntegrityMismatch` (exit 2) on a valid archive. The design says the installer sets executable mode itself. The archive producer already calls `chmodSync` (`pel-package.ts:92`), but the installer doesn't. The tests only cover the default umask.\n- **Fix:** call `fchmodSync(fd, file.record.mode)` before closing each staged file, and do the same for `manifest.json` with `0o644`.\n\n**2. Low: the archive's research assets aren't tied to the candidate commit**\n- **Where:** `pel-package.ts:111-114`, together with `.gitignore:64-65`.\n- **Trigger:** commit a change under `docs/research/pel-release/`, or edit the generated copy under `skills/foreman/runtime/assets/pel/research/`, then run `npm run package:pel -- --candidate <sha>` without rebuilding.\n- **What goes wrong:** the clean-tree check uses `git status --porcelain --untracked-files=all`, which never lists ignored files. The producer then copies the ignored research and migration assets as they are. The archive's `buildId` still covers the actual bytes, but `candidateCommit` claims a source the bundled research doesn't match.\n- **Fix:** have `producePelPackage` copy `docs/research/pel-release` and the migration binding fixtures straight from the verified tracked paths into the stage. Alternatively, byte-compare the generated copies against those tracked sources before building the manifest.\n\n**3. Low: a symlinked `--prefix` ancestor exits 1 instead of 2**\n- **Where:** `pel-install.ts:14`.\n- **Trigger:** `--prefix /tmp/link/foreman`, where `/tmp/link` is a symlink.\n- **What goes wrong:** `canonicalPrefix` rejects the path, but when `create` is true the rejection is tagged `InstallIoFailure` (exit 1). The command table says an invalid prefix is exit 2.\n- **Fix:** tag failures of the prefix-validation step as invalid input (exit 2). Keep `InstallIoFailure` for real mkdir or open errors.\n\n**4. Low: live vault notes look like fresh captured evidence**\n- **Where:** `pel-research-context.ts:73`.\n- **Trigger:** `foreman research query X --vault <dir>`.\n- **What goes wrong:** notes read live from the vault get `capturedAt: new Date()`, `freshness: 'fresh'`, and count towards `status: 'complete'`. The output changes on every call, and uncaptured notes carry the same provenance markers as hash-verified captured sources. No execution authority is involved, because the run-time handler never passes a vault.\n- **Fix:** either use a fixed marker for these rows (for example the bundle's `capturedAt` plus a coverage warning), or leave vault rows out of the `complete` status calculation and label them clearly as uncaptured.\n\n## Verified as correct\n\n- **Rollback inventory:** rollback checks the right state roots. Project configure registers `store_location` as `project.stateRoot` (`pel-project-live.ts:143`), and rollback reads every registry entry.\n- **Rollback compatibility:** it compares registry, profile and runtime identities against the active binding and every revision, and decodes continuations before the uninterruptible symlink switch.\n- **Support export:** it's a closed projection. It keeps only allow-listed failure codes, profile-validated provider identities, a validated run ID and event sequence numbers. It never copies free text.\n- **Research at run time:**\n  - The handler reads only run-owned, content-addressed artifacts from the admitted index.\n  - Resume uses the original project and binding.\n  - The preparation digest and source set are rechecked in `pel-effects.ts:148`.\n  - Dispatch always fails.\n  - Research results never change capabilities or resources.\n\n## Questions\n\n1. **Rollback race.** Rollback holds only the install lock (`pel-adoption.ts:48`). A `foreman run` admitted between `checkPelRollbackRoots` and `selectInstalledBuild` isn't checked. Is it acceptable that the rolled-back build would then refuse to resume that run as a binding mismatch?\n2. **Marker after a failed refresh.** A refresh rejected with `source-provenance-invalid` (exit 2) leaves the `.incomplete` marker behind (`pel-research-refresh.ts:18-20`). After that, every view reports the earlier valid snapshot as stale (\"previous refresh did not complete\") until a refresh succeeds. Is that intended for invalid input, as opposed to interruption?\n3. **Version in a checkout.** Running `foreman --version` or `support export` from a checkout build resolves the package root to `skills/foreman`, which has no `manifest.json`, so it fails with exit 2 (`pel-adoption.ts:43-44`). The design says checkout execution has no installation prefix requirement. Is identity meant to work from a checkout?\n4. **Fixture label in support bundles.** `PelSupportBundleV1` has no evidence-kind field, and it accepts `protocolVersion: 'fixture-v1'`. A bundle from a fixture run is only distinguishable by that protocol string. Should the bundle carry an explicit `test-fixture` or product label?",
+  "modelUsage": {
+    "claude-haiku-4-5-20251001": {
+      "inputTokens": 1257,
+      "outputTokens": 16,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0.001337,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000,
+      "thinkingTokens": 0,
+      "canonicalModel": "claude-haiku-4-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    },
+    "claude-opus-5": {
+      "inputTokens": 322,
+      "outputTokens": 27976,
+      "cacheReadInputTokens": 806746,
+      "cacheCreationInputTokens": 114644,
+      "webSearchRequests": 0,
+      "costUSD": 2.250823,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 64000,
+      "thinkingTokens": 20082,
+      "canonicalModel": "claude-opus-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "total_cost_usd": 2.2521600000000004
+}

@@ -15617,7 +15617,7 @@ var ensureErrorType2 = () => (layer) => layer;
 var ensureRequirementsType2 = () => (layer) => layer;
 
 // packages/orchestration/src/round-cli.ts
-import { realpathSync, statSync as statSync2 } from "node:fs";
+import { realpathSync as realpathSync2, statSync as statSync2 } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
 // packages/core/src/failures.ts
@@ -15916,6 +15916,78 @@ function isSha256Hex(value) {
 }
 function isCommitSha40(value) {
   return COMMIT_SHA40.test(value);
+}
+
+// packages/core/src/kernel-lock.ts
+import { closeSync, constants, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readSync, realpathSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+var same = (a, b) => a.dev === b.dev && a.ino === b.ino;
+var protectedEntry = (info, mode) => info.uid === process.geteuid() && (info.mode & 4095) === mode;
+function installedFlock() {
+  for (const path of ["/usr/bin/flock", "/bin/flock"]) {
+    try {
+      const real = realpathSync(path), info = lstatSync(real);
+      if (info.isFile() && info.uid === 0 && (info.mode & 18) === 0 && (info.mode & 73) !== 0) return real;
+    } catch {
+    }
+  }
+  return null;
+}
+function acquireKernelDirectoryLock(runFd, entryName, protocol) {
+  if (process.platform !== "linux" || !process.geteuid || !/^[-a-zA-Z0-9_.]{1,160}$/.test(entryName) || entryName === "." || entryName === ".." || !protocol || protocol.length > 120) return null;
+  const executable = installedFlock();
+  if (!executable) return null;
+  let directoryFd, lockFd;
+  try {
+    const run = fstatSync(runFd);
+    if (!run.isDirectory() || run.uid !== process.geteuid() || (run.mode & 18) !== 0) return null;
+    const directoryPath = `/proc/self/fd/${runFd}/${entryName}`;
+    let created = false;
+    try {
+      mkdirSync(directoryPath, { mode: 448 });
+      created = true;
+    } catch (error) {
+      if (error.code !== "EEXIST") return null;
+    }
+    directoryFd = openSync(directoryPath, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+    const directory = fstatSync(directoryFd);
+    if (!directory.isDirectory() || !protectedEntry(directory, 448) || !same(directory, lstatSync(directoryPath))) return null;
+    const lockPath = `/proc/self/fd/${directoryFd}/owner-v1.lock`;
+    lockFd = openSync(lockPath, constants.O_RDWR | constants.O_NOFOLLOW | (created ? constants.O_CREAT | constants.O_EXCL : 0), 384);
+    const lock = fstatSync(lockFd);
+    if (!lock.isFile() || lock.nlink !== 1 || !protectedEntry(lock, 384) || !same(lock, lstatSync(lockPath))) return null;
+    const marker = Buffer.from(JSON.stringify({ protocol, runDevice: run.dev, runInode: run.ino, directoryDevice: directory.dev, directoryInode: directory.ino, lockDevice: lock.dev, lockInode: lock.ino }) + "\n");
+    if (created) {
+      writeFileSync(lockFd, marker);
+      fsyncSync(lockFd);
+      fsyncSync(directoryFd);
+      fsyncSync(runFd);
+    } else {
+      if (lock.size !== marker.length) return null;
+      const bytes = Buffer.alloc(marker.length);
+      if (readSync(lockFd, bytes, 0, bytes.length, 0) !== bytes.length || !bytes.equals(marker)) return null;
+    }
+    const acquired = spawnSync(executable, ["--exclusive", "--nonblock", "3"], { stdio: ["ignore", "ignore", "ignore", lockFd], timeout: 5e3, env: { PATH: "/usr/bin:/bin", LANG: "C" } });
+    if (acquired.status !== 0 || acquired.error || !same(run, fstatSync(runFd)) || !same(directory, lstatSync(directoryPath)) || !same(lock, lstatSync(lockPath)) || !protectedEntry(fstatSync(lockFd), 384)) return null;
+    const heldDirectory = directoryFd, heldLock = lockFd;
+    directoryFd = void 0;
+    lockFd = void 0;
+    let held = true;
+    return { release: () => {
+      if (!held) return;
+      held = false;
+      try {
+        closeSync(heldLock);
+      } finally {
+        closeSync(heldDirectory);
+      }
+    } };
+  } catch {
+    return null;
+  } finally {
+    if (lockFd !== void 0) closeSync(lockFd);
+    if (directoryFd !== void 0) closeSync(directoryFd);
+  }
 }
 
 // packages/event-log/src/bounds.ts
@@ -16421,19 +16493,19 @@ function extractPayloadAttempt(payload) {
 
 // packages/event-log/src/run-journal.ts
 import {
-  closeSync,
+  closeSync as closeSync2,
   constants as fsConstants,
-  fstatSync,
-  fsyncSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-  readSync,
+  fstatSync as fstatSync2,
+  fsyncSync as fsyncSync2,
+  lstatSync as lstatSync2,
+  mkdirSync as mkdirSync2,
+  openSync as openSync2,
+  readSync as readSync2,
   renameSync,
   unlinkSync,
   writeSync
 } from "node:fs";
-import { dirname, join as join3 } from "node:path";
+import { basename, dirname, join as join3 } from "node:path";
 import { randomBytes } from "node:crypto";
 var RUN_JOURNAL_FAILURE_BRAND = Symbol(
   "@foreman/event-log/RunJournalFailure"
@@ -16495,7 +16567,7 @@ function isEexist(e) {
 function observePathKind(path) {
   let st;
   try {
-    st = lstatSync(path);
+    st = lstatSync2(path);
   } catch (e) {
     if (isEnoent(e)) return "missing";
     return "other";
@@ -16525,7 +16597,7 @@ function ensureLayoutDirs(stateRoot, segments) {
     }
     if (kind === "missing") {
       try {
-        mkdirSync(current, { recursive: false });
+        mkdirSync2(current, { recursive: false });
       } catch (e) {
         if (isEexist(e)) {
         } else if (isEnoent(e)) {
@@ -16545,7 +16617,7 @@ function ensureLayoutDirs(stateRoot, segments) {
 function pathMatchesOpenedFd(path, fd) {
   let pathSt;
   try {
-    pathSt = lstatSync(path);
+    pathSt = lstatSync2(path);
   } catch (e) {
     if (isEnoent(e)) return "identity_changed";
     return "read_failed";
@@ -16554,7 +16626,7 @@ function pathMatchesOpenedFd(path, fd) {
   if (!pathSt.isFile()) return "invalid_path";
   let fdSt;
   try {
-    fdSt = fstatSync(fd);
+    fdSt = fstatSync2(fd);
   } catch {
     return "identity_changed";
   }
@@ -16572,82 +16644,49 @@ function defaultWaitMs(ms) {
 }
 function acquireLockSync(lockPath, timing) {
   const kind = observePathKind(lockPath);
-  if (kind === "symlink" || kind === "directory" || kind === "other") {
+  if (kind === "symlink" || kind === "other") return runJournalFailure("invalid_path");
+  let parentFd;
+  try {
+    parentFd = openSync2(dirname(lockPath), fsConstants.O_RDONLY | fsConstants.O_DIRECTORY | fsConstants.O_NOFOLLOW);
+  } catch {
     return runJournalFailure("invalid_path");
   }
-  const start3 = timing.nowMs();
-  const deadline = start3 + timing.boundMs;
-  while (true) {
-    try {
-      const fd = openSync(
-        lockPath,
-        fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
-        384
-      );
-      let st;
-      try {
-        st = fstatSync(fd);
-      } catch {
-        try {
-          closeSync(fd);
-        } catch {
+  const deadline = timing.nowMs() + timing.boundMs;
+  let transferred = false;
+  try {
+    while (true) {
+      const parent = fstatSync2(parentFd), current = lstatSync2(dirname(lockPath));
+      if (!current.isDirectory() || !identitiesEqual(identityOf(parent), identityOf(current))) return runJournalFailure("identity_changed");
+      const lock = acquireKernelDirectoryLock(parentFd, basename(lockPath), "foreman-journal-transaction/flock/v1");
+      if (lock) {
+        const after3 = lstatSync2(dirname(lockPath));
+        if (!after3.isDirectory() || !identitiesEqual(identityOf(parent), identityOf(after3))) {
+          lock.release();
+          return runJournalFailure("identity_changed");
         }
-        try {
-          unlinkSync(lockPath);
-        } catch {
-        }
-        return runJournalFailure("write_failed");
+        transferred = true;
+        let held = true;
+        return { release: () => {
+          if (!held) return;
+          held = false;
+          try {
+            lock.release();
+          } finally {
+            closeSync2(parentFd);
+          }
+        } };
       }
-      if (!st.isFile()) {
-        try {
-          closeSync(fd);
-        } catch {
-        }
-        try {
-          unlinkSync(lockPath);
-        } catch {
-        }
-        return runJournalFailure("invalid_path");
-      }
-      const match12 = pathMatchesOpenedFd(lockPath, fd);
-      if (match12 !== "ok") {
-        try {
-          closeSync(fd);
-        } catch {
-        }
-        try {
-          unlinkSync(lockPath);
-        } catch {
-        }
-        return runJournalFailure(
-          match12 === "identity_changed" ? "identity_changed" : "invalid_path"
-        );
-      }
-      return { fd, path: lockPath, identity: identityOf(st) };
-    } catch (e) {
-      if (isEexist(e)) {
-        if (timing.nowMs() >= deadline) {
-          return runJournalFailure("journal_busy");
-        }
-        timing.waitMs(timing.spinMs);
-        continue;
-      }
-      return runJournalFailure("write_failed");
+      if (timing.nowMs() >= deadline) return runJournalFailure("journal_busy");
+      timing.waitMs(timing.spinMs);
     }
+  } catch {
+    return runJournalFailure("write_failed");
+  } finally {
+    if (!transferred) closeSync2(parentFd);
   }
 }
 function releaseLockSync(lock) {
-  try {
-    closeSync(lock.fd);
-  } catch {
-  }
-  try {
-    const st = lstatSync(lock.path);
-    if (st.isFile() && identitiesEqual(identityOf(st), lock.identity)) {
-      unlinkSync(lock.path);
-    }
-  } catch {
-  }
+  lock.release();
 }
 function withLockSync(lockPath, timing, body) {
   const lock = acquireLockSync(lockPath, timing);
@@ -16666,14 +16705,14 @@ function posixDirSync(dirPath) {
   }
   let fd;
   try {
-    fd = openSync(dirPath, fsConstants.O_RDONLY);
-    fsyncSync(fd);
+    fd = openSync2(dirPath, fsConstants.O_RDONLY);
+    fsyncSync2(fd);
   } catch {
     throw new Error("dir_sync_failed");
   } finally {
     if (fd !== void 0) {
       try {
-        closeSync(fd);
+        closeSync2(fd);
       } catch {
       }
     }
@@ -16690,7 +16729,7 @@ function durableReplaceFile(targetPath, content) {
   const tmpPath = join3(dir, tmpName);
   let fd;
   try {
-    fd = openSync(
+    fd = openSync2(
       tmpPath,
       fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
       384
@@ -16700,8 +16739,8 @@ function durableReplaceFile(targetPath, content) {
       const n = writeSync(fd, content, offset, content.byteLength - offset);
       offset += n;
     }
-    fsyncSync(fd);
-    closeSync(fd);
+    fsyncSync2(fd);
+    closeSync2(fd);
     fd = void 0;
     renameSync(tmpPath, targetPath);
     try {
@@ -16713,7 +16752,7 @@ function durableReplaceFile(targetPath, content) {
   } catch {
     if (fd !== void 0) {
       try {
-        closeSync(fd);
+        closeSync2(fd);
       } catch {
       }
     }
@@ -16754,8 +16793,8 @@ function allocateSync(stateRoot, runId, laneId, options) {
     } else {
       let fd;
       try {
-        fd = openSync(counterPath, noFollowReadFlags());
-        const st = fstatSync(fd);
+        fd = openSync2(counterPath, noFollowReadFlags());
+        const st = fstatSync2(fd);
         if (!st.isFile()) {
           return runJournalFailure("invalid_path");
         }
@@ -16763,7 +16802,7 @@ function allocateSync(stateRoot, runId, laneId, options) {
           return runJournalFailure("corrupt_state");
         }
         const buf = Buffer.allocUnsafe(MAX_ATTEMPT_COUNTER_BYTES);
-        const n = readSync(fd, buf, 0, MAX_ATTEMPT_COUNTER_BYTES, 0);
+        const n = readSync2(fd, buf, 0, MAX_ATTEMPT_COUNTER_BYTES, 0);
         if (n > MAX_ATTEMPT_COUNTER_BYTES) {
           return runJournalFailure("corrupt_state");
         }
@@ -16779,7 +16818,7 @@ function allocateSync(stateRoot, runId, laneId, options) {
         }
         let after3;
         try {
-          after3 = fstatSync(fd);
+          after3 = fstatSync2(fd);
         } catch {
           return runJournalFailure("identity_changed");
         }
@@ -16825,7 +16864,7 @@ function allocateSync(stateRoot, runId, laneId, options) {
       } finally {
         if (fd !== void 0) {
           try {
-            closeSync(fd);
+            closeSync2(fd);
           } catch {
           }
         }
@@ -16891,8 +16930,8 @@ function readJournalLocked(journalPath) {
   if (kind === "regular") {
     let fd;
     try {
-      fd = openSync(journalPath, noFollowReadFlags());
-      const st = fstatSync(fd);
+      fd = openSync2(journalPath, noFollowReadFlags());
+      const st = fstatSync2(fd);
       if (!st.isFile()) {
         return runJournalFailure("invalid_path");
       }
@@ -16904,7 +16943,7 @@ function readJournalLocked(journalPath) {
         const buf = Buffer.allocUnsafe(st.size);
         let offset = 0;
         while (offset < st.size) {
-          const n = readSync(fd, buf, offset, st.size - offset, offset);
+          const n = readSync2(fd, buf, offset, st.size - offset, offset);
           if (n === 0) break;
           offset += n;
         }
@@ -16919,7 +16958,7 @@ function readJournalLocked(journalPath) {
       }
       let after3;
       try {
-        after3 = fstatSync(fd);
+        after3 = fstatSync2(fd);
       } catch {
         return runJournalFailure("identity_changed");
       }
@@ -16934,7 +16973,7 @@ function readJournalLocked(journalPath) {
     } finally {
       if (fd !== void 0) {
         try {
-          closeSync(fd);
+          closeSync2(fd);
         } catch {
         }
       }
@@ -17022,7 +17061,7 @@ function writeAppendLocked(journalPath, view, draft, options) {
         options.beforeJournalCreate(journalPath);
       }
       try {
-        wfd = openSync(
+        wfd = openSync2(
           journalPath,
           fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
           384
@@ -17034,13 +17073,13 @@ function writeAppendLocked(journalPath, view, draft, options) {
         return runJournalFailure("write_failed");
       }
     } else {
-      wfd = openSync(
+      wfd = openSync2(
         journalPath,
         noFollowWriteFlags(fsConstants.O_WRONLY | fsConstants.O_APPEND),
         384
       );
     }
-    const opened = fstatSync(wfd);
+    const opened = fstatSync2(wfd);
     if (!opened.isFile()) {
       return runJournalFailure("invalid_path");
     }
@@ -17073,7 +17112,7 @@ function writeAppendLocked(journalPath, view, draft, options) {
       );
       offset += n;
     }
-    fsyncSync(wfd);
+    fsyncSync2(wfd);
     if (options.afterJournalWriteSync !== void 0) {
       options.afterJournalWriteSync({ path: journalPath, fd: wfd });
     }
@@ -17086,7 +17125,7 @@ function writeAppendLocked(journalPath, view, draft, options) {
         return runJournalFailure("invalid_path");
       }
     }
-    const after3 = fstatSync(wfd);
+    const after3 = fstatSync2(wfd);
     if (after3.ino !== opened.ino || after3.dev !== opened.dev) {
       return runJournalFailure("identity_changed");
     }
@@ -17099,7 +17138,7 @@ function writeAppendLocked(journalPath, view, draft, options) {
   } finally {
     if (wfd !== void 0) {
       try {
-        closeSync(wfd);
+        closeSync2(wfd);
       } catch {
       }
     }
@@ -17211,6 +17250,18 @@ function inspectResumeAttemptBudget(records, attemptIdentity, resumeMaxAttempts)
   for (const rec of records) {
     const event = rec.event;
     if (event.lane !== lane) {
+      continue;
+    }
+    if (event.type === "pel.run.v1") {
+      const scoped4 = event.payload["attempt"];
+      if (event.payload["schemaVersion"] !== 1 || scoped4 === null || typeof scoped4 !== "object" || Array.isArray(scoped4)) {
+        latestPromptAttempt = "malformed";
+      } else {
+        const identity2 = scoped4;
+        const keys5 = Object.keys(identity2);
+        const value = identity2["attemptId"];
+        latestPromptAttempt = keys5.length === 3 && keys5.every((key) => ["runId", "laneId", "attemptId"].includes(key)) && identity2["runId"] === attemptIdentity.runId && identity2["laneId"] === lane && typeof value === "number" && isPositiveSafeInteger2(value) ? value : "malformed";
+      }
       continue;
     }
     if (event.type === "prompt") {
@@ -17670,12 +17721,12 @@ function attemptIdentityFromPlan(plan) {
 // packages/orchestration/src/round-live-services.ts
 import { createHash } from "node:crypto";
 import {
-  closeSync as closeSync3,
+  closeSync as closeSync4,
   constants as fsConstants3,
-  fstatSync as fstatSync3,
-  lstatSync as lstatSync2,
-  openSync as openSync3,
-  readSync as readSync3
+  fstatSync as fstatSync4,
+  lstatSync as lstatSync3,
+  openSync as openSync4,
+  readSync as readSync4
 } from "node:fs";
 
 // packages/orchestration/src/report-freshness.ts
@@ -17924,12 +17975,12 @@ function baselineToSnapshotOrFail(result) {
 import { spawn } from "node:child_process";
 import {
   accessSync,
-  closeSync as closeSync2,
+  closeSync as closeSync3,
   constants as fsConstants2,
   existsSync,
-  fstatSync as fstatSync2,
-  openSync as openSync2,
-  readSync as readSync2,
+  fstatSync as fstatSync3,
+  openSync as openSync3,
+  readSync as readSync3,
   statSync
 } from "node:fs";
 import { delimiter, join as join4 } from "node:path";
@@ -18014,8 +18065,8 @@ function readFileBoundedSync(path, maxBytes) {
     if (!before2.isFile()) {
       return { _tag: "Unreadable" };
     }
-    fd = openSync2(path, fsConstants2.O_RDONLY);
-    const opened = fstatSync2(fd);
+    fd = openSync3(path, fsConstants2.O_RDONLY);
+    const opened = fstatSync3(fd);
     if (opened.ino !== before2.ino || opened.dev !== before2.dev || opened.size !== before2.size) {
       return { _tag: "IdentityChanged" };
     }
@@ -18023,7 +18074,7 @@ function readFileBoundedSync(path, maxBytes) {
     const buf = Buffer.allocUnsafe(cap);
     let offset = 0;
     while (offset < cap) {
-      const n = readSync2(fd, buf, offset, cap - offset, offset);
+      const n = readSync3(fd, buf, offset, cap - offset, offset);
       if (n === 0) break;
       offset += n;
     }
@@ -18032,7 +18083,7 @@ function readFileBoundedSync(path, maxBytes) {
     }
     let afterOpen;
     try {
-      afterOpen = fstatSync2(fd);
+      afterOpen = fstatSync3(fd);
     } catch {
       return { _tag: "IdentityChanged" };
     }
@@ -18053,7 +18104,7 @@ function readFileBoundedSync(path, maxBytes) {
   } finally {
     if (fd !== void 0) {
       try {
-        closeSync2(fd);
+        closeSync3(fd);
       } catch {
       }
     }
@@ -18390,7 +18441,7 @@ function mapProcessTo(reason, _err) {
 function readReportSnapshotSync(reportPath, seams) {
   let before2;
   try {
-    before2 = lstatSync2(reportPath);
+    before2 = lstatSync3(reportPath);
   } catch (e) {
     if (isEnoent2(e)) {
       return { _tag: "Snapshot", snapshot: absentReportSnapshot() };
@@ -18409,8 +18460,8 @@ function readReportSnapshotSync(reportPath, seams) {
   let fd;
   try {
     const flags = fsConstants3.O_RDONLY | ("O_NOFOLLOW" in fsConstants3 ? fsConstants3.O_NOFOLLOW : 0);
-    fd = openSync3(reportPath, flags);
-    const opened = fstatSync3(fd);
+    fd = openSync4(reportPath, flags);
+    const opened = fstatSync4(fd);
     if (opened.ino !== before2.ino || opened.dev !== before2.dev || opened.size !== before2.size) {
       return { _tag: "Failure", reason: "report_read_failed" };
     }
@@ -18423,7 +18474,7 @@ function readReportSnapshotSync(reportPath, seams) {
     const buf = Buffer.allocUnsafe(opened.size);
     let offset = 0;
     while (offset < opened.size) {
-      const n = readSync3(fd, buf, offset, opened.size - offset, offset);
+      const n = readSync4(fd, buf, offset, opened.size - offset, offset);
       if (n === 0) break;
       offset += n;
     }
@@ -18435,7 +18486,7 @@ function readReportSnapshotSync(reportPath, seams) {
     }
     let pathAfter;
     try {
-      pathAfter = lstatSync2(reportPath);
+      pathAfter = lstatSync3(reportPath);
     } catch (e) {
       if (isEnoent2(e)) {
         return { _tag: "Failure", reason: "report_read_failed" };
@@ -18447,7 +18498,7 @@ function readReportSnapshotSync(reportPath, seams) {
     }
     let after3;
     try {
-      after3 = fstatSync3(fd);
+      after3 = fstatSync4(fd);
     } catch {
       return { _tag: "Failure", reason: "report_read_failed" };
     }
@@ -18469,7 +18520,7 @@ function readReportSnapshotSync(reportPath, seams) {
   } finally {
     if (fd !== void 0) {
       try {
-        closeSync3(fd);
+        closeSync4(fd);
       } catch {
       }
     }
@@ -18690,7 +18741,7 @@ function resolveExistingDir(path) {
   try {
     const st = statSync2(path);
     if (!st.isDirectory()) return null;
-    return realpathSync(path);
+    return realpathSync2(path);
   } catch {
     return null;
   }

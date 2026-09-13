@@ -1,0 +1,2 @@
+# Preserve exact captured bytes so source-manifest hashes survive Git checkout.
+sources/** -text

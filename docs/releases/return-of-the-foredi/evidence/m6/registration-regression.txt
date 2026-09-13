@@ -1,0 +1,16 @@
+Preparing worktree (new branch 'linked')
+{"_tag":"Registered","project":{"generation":1,"git_common_dir":"/tmp/fm-register-admission-HBczfg/repo/.git","operation_id":"00000000-0000-4000-8000-000000000092","project_id":"00000000-0000-4000-8000-000000000091","state":"active","store_backend":"sqlite","store_location":"/tmp/fm-register-admission-HBczfg/repo/.foreman/session.db","worktree_paths":["/tmp/fm-register-admission-HBczfg/repo"]}}
+refusing: project store binding failed
+✔ project commands register one identity across linked worktrees (4242.388791ms)
+✔ project command rejects invalid forms without creating registry state (5151.087578ms)
+✔ project register reads identity after admission when another registry writer publishes first (38.169751ms)
+✔ project register preserves the original CliRefusal when store binding throws (20.903365ms)
+✔ project register reports a busy admission once without binding the store (1087.775512ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11759.335416

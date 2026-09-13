@@ -1,0 +1,1067 @@
+{
+  "schemaVersion": 1,
+  "scope": "Initial review findings relevant to M3/M6, including shared-interface findings and dependency normalization.",
+  "status": "Existing specification corrections only. No implementation or runtime evidence. Frozen specifications were not edited.",
+  "findings": [
+    {
+      "reviewer": "language",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "originalRequirementIds": [
+        "R-M2-010",
+        "R-M3-019",
+        "R-M4-009"
+      ],
+      "id": "PROVIDER-013",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared error and generation contract",
+          "requirements": [
+            "R-M3-025"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-009",
+            "R-M4-015"
+          ]
+        }
+      ],
+      "resolution": "M3 defines the exact 15-tag ProviderFailure union and two retry selectors. Refusal/cancellation remain normalized observations. M4 maps tags to host outcomes, and exhaustive consumer switches are planned. M1/M4 own failure-receipt semantics.",
+      "limitations": []
+    },
+    {
+      "reviewer": "language",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "originalRequirementIds": [
+        "R-M2-008",
+        "R-M3-019"
+      ],
+      "id": "PROVIDER-014",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared error and generation contract",
+          "requirements": [
+            "R-M3-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-02-plan-authoring/design.md",
+          "section": "Controls and generation request lowering",
+          "requirements": [
+            "R-M2-008",
+            "R-M2-010"
+          ]
+        }
+      ],
+      "resolution": "Generation lowering binds generationId/attempt to effectId, explicit credential profile, pinned template, bounded artifacts, tools none and a separate generation-budget reservation. No execution-ledger reservation is inferred.",
+      "limitations": []
+    },
+    {
+      "reviewer": "language",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "originalRequirementIds": [
+        "R-M5-008",
+        "R-M6-001",
+        "R-M6-002"
+      ],
+      "id": "DELIVERY-017",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Fixture launcher and canonical package examples",
+          "requirements": [
+            "R-M6-001",
+            "R-M6-002",
+            "R-M6-004",
+            "R-M6-016"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-003",
+            "R-M5-008"
+          ]
+        }
+      ],
+      "resolution": "The standard workflow is implement-verify-review.pel and delivery repair is repair-and-publish.pel. M2 parallel naming is parallel-read.pel. Canonical packaging also includes valid conditional.pel and repair.pel. M5 result keys include passed.",
+      "limitations": []
+    },
+    {
+      "reviewer": "language",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "originalRequirementIds": [
+        "R-M6-003",
+        "R-M6-010"
+      ],
+      "id": "ADOPTION-020",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Concrete install, state and package layout",
+          "requirements": [
+            "R-M6-001",
+            "R-M6-003",
+            "R-M6-010",
+            "R-M6-016"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/tasks.md",
+          "section": "7. Concrete installation and migration contracts",
+          "requirements": []
+        }
+      ],
+      "resolution": "Bootstrap is node <archive>/runtime/dist/install.js --prefix <prefix>. Named pel-install-main.ts and pel-simplification-main.ts entries produce install.js and pel-simplification.js. Packaging includes the immutable default-authoring-snapshot.json and hashes.",
+      "limitations": []
+    },
+    {
+      "reviewer": "language",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/language-review.json",
+      "originalRequirementIds": [
+        "R-M2-008",
+        "R-M3-019"
+      ],
+      "id": "PROVIDER-023",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Package and ownership",
+          "requirements": [
+            "R-M3-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared error and generation contract",
+          "requirements": [
+            "R-M3-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/catalog.json",
+          "section": "depends_on",
+          "requirements": []
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/catalog.json",
+          "section": "depends_on",
+          "requirements": []
+        }
+      ],
+      "resolution": "M2 owns provider package bootstrap. M3 extends it and depends on M1/M2. M6 depends on M1-M5. Dependencies use milestone IDs. Grammar choices are auto, grammar-required and envelope with explicit resolution.",
+      "limitations": []
+    },
+    {
+      "reviewer": "execution",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "originalRequirementIds": [
+        "R-M3-002",
+        "R-M3-011",
+        "R-M3-012",
+        "R-M3-019"
+      ],
+      "id": "EXECUTION-002",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared service contract",
+          "requirements": [
+            "R-M3-002",
+            "R-M3-019",
+            "R-M3-021"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Closed controls and transport selection",
+          "requirements": [
+            "R-M3-002",
+            "R-M3-021"
+          ]
+        }
+      ],
+      "resolution": "ProviderRequestV1 now contains controls. The closed object covers effort, thinking/budget, sampling, tool choice and execution/storage mode. Profile defaults are explicit application choices. Nested unknown keys and unsupported controls fail before dispatch with exact field paths.",
+      "limitations": []
+    },
+    {
+      "reviewer": "execution",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "originalRequirementIds": [
+        "R-M3-008",
+        "R-M3-012",
+        "R-M4-003",
+        "R-M4-004"
+      ],
+      "id": "EXECUTION-003",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared service contract",
+          "requirements": [
+            "R-M3-008",
+            "R-M3-010"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Durable observation contract",
+          "requirements": [
+            "R-M3-008",
+            "R-M3-012"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-003",
+            "R-M4-004"
+          ]
+        }
+      ],
+      "resolution": "ToolResultV1 includes host-resolved bounded text/JSON payload and hash. Tool deduplication keys include effectId, full provider identity and callId. M4 persists tool intent/result and cursor records. Adapters emit opaque bytes only and resend recorded payloads without storage I/O.",
+      "limitations": []
+    },
+    {
+      "reviewer": "execution",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "originalRequirementIds": [
+        "R-M4-013",
+        "R-M5-013",
+        "R-M3-012"
+      ],
+      "id": "EXECUTION-004",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Durable observation contract",
+          "requirements": [
+            "R-M3-012",
+            "R-M3-022"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared service contract",
+          "requirements": [
+            "R-M3-022"
+          ]
+        }
+      ],
+      "resolution": "ProviderTransport.observe returns pending, completed with validated payload, cancelled, not-found or unsupported for an existing identity. Reconcile capability carries evidence. Later cancellation arrives through observe or terminal events. No redispatch is permitted.",
+      "limitations": []
+    },
+    {
+      "reviewer": "execution",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "originalRequirementIds": [
+        "R-M5-004",
+        "R-M5-011",
+        "R-M5-012",
+        "R-M6-012"
+      ],
+      "id": "EXECUTION-005",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-003"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Implementation and verification",
+          "requirements": [
+            "R-M5-004"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/specs/foredi-06-adoption/spec.md",
+          "section": "R-M6-012 Verification receipt reuse",
+          "requirements": [
+            "R-M6-012"
+          ]
+        }
+      ],
+      "resolution": "M4 prepares reuse or needs-action before reserving an external action. M5 verification performs matching-receipt lookup during preparation. M6 retains the one-full-verification assertion and changed-binding invalidation test. Publication reservation ownership is specified in M4/M5.",
+      "limitations": []
+    },
+    {
+      "reviewer": "execution",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "originalRequirementIds": [
+        "R-M4-009",
+        "R-M2-010",
+        "R-M3-012"
+      ],
+      "id": "EXECUTION-010",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared error and generation contract",
+          "requirements": [
+            "R-M3-025"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-009",
+            "R-M4-015"
+          ]
+        }
+      ],
+      "resolution": "M3 defines the exact 15-tag ProviderFailure union and two retry selectors. Refusal/cancellation remain normalized observations. M4 maps tags to host outcomes, and exhaustive consumer switches are planned. M1/M4 own failure-receipt semantics.",
+      "limitations": []
+    },
+    {
+      "reviewer": "execution",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "originalRequirementIds": [
+        "R-M4-010",
+        "R-M4-011",
+        "R-M3-011"
+      ],
+      "id": "EXECUTION-012",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Durable observation contract",
+          "requirements": [
+            "R-M3-011",
+            "R-M3-022"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-010",
+            "R-M4-011"
+          ]
+        }
+      ],
+      "resolution": "M3 preserves unsupported/unknown remote outcomes. M4 maps them to unknown and uses a finite admitted observation window. Completed local cleanup plus expiry produces needs-action exit 3 rather than indefinite pending.",
+      "limitations": []
+    },
+    {
+      "reviewer": "execution",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "originalRequirementIds": [
+        "R-M3-018",
+        "R-M5-015",
+        "R-M6-006",
+        "R-M5-008"
+      ],
+      "id": "EXECUTION-014",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Evidence admission and test binding",
+          "requirements": [
+            "R-M3-018",
+            "R-M3-023"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/catalog.json",
+          "section": "T-M6-006",
+          "requirements": [
+            "R-M6-006"
+          ]
+        }
+      ],
+      "resolution": "admitCell requires exact current live evidence per required product capability. Documented-only, fixture-only and stale evidence fail product admission. An injected test-fixture Layer admits matching fixtures without labeling them live-qualified or granting product authority.",
+      "limitations": []
+    },
+    {
+      "reviewer": "execution",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "originalRequirementIds": [
+        "R-M2-003",
+        "R-M5-001",
+        "R-M3-006"
+      ],
+      "id": "EXECUTION-015",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Closed controls and transport selection",
+          "requirements": [
+            "R-M3-006",
+            "R-M3-024"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-001",
+            "R-M5-008"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/catalog.json",
+          "section": "T-M6-005",
+          "requirements": [
+            "R-M6-005"
+          ]
+        }
+      ],
+      "resolution": "M3 enumerates eight transport IDs, explicit selector or unique admitted mapping, ambiguity rejection and ToolPolicyV1. Initial coding tasks require native transports. API review/generation remain separate capabilities. M2/M5 bind profile assignments and resolved controls into their snapshots.",
+      "limitations": []
+    },
+    {
+      "reviewer": "execution",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "originalRequirementIds": [
+        "R-M3-019",
+        "R-M2-008"
+      ],
+      "id": "EXECUTION-017",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Package and ownership",
+          "requirements": [
+            "R-M3-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared error and generation contract",
+          "requirements": [
+            "R-M3-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/catalog.json",
+          "section": "depends_on",
+          "requirements": []
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/catalog.json",
+          "section": "depends_on",
+          "requirements": []
+        }
+      ],
+      "resolution": "M2 owns provider package bootstrap. M3 extends it and depends on M1/M2. M6 depends on M1-M5. Dependencies use milestone IDs. Grammar choices are auto, grammar-required and envelope with explicit resolution.",
+      "limitations": []
+    },
+    {
+      "reviewer": "execution",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "originalRequirementIds": [
+        "R-M3-017",
+        "R-M3-018"
+      ],
+      "id": "EXECUTION-018",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Qualification and validation",
+          "requirements": [
+            "R-M3-017",
+            "R-M3-018"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Implementation boundaries",
+          "requirements": [
+            "R-M6-007",
+            "R-M6-013",
+            "R-M6-017",
+            "R-M6-018"
+          ]
+        }
+      ],
+      "resolution": "Provider and adoption subcommands extend M2 pel-authoring-cli.ts/pel-authoring-main.ts. The product uses one foreman.js router bundle. Catalog provider list/qualify actions name that bundle. Bootstrap install and metrics have separate named non-router entry points.",
+      "limitations": []
+    },
+    {
+      "reviewer": "execution",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "originalRequirementIds": [
+        "R-M4-001",
+        "R-M5-015",
+        "R-M6-006"
+      ],
+      "id": "EXECUTION-019",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-06-adoption/catalog.json",
+          "section": "T-M6-006",
+          "requirements": [
+            "R-M6-006"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/catalog.json",
+          "section": "T-M6-019",
+          "requirements": [
+            "R-M6-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Command behavior",
+          "requirements": [
+            "R-M4-001",
+            "R-M4-015"
+          ]
+        }
+      ],
+      "resolution": "Unavailable provider evidence and missing/invalid project configuration explicitly exit 2 with zero dispatch/reservation. M4 defines invalid run/admission versus runtime failure and needs-action outcomes.",
+      "limitations": []
+    },
+    {
+      "reviewer": "execution",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/execution-review.json",
+      "originalRequirementIds": [
+        "R-M6-002",
+        "R-M5-008",
+        "R-M2-003"
+      ],
+      "id": "EXECUTION-021",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Fixture launcher and canonical package examples",
+          "requirements": [
+            "R-M6-001",
+            "R-M6-002",
+            "R-M6-004",
+            "R-M6-016"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-003",
+            "R-M5-008"
+          ]
+        }
+      ],
+      "resolution": "The standard workflow is implement-verify-review.pel and delivery repair is repair-and-publish.pel. M2 parallel naming is parallel-read.pel. Canonical packaging also includes valid conditional.pel and repair.pel. M5 result keys include passed.",
+      "limitations": []
+    },
+    {
+      "reviewer": "release",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "originalRequirementIds": [
+        "R-M4-001",
+        "R-M5-008",
+        "R-M5-009",
+        "R-M5-011",
+        "R-M6-002"
+      ],
+      "id": "RELEASE-001",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Concrete install, state and package layout",
+          "requirements": [
+            "R-M6-002",
+            "R-M6-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Project configuration and admission",
+          "requirements": [
+            "R-M4-001"
+          ]
+        }
+      ],
+      "resolution": "The one-time project configure command writes git-common-dir/foreman/project.json from versioned settings. M4 defines derivation into binding and contract. M6 names the exact fixture and verifies bare run plus zero-effect exit 2 for missing/invalid configuration.",
+      "limitations": []
+    },
+    {
+      "reviewer": "release",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "originalRequirementIds": [
+        "R-M2-003",
+        "R-M3-006",
+        "R-M5-008",
+        "R-M5-015",
+        "R-M6-005"
+      ],
+      "id": "RELEASE-002",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Closed controls and transport selection",
+          "requirements": [
+            "R-M3-006",
+            "R-M3-024"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-001",
+            "R-M5-008"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/catalog.json",
+          "section": "T-M6-005",
+          "requirements": [
+            "R-M6-005"
+          ]
+        }
+      ],
+      "resolution": "M3 enumerates eight transport IDs, explicit selector or unique admitted mapping, ambiguity rejection and ToolPolicyV1. Initial coding tasks require native transports. API review/generation remain separate capabilities. M2/M5 bind profile assignments and resolved controls into their snapshots.",
+      "limitations": []
+    },
+    {
+      "reviewer": "release",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "originalRequirementIds": [
+        "R-M3-017",
+        "R-M3-018",
+        "R-M6-007",
+        "R-M6-013",
+        "R-M6-017",
+        "R-M6-018"
+      ],
+      "id": "RELEASE-003",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Qualification and validation",
+          "requirements": [
+            "R-M3-017",
+            "R-M3-018"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Implementation boundaries",
+          "requirements": [
+            "R-M6-007",
+            "R-M6-013",
+            "R-M6-017",
+            "R-M6-018"
+          ]
+        }
+      ],
+      "resolution": "Provider and adoption subcommands extend M2 pel-authoring-cli.ts/pel-authoring-main.ts. The product uses one foreman.js router bundle. Catalog provider list/qualify actions name that bundle. Bootstrap install and metrics have separate named non-router entry points.",
+      "limitations": []
+    },
+    {
+      "reviewer": "release",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "originalRequirementIds": [
+        "R-M2-001",
+        "R-M2-002",
+        "R-M4-011",
+        "R-M6-003",
+        "R-M6-006"
+      ],
+      "id": "RELEASE-004",
+      "status": "partially-addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-015"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/catalog.json",
+          "section": "T-M6-003 and T-M6-006",
+          "requirements": [
+            "R-M6-003",
+            "R-M6-006"
+          ]
+        }
+      ],
+      "resolution": "Shared exit classes and exact invalid run/admission code 2 exist. M6 provider-unavailable/configuration cases now assert code 2.",
+      "limitations": [
+        "No explicit per-subcommand exit table was found for providers, migrate, research, install and support. T-M6-003 still specifies typed install errors without an exact numeric code. Specifications remain frozen pending audit."
+      ]
+    },
+    {
+      "reviewer": "release",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "originalRequirementIds": [
+        "R-M1-012",
+        "R-M2-010",
+        "R-M3-019",
+        "R-M4-009"
+      ],
+      "id": "RELEASE-008",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared error and generation contract",
+          "requirements": [
+            "R-M3-025"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Failure and cancellation outcomes",
+          "requirements": [
+            "R-M4-009",
+            "R-M4-015"
+          ]
+        }
+      ],
+      "resolution": "M3 defines the exact 15-tag ProviderFailure union and two retry selectors. Refusal/cancellation remain normalized observations. M4 maps tags to host outcomes, and exhaustive consumer switches are planned. M1/M4 own failure-receipt semantics.",
+      "limitations": []
+    },
+    {
+      "reviewer": "release",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "originalRequirementIds": [
+        "R-M5-004",
+        "R-M6-012",
+        "R-M4-003"
+      ],
+      "id": "RELEASE-013",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Journal and recovery protocol",
+          "requirements": [
+            "R-M4-003"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Implementation and verification",
+          "requirements": [
+            "R-M5-004"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/specs/foredi-06-adoption/spec.md",
+          "section": "R-M6-012 Verification receipt reuse",
+          "requirements": [
+            "R-M6-012"
+          ]
+        }
+      ],
+      "resolution": "M4 prepares reuse or needs-action before reserving an external action. M5 verification performs matching-receipt lookup during preparation. M6 retains the one-full-verification assertion and changed-binding invalidation test. Publication reservation ownership is specified in M4/M5.",
+      "limitations": []
+    },
+    {
+      "reviewer": "release",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "originalRequirementIds": [
+        "R-M6-001",
+        "R-M6-003",
+        "R-M6-017"
+      ],
+      "id": "RELEASE-014",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Concrete install, state and package layout",
+          "requirements": [
+            "R-M6-001",
+            "R-M6-003",
+            "R-M6-017"
+          ]
+        }
+      ],
+      "resolution": "Linux x64/Node24 bootstrap command, default prefix, retained build directories, current symlink and generated Node executable PATH mechanism are explicit. Rollback checks every registered state root before switching packages, preserving history.",
+      "limitations": []
+    },
+    {
+      "reviewer": "release",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "originalRequirementIds": [
+        "R-M6-007",
+        "R-M6-009"
+      ],
+      "id": "RELEASE-015",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Fixed migration corpus",
+          "requirements": [
+            "R-M6-007",
+            "R-M6-009"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/catalog.json",
+          "section": "T-M6-007",
+          "requirements": [
+            "R-M6-007"
+          ]
+        }
+      ],
+      "resolution": "Import is limited to schemaVersion1 RoundPlanV1/ExecutionContractV1 pairs in two named fixture directories. Unknown schemas or command templates fail. Council-specific migration and deletion are explicitly deferred and retained.",
+      "limitations": []
+    },
+    {
+      "reviewer": "release",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "originalRequirementIds": [
+        "R-M6-010",
+        "R-M6-011"
+      ],
+      "id": "RELEASE-016",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Fixed measurement membership",
+          "requirements": [
+            "R-M6-010",
+            "R-M6-011"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/catalog.json",
+          "section": "T-M6-010",
+          "requirements": [
+            "R-M6-010"
+          ]
+        }
+      ],
+      "resolution": "The specification fixes 15 full production files, five complete instruction files, candidate inclusion rules, one disposition per path and js-tiktoken1.0.21/cl100k_base with integrity. Hash freezing cannot choose new membership. No measurements are claimed.",
+      "limitations": []
+    },
+    {
+      "reviewer": "release",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "originalRequirementIds": [
+        "R-M2-008",
+        "R-M4-001",
+        "R-M5-008",
+        "R-M6-002",
+        "R-M6-004"
+      ],
+      "id": "RELEASE-017",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Evidence admission and test binding",
+          "requirements": [
+            "R-M3-023"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Fixture launcher and canonical package examples",
+          "requirements": [
+            "R-M6-002",
+            "R-M6-004"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Remaining native host functions and test injection",
+          "requirements": [
+            "R-M4-001"
+          ]
+        }
+      ],
+      "resolution": "The separate pel-cli-fixture-main.test.ts entry compiles to dist-test/pel-cli-fixture.js, injects recorded Layers and binds a manifest to temporary state. Product main accepts only live services and rejects fixture selectors/bindings. Fixture outputs never become live evidence.",
+      "limitations": []
+    },
+    {
+      "reviewer": "release",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "originalRequirementIds": [
+        "R-M4-011",
+        "R-M4-015",
+        "R-M6-002"
+      ],
+      "id": "RELEASE-019",
+      "status": "addressed-in-shared-design",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-04-durable-execution/design.md",
+          "section": "Command behavior",
+          "requirements": [
+            "R-M4-011",
+            "R-M4-015"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Installation and first successful task",
+          "requirements": [
+            "R-M6-002"
+          ]
+        }
+      ],
+      "resolution": "M4 defines attached run/resume, startup run-id stderr event, final stdout RunResultV1 and concurrent status/cancel usage. M6 quickstart consumes the shared run ID.",
+      "limitations": [
+        "T-M6-002 does not independently repeat the before-terminal run-ID/concurrent-cancel assertion. M4 owns that lifecycle assertion."
+      ]
+    },
+    {
+      "reviewer": "release",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "originalRequirementIds": [
+        "R-M2-013",
+        "R-M5-008",
+        "R-M6-004"
+      ],
+      "id": "RELEASE-020",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Fixture launcher and canonical package examples",
+          "requirements": [
+            "R-M6-001",
+            "R-M6-002",
+            "R-M6-004",
+            "R-M6-016"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-05-task-delivery/design.md",
+          "section": "Function and value contracts",
+          "requirements": [
+            "R-M5-003",
+            "R-M5-008"
+          ]
+        }
+      ],
+      "resolution": "The standard workflow is implement-verify-review.pel and delivery repair is repair-and-publish.pel. M2 parallel naming is parallel-read.pel. Canonical packaging also includes valid conditional.pel and repair.pel. M5 result keys include passed.",
+      "limitations": []
+    },
+    {
+      "reviewer": "release",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "originalRequirementIds": [
+        "R-M6-001",
+        "R-M6-016"
+      ],
+      "id": "RELEASE-021",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Concrete install, state and package layout",
+          "requirements": [
+            "R-M6-001",
+            "R-M6-016",
+            "R-M6-020"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/catalog.json",
+          "section": "T-M6-020",
+          "requirements": [
+            "R-M6-020"
+          ]
+        }
+      ],
+      "resolution": "M6 owns version output: releaseName, buildId and nullable version from the installed manifest. The unassigned build prints unversioned and JSON version null. Tests use the same installed manifest identity.",
+      "limitations": []
+    },
+    {
+      "reviewer": "release",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "originalRequirementIds": [
+        "R-M6-010",
+        "R-M2-001"
+      ],
+      "id": "RELEASE-023",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-06-adoption/design.md",
+          "section": "Concrete install, state and package layout",
+          "requirements": [
+            "R-M6-001",
+            "R-M6-003",
+            "R-M6-010",
+            "R-M6-016"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/tasks.md",
+          "section": "7. Concrete installation and migration contracts",
+          "requirements": []
+        }
+      ],
+      "resolution": "Bootstrap is node <archive>/runtime/dist/install.js --prefix <prefix>. Named pel-install-main.ts and pel-simplification-main.ts entries produce install.js and pel-simplification.js. Packaging includes the immutable default-authoring-snapshot.json and hashes.",
+      "limitations": []
+    },
+    {
+      "reviewer": "release",
+      "sourceAudit": "docs/releases/return-of-the-foredi/audits/initial/release-review.json",
+      "originalRequirementIds": [
+        "R-M1-011"
+      ],
+      "id": "RELEASE-024",
+      "status": "addressed-in-spec",
+      "locations": [
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Package and ownership",
+          "requirements": [
+            "R-M3-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/design.md",
+          "section": "Shared error and generation contract",
+          "requirements": [
+            "R-M3-019"
+          ]
+        },
+        {
+          "file": "openspec/changes/foredi-03-model-adapters/catalog.json",
+          "section": "depends_on",
+          "requirements": []
+        },
+        {
+          "file": "openspec/changes/foredi-06-adoption/catalog.json",
+          "section": "depends_on",
+          "requirements": []
+        }
+      ],
+      "resolution": "M2 owns provider package bootstrap. M3 extends it and depends on M1/M2. M6 depends on M1-M5. Dependencies use milestone IDs. Grammar choices are auto, grammar-required and envelope with explicit resolution.",
+      "limitations": []
+    }
+  ]
+}

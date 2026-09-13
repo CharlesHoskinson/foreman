@@ -30886,20 +30886,10 @@ function isTestsFixturesPath(path) {
 
 // packages/policy/src/architecture-adapter.ts
 var DENY = "legacy_adapter_domain_logic";
-var LANE_RUN_MIGRATION_PATH = "skills/foreman/scripts/lane-run.sh";
-var LANE_SUPERVISE_MIGRATION_PATH = "skills/foreman/scripts/lane-supervise.sh";
-var LANE_RUN_BODY_SHA256 = "5368260642cac6d0ff9d38a45597dc359e6c5a0b9a008f49dee3383bc7f16110";
-var LANE_SUPERVISE_BODY_SHA256 = "a09929d92ce817fc861800b38529300889a62b8324fc67fea9a305ea32ac7062";
 var LEGACY_MIGRATION_BODY_SHA256 = /* @__PURE__ */ new Map([
   [
     "skills/foreman/scripts/gate-eval.sh",
     "bd0a5e404cb97dfe356084764f797a2852b8a6d84862e038aaecad085f70b546"
-  ],
-  // Re-pinned 2026-09-05: default model grok-4.6 and verified CLI 1.0.13.
-  // Data-only change, no new logic.
-  [
-    "skills/foreman/scripts/adapters/grok.sh",
-    "6dcf82398b49681f66129e38f52e7b8c5a70257044028ee1ed7b6381ff3a4232"
   ],
   [
     "skills/foreman/scripts/lib/release-policy.sh",
@@ -30915,35 +30905,28 @@ var LEGACY_MIGRATION_BODY_SHA256 = /* @__PURE__ */ new Map([
   ],
   [
     "skills/foreman/scripts/merge-gate.sh",
-    "8854bd9bf4ddc0234989c156ca32287d2ade4e3b68bbb8c66e560e4a093fd95b"
+    "5af0591b3b458da11b602037582da4fed6a81d60d05b54198a3d4cd31c8a9cfb"
   ],
   [
     "skills/foreman/scripts/vendor-concurrency-test.sh",
-    "6433ef616bfc1fb28944b418f0291f6eedc196d5815fa73c2451e04bf327f889"
+    "543d0827ea0039dd5cb0452e0f27b5a6df61171b91e1535fa22fff27e8bbb0e7"
   ],
-  // Pinned 2026-09-05 (pidns-remedy): display-only containment note on the
-  // watchdog state line. Same legacy-debt note as lane-run.sh above.
-  [
-    "skills/foreman/scripts/watch.sh",
-    "6ee0c22f756bf7395c93ff1876d42a877e0c7a0e091b06fe592d23a5b320ff14"
-  ]
+  ["env/wsl-clock-preflight.sh", "50e5244978ec1760a34a80e9d0ede947e00c1a8dbe4abf5bb1d1e4f455531a98"],
+  ["skills/foreman/scripts/foreman-cleanup.sh", "12945ea8367e4cad4294440d8449cf32501064921f063651060a1dff55dd2e23"],
+  ["skills/foreman/scripts/lane-complete-check.sh", "60e4010797b1d03bdcc153f2520cb3aaf2284e06da6d12c7206221591f9f6770"],
+  ["skills/foreman/scripts/lib/config.sh", "f721c5c4eb1d603e3ccafcfd328c41210958d96162a47c31e8cc07e521f57d29"],
+  ["skills/foreman/scripts/lib/eventlog.sh", "7fbf4436350e56b5f21dcab8714a7040e0f5bc8863212cbb0ab8bffd4965f392"],
+  ["skills/foreman/scripts/lib/evidence.sh", "04fa2b71f40288fd7500f429c7d9715dc9bbebc8848e121fb9137c5673e9e5e8"],
+  ["skills/foreman/scripts/lib/launch.sh", "e26a233bcd01553719f359276ef6d4695306124a102751cc0a9fb03ab93d18fd"],
+  ["skills/foreman/scripts/lib/telemetry.sh", "f305b1a792ba8f066a77d8581ae51b4df5942622ad43f04a10e42a031cc689dd"],
+  ["skills/foreman/scripts/wt-cleanup.sh", "2709e63ecfd0fcff7e649bf321937261c73fa6ddce1933190981b100a35e9902"],
+  ["skills/foreman/scripts/wt-new.sh", "84e1df1c1be23a5c0b9d181fe188cf720b5487649a773a11507b28cf52172bed"]
 ]);
 function isPinnedLegacyMigrationArtifact(path, sourceText) {
   const normalizedPath = path.replace(/\\/g, "/");
   const expected = LEGACY_MIGRATION_BODY_SHA256.get(normalizedPath);
   if (expected === void 0) return false;
   return createHash2("sha256").update(sourceText, "utf8").digest("hex") === expected;
-}
-function inspectLaneRunMigrationAdapter(sourceText) {
-  if (/[\u0000]/.test(sourceText)) return DENY;
-  const digest = createHash2("sha256").update(sourceText, "utf8").digest("hex");
-  return digest === LANE_RUN_BODY_SHA256 ? null : DENY;
-}
-function inspectLaneSuperviseMigrationAdapter(sourceText) {
-  if (/[\u0000]/.test(sourceText)) return DENY;
-  const digest = createHash2("sha256").update(sourceText, "utf8").digest("hex");
-  if (digest !== LANE_SUPERVISE_BODY_SHA256) return DENY;
-  return null;
 }
 var SHEBANG = /^#!(\/usr\/bin\/env\s+(bash|sh|dash)|\/bin\/(bash|sh|dash)|\/usr\/bin\/(bash|sh|dash))\s*$/;
 var STRICT_SET = /^set\s+(-euo\s+pipefail|-eu\s+pipefail|-euo|-eu|-e|-o\s+pipefail)\s*$/;
@@ -31092,12 +31075,6 @@ function inspectPosixShellAdapter(adapterPath, sourceText) {
 }
 function inspectLegacyAdapter(path, sourceText) {
   const normalizedPath = path.replace(/\\/g, "/");
-  if (normalizedPath === LANE_RUN_MIGRATION_PATH) {
-    return inspectLaneRunMigrationAdapter(sourceText);
-  }
-  if (normalizedPath === LANE_SUPERVISE_MIGRATION_PATH) {
-    return inspectLaneSuperviseMigrationAdapter(sourceText);
-  }
   const pinnedLegacyDigest = LEGACY_MIGRATION_BODY_SHA256.get(normalizedPath);
   if (pinnedLegacyDigest !== void 0) {
     return isPinnedLegacyMigrationArtifact(path, sourceText) ? null : DENY;
@@ -31269,11 +31246,183 @@ function classifyExecutableSource(args2) {
   return "prohibited_extensionless_executable";
 }
 
-// packages/policy/src/architecture-manifest.ts
+// packages/policy/src/install-verify-decode.ts
 function fail8(reason) {
   return { ok: false, reason };
 }
 function normalizeRelativePath(p) {
+  if (p.length === 0) return null;
+  if (p.startsWith("/") || p.includes("\\") || p.includes("\0")) return null;
+  if (p.includes("..")) return null;
+  let s = p;
+  while (s.startsWith("./")) s = s.slice(2);
+  if (s.includes("//")) return null;
+  return s;
+}
+var PEL_AUTHORING_ASSET_PATH = "assets/pel/default-authoring-snapshot.json";
+var REQUIRED_V2 = /* @__PURE__ */ new Set([
+  "dist/architecture-policy.js",
+  "dist/credential-profile-lane.js",
+  "dist/destruction-guard.js",
+  "dist/execution-guard.js",
+  "dist/lane-queue.js",
+  "dist/lane-round.js",
+  "dist/vendor-preflight.js"
+]);
+function decodeArtifactObject(aobj) {
+  const aUnk = rejectUnknownKeys(aobj, [
+    "byteLength",
+    "id",
+    "relativePath",
+    "sha256"
+  ]);
+  if (aUnk) return { ok: false, reason: "manifest_unknown_field" };
+  if (aobj["id"] !== void 0) {
+    const id = expectString(aobj["id"]);
+    if (isCoreFailure(id) || id.length === 0) {
+      return { ok: false, reason: "manifest_schema" };
+    }
+  }
+  const relativePathRaw = expectString(aobj["relativePath"]);
+  if (isCoreFailure(relativePathRaw)) {
+    return { ok: false, reason: "manifest_relative_path" };
+  }
+  const relativePath = normalizeRelativePath(relativePathRaw);
+  if (relativePath === null || relativePath !== PEL_AUTHORING_ASSET_PATH && !relativePath.startsWith("dist/")) {
+    return { ok: false, reason: "manifest_relative_path" };
+  }
+  const rest = relativePath === PEL_AUTHORING_ASSET_PATH ? "default-authoring-snapshot.json" : relativePath.slice("dist/".length);
+  if (rest.length === 0 || rest.includes("/") || rest.includes("\\") || rest.includes("..")) {
+    return { ok: false, reason: "manifest_relative_path" };
+  }
+  const sha256 = expectString(aobj["sha256"]);
+  if (isCoreFailure(sha256) || !isSha256Hex(sha256)) {
+    return { ok: false, reason: "manifest_sha256" };
+  }
+  const byteLength = expectNumber(aobj["byteLength"]);
+  if (isCoreFailure(byteLength) || !Number.isInteger(byteLength) || byteLength < 0) {
+    return { ok: false, reason: "manifest_byte_length" };
+  }
+  return {
+    ok: true,
+    artifact: { relativePath, sha256, byteLength }
+  };
+}
+function decodeInstallManifestText(text) {
+  if (!text.endsWith("\n")) {
+    return fail8("manifest_missing_trailing_lf");
+  }
+  const body = text.slice(0, -1);
+  const parsed = parseJsonRejectDuplicateKeys(body);
+  if (isCoreFailure(parsed)) {
+    return fail8("manifest_invalid_json");
+  }
+  let canonicalBody;
+  try {
+    canonicalBody = canonicalize(parsed);
+  } catch {
+    return fail8("manifest_non_canonical");
+  }
+  if (canonicalBody !== body) {
+    return fail8("manifest_non_canonical");
+  }
+  const obj = expectObject(parsed);
+  if (isCoreFailure(obj)) return fail8("manifest_schema");
+  const schemaVersion = obj["schemaVersion"];
+  if (schemaVersion === 1) {
+    const unk = rejectUnknownKeys(obj, [
+      "bundle",
+      "nodeRange",
+      "schemaVersion"
+    ]);
+    if (unk) return fail8("manifest_unknown_field");
+    const nodeRange = expectString(obj["nodeRange"]);
+    if (isCoreFailure(nodeRange) || nodeRange !== ">=24 <25") {
+      return fail8("manifest_node_range");
+    }
+    const bundle = expectObject(obj["bundle"]);
+    if (isCoreFailure(bundle)) return fail8("manifest_schema");
+    const bUnk = rejectUnknownKeys(bundle, [
+      "byteLength",
+      "relativePath",
+      "sha256"
+    ]);
+    if (bUnk) return fail8("manifest_unknown_field");
+    const relativePathRaw = expectString(bundle["relativePath"]);
+    if (isCoreFailure(relativePathRaw) || relativePathRaw !== "dist/destruction-guard.js") {
+      return fail8("manifest_relative_path");
+    }
+    const sha256 = expectString(bundle["sha256"]);
+    if (isCoreFailure(sha256) || !isSha256Hex(sha256)) {
+      return fail8("manifest_sha256");
+    }
+    const byteLength = expectNumber(bundle["byteLength"]);
+    if (isCoreFailure(byteLength) || !Number.isInteger(byteLength) || byteLength < 0) {
+      return fail8("manifest_byte_length");
+    }
+    return {
+      ok: true,
+      manifest: {
+        schemaVersion: 1,
+        nodeRange,
+        artifacts: [{ relativePath: relativePathRaw, sha256, byteLength }],
+        canonicalBody
+      }
+    };
+  }
+  if (schemaVersion === 2) {
+    const unk = rejectUnknownKeys(obj, [
+      "artifacts",
+      "nodeRange",
+      "schemaVersion"
+    ]);
+    if (unk) return fail8("manifest_unknown_field");
+    const sv = expectExactLiteral(obj["schemaVersion"], 2);
+    if (isCoreFailure(sv)) return fail8("manifest_schema");
+    const nodeRange = expectString(obj["nodeRange"]);
+    if (isCoreFailure(nodeRange) || nodeRange !== ">=24 <25") {
+      return fail8("manifest_node_range");
+    }
+    const artifactsRaw = expectArray(obj["artifacts"]);
+    if (isCoreFailure(artifactsRaw) || artifactsRaw.length === 0) {
+      return fail8("manifest_schema");
+    }
+    const artifacts = [];
+    const seen = /* @__PURE__ */ new Set();
+    const required = new Set(REQUIRED_V2);
+    for (const item of artifactsRaw) {
+      const aobj = expectObject(item);
+      if (isCoreFailure(aobj)) return fail8("manifest_schema");
+      const art = decodeArtifactObject(aobj);
+      if (!art.ok) return fail8(art.reason);
+      if (seen.has(art.artifact.relativePath)) {
+        return fail8("manifest_duplicate_path");
+      }
+      seen.add(art.artifact.relativePath);
+      artifacts.push(art.artifact);
+      required.delete(art.artifact.relativePath);
+    }
+    if (required.size > 0) {
+      return fail8("manifest_missing_required_artifact");
+    }
+    return {
+      ok: true,
+      manifest: {
+        schemaVersion: 2,
+        nodeRange,
+        artifacts,
+        canonicalBody
+      }
+    };
+  }
+  return fail8("manifest_schema");
+}
+
+// packages/policy/src/architecture-manifest.ts
+function fail9(reason) {
+  return { ok: false, reason };
+}
+function normalizeRelativePath2(p) {
   if (p.length === 0) return null;
   if (p.startsWith("/") || p.includes("\\") || p.includes("\0")) return null;
   if (p.includes("..")) return null;
@@ -31288,50 +31437,54 @@ function artifactFromBundleObject(bundle) {
     "relativePath",
     "sha256"
   ]);
-  if (bUnk) return fail8("schema_mismatch");
+  if (bUnk) return fail9("schema_mismatch");
   const relativePathRaw = expectString(bundle["relativePath"]);
-  if (isCoreFailure(relativePathRaw)) return fail8("schema_mismatch");
-  const relativePath = normalizeRelativePath(relativePathRaw);
-  if (relativePath === null) return fail8("schema_mismatch");
-  if (!relativePath.startsWith("dist/") || relativePath === "dist/") {
-    return fail8("schema_mismatch");
+  if (isCoreFailure(relativePathRaw)) return fail9("schema_mismatch");
+  const relativePath = normalizeRelativePath2(relativePathRaw);
+  if (relativePath === null) return fail9("schema_mismatch");
+  if (relativePath !== PEL_AUTHORING_ASSET_PATH && (!relativePath.startsWith("dist/") || relativePath === "dist/")) {
+    return fail9("schema_mismatch");
   }
   if (relativePath.includes("\\") || relativePath.split("/").some((p) => p === "" || p === "." || p === "..")) {
-    return fail8("schema_mismatch");
+    return fail9("schema_mismatch");
   }
   const sha256 = expectString(bundle["sha256"]);
   if (isCoreFailure(sha256) || !isSha256Hex(sha256)) {
-    return fail8("schema_mismatch");
+    return fail9("schema_mismatch");
   }
   const byteLength = expectNumber(bundle["byteLength"]);
   if (isCoreFailure(byteLength) || !Number.isInteger(byteLength) || byteLength < 0) {
-    return fail8("schema_mismatch");
+    return fail9("schema_mismatch");
   }
   return { ok: true, artifact: { relativePath, byteLength, sha256 } };
 }
 function decodeRuntimeManifest(text) {
   const body = text.endsWith("\n") ? text.slice(0, -1) : text;
   const parsed = parseJsonRejectDuplicateKeys(body);
-  if (isCoreFailure(parsed)) return fail8("schema_mismatch");
+  if (isCoreFailure(parsed)) return fail9("schema_mismatch");
   try {
     if (canonicalize(parsed) !== body) {
-      return fail8("schema_mismatch");
+      return fail9("schema_mismatch");
     }
   } catch {
-    return fail8("schema_mismatch");
+    return fail9("schema_mismatch");
   }
   const obj = expectObject(parsed);
-  if (isCoreFailure(obj)) return fail8("schema_mismatch");
+  if (isCoreFailure(obj)) return fail9("schema_mismatch");
   const schemaVersion = obj["schemaVersion"];
   if (schemaVersion === 1) {
-    const unk = rejectUnknownKeys(obj, ["bundle", "nodeRange", "schemaVersion"]);
-    if (unk) return fail8("schema_mismatch");
+    const unk = rejectUnknownKeys(obj, [
+      "bundle",
+      "nodeRange",
+      "schemaVersion"
+    ]);
+    if (unk) return fail9("schema_mismatch");
     const nodeRange = expectString(obj["nodeRange"]);
     if (isCoreFailure(nodeRange) || nodeRange !== ">=24 <25") {
-      return fail8("schema_mismatch");
+      return fail9("schema_mismatch");
     }
     const bundle = expectObject(obj["bundle"]);
-    if (isCoreFailure(bundle)) return fail8("schema_mismatch");
+    if (isCoreFailure(bundle)) return fail9("schema_mismatch");
     const art = artifactFromBundleObject(bundle);
     if (!art.ok) return art;
     return {
@@ -31349,27 +31502,28 @@ function decodeRuntimeManifest(text) {
       "nodeRange",
       "schemaVersion"
     ]);
-    if (unk) return fail8("schema_mismatch");
+    if (unk) return fail9("schema_mismatch");
     const sv = expectExactLiteral(obj["schemaVersion"], 2);
-    if (isCoreFailure(sv)) return fail8("schema_mismatch");
+    if (isCoreFailure(sv)) return fail9("schema_mismatch");
     const nodeRange = expectString(obj["nodeRange"]);
     if (isCoreFailure(nodeRange) || nodeRange !== ">=24 <25") {
-      return fail8("schema_mismatch");
+      return fail9("schema_mismatch");
     }
     const artifactsRaw = expectArray(obj["artifacts"]);
-    if (isCoreFailure(artifactsRaw)) return fail8("schema_mismatch");
-    if (artifactsRaw.length === 0) return fail8("schema_mismatch");
+    if (isCoreFailure(artifactsRaw)) return fail9("schema_mismatch");
+    if (artifactsRaw.length === 0) return fail9("schema_mismatch");
     const artifacts = [];
     const seen = /* @__PURE__ */ new Set();
     for (const item of artifactsRaw) {
       const aobj = expectObject(item);
-      if (isCoreFailure(aobj)) return fail8("schema_mismatch");
+      if (isCoreFailure(aobj)) return fail9("schema_mismatch");
       const allowed = ["byteLength", "relativePath", "sha256", "id"];
       const aUnk = rejectUnknownKeys(aobj, allowed);
-      if (aUnk) return fail8("schema_mismatch");
+      if (aUnk) return fail9("schema_mismatch");
       if (aobj["id"] !== void 0) {
         const id = expectString(aobj["id"]);
-        if (isCoreFailure(id) || id.length === 0) return fail8("schema_mismatch");
+        if (isCoreFailure(id) || id.length === 0)
+          return fail9("schema_mismatch");
       }
       const art = artifactFromBundleObject({
         byteLength: aobj["byteLength"],
@@ -31379,7 +31533,7 @@ function decodeRuntimeManifest(text) {
       if (!art.ok) return art;
       const a = art.artifact;
       if (seen.has(a.relativePath)) {
-        return fail8("manifest_bundle_duplicate");
+        return fail9("manifest_bundle_duplicate");
       }
       seen.add(a.relativePath);
       artifacts.push(a);
@@ -31389,9 +31543,11 @@ function decodeRuntimeManifest(text) {
       manifest: { schemaVersion: 2, nodeRange, artifacts }
     };
   }
-  return fail8("schema_mismatch");
+  return fail9("schema_mismatch");
 }
 function repoPathToManifestRelative(repoPath) {
+  if (repoPath === `skills/foreman/runtime/${PEL_AUTHORING_ASSET_PATH}`)
+    return PEL_AUTHORING_ASSET_PATH;
   if (!repoPath.startsWith(RUNTIME_DIST_PREFIX)) return null;
   const name = repoPath.slice(RUNTIME_DIST_PREFIX.length);
   if (name.length === 0 || name.includes("/") || name.includes("..")) {
@@ -32876,173 +33032,6 @@ function runArchitectureCli(argv, io2, defaultCwd) {
 // packages/policy/src/install-verify.ts
 import { join as join3 } from "node:path";
 
-// packages/policy/src/install-verify-decode.ts
-function fail9(reason) {
-  return { ok: false, reason };
-}
-function normalizeRelativePath2(p) {
-  if (p.length === 0) return null;
-  if (p.startsWith("/") || p.includes("\\") || p.includes("\0")) return null;
-  if (p.includes("..")) return null;
-  let s = p;
-  while (s.startsWith("./")) s = s.slice(2);
-  if (s.includes("//")) return null;
-  return s;
-}
-var REQUIRED_V2 = /* @__PURE__ */ new Set([
-  "dist/architecture-policy.js",
-  "dist/credential-profile-lane.js",
-  "dist/destruction-guard.js",
-  "dist/execution-guard.js",
-  "dist/lane-queue.js",
-  "dist/lane-round.js",
-  "dist/vendor-preflight.js"
-]);
-function decodeArtifactObject(aobj) {
-  const aUnk = rejectUnknownKeys(aobj, [
-    "byteLength",
-    "id",
-    "relativePath",
-    "sha256"
-  ]);
-  if (aUnk) return { ok: false, reason: "manifest_unknown_field" };
-  if (aobj["id"] !== void 0) {
-    const id = expectString(aobj["id"]);
-    if (isCoreFailure(id) || id.length === 0) {
-      return { ok: false, reason: "manifest_schema" };
-    }
-  }
-  const relativePathRaw = expectString(aobj["relativePath"]);
-  if (isCoreFailure(relativePathRaw)) {
-    return { ok: false, reason: "manifest_relative_path" };
-  }
-  const relativePath = normalizeRelativePath2(relativePathRaw);
-  if (relativePath === null || !relativePath.startsWith("dist/")) {
-    return { ok: false, reason: "manifest_relative_path" };
-  }
-  const rest = relativePath.slice("dist/".length);
-  if (rest.length === 0 || rest.includes("/") || rest.includes("\\") || rest.includes("..")) {
-    return { ok: false, reason: "manifest_relative_path" };
-  }
-  const sha256 = expectString(aobj["sha256"]);
-  if (isCoreFailure(sha256) || !isSha256Hex(sha256)) {
-    return { ok: false, reason: "manifest_sha256" };
-  }
-  const byteLength = expectNumber(aobj["byteLength"]);
-  if (isCoreFailure(byteLength) || !Number.isInteger(byteLength) || byteLength < 0) {
-    return { ok: false, reason: "manifest_byte_length" };
-  }
-  return {
-    ok: true,
-    artifact: { relativePath, sha256, byteLength }
-  };
-}
-function decodeInstallManifestText(text) {
-  if (!text.endsWith("\n")) {
-    return fail9("manifest_missing_trailing_lf");
-  }
-  const body = text.slice(0, -1);
-  const parsed = parseJsonRejectDuplicateKeys(body);
-  if (isCoreFailure(parsed)) {
-    return fail9("manifest_invalid_json");
-  }
-  let canonicalBody;
-  try {
-    canonicalBody = canonicalize(parsed);
-  } catch {
-    return fail9("manifest_non_canonical");
-  }
-  if (canonicalBody !== body) {
-    return fail9("manifest_non_canonical");
-  }
-  const obj = expectObject(parsed);
-  if (isCoreFailure(obj)) return fail9("manifest_schema");
-  const schemaVersion = obj["schemaVersion"];
-  if (schemaVersion === 1) {
-    const unk = rejectUnknownKeys(obj, ["bundle", "nodeRange", "schemaVersion"]);
-    if (unk) return fail9("manifest_unknown_field");
-    const nodeRange = expectString(obj["nodeRange"]);
-    if (isCoreFailure(nodeRange) || nodeRange !== ">=24 <25") {
-      return fail9("manifest_node_range");
-    }
-    const bundle = expectObject(obj["bundle"]);
-    if (isCoreFailure(bundle)) return fail9("manifest_schema");
-    const bUnk = rejectUnknownKeys(bundle, [
-      "byteLength",
-      "relativePath",
-      "sha256"
-    ]);
-    if (bUnk) return fail9("manifest_unknown_field");
-    const relativePathRaw = expectString(bundle["relativePath"]);
-    if (isCoreFailure(relativePathRaw) || relativePathRaw !== "dist/destruction-guard.js") {
-      return fail9("manifest_relative_path");
-    }
-    const sha256 = expectString(bundle["sha256"]);
-    if (isCoreFailure(sha256) || !isSha256Hex(sha256)) {
-      return fail9("manifest_sha256");
-    }
-    const byteLength = expectNumber(bundle["byteLength"]);
-    if (isCoreFailure(byteLength) || !Number.isInteger(byteLength) || byteLength < 0) {
-      return fail9("manifest_byte_length");
-    }
-    return {
-      ok: true,
-      manifest: {
-        schemaVersion: 1,
-        nodeRange,
-        artifacts: [{ relativePath: relativePathRaw, sha256, byteLength }],
-        canonicalBody
-      }
-    };
-  }
-  if (schemaVersion === 2) {
-    const unk = rejectUnknownKeys(obj, [
-      "artifacts",
-      "nodeRange",
-      "schemaVersion"
-    ]);
-    if (unk) return fail9("manifest_unknown_field");
-    const sv = expectExactLiteral(obj["schemaVersion"], 2);
-    if (isCoreFailure(sv)) return fail9("manifest_schema");
-    const nodeRange = expectString(obj["nodeRange"]);
-    if (isCoreFailure(nodeRange) || nodeRange !== ">=24 <25") {
-      return fail9("manifest_node_range");
-    }
-    const artifactsRaw = expectArray(obj["artifacts"]);
-    if (isCoreFailure(artifactsRaw) || artifactsRaw.length === 0) {
-      return fail9("manifest_schema");
-    }
-    const artifacts = [];
-    const seen = /* @__PURE__ */ new Set();
-    const required = new Set(REQUIRED_V2);
-    for (const item of artifactsRaw) {
-      const aobj = expectObject(item);
-      if (isCoreFailure(aobj)) return fail9("manifest_schema");
-      const art = decodeArtifactObject(aobj);
-      if (!art.ok) return fail9(art.reason);
-      if (seen.has(art.artifact.relativePath)) {
-        return fail9("manifest_duplicate_path");
-      }
-      seen.add(art.artifact.relativePath);
-      artifacts.push(art.artifact);
-      required.delete(art.artifact.relativePath);
-    }
-    if (required.size > 0) {
-      return fail9("manifest_missing_required_artifact");
-    }
-    return {
-      ok: true,
-      manifest: {
-        schemaVersion: 2,
-        nodeRange,
-        artifacts,
-        canonicalBody
-      }
-    };
-  }
-  return fail9("manifest_schema");
-}
-
 // packages/policy/src/install-verify-fs.ts
 import {
   closeSync,
@@ -33306,7 +33295,9 @@ function verifyRuntimeTreeDetailed(runtimeRoot) {
     }
     const dist = yield* enumerateDistExact(fs, runtimeRoot, distPre);
     if (!dist.ok) return { ok: false, result: dist.result };
-    const declared = new Set(artifacts.map((a) => a.relativePath));
+    const declared = new Set(
+      artifacts.filter((a) => a.relativePath.startsWith("dist/")).map((a) => a.relativePath)
+    );
     for (const name of dist.names) {
       if (!declared.has(name)) {
         return {
@@ -33522,12 +33513,29 @@ function readRegularFile(fs, args2) {
 }
 function verifyOneArtifact(fs, runtimeRoot, art) {
   return Effect_exports.gen(function* () {
-    if (art.relativePath.includes("..") || art.relativePath.includes("\\") || !art.relativePath.startsWith("dist/")) {
+    if (art.relativePath.includes("..") || art.relativePath.includes("\\") || art.relativePath !== PEL_AUTHORING_ASSET_PATH && !art.relativePath.startsWith("dist/")) {
       return installFail("bundle_path_escape", art.relativePath);
     }
-    const rest = art.relativePath.slice("dist/".length);
+    const rest = art.relativePath === PEL_AUTHORING_ASSET_PATH ? "default-authoring-snapshot.json" : art.relativePath.slice("dist/".length);
     if (rest.includes("/") || rest.length === 0) {
       return installFail("bundle_path_escape", art.relativePath);
+    }
+    const parents = [];
+    if (art.relativePath === PEL_AUTHORING_ASSET_PATH) {
+      for (const relative of ["assets", "assets/pel"]) {
+        const path = joinRuntime(runtimeRoot, relative);
+        const stat = yield* Effect_exports.either(fs.lstat(path));
+        if (stat._tag === "Left")
+          return installFail(
+            stat.left.kind === "missing" ? "bundle_missing" : "bundle_unreadable",
+            art.relativePath
+          );
+        if (stat.right.isSymbolicLink)
+          return installFail("bundle_linked", art.relativePath);
+        if (!stat.right.isDirectory)
+          return installFail("bundle_not_file", art.relativePath);
+        parents.push({ path, identity: stat.right });
+      }
     }
     const full = joinRuntime(runtimeRoot, art.relativePath);
     const read = yield* readRegularFile(fs, {
@@ -33543,6 +33551,11 @@ function verifyOneArtifact(fs, runtimeRoot, art) {
       artifact: art.relativePath
     });
     if (!read.ok) return read.result;
+    for (const parent of parents) {
+      const after3 = yield* Effect_exports.either(fs.lstat(parent.path));
+      if (after3._tag === "Left" || !identitiesEqual(parent.identity, after3.right))
+        return installFail("bundle_identity_changed", art.relativePath);
+    }
     if (read.bytes.byteLength !== art.byteLength) {
       return installFail("bundle_size_mismatch", art.relativePath);
     }

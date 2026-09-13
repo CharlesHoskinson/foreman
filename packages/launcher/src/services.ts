@@ -40,6 +40,10 @@ export type SpawnedChild = {
   readonly wait: () => Effect.Effect<number, SpawnError>;
   readonly stdout: AsyncIterable<StreamChunk> | null;
   readonly stderr: AsyncIterable<StreamChunk> | null;
+  readonly stdin?: {
+    readonly write: (bytes: Uint8Array) => Effect.Effect<void, SpawnError>;
+    readonly end: () => Effect.Effect<void, SpawnError>;
+  };
   /** Best-effort direct kill of the root child only (not the tree). */
   readonly killSelf: (signal?: NodeJS.Signals) => Effect.Effect<void>;
 };
@@ -48,6 +52,9 @@ export type SpawnRequest = {
   readonly file: string;
   readonly args: readonly string[];
   readonly env?: Readonly<Record<string, string>>;
+  readonly envMode?: "inherit" | "replace";
+  readonly cwd?: string;
+  readonly stdinMode?: "ignore" | "pipe";
   readonly detachedProcessGroup: boolean;
   readonly windowsHide: boolean;
 };
@@ -218,40 +225,32 @@ async function* nodeReadableToAsync(
 
 function wrapChild(child: ChildProcess): SpawnedChild {
   const pid = child.pid ?? 0;
+  // Subscribe at spawn time. Protocol handshakes can finish before wait runs.
+  const completion = new Promise<{ code: number } | { error: SpawnError }>((resolve) => {
+    child.once("error", () => resolve({ error: { _tag: "SpawnError", message: "child process failed" } }));
+    child.once("exit", (code, signal) => resolve({ code: signal ? 1 : code ?? 0 }));
+  });
+  const input = child.stdin;
+  // Node can emit an EPIPE event in addition to the write callback.
+  input?.on("error", () => {});
+  const writeInput = (bytes?: Uint8Array): Effect.Effect<void, SpawnError> =>
+    Effect.async((resume) => {
+      if (!input || input.destroyed || input.writableEnded) {
+        resume(Effect.fail({ _tag: "SpawnError", message: "child stdin is closed" }));
+        return;
+      }
+      const done = (error?: Error | null) => resume(error
+        ? Effect.fail({ _tag: "SpawnError", message: "child stdin write failed" })
+        : Effect.void);
+      if (bytes === undefined) input.end(done);
+      else input.write(bytes, done);
+    });
   return {
     pid,
     wait: () =>
-      Effect.async<number, SpawnError>((resume) => {
-        let settled = false;
-        const onError = (err: Error) => {
-          if (settled) return;
-          settled = true;
-          cleanup();
-          resume(
-            Effect.fail({
-              _tag: "SpawnError",
-              message: err.message || "spawn error",
-            }),
-          );
-        };
-        const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
-          if (settled) return;
-          settled = true;
-          cleanup();
-          if (signal) {
-            resume(Effect.succeed(1));
-          } else {
-            resume(Effect.succeed(code ?? 0));
-          }
-        };
-        const cleanup = () => {
-          child.off("error", onError);
-          child.off("exit", onExit);
-        };
-        child.once("error", onError);
-        child.once("exit", onExit);
-        return Effect.sync(cleanup);
-      }),
+      Effect.promise(() => completion).pipe(Effect.flatMap(result =>
+        "error" in result ? Effect.fail(result.error) : Effect.succeed(result.code))),
+    ...(input ? { stdin: { write: (bytes: Uint8Array) => writeInput(bytes), end: () => writeInput() } } : {}),
     stdout: nodeReadableToAsync(child.stdout),
     stderr: nodeReadableToAsync(child.stderr),
     killSelf: (signal = "SIGKILL") =>
@@ -270,10 +269,11 @@ export const liveChildSpawner: Context.Tag.Service<typeof ChildSpawner> = {
     Effect.try({
       try: () => {
         const child = spawn(req.file, [...req.args], {
-          stdio: ["ignore", "pipe", "pipe"],
+          stdio: [req.stdinMode ?? "ignore", "pipe", "pipe"],
           detached: req.detachedProcessGroup,
           windowsHide: req.windowsHide,
-          env: req.env ? { ...process.env, ...req.env } : process.env,
+          env: req.envMode === "replace" ? { ...req.env } : req.env ? { ...process.env, ...req.env } : process.env,
+          ...(req.cwd === undefined ? {} : { cwd: req.cwd }),
         });
         return wrapChild(child);
       },

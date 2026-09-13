@@ -17,7 +17,10 @@ import {
   sha256Hex,
 } from "@foreman/core";
 import { MAX_BLOB_BYTES } from "./architecture-git.js";
-import { decodeInstallManifestText } from "./install-verify-decode.js";
+import {
+  decodeInstallManifestText,
+  PEL_AUTHORING_ASSET_PATH,
+} from "./install-verify-decode.js";
 import {
   InstallFs,
   InstallFsError,
@@ -152,7 +155,11 @@ export function verifyRuntimeTreeDetailed(
     const dist = yield* enumerateDistExact(fs, runtimeRoot, distPre);
     if (!dist.ok) return { ok: false as const, result: dist.result };
 
-    const declared = new Set(artifacts.map((a) => a.relativePath));
+    const declared = new Set(
+      artifacts
+        .filter((a) => a.relativePath.startsWith("dist/"))
+        .map((a) => a.relativePath),
+    );
     for (const name of dist.names) {
       if (!declared.has(name)) {
         return {
@@ -450,15 +457,38 @@ function verifyOneArtifact(
     if (
       art.relativePath.includes("..") ||
       art.relativePath.includes("\\") ||
-      !art.relativePath.startsWith("dist/")
+      (art.relativePath !== PEL_AUTHORING_ASSET_PATH &&
+        !art.relativePath.startsWith("dist/"))
     ) {
       return installFail("bundle_path_escape", art.relativePath);
     }
-    const rest = art.relativePath.slice("dist/".length);
+    const rest =
+      art.relativePath === PEL_AUTHORING_ASSET_PATH
+        ? "default-authoring-snapshot.json"
+        : art.relativePath.slice("dist/".length);
     if (rest.includes("/") || rest.length === 0) {
       return installFail("bundle_path_escape", art.relativePath);
     }
 
+    const parents: { path: string; identity: InstallFileIdentity }[] = [];
+    if (art.relativePath === PEL_AUTHORING_ASSET_PATH) {
+      for (const relative of ["assets", "assets/pel"]) {
+        const path = joinRuntime(runtimeRoot, relative);
+        const stat = yield* Effect.either(fs.lstat(path));
+        if (stat._tag === "Left")
+          return installFail(
+            stat.left.kind === "missing"
+              ? "bundle_missing"
+              : "bundle_unreadable",
+            art.relativePath,
+          );
+        if (stat.right.isSymbolicLink)
+          return installFail("bundle_linked", art.relativePath);
+        if (!stat.right.isDirectory)
+          return installFail("bundle_not_file", art.relativePath);
+        parents.push({ path, identity: stat.right });
+      }
+    }
     const full = joinRuntime(runtimeRoot, art.relativePath);
     const read = yield* readRegularFile(fs, {
       path: full,
@@ -473,6 +503,14 @@ function verifyOneArtifact(
       artifact: art.relativePath,
     });
     if (!read.ok) return read.result;
+    for (const parent of parents) {
+      const after = yield* Effect.either(fs.lstat(parent.path));
+      if (
+        after._tag === "Left" ||
+        !identitiesEqual(parent.identity, after.right)
+      )
+        return installFail("bundle_identity_changed", art.relativePath);
+    }
 
     if (read.bytes.byteLength !== art.byteLength) {
       return installFail("bundle_size_mismatch", art.relativePath);

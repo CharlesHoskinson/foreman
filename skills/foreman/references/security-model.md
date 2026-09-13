@@ -1,120 +1,24 @@
 # Security model
 
-## Honest limits
+Use the exact qualified model/transport and its enforced native boundary. Missing enforcement causes refusal. Process containment alone does not establish filesystem, network, credential, or container isolation. The installed package's supported platform is Linux x64 with Node.js 24; historical Windows or container tests do not extend that claim.
 
-Containers (hard mode) share the host/WSL2 kernel — **defense-in-depth, not a
-hard boundary**. Soft mode runs implementer CLIs on the host with their native
-sandboxes only. Do not claim absolute isolation. The launcher-only hard-mode
-profile (below) is process/filesystem/home isolation — it is explicitly **not**
-network isolation, and this page previously implied otherwise; see "Hard mode
-(shipped)".
+| Concern | Host control |
+| --- | --- |
+| Authority expansion | Existing registered contract, workspace grant, action and candidate binding; no authority from provider text |
+| Credential exposure | Credential references in source/settings; selected secrets resolved by the host; no ambient credential fallback |
+| Arbitrary commands | Registered gate argv/environment and provider transport implementation; model strings never become executables |
+| Candidate tampering | Immutable content, manifest and diff; candidate observation before and after host gates |
+| False success | Strict host receipt decoding, actual gate result, observed independent reviewer identity |
+| Duplicate paid work | Intent/result ordering, exact reservation identity, original-session recovery and durable tool receipts |
+| Publication uncertainty | Exact remote/ref/expected-old-object scope; observe original operation before retry |
+| Prompt injection | Repository, research and provider text remain untrusted data; they cannot change capabilities or host results |
 
-## Threat → enforcement map
+The worker must use the admitted worktree and writable paths. Host state and opaque artifacts remain outside provider access. The host preserves the candidate branch and index and captures deleted files as well as present files. Resolve nonignored out-of-scope content before admission.
 
-| Threat | Soft mode | Hard mode |
-|---|---|---|
-| Worker over-permissioned | Prefer `acceptEdits` / `workspace-write`; re-run checks yourself | launcher-only: process/fs/home isolation via a clean-slate env + worktree scope, no Docker; container: `--cap-drop ALL --cap-add NET_ADMIN,SETUID,SETGID,CHOWN`, `--security-opt no-new-privileges`, `--read-only` root + `--tmpfs /tmp,/run,/home/worker`, egress-capable bridge narrowed by `init-firewall.sh` (default-deny + allowlist) — never `--network none` |
-| Tamperable evidence | Architect re-runs verification | Host `~/.foreman/runs/` evidence; never mounted into worker |
-| Test/CI gamed | Spec forbids; review diff | Pre-run SHA-256 of hash_paths; forbidden_paths on gate |
-| Prompt injection via repo | Cold five-part spec; advisor reads code carefully | Cold-diff auditor; worker output delimited untrusted; no MCP in worker |
-| Git hooks as escape | Normal caution | `core.hooksPath=` on worktree + harness git |
-| Secrets exposure | Don't paste keys into specs | Worker gets no host secrets ever (no `FOREMAN_GH_PAT`, no `docker.sock`); under OAuth/home-isolated auth the worker gets no vendor key at all, under API-key auth exactly the one vendor key (a documented narrowing, not a hole) |
-| Reward hacking ("tests pass") | Re-run verification command | Pristine commit archive for checks |
-| Same-vendor blind spots | Prefer Grok implementer + **Codex Sol auditor** + Claude architect | Enforce worker ≠ orchestrator; audit ≠ worker (default audit = Codex Sol) |
+Verification uses the registered full gate. Failed checks are ordinary data and do not consume audit authority. A current independent review binds exact candidate and verification evidence. Same-vendor, stale, changed, or superseded review evidence cannot authorize publication.
 
-## Process containment (POSIX launcher)
+The Node launcher can use a PID namespace when supported. Kernel namespace teardown addresses descendant process lifetime; it does not supply a network firewall or a complete sandbox. Treat unsupported containment and tool enforcement as explicit admission failures or accurately reported capabilities. Do not infer new-runtime isolation from retired controller behavior.
 
-The Node launcher runs each lane as PID 1 of a fresh PID namespace when the
-host permits it. On an unprivileged host it uses a user namespace to get
-there. When the launcher dies for any reason the kernel kills every process
-in the namespace. That is the whole guarantee. It is **not** filesystem,
-network, credential, IPC, or resource isolation. The lane still runs as the
-host user with that user's files, sockets, and `sudo` rights, except that
-setuid binaries lose privilege inside the user namespace.
+Never put credential values in prompts, Git content, parity reports, or support exports. Inspect redacted support output before sharing it. Do not pass orchestrator credentials to workers, edit journals, remove ownership lock files, reset counters, or bypass gates on a model's assurance.
 
-`lane-run.sh` records the capability in the `ownership` event and refuses an
-implementation lane without it unless `FOREMAN_CONTAINMENT_APPROVAL` is set.
-A degraded round has process-group cleanup only. Descendants that call
-`setsid` or double-fork survive it. Diagnosis and evidence:
-`docs/research/foreman-pidns-degradation-2026-09-05.md`.
-
-## Soft mode residual risk
-
-- Implementer can modify any file the host CLI can write
-- No automatic forbidden-path gate — architect must enforce via review
-- Use hard mode (or at least worktrees + careful review) for high-stakes autonomy
-
-## Hard mode (shipped)
-
-`worker-run.sh` supervises an untrusted worker under `foreman-launch`
-(timeout + heartbeat + whole-tree kill) and selects one of two profiles via
-`hard_mode.profile` (`launcher-only`, the default, or `container`). Both
-profiles converge on the SAME host-side finalize step: batch-mirror the
-launcher's heartbeat file into the event log, then `git_nohooks -C "$WT" add
--A` and `diff --cached --stat` for evidence, then a **host-side commit**
-(`git_retry git_nohooks -C "$WT" commit ...`) — the worker itself never runs
-`git commit` at all; `task-new.sh`'s `task.md` boilerplate says so
-explicitly.
-
-### launcher-only (default, no Docker)
-
-The worker runs directly in the run's worktree (`$WT`) under a clean-slate
-env built from scratch (`env -i` + an explicit allowlist — `PATH HOME
-USERPROFILE FOREMAN_TASK_ID LANE_VENDOR` plus the vendor home dir, plus
-Windows-essential vars on that platform, plus the one vendor API key only
-under `hard_mode.auth = api-key`) — never the ambient environment, never
-`FOREMAN_GH_PAT`. **This is process/filesystem/home isolation, not network
-isolation**: the worker shares the host's network stack outright (no
-firewall, no bridge). Pick the container profile when the task needs
-network egress narrowed, not just credential/filesystem hygiene.
-
-### container (Docker/WSL2)
-
-The worker runs inside `sandbox/`'s hardened devcontainer against a **clean
-file COPY** of the worktree (`$RD/sandbox-work`, built via `git_nohooks -C
-"$WT" archive HEAD | tar -x`, no `.git`) — never a bind-mount of `$WT`
-itself, since `$WT/.git` is a FILE pointing at the host repo's common gitdir
-that must never reach an untrusted container. Egress is an egress-**capable**
-user-defined bridge (`foreman-sandbox-net`, NOT `--internal`, NOT `--network
-none`) whose actual narrowing comes from `sandbox/init-firewall.sh`, applied
-as root by `sandbox/entrypoint.sh` before it drops to the unprivileged
-`worker` user via `gosu`: default-deny `OUTPUT` policy (both `iptables` v4
-and, where available, `ip6tables` v6 — the allowlist itself is resolved v4
-only, so v6 egress is denied outright) with an allowlist of exactly the
-worker vendor's API host and the task's git remote host, resolved at
-container start from `--env-file`, never baked into the image. `docker run`
-adds `--cap-drop ALL --cap-add NET_ADMIN,SETUID,SETGID,CHOWN
---security-opt no-new-privileges --read-only --tmpfs /tmp --tmpfs /run
---tmpfs /home/worker` — `SETUID`/`SETGID`/`CHOWN` are load-bearing for
-`gosu`'s root→worker drop and for making the `--tmpfs /home/worker` mount
-writable, not decorative, and none of the three survive the `setuid(2)` drop
-to reach the worker process itself (verified empirically against the image).
-No `docker.sock` mount, no host secrets, ever. The container's `--env-file`
-is its own minimal allowlist (`FOREMAN_TASK_ID`, `LANE_VENDOR`, the two
-firewall hostnames, and the one vendor key only under API-key auth) —
-**never** the launcher-only profile's host-shaped `WORKER_ENV_ALLOW`
-(injecting host `PATH`/`HOME` into the container would override the image's
-own `PATH` and break `gosu`/`iptables`/the vendor CLI). After the run, the
-copy is synced back to `$WT` with a delete-aware mechanism (`rsync -a
---delete --exclude='.git'`, or a portable manifest-diff fallback when rsync
-is absent) so the worker's own file deletions/renames propagate — the SAME
-host-side evidence + commit step above then runs against `$WT`.
-
-### pr-open: gate → HTTPS PAT push → draft PR
-
-`pr-open.sh` still requires `gate-decision.json.pass == true` before doing
-anything. Once passed: it refuses if `FOREMAN_GH_PAT` is unset (no
-ambient-credential fallback) and refuses if `origin` is not an HTTPS
-`github.com` remote (the fine-grained PAT is HTTPS-only — no falling back to
-an SSH key or a cached credential helper). The push uses `GIT_ASKPASS` so the
-token never appears in argv (`git -c http.extraHeader=...` would leak it to
-`ps`/`/proc/*/cmdline`); `gh pr create --draft --head <branch> --base main -F
-<body-file>` opens a draft PR with the token scoped to `GH_TOKEN` for that one
-call. `gh pr ready` is a deliberately separate, human-invoked step — never
-folded into `pr-open.sh`.
-
-## Operator rules
-
-1. Never pass orchestrator credentials into a worker container
-2. Never skip gate on "looks good"
-3. Prefer failing closed when audit or checks infrastructure is missing
+Existing Council preflight, blinded review, quorum, and dissent policy remain in their compiled execution path. Legacy runs retain their original controller and history. Missing original-controller provenance remains an explicit recovery limitation; see [migration](../../../docs/guides/pel/migration.md).

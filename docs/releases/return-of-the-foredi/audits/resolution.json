@@ -1,0 +1,2391 @@
+{
+  "schema": "foreman.foredi-audit-resolution.v1",
+  "assessment": "Host-reviewed specification corrections; not a third Opus verdict or runtime qualification.",
+  "initial_findings": 71,
+  "initial_mapping_coverage": 71,
+  "revised_findings": 58,
+  "revised_resolution_coverage": 58,
+  "final_spec_manifest_sha256": "c7ffd8af1c7682b45ede8c1bc6fc76291619dbe1e2234502f834cd30af76241d",
+  "findings": [
+    {
+      "review_file": "language-review.json",
+      "id": "LANGUAGE-101",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "LANGUAGE-101",
+          "correction": "Print preserves :vals under schema:pel-data-v1. M1 explicitly classifies journal/stderr output routing as an extension and retains unchanged return data. M4 removes the nil-return variant.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M1-019",
+            "R-M4-020"
+          ],
+          "tests": [
+            "T-M1-019",
+            "T-M4-020"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "language-review.json",
+          "id": "LANGUAGE-101",
+          "correction": "M4 print now returns the bound vals unchanged under schema:pel-data-v1. T-M4-020 asserts the returned and replayed values and one durable output event. This correction followed the archived audit snapshot.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-020"
+          ],
+          "tests": [
+            "T-M4-020"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "LANGUAGE-102",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "LANGUAGE-102",
+          "correction": "Caret ownership is evaluation-context based, with resolved case identity shielding body syntax from outer pipe binding. Aliases and partial case closures follow the same rule. Case pipe chains receive the scrutinee at their leading call. Def-pipe fixtures bind z to 3.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md"
+          ],
+          "requirements": [
+            "R-M1-007",
+            "R-M1-008"
+          ],
+          "tests": [
+            "T-M1-007",
+            "T-M1-008"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "LANGUAGE-103",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "LANGUAGE-103",
+          "correction": "The retry selector is a list of individually quoted keys, not quoted list syntax. M4 accepts that data representation and rejects syntax-valued or nil-pair selectors before evaluating the body. M1 data/syntax distinctions remain unchanged.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-03-model-adapters/design.md"
+          ],
+          "requirements": [
+            "R-M1-004",
+            "R-M4-009"
+          ],
+          "tests": [
+            "T-M1-004",
+            "T-M4-009"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "language-review.json",
+          "id": "LANGUAGE-103",
+          "correction": "Retry :on is an evaluated list of individually quoted keys, [':rate-limited ':transport-disconnected]. Syntax-valued whole quotes and nil-pair lists fail capability-denied before body evaluation or reservation.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-009"
+          ],
+          "tests": [
+            "T-M4-009"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        },
+        {
+          "review_file": "language-review.json",
+          "id": "LANGUAGE-103",
+          "correction": "Retry selectors are quoted key data values [':rate-limited ':transport-disconnected]. Whole-list quote syntax and unquoted nil-pair lists fail before retry-body evaluation. M3 taxonomy fixture now states this distinction.",
+          "files": [
+            "openspec/changes/foredi-03-model-adapters/design.md",
+            "openspec/changes/foredi-03-model-adapters/catalog.json"
+          ],
+          "requirements": [
+            "R-M3-025"
+          ],
+          "tests": [
+            "T-M3-025"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "LANGUAGE-104",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "LANGUAGE-104",
+          "correction": "PelRunOptionsV1 explicitly carries dependencyMode, predicate selection and digest, and replay accounting. Start/resume/child contexts and continuations bind optionsDigest. Predicate request selection fields are declared. Ordered and automatic release fixtures differ. The predicate requirement now says literal string.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md",
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M1-009",
+            "R-M1-013",
+            "R-M1-014",
+            "R-M1-020"
+          ],
+          "tests": [
+            "T-M1-009",
+            "T-M1-013",
+            "T-M1-014",
+            "T-M1-020"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "language-review.json",
+          "id": "LANGUAGE-104",
+          "correction": "M4 passes explicit PelRunOptionsV1 with dependency mode, exact predicate selection/digest, and replay accounting. Options participate in source bindings, continuations, child contexts and revisions. Prefix replay validates separately before restoring latest committed totals.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-014",
+            "R-M4-017"
+          ],
+          "tests": [
+            "T-M4-014",
+            "T-M4-017"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "EXECUTION-101",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "EXECUTION-101",
+          "correction": "Canonical HostArgumentsEncodingV1 uses a deterministic node/reference table for closures and recursive lexical environments. It hashes the whole digest-free table without recursively hashing cycles. M4 owns durable child suspension records with identities, options, allocations and counters.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M1-016",
+            "R-M4-008",
+            "R-M4-009"
+          ],
+          "tests": [
+            "T-M1-016",
+            "T-M4-008",
+            "T-M4-009"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "language-review.json",
+          "id": "EXECUTION-101",
+          "correction": "pel.child-suspension.v1 persists each parent/child identity, continuation artifact, workspace grant, attempt index, allocation, consumed tranche, pending mapping and disposition. M1 canonical closure/environment graph encoding supplies stable argument digests. Recovery restores the child tree without duplicate dispatch or debit.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-008",
+            "R-M4-009",
+            "R-M4-022"
+          ],
+          "tests": [
+            "T-M4-008",
+            "T-M4-009",
+            "T-M4-022"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "PLAN-101",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "PLAN-101",
+          "correction": "Definite-binding analysis merges only names defined on every feasible branch. One-branch definitions followed by use produce PEL_CONDITIONAL_BINDING and exit 2. Both-branch and provably selected definitions pass. T-M2-016 covers the matrix.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md"
+          ],
+          "requirements": [
+            "R-M2-001"
+          ],
+          "tests": [
+            "T-M2-001",
+            "T-M2-016"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "PLAN-102",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "PLAN-102",
+          "correction": "M2 owns makeForemanCli, authoring services, minimal fixture bootstrap, descriptor/schema records, and checkout build assertions. M4 extends those interfaces. M2 no longer needs M4 handlers or the M6 installer and specifies no launcher adapter.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M2-008",
+            "R-M2-013"
+          ],
+          "tests": [
+            "T-M2-008",
+            "T-M2-013"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "language-review.json",
+          "id": "PLAN-102",
+          "correction": "M2 owns makeForemanCli, minimal fixture bootstrap, shared descriptors and build hook. M4 only extends lifecycle behavior. Configuration writes the M4-owned project state-root registry and works without an M6 prefix; M6 projects it later. M4 final-result implementation lives in pel-run-result.ts rather than depending on M5 projection code.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-001",
+            "R-M4-021"
+          ],
+          "tests": [
+            "T-M4-001",
+            "T-M4-021"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "EXECUTION-102",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "EXECUTION-102",
+          "correction": "buildEffectiveAuthoringSnapshotV1 derives one snapshot from immutable base plus role, predicate, dependency, result-contract and narrowing selections. Check/plan/run consume the same digest. Limits narrow fieldwise and widening or mismatched explicit context fails exit 2.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M2-007",
+            "R-M2-014"
+          ],
+          "tests": [
+            "T-M2-007",
+            "T-M2-014"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "language-review.json",
+          "id": "EXECUTION-102",
+          "correction": "One M2 buildEffectiveAuthoringSnapshotV1 derives configured roles, predicate, dependency mode, result contract and narrowing limits from an immutable base. Check/plan/run use the same effective content and digests. Stale explicit contexts fail exit 2; config edits produce a new derived snapshot rather than mutate the base.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-001",
+            "R-M4-017",
+            "R-M5-008",
+            "R-M5-016"
+          ],
+          "tests": [
+            "T-M4-001",
+            "T-M4-017",
+            "T-M5-008",
+            "T-M5-016"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "EXECUTION-103",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "EXECUTION-103",
+          "correction": "M1 returns the last source top-level value after required work completes. M2 owns exact delivery-needs-action/final schema declarations. M4 validates the final value under the admitted result contract before projecting status and milestones.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md",
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M1-001",
+            "R-M2-014",
+            "R-M4-015"
+          ],
+          "tests": [
+            "T-M1-001",
+            "T-M2-014",
+            "T-M4-015"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "language-review.json",
+          "id": "EXECUTION-103",
+          "correction": "ExecutionBindingV1.resultContract binds an immutable final schema and generic/delivery-v1 classifier. M4 validates the last top-level done value before status interpretation, rejects duplicate/extra-key lookalikes as final-result-invalid exit 1, and returns needs-action exit 3 for valid repair exhaustion even without audit/publication milestones. Host evidence independently controls milestones.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-015",
+            "R-M4-023",
+            "R-M5-009"
+          ],
+          "tests": [
+            "T-M4-015",
+            "T-M4-023",
+            "T-M5-009"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "BUILD-101",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "BUILD-101",
+          "correction": "M2 separates side-effect-free pel-cli-fixture-main.ts, invocation-only test/pel-cli-fixture-entry.ts, and pel-cli-fixture.test.ts. Its build script creates the fixture bundle before tests. The mandatory manifest binds assetRoot and assetManifestSha256.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M2-008",
+            "R-M2-013"
+          ],
+          "tests": [
+            "T-M2-008",
+            "T-M2-013"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "language-review.json",
+          "id": "BUILD-101",
+          "correction": "M2 owns side-effect-free src/pel-cli-fixture-main.ts, non-test invocation entry test/pel-cli-fixture-entry.ts, and real src/pel-cli-fixture.test.ts. M4 extends services only. scripts/build-pel-test-fixture.ts and root pretest build the excluded bundle before dependent tests. Mandatory fixture manifest binds assetRoot and assetManifestSha256 for checkout or copied assets.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-021",
+            "R-M5-008"
+          ],
+          "tests": [
+            "T-M4-021",
+            "T-M5-008"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        },
+        {
+          "review_file": "language-review.json",
+          "id": "BUILD-101",
+          "correction": "M6 consumes M2-owned pure fixture main, separate non-test invocation entry and separate test module. Every catalog invocation includes --fixture-manifest with required assetRoot, assetManifestSha256 and stateRoot. pretest:adoption uses M2 fixture builder; copied-asset hashes are validated. Configuration is consistently ForemanProjectV1.",
+          "files": [
+            "openspec/changes/foredi-06-adoption/design.md",
+            "openspec/changes/foredi-06-adoption/tasks.md",
+            "openspec/changes/foredi-06-adoption/catalog.json"
+          ],
+          "requirements": [
+            "R-M6-002",
+            "R-M6-019"
+          ],
+          "tests": [
+            "T-M6-002",
+            "T-M6-019"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "BUILD-102",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "BUILD-102",
+          "correction": "Provider CredentialPort and minimal shared types are defined below orchestration. Orchestration injects the implementation. Pel consumes structural provider facts without importing providers. The dependency order is core -> pel -> providers -> orchestration.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-03-model-adapters/design.md"
+          ],
+          "requirements": [
+            "R-M2-008",
+            "R-M2-015"
+          ],
+          "tests": [
+            "T-M2-008",
+            "T-M2-015"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "language-review.json",
+          "id": "BUILD-102",
+          "correction": "M5 uses M3 injected CredentialPort and never requires providers to import orchestration. Orchestration supplies the implementation from existing credential services. This records the M4/M5 consumer side of the provider-owned dependency fix.",
+          "files": [
+            "openspec/changes/foredi-03-model-adapters/design.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md"
+          ],
+          "requirements": [
+            "R-M5-001"
+          ],
+          "tests": [
+            "T-M5-001"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        },
+        {
+          "review_file": "language-review.json",
+          "id": "BUILD-102",
+          "correction": "Providers defines injected CredentialPort. Orchestration supplies live credential resolution. Provider source/tests never import orchestration. Provider schema imports point one-way to Pel, which never imports providers. CLI integration tests move to orchestration.",
+          "files": [
+            "openspec/changes/foredi-03-model-adapters/design.md",
+            "openspec/changes/foredi-03-model-adapters/tasks.md",
+            "openspec/changes/foredi-03-model-adapters/catalog.json"
+          ],
+          "requirements": [
+            "R-M3-016",
+            "R-M3-027"
+          ],
+          "tests": [
+            "T-M3-016",
+            "T-M3-027"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "PROVIDER-101",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "PROVIDER-101",
+          "correction": "M2 alone creates errors.ts and minimal identity/usage records. All tags share _tag, message, retryClass and optional requestId, usage, fieldPath, providerIdentity, retryAfterMs. M3 extends package exports and behavior, not duplicate record definitions.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-03-model-adapters/design.md"
+          ],
+          "requirements": [
+            "R-M2-010"
+          ],
+          "tests": [
+            "T-M2-010"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "language-review.json",
+          "id": "PROVIDER-101",
+          "correction": "M2 alone creates errors.ts and bootstrap usage/identity types. M3 extends the same full record: required _tag/message/retryClass and optional requestId/usage/fieldPath/providerIdentity/retryAfterMs. M6 uses ForemanProjectV1. Root owns release README dependency alignment.",
+          "files": [
+            "openspec/changes/foredi-03-model-adapters/design.md",
+            "openspec/changes/foredi-03-model-adapters/tasks.md",
+            "openspec/changes/foredi-03-model-adapters/catalog.json",
+            "openspec/changes/foredi-06-adoption/design.md"
+          ],
+          "requirements": [
+            "R-M3-025",
+            "R-M6-019"
+          ],
+          "tests": [
+            "T-M3-025",
+            "T-M6-019"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "EXECUTION-104",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "EXECUTION-104",
+          "correction": "The payload list includes output, child, race, failed-step, revision and recovery records. Intent combines preparation digest and existing ledger reservation reference. T-M4-003 now asserts suspension, combined intent, observation, result, with ledger reservation before intent and no invented separate Pel preparation record. Recoverable waiting records an observation, not result.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-003",
+            "R-M4-020"
+          ],
+          "tests": [
+            "T-M4-003",
+            "T-M4-020"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "DELIVERY-101",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "DELIVERY-101",
+          "correction": "T-M5-008 uses packages/orchestration/src/fixtures/pel-adoption/project-settings.json, while packaged examples/pel/project-settings.json remains an operator placeholder. Fixture invocation requires --fixture-manifest. ForemanProjectV1 is the canonical settings schema name.",
+          "files": [
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md"
+          ],
+          "requirements": [
+            "R-M5-008"
+          ],
+          "tests": [
+            "T-M5-008"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        },
+        {
+          "review_file": "language-review.json",
+          "id": "DELIVERY-101",
+          "correction": "M6 keeps packaged project-settings.json as setup placeholders and the orchestration fixture path as deterministic settings. Exact fixture commands use the latter; M5 shared consumer update is owned by the execution author.",
+          "files": [
+            "openspec/changes/foredi-06-adoption/design.md",
+            "openspec/changes/foredi-06-adoption/catalog.json"
+          ],
+          "requirements": [
+            "R-M6-002",
+            "R-M6-019"
+          ],
+          "tests": [
+            "T-M6-002",
+            "T-M6-019"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "LANGUAGE-105",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "LANGUAGE-105",
+          "correction": "Stable diagnostics now include PEL_HOST_FAILURE and PEL_REGISTRY. Partial argument rebinding maps to PEL_ARGUMENT_NAME. createHostRegistry accepts resolverCatalog and hashes it. T-M1-021 covers stable-code enumeration.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md"
+          ],
+          "requirements": [
+            "R-M1-006",
+            "R-M1-017",
+            "R-M1-010"
+          ],
+          "tests": [
+            "T-M1-006",
+            "T-M1-017",
+            "T-M1-010",
+            "T-M1-021"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "LANGUAGE-106",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "LANGUAGE-106",
+          "correction": "Every matrix locator was corrected. Mixed profile rows are classified as extensions and separate pure paper baseline rows have their own PV2-048 through PV2-056 fixtures. PixelRAG images for pages 12,14,17 were visually checked for nil/pairs, argument modes, and if/case.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md"
+          ],
+          "requirements": [
+            "R-M1-019"
+          ],
+          "tests": [
+            "T-M1-019"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "LANGUAGE-107",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "language-review.json",
+          "id": "LANGUAGE-107",
+          "correction": "Greater-than terminates ordinary symbols but remains legal in keywords and the pipe token. a>b and >b fail at greater-than. U+25B7 is explicitly rejected outside strings/comments with PEL_LEX and a use-|> hint. Stable diagnostic enumeration includes both added codes.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md"
+          ],
+          "requirements": [
+            "R-M1-002",
+            "R-M1-010"
+          ],
+          "tests": [
+            "T-M1-002",
+            "T-M1-010",
+            "T-M1-021"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-101",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-101",
+          "correction": "M4 keeps unknown, reconciliation-required, and unconfirmed outcomes pending rather than delivering a terminal failure receipt to M1. The language failure-receipt contract remains for valid resolved failures, preserving pending recoverable effect identity.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M1-015",
+            "R-M4-013"
+          ],
+          "tests": [
+            "T-M1-015",
+            "T-M4-013"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-101",
+          "correction": "Recoverable unknown outcomes, reconciliation, unconfirmed timeout and missing publication authority return HostDispatchOutcomeV1.waiting and retain the M1 request. Only settled receipts consume requests. Resume re-prepares or accepts bound evidence; later matching publication authority produces exactly one publish reservation with zero prior task/verify/review redispatch. Abandon supplies a terminal failure.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-013",
+            "R-M5-011",
+            "R-M5-013"
+          ],
+          "tests": [
+            "T-M4-013",
+            "T-M5-011",
+            "T-M5-013"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-102",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-102",
+          "correction": "Print preserves :vals under schema:pel-data-v1. M1 explicitly classifies journal/stderr output routing as an extension and retains unchanged return data. M4 removes the nil-return variant.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M1-019",
+            "R-M4-020"
+          ],
+          "tests": [
+            "T-M1-019",
+            "T-M4-020"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-102",
+          "correction": "M4 print now returns the bound vals unchanged under schema:pel-data-v1. T-M4-020 asserts the returned and replayed values and one durable output event. This correction followed the archived audit snapshot.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-020"
+          ],
+          "tests": [
+            "T-M4-020"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-103",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-103",
+          "correction": "buildEffectiveAuthoringSnapshotV1 derives one snapshot from immutable base plus role, predicate, dependency, result-contract and narrowing selections. Check/plan/run consume the same digest. Limits narrow fieldwise and widening or mismatched explicit context fails exit 2.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M2-007",
+            "R-M2-014"
+          ],
+          "tests": [
+            "T-M2-007",
+            "T-M2-014"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-103",
+          "correction": "One M2 buildEffectiveAuthoringSnapshotV1 derives configured roles, predicate, dependency mode, result contract and narrowing limits from an immutable base. Check/plan/run use the same effective content and digests. Stale explicit contexts fail exit 2; config edits produce a new derived snapshot rather than mutate the base.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-001",
+            "R-M5-008",
+            "R-M5-016"
+          ],
+          "tests": [
+            "T-M4-001",
+            "T-M5-008",
+            "T-M5-016"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-104",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-104",
+          "correction": "M2 owns pel-host-descriptors.ts and schema:candidate-v1 content. The runtime build regenerates the snapshot from those declarations. Handler-backed registry digests must match and all reachable/dynamically possible functions need matching handlers before dispatch.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-05-task-delivery/design.md"
+          ],
+          "requirements": [
+            "R-M2-013",
+            "R-M2-014",
+            "R-M1-017"
+          ],
+          "tests": [
+            "T-M2-013",
+            "T-M2-014",
+            "T-M1-017"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-104",
+          "correction": "The canonical declarative registry and schema source is M2 pel-host-descriptors.ts, including candidate-v1. M4/M5 attach handlers without changing records. Full pure registry digest must match the effective snapshot. Handler coverage is required only for reachable and conservatively possible dynamic calls, so unused future descriptors do not make M4 depend on later handlers.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-001",
+            "R-M4-017",
+            "R-M5-001"
+          ],
+          "tests": [
+            "T-M4-001",
+            "T-M4-017",
+            "T-M5-001"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-105",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-105",
+          "correction": "The retry selector is a list of individually quoted keys, not quoted list syntax. M4 accepts that data representation and rejects syntax-valued or nil-pair selectors before evaluating the body. M1 data/syntax distinctions remain unchanged.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-03-model-adapters/design.md"
+          ],
+          "requirements": [
+            "R-M1-004",
+            "R-M4-009"
+          ],
+          "tests": [
+            "T-M1-004",
+            "T-M4-009"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-105",
+          "correction": "Retry :on is an evaluated list of individually quoted keys, [':rate-limited ':transport-disconnected]. Syntax-valued whole quotes and nil-pair lists fail capability-denied before body evaluation or reservation.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-009"
+          ],
+          "tests": [
+            "T-M4-009"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-106",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-106",
+          "correction": "HostContextV1.retryContext carries the one-based attempt and logical-operation key formed from parent retry request plus nested invocation suffix excluding that parent /retry/N segment. Matching later nested keys reserve provider_retry instead of implement/correct. Effect ordinal is attemptIndex minus one with a persisted prior-effect link.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-009",
+            "R-M4-019"
+          ],
+          "tests": [
+            "T-M4-009",
+            "T-M4-019"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-107",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-107",
+          "correction": "Canonical HostArgumentsEncodingV1 uses a deterministic node/reference table for closures and recursive lexical environments. It hashes the whole digest-free table without recursively hashing cycles. M4 owns durable child suspension records with identities, options, allocations and counters.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M1-016",
+            "R-M4-008",
+            "R-M4-009"
+          ],
+          "tests": [
+            "T-M1-016",
+            "T-M4-008",
+            "T-M4-009"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-107",
+          "correction": "pel.child-suspension.v1 persists each parent/child identity, continuation artifact, workspace grant, attempt index, allocation, consumed tranche, pending mapping and disposition. M1 canonical closure/environment graph encoding supplies stable argument digests. Recovery restores the child tree without duplicate dispatch or debit. A durable pel.race.decision.v1 selects one winner from recorded eligible results. Wrappers hold neither child locks nor external-effect concurrency permits, so concurrency one progresses.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-008",
+            "R-M4-009",
+            "R-M4-022"
+          ],
+          "tests": [
+            "T-M4-008",
+            "T-M4-009",
+            "T-M4-022"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-108",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-108",
+          "correction": "Generation and provider requests carry an opaque credentialProfileRef, resolved through injected CredentialPort. Output schema carries both ID and PelDataSchemaV1 content, including the bounded one-field generation envelope. No secret or reverse package import is needed.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-03-model-adapters/design.md"
+          ],
+          "requirements": [
+            "R-M2-015"
+          ],
+          "tests": [
+            "T-M2-015"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-108",
+          "correction": "M5 consumes M3 outputSchema ID+content and its JSON-to-Pel codec, which orders associations by schema before validation and rejects unknown/duplicate keys. T-M5-001 checks reversed provider key order and retains host capture as authoritative candidate evidence.",
+          "files": [
+            "openspec/changes/foredi-03-model-adapters/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md"
+          ],
+          "requirements": [
+            "R-M5-001",
+            "R-M4-020"
+          ],
+          "tests": [
+            "T-M5-001",
+            "T-M4-020"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        },
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-108",
+          "correction": "outputSchema is immutable id plus full PelDataSchemaV1 content. Explicit provider-subset lowering and duplicate-aware raw JSON parsing precede canonical schema-ordered Pel conversion and original validation. Envelopes cover pelSource and Boolean value; unknown/duplicate keys, number bounds and unsupported required structures have negative fixtures.",
+          "files": [
+            "openspec/changes/foredi-03-model-adapters/design.md",
+            "openspec/changes/foredi-03-model-adapters/catalog.json",
+            "openspec/changes/foredi-03-model-adapters/tasks.md"
+          ],
+          "requirements": [
+            "R-M3-009",
+            "R-M3-019",
+            "R-M3-028"
+          ],
+          "tests": [
+            "T-M3-009",
+            "T-M3-019",
+            "T-M3-028"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-109",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-109",
+          "correction": "ExecutionBindingV1.resultContract binds an immutable final schema and generic/delivery-v1 classifier. M4 validates the last top-level done value before status interpretation, rejects duplicate/extra-key lookalikes as final-result-invalid exit 1, and returns needs-action exit 3 for valid repair exhaustion even without audit/publication milestones. Host evidence independently controls milestones.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-023",
+            "R-M5-009"
+          ],
+          "tests": [
+            "T-M4-023",
+            "T-M5-009"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-110",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-110",
+          "correction": "Replay options distinguish completed-prefix recordedCounters from committedCounters holding the latest failed-step total. M4 persists that total. Prefix replay uses separate bounded counters, then restores committed ordinary work, including failed suffix consumption. The 10+4+3 fixture totals 17.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M1-011",
+            "R-M1-020",
+            "R-M4-014"
+          ],
+          "tests": [
+            "T-M1-011",
+            "T-M1-020",
+            "T-M4-014"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-110",
+          "correction": "pel.failed-step.v1 persists failed continuation, diagnostic references, options digest and total work counters before revision. Replay options carry both completed-prefix recordedCounters and latest committedCounters. The revised suffix adds to the old total, including failed work, without replenishing execution limits.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-014"
+          ],
+          "tests": [
+            "T-M4-014"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-111",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-111",
+          "correction": "M2 owns side-effect-free src/pel-cli-fixture-main.ts, non-test invocation entry test/pel-cli-fixture-entry.ts, and real src/pel-cli-fixture.test.ts. M4 extends services only. scripts/build-pel-test-fixture.ts and root pretest build the excluded bundle before dependent tests. Mandatory fixture manifest binds assetRoot and assetManifestSha256 for checkout or copied assets.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-021",
+            "R-M5-008"
+          ],
+          "tests": [
+            "T-M4-021",
+            "T-M5-008"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        },
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-111",
+          "correction": "M6 consumes M2-owned pure fixture main, separate non-test invocation entry and separate test module. Every catalog invocation includes --fixture-manifest with required assetRoot, assetManifestSha256 and stateRoot. pretest:adoption uses M2 fixture builder; copied-asset hashes are validated. Configuration is consistently ForemanProjectV1.",
+          "files": [
+            "openspec/changes/foredi-06-adoption/design.md",
+            "openspec/changes/foredi-06-adoption/tasks.md",
+            "openspec/changes/foredi-06-adoption/catalog.json"
+          ],
+          "requirements": [
+            "R-M6-002",
+            "R-M6-019"
+          ],
+          "tests": [
+            "T-M6-002",
+            "T-M6-019"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-112",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-112",
+          "correction": "Successful generation explicitly exits 0. The value 3 is at preview.finalValueSummary.value.value, with kind known and a tagged number value. It is not an exit status.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md"
+          ],
+          "requirements": [
+            "R-M2-008"
+          ],
+          "tests": [
+            "T-M2-008"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-113",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-113",
+          "correction": "M4 grammar makes --fixture-manifest mandatory, rejects its absence, and separates copied assetRoot from bundle path. M5 fixture commands follow it and M6 consumes the same bootstrap.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md",
+            "openspec/changes/foredi-06-adoption/design.md"
+          ],
+          "requirements": [
+            "R-M4-021",
+            "R-M5-008"
+          ],
+          "tests": [
+            "T-M4-021",
+            "T-M5-008"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        },
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-113",
+          "correction": "M6 consumes M2-owned pure fixture main, separate non-test invocation entry and separate test module. Every catalog invocation includes --fixture-manifest with required assetRoot, assetManifestSha256 and stateRoot. pretest:adoption uses M2 fixture builder; copied-asset hashes are validated. Configuration is consistently ForemanProjectV1.",
+          "files": [
+            "openspec/changes/foredi-06-adoption/design.md",
+            "openspec/changes/foredi-06-adoption/tasks.md",
+            "openspec/changes/foredi-06-adoption/catalog.json"
+          ],
+          "requirements": [
+            "R-M6-002",
+            "R-M6-019"
+          ],
+          "tests": [
+            "T-M6-002",
+            "T-M6-019"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-114",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-114",
+          "correction": "Minimal and unknown keys are decode-stage UnsupportedCapability with exact fieldPath. Valid enum values outside per-profile sets are profile-validation failures. Fixtures enumerate Grok none/max, Opus none, Fable none, Astra none and Gemini none/xhigh/max; Sol accepts all declared efforts.",
+          "files": [
+            "openspec/changes/foredi-03-model-adapters/design.md",
+            "openspec/changes/foredi-03-model-adapters/catalog.json"
+          ],
+          "requirements": [
+            "R-M3-002",
+            "R-M3-021"
+          ],
+          "tests": [
+            "T-M3-002",
+            "T-M3-021"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-115",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-115",
+          "correction": "M2 alone creates errors.ts and minimal identity/usage records. All tags share _tag, message, retryClass and optional requestId, usage, fieldPath, providerIdentity, retryAfterMs. M3 extends package exports and behavior, not duplicate record definitions.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-03-model-adapters/design.md"
+          ],
+          "requirements": [
+            "R-M2-010"
+          ],
+          "tests": [
+            "T-M2-010"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-115",
+          "correction": "M2 alone creates errors.ts and bootstrap usage/identity types. M3 extends the same full record: required _tag/message/retryClass and optional requestId/usage/fieldPath/providerIdentity/retryAfterMs. M6 uses ForemanProjectV1. Root owns release README dependency alignment.",
+          "files": [
+            "openspec/changes/foredi-03-model-adapters/design.md",
+            "openspec/changes/foredi-03-model-adapters/tasks.md",
+            "openspec/changes/foredi-03-model-adapters/catalog.json",
+            "openspec/changes/foredi-06-adoption/design.md"
+          ],
+          "requirements": [
+            "R-M3-025",
+            "R-M6-019"
+          ],
+          "tests": [
+            "T-M3-025",
+            "T-M6-019"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-116",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-116",
+          "correction": "Run/resume --state-root must match a canonical registered project/repository association and existing authority. Unregistered overrides exit 2 before dispatch. Checkout configuration needs no installation prefix; M6 later projects registered roots for rollback. Fixtures additionally match their manifest root.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md",
+            "openspec/changes/foredi-06-adoption/design.md"
+          ],
+          "requirements": [
+            "R-M4-001"
+          ],
+          "tests": [
+            "T-M4-001"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        },
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-116",
+          "correction": "Installed run/resume require already registered canonical stateRoot/repository/authority before accepting an override. Unregistered overrides exit 2 and require project configure. Installed manifests resolve prefix projection; checkout and fixture execution need no installation prefix. Rollback includes roots selected through registered overrides.",
+          "files": [
+            "openspec/changes/foredi-06-adoption/design.md",
+            "openspec/changes/foredi-06-adoption/catalog.json",
+            "openspec/changes/foredi-06-adoption/tasks.md"
+          ],
+          "requirements": [
+            "R-M6-017",
+            "R-M6-019"
+          ],
+          "tests": [
+            "T-M6-017",
+            "T-M6-019"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-117",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-117",
+          "correction": "The payload list includes output, child, race, failed-step, revision and recovery records. Intent combines preparation digest and existing ledger reservation reference. T-M4-003 now asserts suspension, combined intent, observation, result, with ledger reservation before intent and no invented separate Pel preparation record. Recoverable waiting records an observation, not result.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-003",
+            "R-M4-019"
+          ],
+          "tests": [
+            "T-M4-003",
+            "T-M4-019"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-118",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "execution-review.json",
+          "id": "EXECUTION-118",
+          "correction": "Every matrix locator was corrected. Mixed profile rows are classified as extensions and separate pure paper baseline rows have their own PV2-048 through PV2-056 fixtures. PixelRAG images for pages 12,14,17 were visually checked for nil/pairs, argument modes, and if/case.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md"
+          ],
+          "requirements": [
+            "R-M1-019"
+          ],
+          "tests": [
+            "T-M1-019"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-101",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-101",
+          "correction": "Print preserves :vals under schema:pel-data-v1. M1 explicitly classifies journal/stderr output routing as an extension and retains unchanged return data. M4 removes the nil-return variant.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M1-019",
+            "R-M4-020"
+          ],
+          "tests": [
+            "T-M1-019",
+            "T-M4-020"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-101",
+          "correction": "M4 print now returns the bound vals unchanged under schema:pel-data-v1. T-M4-020 asserts the returned and replayed values and one durable output event. This correction followed the archived audit snapshot.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-020"
+          ],
+          "tests": [
+            "T-M4-020"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-102",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-102",
+          "correction": "The retry selector is a list of individually quoted keys, not quoted list syntax. M4 accepts that data representation and rejects syntax-valued or nil-pair selectors before evaluating the body. M1 data/syntax distinctions remain unchanged.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-03-model-adapters/design.md"
+          ],
+          "requirements": [
+            "R-M1-004",
+            "R-M4-009"
+          ],
+          "tests": [
+            "T-M1-004",
+            "T-M4-009"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-102",
+          "correction": "Retry :on is an evaluated list of individually quoted keys, [':rate-limited ':transport-disconnected]. Syntax-valued whole quotes and nil-pair lists fail capability-denied before body evaluation or reservation.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-009"
+          ],
+          "tests": [
+            "T-M4-009"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-103",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-103",
+          "correction": "buildEffectiveAuthoringSnapshotV1 derives one snapshot from immutable base plus role, predicate, dependency, result-contract and narrowing selections. Check/plan/run consume the same digest. Limits narrow fieldwise and widening or mismatched explicit context fails exit 2.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M2-007",
+            "R-M2-014"
+          ],
+          "tests": [
+            "T-M2-007",
+            "T-M2-014"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-103",
+          "correction": "One M2 buildEffectiveAuthoringSnapshotV1 derives configured roles, predicate, dependency mode, result contract and narrowing limits from an immutable base. Check/plan/run use the same effective content and digests. Stale explicit contexts fail exit 2; config edits produce a new derived snapshot rather than mutate the base.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-001",
+            "R-M5-008",
+            "R-M5-016"
+          ],
+          "tests": [
+            "T-M4-001",
+            "T-M5-008",
+            "T-M5-016"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-104",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-104",
+          "correction": "M2 owns pel-host-descriptors.ts and schema:candidate-v1 content. The runtime build regenerates the snapshot from those declarations. Handler-backed registry digests must match and all reachable/dynamically possible functions need matching handlers before dispatch.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-05-task-delivery/design.md"
+          ],
+          "requirements": [
+            "R-M2-013",
+            "R-M2-014",
+            "R-M1-017"
+          ],
+          "tests": [
+            "T-M2-013",
+            "T-M2-014",
+            "T-M1-017"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-104",
+          "correction": "The canonical declarative registry and schema source is M2 pel-host-descriptors.ts, including candidate-v1. M4/M5 attach handlers without changing records. Full pure registry digest must match the effective snapshot. Handler coverage is required only for reachable and conservatively possible dynamic calls, so unused future descriptors do not make M4 depend on later handlers.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-017",
+            "R-M5-001"
+          ],
+          "tests": [
+            "T-M4-017",
+            "T-M5-001"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-105",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-105",
+          "correction": "ExecutionBindingV1.resultContract binds an immutable final schema and generic/delivery-v1 classifier. M4 validates the last top-level done value before status interpretation, rejects duplicate/extra-key lookalikes as final-result-invalid exit 1, and returns needs-action exit 3 for valid repair exhaustion even without audit/publication milestones. Host evidence independently controls milestones.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-015",
+            "R-M4-023",
+            "R-M5-009"
+          ],
+          "tests": [
+            "T-M4-015",
+            "T-M4-023",
+            "T-M5-009"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-106",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-106",
+          "correction": "M2 owns side-effect-free src/pel-cli-fixture-main.ts, non-test invocation entry test/pel-cli-fixture-entry.ts, and real src/pel-cli-fixture.test.ts. M4 extends services only. scripts/build-pel-test-fixture.ts and root pretest build the excluded bundle before dependent tests. Mandatory fixture manifest binds assetRoot and assetManifestSha256 for checkout or copied assets.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-021",
+            "R-M5-008"
+          ],
+          "tests": [
+            "T-M4-021",
+            "T-M5-008"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        },
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-106",
+          "correction": "M6 consumes M2-owned pure fixture main, separate non-test invocation entry and separate test module. Every catalog invocation includes --fixture-manifest with required assetRoot, assetManifestSha256 and stateRoot. pretest:adoption uses M2 fixture builder; copied-asset hashes are validated. Configuration is consistently ForemanProjectV1.",
+          "files": [
+            "openspec/changes/foredi-06-adoption/design.md",
+            "openspec/changes/foredi-06-adoption/tasks.md",
+            "openspec/changes/foredi-06-adoption/catalog.json"
+          ],
+          "requirements": [
+            "R-M6-002",
+            "R-M6-019"
+          ],
+          "tests": [
+            "T-M6-002",
+            "T-M6-019"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-107",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-107",
+          "correction": "Deterministic qualification/list tests use M2 fixture entry with fake credential/network ports and mandatory manifest, outside provider package imports. Unexpected live access fails. pretest:providers builds the fixture. Real qualification remains separately invoked outside npm test.",
+          "files": [
+            "openspec/changes/foredi-03-model-adapters/design.md",
+            "openspec/changes/foredi-03-model-adapters/tasks.md",
+            "openspec/changes/foredi-03-model-adapters/catalog.json"
+          ],
+          "requirements": [
+            "R-M3-017",
+            "R-M3-018",
+            "R-M3-026"
+          ],
+          "tests": [
+            "T-M3-017",
+            "T-M3-018",
+            "T-M3-026"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-108",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-108",
+          "correction": "Generation and provider requests carry an opaque credentialProfileRef, resolved through injected CredentialPort. Output schema carries both ID and PelDataSchemaV1 content, including the bounded one-field generation envelope. No secret or reverse package import is needed.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-03-model-adapters/design.md"
+          ],
+          "requirements": [
+            "R-M2-015"
+          ],
+          "tests": [
+            "T-M2-015"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-108",
+          "correction": "M5 passes the exact resolved opaque credentialProfileRef to M3. The injected CredentialPort resolves that reference outside serialized secret material; T-M5-001 asserts selection and absence of secrets in receipts.",
+          "files": [
+            "openspec/changes/foredi-03-model-adapters/design.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md"
+          ],
+          "requirements": [
+            "R-M5-001"
+          ],
+          "tests": [
+            "T-M5-001"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        },
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-108",
+          "correction": "ProviderRequestV1 and ProviderIdentityV1 carry opaque credentialProfileRef. start/resume/observe/generation preserve the same account reference. An injected scoped CredentialPort resolves redacted material; serialization never contains secrets.",
+          "files": [
+            "openspec/changes/foredi-03-model-adapters/design.md",
+            "openspec/changes/foredi-03-model-adapters/catalog.json"
+          ],
+          "requirements": [
+            "R-M3-019",
+            "R-M3-027"
+          ],
+          "tests": [
+            "T-M3-019",
+            "T-M3-027"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-109",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-109",
+          "correction": "M2 owns makeForemanCli, authoring services, minimal fixture bootstrap, descriptor/schema records, and checkout build assertions. M4 extends those interfaces. M2 no longer needs M4 handlers or the M6 installer and specifies no launcher adapter.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M2-008",
+            "R-M2-013"
+          ],
+          "tests": [
+            "T-M2-008",
+            "T-M2-013"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        },
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-109",
+          "correction": "M2 owns makeForemanCli, minimal fixture bootstrap, shared descriptors and build hook. M4 only extends lifecycle behavior. Configuration writes the M4-owned project state-root registry and works without an M6 prefix; M6 projects it later. M4 final-result implementation lives in pel-run-result.ts rather than depending on M5 projection code.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md"
+          ],
+          "requirements": [
+            "R-M4-001",
+            "R-M4-021",
+            "R-M4-023"
+          ],
+          "tests": [
+            "T-M4-001",
+            "T-M4-021",
+            "T-M4-023"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-110",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-110",
+          "correction": "M2 owns fm/research descriptor/schema. M6 pel-research-host.ts implements bounded id/query/bundle/limit, research.read/optional vault.read, canonical read-only resources and M4 read-result preparation with zero provider/action reservation. Both research-prepare and parallel-read use that function.",
+          "files": [
+            "openspec/changes/foredi-06-adoption/design.md",
+            "openspec/changes/foredi-06-adoption/catalog.json",
+            "openspec/changes/foredi-06-adoption/tasks.md"
+          ],
+          "requirements": [
+            "R-M6-004",
+            "R-M6-013",
+            "R-M6-022"
+          ],
+          "tests": [
+            "T-M6-004",
+            "T-M6-013",
+            "T-M6-022"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-111",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-111",
+          "correction": "All twelve shell cohort files delete after every live caller migrates. No unspecified forwarding parser is retained. Tests scan packages/components/council/skills/scripts/env/.github for full paths and basenames, verify historical decoding and run retained Council preflight/review fixtures through existing compiled interfaces.",
+          "files": [
+            "openspec/changes/foredi-06-adoption/design.md",
+            "openspec/changes/foredi-06-adoption/catalog.json",
+            "openspec/changes/foredi-06-adoption/tasks.md"
+          ],
+          "requirements": [
+            "R-M6-009"
+          ],
+          "tests": [
+            "T-M6-009"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-112",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-112",
+          "correction": "Named pel-package-main.ts and package:pel command produce artifacts/foredi/<buildId>.tar.gz with runtime/assets/examples/docs/manifest layout. Sorted file hashes form canonical ManifestPayloadV1; buildId excludes manifest self-reference. Installer tests consume this exact producer output. TypeScript tar7.5.22 writer is pinned.",
+          "files": [
+            "openspec/changes/foredi-06-adoption/design.md",
+            "openspec/changes/foredi-06-adoption/catalog.json",
+            "openspec/changes/foredi-06-adoption/tasks.md"
+          ],
+          "requirements": [
+            "R-M6-001",
+            "R-M6-016",
+            "R-M6-023"
+          ],
+          "tests": [
+            "T-M6-001",
+            "T-M6-016",
+            "T-M6-023"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-113",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-113",
+          "correction": "Candidate membership is one full-file union: residual cohort, complete Pel/providers production, all new orchestration pel sources and every other added/modified production source once. Nonreplacement research/install/metric code is included. Surviving baseline instruction files count in full. Fixtures assert research inclusion and residual tokens.",
+          "files": [
+            "openspec/changes/foredi-06-adoption/design.md",
+            "openspec/changes/foredi-06-adoption/catalog.json",
+            "openspec/changes/foredi-06-adoption/tasks.md"
+          ],
+          "requirements": [
+            "R-M6-010",
+            "R-M6-011"
+          ],
+          "tests": [
+            "T-M6-010",
+            "T-M6-011"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-114",
+      "severity": "major",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-114",
+          "correction": "Every matrix locator was corrected. Mixed profile rows are classified as extensions and separate pure paper baseline rows have their own PV2-048 through PV2-056 fixtures. PixelRAG images for pages 12,14,17 were visually checked for nil/pairs, argument modes, and if/case.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md"
+          ],
+          "requirements": [
+            "R-M1-019"
+          ],
+          "tests": [
+            "T-M1-019"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-115",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-115",
+          "correction": "PelRunOptionsV1 explicitly carries dependencyMode, predicate selection and digest, and replay accounting. Start/resume/child contexts and continuations bind optionsDigest. Predicate request selection fields are declared. Ordered and automatic release fixtures differ. The predicate requirement now says literal string.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md",
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M1-009",
+            "R-M1-013",
+            "R-M1-014",
+            "R-M1-020"
+          ],
+          "tests": [
+            "T-M1-009",
+            "T-M1-013",
+            "T-M1-014",
+            "T-M1-020"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-116",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-116",
+          "correction": "Caret ownership is evaluation-context based, with resolved case identity shielding body syntax from outer pipe binding. Aliases and partial case closures follow the same rule. Case pipe chains receive the scrutinee at their leading call. Def-pipe fixtures bind z to 3.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md"
+          ],
+          "requirements": [
+            "R-M1-007",
+            "R-M1-008"
+          ],
+          "tests": [
+            "T-M1-007",
+            "T-M1-008"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-117",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-117",
+          "correction": "PelRunOptionsV1 explicitly carries dependencyMode, predicate selection and digest, and replay accounting. Start/resume/child contexts and continuations bind optionsDigest. Predicate request selection fields are declared. Ordered and automatic release fixtures differ. The predicate requirement now says literal string.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md",
+            "openspec/changes/foredi-02-plan-authoring/design.md",
+            "openspec/changes/foredi-04-durable-execution/design.md"
+          ],
+          "requirements": [
+            "R-M1-009",
+            "R-M1-013",
+            "R-M1-014",
+            "R-M1-020"
+          ],
+          "tests": [
+            "T-M1-009",
+            "T-M1-013",
+            "T-M1-014",
+            "T-M1-020"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-118",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-118",
+          "correction": "Greater-than terminates ordinary symbols but remains legal in keywords and the pipe token. a>b and >b fail at greater-than. U+25B7 is explicitly rejected outside strings/comments with PEL_LEX and a use-|> hint. Stable diagnostic enumeration includes both added codes.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md"
+          ],
+          "requirements": [
+            "R-M1-002",
+            "R-M1-010"
+          ],
+          "tests": [
+            "T-M1-002",
+            "T-M1-010",
+            "T-M1-021"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-119",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-119",
+          "correction": "T-M1-002 now contains only invalid lexical/grammar fixtures. Parse-valid caret, minus, Infinity and keyword cases moved to T-M1-021 with explicit parse-then-evaluate phases. PEL_CARET_SCOPE is raised during evaluation, including abstract evaluation when known.",
+          "files": [
+            "openspec/changes/foredi-01-pel-language/design.md"
+          ],
+          "requirements": [
+            "R-M1-002",
+            "R-M1-010"
+          ],
+          "tests": [
+            "T-M1-002",
+            "T-M1-010",
+            "T-M1-021"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-120",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-120",
+          "correction": "Successful generation explicitly exits 0. The value 3 is at preview.finalValueSummary.value.value, with kind known and a tagged number value. It is not an exit status.",
+          "files": [
+            "openspec/changes/foredi-02-plan-authoring/design.md"
+          ],
+          "requirements": [
+            "R-M2-008"
+          ],
+          "tests": [
+            "T-M2-008"
+          ],
+          "validation": "Actually run: openspec validate foredi-01-pel-language --strict and foredi-02-plan-authoring --strict passed; exact catalog/spec text and reciprocal scenario checks passed. Listed implementation tests remain planned and were not executed."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-121",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-121",
+          "correction": "M2 alone creates errors.ts and bootstrap usage/identity types. M3 extends the same full record: required _tag/message/retryClass and optional requestId/usage/fieldPath/providerIdentity/retryAfterMs. M6 uses ForemanProjectV1. Root owns release README dependency alignment.",
+          "files": [
+            "openspec/changes/foredi-03-model-adapters/design.md",
+            "openspec/changes/foredi-03-model-adapters/tasks.md",
+            "openspec/changes/foredi-03-model-adapters/catalog.json",
+            "openspec/changes/foredi-06-adoption/design.md"
+          ],
+          "requirements": [
+            "R-M3-025",
+            "R-M6-019"
+          ],
+          "tests": [
+            "T-M3-025",
+            "T-M6-019"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-122",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-122",
+          "correction": "T-M5-008 uses packages/orchestration/src/fixtures/pel-adoption/project-settings.json, while packaged examples/pel/project-settings.json remains an operator placeholder. Fixture invocation requires --fixture-manifest. ForemanProjectV1 is the canonical settings schema name.",
+          "files": [
+            "openspec/changes/foredi-04-durable-execution/design.md",
+            "openspec/changes/foredi-04-durable-execution/catalog.json",
+            "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+            "openspec/changes/foredi-04-durable-execution/tasks.md",
+            "openspec/changes/foredi-05-task-delivery/design.md",
+            "openspec/changes/foredi-05-task-delivery/catalog.json",
+            "openspec/changes/foredi-05-task-delivery/specs/foredi-05-task-delivery/spec.md",
+            "openspec/changes/foredi-05-task-delivery/tasks.md",
+            "openspec/changes/foredi-06-adoption/design.md"
+          ],
+          "requirements": [
+            "R-M4-021",
+            "R-M5-008"
+          ],
+          "tests": [
+            "T-M4-021",
+            "T-M5-008"
+          ],
+          "validation": "Actual static checks: strict OpenSpec validation passed for M4 and M5, and exact EARS/spec/catalog actions, expected results and reciprocal links passed. Listed runtime assertions remain planned and were not executed."
+        },
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-122",
+          "correction": "M6 consumes M2-owned pure fixture main, separate non-test invocation entry and separate test module. Every catalog invocation includes --fixture-manifest with required assetRoot, assetManifestSha256 and stateRoot. pretest:adoption uses M2 fixture builder; copied-asset hashes are validated. Configuration is consistently ForemanProjectV1.",
+          "files": [
+            "openspec/changes/foredi-06-adoption/design.md",
+            "openspec/changes/foredi-06-adoption/tasks.md",
+            "openspec/changes/foredi-06-adoption/catalog.json"
+          ],
+          "requirements": [
+            "R-M6-002",
+            "R-M6-019"
+          ],
+          "tests": [
+            "T-M6-002",
+            "T-M6-019"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-123",
+      "severity": "minor",
+      "status": "corrected-in-specification-host-checked",
+      "corrections": [
+        {
+          "review_file": "release-review.json",
+          "id": "RELEASE-123",
+          "correction": "Post-review-snapshot correction defines exact provider and adoption command outcome tables through one router mapping. Existing test IDs now assert codes; R/T-M3-026 and R/T-M6-021 cover tables. Successful unavailable/stale views exit0, invalid input2, failures1, unresolved remote/active legacy/incompatible rollback3, confirmed cancellation4; attached commands do not conceal unresolved outcomes with final5.",
+          "files": [
+            "openspec/changes/foredi-03-model-adapters/design.md",
+            "openspec/changes/foredi-03-model-adapters/catalog.json",
+            "openspec/changes/foredi-06-adoption/design.md",
+            "openspec/changes/foredi-06-adoption/catalog.json"
+          ],
+          "requirements": [
+            "R-M3-026",
+            "R-M6-021"
+          ],
+          "tests": [
+            "T-M3-017",
+            "T-M3-018",
+            "T-M3-026",
+            "T-M6-003",
+            "T-M6-007",
+            "T-M6-008",
+            "T-M6-017",
+            "T-M6-021"
+          ],
+          "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+        }
+      ]
+    }
+  ],
+  "host_source_findings": [
+    {
+      "review_file": "host-source-review.json",
+      "id": "HOST-001",
+      "correction": "Use the existing V1/V2 ReserveAction.reservationId (pel- plus SHA-256, within 128 characters), not a speculative new ledger key. V1 uses execute; evaluate requires an already admitted V2 evaluation child through executeChild. A V1-only predicate binding rejects before dispatch.",
+      "files": [
+        "openspec/changes/foredi-04-durable-execution/design.md",
+        "openspec/changes/foredi-04-durable-execution/catalog.json",
+        "openspec/changes/foredi-04-durable-execution/tasks.md"
+      ],
+      "requirements": [
+        "R-M4-019",
+        "R-M4-020"
+      ],
+      "tests": [
+        "T-M4-019",
+        "T-M4-020"
+      ],
+      "validation": "Actual source reads confirmed execute/executeChild and both existing ReserveAction shapes in execution-ledger.ts and execution-terminal-policy.ts. Strict/static specification checks passed. Ledger behavior assertions remain planned."
+    },
+    {
+      "review_file": "host-source-review.json",
+      "id": "HOST-002",
+      "correction": "Continuations, child state, canonical arguments/environment graphs, results, tool content and output use flushed hash-bound immutable artifact references. Keep existing journal bounds unchanged: 1048576-byte lines, depth64, 100000 nodes, 64MiB replay. Missing/corrupt referenced blobs refuse recovery before dispatch.",
+      "files": [
+        "openspec/changes/foredi-04-durable-execution/design.md",
+        "openspec/changes/foredi-04-durable-execution/catalog.json",
+        "openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md",
+        "openspec/changes/foredi-04-durable-execution/tasks.md"
+      ],
+      "requirements": [
+        "R-M4-022"
+      ],
+      "tests": [
+        "T-M4-022"
+      ],
+      "validation": "Actual static checks passed. Existing journal API source was read and the root agent supplied the bounds.ts source verification. Bound-edge, blob-flush crash and missing-artifact runtime assertions remain planned."
+    }
+  ]
+}

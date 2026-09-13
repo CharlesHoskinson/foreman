@@ -1,0 +1,434 @@
+{
+  "owner": "foredi_providers",
+  "findings": [
+    {
+      "review_file": "language-review.json",
+      "id": "BUILD-101",
+      "correction": "M6 consumes M2-owned pure fixture main, separate non-test invocation entry and separate test module. Every catalog invocation includes --fixture-manifest with required assetRoot, assetManifestSha256 and stateRoot. pretest:adoption uses M2 fixture builder; copied-asset hashes are validated. Configuration is consistently ForemanProjectV1.",
+      "files": [
+        "openspec/changes/foredi-06-adoption/design.md",
+        "openspec/changes/foredi-06-adoption/tasks.md",
+        "openspec/changes/foredi-06-adoption/catalog.json"
+      ],
+      "requirements": [
+        "R-M6-002",
+        "R-M6-019"
+      ],
+      "tests": [
+        "T-M6-002",
+        "T-M6-019"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-111",
+      "correction": "M6 consumes M2-owned pure fixture main, separate non-test invocation entry and separate test module. Every catalog invocation includes --fixture-manifest with required assetRoot, assetManifestSha256 and stateRoot. pretest:adoption uses M2 fixture builder; copied-asset hashes are validated. Configuration is consistently ForemanProjectV1.",
+      "files": [
+        "openspec/changes/foredi-06-adoption/design.md",
+        "openspec/changes/foredi-06-adoption/tasks.md",
+        "openspec/changes/foredi-06-adoption/catalog.json"
+      ],
+      "requirements": [
+        "R-M6-002",
+        "R-M6-019"
+      ],
+      "tests": [
+        "T-M6-002",
+        "T-M6-019"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-113",
+      "correction": "M6 consumes M2-owned pure fixture main, separate non-test invocation entry and separate test module. Every catalog invocation includes --fixture-manifest with required assetRoot, assetManifestSha256 and stateRoot. pretest:adoption uses M2 fixture builder; copied-asset hashes are validated. Configuration is consistently ForemanProjectV1.",
+      "files": [
+        "openspec/changes/foredi-06-adoption/design.md",
+        "openspec/changes/foredi-06-adoption/tasks.md",
+        "openspec/changes/foredi-06-adoption/catalog.json"
+      ],
+      "requirements": [
+        "R-M6-002",
+        "R-M6-019"
+      ],
+      "tests": [
+        "T-M6-002",
+        "T-M6-019"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-106",
+      "correction": "M6 consumes M2-owned pure fixture main, separate non-test invocation entry and separate test module. Every catalog invocation includes --fixture-manifest with required assetRoot, assetManifestSha256 and stateRoot. pretest:adoption uses M2 fixture builder; copied-asset hashes are validated. Configuration is consistently ForemanProjectV1.",
+      "files": [
+        "openspec/changes/foredi-06-adoption/design.md",
+        "openspec/changes/foredi-06-adoption/tasks.md",
+        "openspec/changes/foredi-06-adoption/catalog.json"
+      ],
+      "requirements": [
+        "R-M6-002",
+        "R-M6-019"
+      ],
+      "tests": [
+        "T-M6-002",
+        "T-M6-019"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-122",
+      "correction": "M6 consumes M2-owned pure fixture main, separate non-test invocation entry and separate test module. Every catalog invocation includes --fixture-manifest with required assetRoot, assetManifestSha256 and stateRoot. pretest:adoption uses M2 fixture builder; copied-asset hashes are validated. Configuration is consistently ForemanProjectV1.",
+      "files": [
+        "openspec/changes/foredi-06-adoption/design.md",
+        "openspec/changes/foredi-06-adoption/tasks.md",
+        "openspec/changes/foredi-06-adoption/catalog.json"
+      ],
+      "requirements": [
+        "R-M6-002",
+        "R-M6-019"
+      ],
+      "tests": [
+        "T-M6-002",
+        "T-M6-019"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "BUILD-102",
+      "correction": "Providers defines injected CredentialPort. Orchestration supplies live credential resolution. Provider source/tests never import orchestration. Provider schema imports point one-way to Pel, which never imports providers. CLI integration tests move to orchestration.",
+      "files": [
+        "openspec/changes/foredi-03-model-adapters/design.md",
+        "openspec/changes/foredi-03-model-adapters/tasks.md",
+        "openspec/changes/foredi-03-model-adapters/catalog.json"
+      ],
+      "requirements": [
+        "R-M3-016",
+        "R-M3-027"
+      ],
+      "tests": [
+        "T-M3-016",
+        "T-M3-027"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "PROVIDER-101",
+      "correction": "M2 alone creates errors.ts and bootstrap usage/identity types. M3 extends the same full record: required _tag/message/retryClass and optional requestId/usage/fieldPath/providerIdentity/retryAfterMs. M6 uses ForemanProjectV1. Root owns release README dependency alignment.",
+      "files": [
+        "openspec/changes/foredi-03-model-adapters/design.md",
+        "openspec/changes/foredi-03-model-adapters/tasks.md",
+        "openspec/changes/foredi-03-model-adapters/catalog.json",
+        "openspec/changes/foredi-06-adoption/design.md"
+      ],
+      "requirements": [
+        "R-M3-025",
+        "R-M6-019"
+      ],
+      "tests": [
+        "T-M3-025",
+        "T-M6-019"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-121",
+      "correction": "M2 alone creates errors.ts and bootstrap usage/identity types. M3 extends the same full record: required _tag/message/retryClass and optional requestId/usage/fieldPath/providerIdentity/retryAfterMs. M6 uses ForemanProjectV1. Root owns release README dependency alignment.",
+      "files": [
+        "openspec/changes/foredi-03-model-adapters/design.md",
+        "openspec/changes/foredi-03-model-adapters/tasks.md",
+        "openspec/changes/foredi-03-model-adapters/catalog.json",
+        "openspec/changes/foredi-06-adoption/design.md"
+      ],
+      "requirements": [
+        "R-M3-025",
+        "R-M6-019"
+      ],
+      "tests": [
+        "T-M3-025",
+        "T-M6-019"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-115",
+      "correction": "M2 alone creates errors.ts and bootstrap usage/identity types. M3 extends the same full record: required _tag/message/retryClass and optional requestId/usage/fieldPath/providerIdentity/retryAfterMs. M6 uses ForemanProjectV1. Root owns release README dependency alignment.",
+      "files": [
+        "openspec/changes/foredi-03-model-adapters/design.md",
+        "openspec/changes/foredi-03-model-adapters/tasks.md",
+        "openspec/changes/foredi-03-model-adapters/catalog.json",
+        "openspec/changes/foredi-06-adoption/design.md"
+      ],
+      "requirements": [
+        "R-M3-025",
+        "R-M6-019"
+      ],
+      "tests": [
+        "T-M3-025",
+        "T-M6-019"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "LANGUAGE-103",
+      "correction": "Retry selectors are quoted key data values [':rate-limited ':transport-disconnected]. Whole-list quote syntax and unquoted nil-pair lists fail before retry-body evaluation. M3 taxonomy fixture now states this distinction.",
+      "files": [
+        "openspec/changes/foredi-03-model-adapters/design.md",
+        "openspec/changes/foredi-03-model-adapters/catalog.json"
+      ],
+      "requirements": [
+        "R-M3-025"
+      ],
+      "tests": [
+        "T-M3-025"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "language-review.json",
+      "id": "DELIVERY-101",
+      "correction": "M6 keeps packaged project-settings.json as setup placeholders and the orchestration fixture path as deterministic settings. Exact fixture commands use the latter; M5 shared consumer update is owned by the execution author.",
+      "files": [
+        "openspec/changes/foredi-06-adoption/design.md",
+        "openspec/changes/foredi-06-adoption/catalog.json"
+      ],
+      "requirements": [
+        "R-M6-002",
+        "R-M6-019"
+      ],
+      "tests": [
+        "T-M6-002",
+        "T-M6-019"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-107",
+      "correction": "Deterministic qualification/list tests use M2 fixture entry with fake credential/network ports and mandatory manifest, outside provider package imports. Unexpected live access fails. pretest:providers builds the fixture. Real qualification remains separately invoked outside npm test.",
+      "files": [
+        "openspec/changes/foredi-03-model-adapters/design.md",
+        "openspec/changes/foredi-03-model-adapters/tasks.md",
+        "openspec/changes/foredi-03-model-adapters/catalog.json"
+      ],
+      "requirements": [
+        "R-M3-017",
+        "R-M3-018",
+        "R-M3-026"
+      ],
+      "tests": [
+        "T-M3-017",
+        "T-M3-018",
+        "T-M3-026"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-108",
+      "correction": "ProviderRequestV1 and ProviderIdentityV1 carry opaque credentialProfileRef. start/resume/observe/generation preserve the same account reference. An injected scoped CredentialPort resolves redacted material; serialization never contains secrets.",
+      "files": [
+        "openspec/changes/foredi-03-model-adapters/design.md",
+        "openspec/changes/foredi-03-model-adapters/catalog.json"
+      ],
+      "requirements": [
+        "R-M3-019",
+        "R-M3-027"
+      ],
+      "tests": [
+        "T-M3-019",
+        "T-M3-027"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-108",
+      "correction": "outputSchema is immutable id plus full PelDataSchemaV1 content. Explicit provider-subset lowering and duplicate-aware raw JSON parsing precede canonical schema-ordered Pel conversion and original validation. Envelopes cover pelSource and Boolean value; unknown/duplicate keys, number bounds and unsupported required structures have negative fixtures.",
+      "files": [
+        "openspec/changes/foredi-03-model-adapters/design.md",
+        "openspec/changes/foredi-03-model-adapters/catalog.json",
+        "openspec/changes/foredi-03-model-adapters/tasks.md"
+      ],
+      "requirements": [
+        "R-M3-009",
+        "R-M3-019",
+        "R-M3-028"
+      ],
+      "tests": [
+        "T-M3-009",
+        "T-M3-019",
+        "T-M3-028"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-114",
+      "correction": "Minimal and unknown keys are decode-stage UnsupportedCapability with exact fieldPath. Valid enum values outside per-profile sets are profile-validation failures. Fixtures enumerate Grok none/max, Opus none, Fable none, Astra none and Gemini none/xhigh/max; Sol accepts all declared efforts.",
+      "files": [
+        "openspec/changes/foredi-03-model-adapters/design.md",
+        "openspec/changes/foredi-03-model-adapters/catalog.json"
+      ],
+      "requirements": [
+        "R-M3-002",
+        "R-M3-021"
+      ],
+      "tests": [
+        "T-M3-002",
+        "T-M3-021"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "execution-review.json",
+      "id": "EXECUTION-116",
+      "correction": "Installed run/resume require already registered canonical stateRoot/repository/authority before accepting an override. Unregistered overrides exit 2 and require project configure. Installed manifests resolve prefix projection; checkout and fixture execution need no installation prefix. Rollback includes roots selected through registered overrides.",
+      "files": [
+        "openspec/changes/foredi-06-adoption/design.md",
+        "openspec/changes/foredi-06-adoption/catalog.json",
+        "openspec/changes/foredi-06-adoption/tasks.md"
+      ],
+      "requirements": [
+        "R-M6-017",
+        "R-M6-019"
+      ],
+      "tests": [
+        "T-M6-017",
+        "T-M6-019"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-110",
+      "correction": "M2 owns fm/research descriptor/schema. M6 pel-research-host.ts implements bounded id/query/bundle/limit, research.read/optional vault.read, canonical read-only resources and M4 read-result preparation with zero provider/action reservation. Both research-prepare and parallel-read use that function.",
+      "files": [
+        "openspec/changes/foredi-06-adoption/design.md",
+        "openspec/changes/foredi-06-adoption/catalog.json",
+        "openspec/changes/foredi-06-adoption/tasks.md"
+      ],
+      "requirements": [
+        "R-M6-004",
+        "R-M6-013",
+        "R-M6-022"
+      ],
+      "tests": [
+        "T-M6-004",
+        "T-M6-013",
+        "T-M6-022"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-111",
+      "correction": "All twelve shell cohort files delete after every live caller migrates. No unspecified forwarding parser is retained. Tests scan packages/components/council/skills/scripts/env/.github for full paths and basenames, verify historical decoding and run retained Council preflight/review fixtures through existing compiled interfaces.",
+      "files": [
+        "openspec/changes/foredi-06-adoption/design.md",
+        "openspec/changes/foredi-06-adoption/catalog.json",
+        "openspec/changes/foredi-06-adoption/tasks.md"
+      ],
+      "requirements": [
+        "R-M6-009"
+      ],
+      "tests": [
+        "T-M6-009"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-112",
+      "correction": "Named pel-package-main.ts and package:pel command produce artifacts/foredi/<buildId>.tar.gz with runtime/assets/examples/docs/manifest layout. Sorted file hashes form canonical ManifestPayloadV1; buildId excludes manifest self-reference. Installer tests consume this exact producer output. TypeScript tar7.5.22 writer is pinned.",
+      "files": [
+        "openspec/changes/foredi-06-adoption/design.md",
+        "openspec/changes/foredi-06-adoption/catalog.json",
+        "openspec/changes/foredi-06-adoption/tasks.md"
+      ],
+      "requirements": [
+        "R-M6-001",
+        "R-M6-016",
+        "R-M6-023"
+      ],
+      "tests": [
+        "T-M6-001",
+        "T-M6-016",
+        "T-M6-023"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-113",
+      "correction": "Candidate membership is one full-file union: residual cohort, complete Pel/providers production, all new orchestration pel sources and every other added/modified production source once. Nonreplacement research/install/metric code is included. Surviving baseline instruction files count in full. Fixtures assert research inclusion and residual tokens.",
+      "files": [
+        "openspec/changes/foredi-06-adoption/design.md",
+        "openspec/changes/foredi-06-adoption/catalog.json",
+        "openspec/changes/foredi-06-adoption/tasks.md"
+      ],
+      "requirements": [
+        "R-M6-010",
+        "R-M6-011"
+      ],
+      "tests": [
+        "T-M6-010",
+        "T-M6-011"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-123",
+      "correction": "Post-review-snapshot correction defines exact provider and adoption command outcome tables through one router mapping. Existing test IDs now assert codes; R/T-M3-026 and R/T-M6-021 cover tables. Successful unavailable/stale views exit0, invalid input2, failures1, unresolved remote/active legacy/incompatible rollback3, confirmed cancellation4; attached commands do not conceal unresolved outcomes with final5.",
+      "files": [
+        "openspec/changes/foredi-03-model-adapters/design.md",
+        "openspec/changes/foredi-03-model-adapters/catalog.json",
+        "openspec/changes/foredi-06-adoption/design.md",
+        "openspec/changes/foredi-06-adoption/catalog.json"
+      ],
+      "requirements": [
+        "R-M3-026",
+        "R-M6-021"
+      ],
+      "tests": [
+        "T-M3-017",
+        "T-M3-018",
+        "T-M3-026",
+        "T-M6-003",
+        "T-M6-007",
+        "T-M6-008",
+        "T-M6-017",
+        "T-M6-021"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    },
+    {
+      "review_file": "release-review.json",
+      "id": "RELEASE-004",
+      "correction": "Initial review finding, completed after the revised-review snapshot: Post-review-snapshot correction defines exact provider and adoption command outcome tables through one router mapping. Existing test IDs now assert codes; R/T-M3-026 and R/T-M6-021 cover tables. Successful unavailable/stale views exit0, invalid input2, failures1, unresolved remote/active legacy/incompatible rollback3, confirmed cancellation4; attached commands do not conceal unresolved outcomes with final5.",
+      "files": [
+        "openspec/changes/foredi-03-model-adapters/design.md",
+        "openspec/changes/foredi-03-model-adapters/catalog.json",
+        "openspec/changes/foredi-06-adoption/design.md",
+        "openspec/changes/foredi-06-adoption/catalog.json"
+      ],
+      "requirements": [
+        "R-M3-026",
+        "R-M6-021"
+      ],
+      "tests": [
+        "T-M3-026",
+        "T-M6-021"
+      ],
+      "validation": "Actual checks passed: openspec validate foredi-03-model-adapters --strict; openspec validate foredi-06-adoption --strict; exact catalog/spec bodies, reciprocal IDs, fixture-manifest arguments, local links and git diff --check. Referenced TypeScript tests/builds are planned assertions, not executed runtime evidence."
+    }
+  ]
+}

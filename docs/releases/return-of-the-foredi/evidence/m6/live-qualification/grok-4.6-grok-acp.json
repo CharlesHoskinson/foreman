@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "outcome": "needs-action",
+  "code": "AuthenticationRequired",
+  "message": "The selected credential environment entry is unavailable"
+}

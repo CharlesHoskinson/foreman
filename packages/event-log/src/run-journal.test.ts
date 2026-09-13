@@ -2384,3 +2384,20 @@ describe("inspectResumeAttemptBudget", () => {
     });
   });
 });
+
+describe('Pel admission uses the existing resume budget',()=>{
+ it('recognizes only the complete matching Pel admission identity without a prompt',()=>{
+  const valid=record(1,{type:'pel.run.v1',lane:String(laneId),payload:{schemaVersion:1,attempt:identity(1)}});
+  const budget=inspectResumeAttemptBudget([valid],identity(1),2);assert.equal(isResumeAttemptFailure(budget),false);
+  for(const attempt of [{...identity(1),runId:'foreign'},{...identity(1),laneId:'foreign'},{...identity(1),attemptId:0},{...identity(1),extra:1},1]){
+   const result=inspectResumeAttemptBudget([record(1,{...valid.event,payload:{schemaVersion:1,attempt}})],identity(1),2);assert.equal(isResumeAttemptFailure(result),true);
+  }
+ });
+ it('reserves once against a Pel admission and preserves its original attempt',async()=>{
+  await withStateRoot(async root=>{
+   await Effect.runPromise(appendEffect(root,{type:'pel.run.v1',lane:String(laneId),payload:{schemaVersion:1,attempt:identity(1)}}));
+   const reservation=await Effect.runPromise(reserveEffect(root,identity(1),1));assert.equal(reservation.resumeCount,1);assert.deepEqual(reservation.attemptIdentity,identity(1));
+   const exhausted=await Effect.runPromise(Effect.either(reserveEffect(root,identity(1),1)));assert.equal(exhausted._tag,'Left');assert.equal(readRecords(root).some(r=>r.event.type==='prompt'),false);
+  });
+ });
+});

@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 # @description Self-contained foreman-launch resolver for hard-mode scripts
-#   (worker-run.sh and friends), which live one level deeper
-#   (skills/foreman/scripts/lib) than lane-run.sh (skills/foreman/scripts).
-#   Deliberately independent of lane-run.sh's own lane_resolve_launcher
-#   (lane-run.sh:542-564) -- lane-run.sh is frozen and this file must not
-#   depend on it (SCRIPT_DIR/LANE_PLATFORM globals it relies on) to stay
+#   located under skills/foreman/scripts/lib. It does not depend on a caller's
+#   SCRIPT_DIR or LANE_PLATFORM globals and therefore remains
 #   reusable from a fresh sourcing context. Precedence identical in spirit:
 #   FOREMAN_LAUNCH env override (AUTHORITATIVE when set -- non-executable or
 #   missing means the launcher is ABSENT, never a fallthrough to the probes

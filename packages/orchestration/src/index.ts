@@ -614,26 +614,8 @@ export {
   type WorktreeRestoreSeams,
 } from "./resume-worktree-restore.js";
 
-export {
-  QUEUE_SUBMIT_FAILURE_BRAND,
-  queueSubmitFailure,
-  isQueueSubmitFailure,
-  QueueSubmitter,
-  buildLaneRunRoundVector,
-  RESUME_QUEUE_EXECUTION_FAILURE_BRAND,
-  resumeQueueExecutionFailure,
-  isResumeQueueExecutionFailure,
-  runResumeQueueExecution,
-  makeLiveQueueSubmitter,
-  makeStubQueueSubmitter,
-  type QueueSubmissionV1,
-  type QueueSubmitFailureReason,
-  type QueueSubmitFailure,
-  type ResumeQueueExecutionResultV1,
-  type ResumeQueueExecutionFailureReason,
-  type ResumeQueueExecutionFailure,
-  type RunResumeQueueExecutionInput,
-  type LiveQueueSubmitterOptions,
+export { activeLegacyRun, runResumeQueueExecution,
+ type ActiveLegacyRun, type RunResumeQueueExecutionInput, type PelResumeQueueExecutionInput,
 } from "./resume-queue-execution.js";
 
 export {
@@ -657,7 +639,6 @@ export {
   makeLiveRunDiscovery,
   makeLiveRunLease,
   makeLiveSupervisorServices,
-  defaultSupervisorPaths,
   type LiveSupervisorContext,
   type SupervisorLiveLayer,
 } from "./supervisor-live-services.js";
@@ -964,3 +945,20 @@ export {
   type RootlessEngineQualificationReasonV1,
   type RootlessEngineQualificationResultV1,
 } from "./rootless-engine-qualification.js";
+
+export { runProgram, withPelRunOwner, signalPelRunCancellation } from './pel-runner.js';
+export { resumeProgram, loadPelRecovery, readPelRunResult } from './pel-recovery.js';
+export { pelStatus, cancelPelRun, readPelExecutionBinding } from './pel-run-status.js';
+export { decodeForemanProjectV1, configurePelSnapshot, deriveExecutionBinding } from './pel-project-config.js';
+export { makeLivePelProjectServices } from './pel-project-live.js';
+export { makePelLifecycleServices } from './pel-lifecycle-services.js';
+export { makeLivePelLifecycleServices } from './pel-lifecycle-live.js';
+export { classifyPelFinalResult, decodeRunResultV1 } from './pel-run-result.js';
+export { PelSupervisorRecovery } from './supervisor.js';
+export {
+  PelRuntime, decodeExecutionBindingV1, decodeRunStatusV1,
+  type ForemanProjectV1, type ExecutionBindingV1, type RunStatusV1, type RunResultV1,
+  type RunFailure, type RunServices, type PelRuntimePorts, type HostContextV1,
+  type ResourceSetV1, type PreparedHostEffectV1, type HostDispatchOutcomeV1,
+  type PelRecoveryDecisionV1, type PelRevisionDecisionV1,
+} from './pel-run-contract.js';

@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "milestone": "M6",
+  "release": "Return of the ForeDi",
+  "measuredAt": "2026-09-13T13:32:55.230Z",
+  "baselineCommit": "6c1515ecf3d28ccbea6205731e9142aede7a8110",
+  "nodeVersion": "v24.18.1",
+  "features": 6,
+  "requirements": 23,
+  "catalogScenarios": 23,
+  "sourceBoundary": "Validated working tree before the M6 implementation commit. Final archive, metric, and graph evidence must bind the committed candidate separately.",
+  "runtimeSha256": "cda8fe6ec4005f3136c7eac7636254f6f4c712ebec2427e3c3e90541498cbfee",
+  "checks": [
+    {
+      "id": "workspace-verification",
+      "command": "npm run verify",
+      "exitCode": 0,
+      "output": "docs/releases/return-of-the-foredi/evidence/m6/workspace-verification.txt",
+      "outputSha256": "7db27b9984810bb234ea657850cf5e4eb3e96898c9de5057e88013aed8084b62",
+      "tests": 3209,
+      "passed": 3202,
+      "failed": 0,
+      "skipped": 7
+    },
+    {
+      "id": "runtime-build",
+      "command": "npm run build",
+      "exitCode": 0,
+      "output": "docs/releases/return-of-the-foredi/evidence/m6/runtime-build.txt",
+      "outputSha256": "ed3c84a7222acbf823229734fb278066dac32c142a148f140d837f3779a37296"
+    },
+    {
+      "id": "adoption-verification",
+      "command": "npm run test:adoption",
+      "exitCode": 0,
+      "output": "docs/releases/return-of-the-foredi/evidence/m6/adoption-verification.txt",
+      "outputSha256": "9fdf861774655092757c9be0c5e2817eb92cfd7774f48232e2faf110c78834d1",
+      "tests": 139,
+      "passed": 139,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "install-integrity",
+      "command": "node skills/foreman/runtime/dist/architecture-policy.js verify-install --skill-root /home/charl/fm-wt/foreman-dsl-release/skills/foreman",
+      "exitCode": 0,
+      "output": "docs/releases/return-of-the-foredi/evidence/m6/install-integrity.json",
+      "outputSha256": "aa55a6d9bcfdaf4198f08a3e42b0e32eae0101792979d1e2f9704b0f6c489c58"
+    },
+    {
+      "id": "strict-openspec",
+      "command": "openspec validate <each of six foredi changes> --strict",
+      "exitCode": 0,
+      "output": "docs/releases/return-of-the-foredi/evidence/m6/strict-openspec.json",
+      "outputSha256": "1a47aebc3caa6663108ffa9e8aaa2b5cb12f0dbad141548b8f5ab3084517fe01"
+    },
+    {
+      "id": "final-audit-regression",
+      "command": "node --import tsx --test packages/orchestration/src/pel-adoption.test.ts packages/orchestration/src/pel-adoption-terminal.test.ts packages/orchestration/src/pel-install.test.ts packages/orchestration/src/pel-install-admission.test.ts packages/orchestration/src/pel-recovery.test.ts",
+      "exitCode": 0,
+      "output": "docs/releases/return-of-the-foredi/evidence/m6/final-audit-regression.txt",
+      "outputSha256": "0e2f73ef95c37d7cbd570acd8420be11160870d40011f241104016119d5ff6a1",
+      "tests": 42,
+      "passed": 42,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "registration-regression",
+      "command": "node --import tsx --test --test-name-pattern='project (commands|command|register)' packages/orchestration/src/fm-session-main.test.ts",
+      "exitCode": 0,
+      "output": "docs/releases/return-of-the-foredi/evidence/m6/registration-regression.txt",
+      "outputSha256": "e4fe176a7280b0ee638cdd27d19e523e52898e9da795a988634a56909ff036bd",
+      "tests": 5,
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "startup-trace-fixture",
+      "command": "node --import tsx --test packages/orchestration/src/pel-simplification*.test.ts",
+      "exitCode": 0,
+      "output": "docs/releases/return-of-the-foredi/evidence/m6/startup-trace-fixture.txt",
+      "outputSha256": "375694b63a64456477eaf8313dc9aa4fdddecb31d320e1a041cdc2c7d8301947",
+      "tests": 18,
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "acceptance": {
+    "sourceVerification": true,
+    "actualArchive": null,
+    "simplificationTargets": null,
+    "finalGraph": null,
+    "numericalRelease": null
+  },
+  "limitations": [
+    "Seven original platform/environment tests remain skipped.",
+    "Finite fixture tests do not establish live provider account readiness.",
+    "The fresh exact qualification attempts retain their dated earlier bundle identity.",
+    "A valid package does not satisfy unmet numerical simplification or inherited publication obligations."
+  ]
+}

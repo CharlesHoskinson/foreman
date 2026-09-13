@@ -1,13 +1,35 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/core" },
-    { "path": "packages/event-log" },
-    { "path": "packages/policy" },
-    { "path": "packages/orchestration" },
-    { "path": "packages/graph-store" },
-    { "path": "packages/session-store" },
-    { "path": "packages/memory" },
-    { "path": "packages/launcher" }
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "packages/event-log"
+    },
+    {
+      "path": "packages/policy"
+    },
+    {
+      "path": "packages/orchestration"
+    },
+    {
+      "path": "packages/graph-store"
+    },
+    {
+      "path": "packages/session-store"
+    },
+    {
+      "path": "packages/memory"
+    },
+    {
+      "path": "packages/launcher"
+    },
+    {
+      "path": "packages/pel"
+    },
+    {
+      "path": "packages/providers"
+    }
   ]
 }

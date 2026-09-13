@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "releaseName": "Return of the ForeDi",
+  "version": null,
+  "authoritySource": "openspec/changes/v050-release-program/coverage.toml",
+  "fixedMeasurementSource": "docs/release-metrics/foredi-baseline.json",
+  "classificationRule": "Retained, replaced, or deferred describes scope disposition. It does not mark the source obligation complete.",
+  "entries": [
+    {
+      "id": "v050-release-program",
+      "source": "openspec/changes/v050-release-program/tasks.md",
+      "sourceSha256": "37d340ba58626c3763a9f827db9b740ba5469b16312d7eb162015919a2afb362",
+      "disposition": "retained",
+      "status": "open",
+      "reason": "The existing program retains numerical-version and publication authority. ForeDi membership is registered as a dependency; reconciliation remains required.",
+      "remaining": [
+        "Fifteen program exit predicates and cold audit remain governed by the original program.",
+        "The v0.5 bootstrap merge does not complete v0.5."
+      ]
+    },
+    {
+      "id": "lane-runtime-typescript",
+      "source": "openspec/changes/lane-runtime-typescript/tasks.md",
+      "sourceSha256": "853e6926bc6792d352dfc0e8243e65353f100ea7b61d18f42500c3d157568729",
+      "disposition": "retained",
+      "status": "open",
+      "reason": "M3 transports and M4/M5 host operations replace selected launch and delivery behaviors. Legacy caller retirement requires complete behavioral parity.",
+      "remaining": [
+        "Preserve credential profiles, containment, ownership, cleanup, and alerts through caller migration.",
+        "Retain active legacy controllers and historical decoding; complete case mapping and required host checks."
+      ]
+    },
+    {
+      "id": "workflow-weight-reduction",
+      "source": "openspec/changes/workflow-weight-reduction/tasks.md",
+      "sourceSha256": "a6118d25bbefbe6db73886d8c935dc77c2125ef22dc0851ed8637d55fb94df6a",
+      "disposition": "retained",
+      "status": "open",
+      "reason": "Pel supplies native control flow and exact candidate verification reuse. The original performance, doctrine, and landing obligations remain separately measurable.",
+      "remaining": [
+        "Reconcile verification reuse, gate tiers, landing, instrumentation, and doctrine obligations against their original assertions.",
+        "Do not equate M5 delivery fixtures with completion of the original benchmark or numerical reduction targets."
+      ]
+    }
+  ]
+}

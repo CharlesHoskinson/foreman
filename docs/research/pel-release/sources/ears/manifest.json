@@ -1,0 +1,11 @@
+{
+  "url": "https://alistairmavin.com/ears/",
+  "title": "Alistair Mavin EARS official guide",
+  "captured_at": "2026-09-13T03:47:31.818577+00:00",
+  "fetcher": "Scrapling 0.4.15 Fetcher",
+  "http_status": 200,
+  "files": {
+    "official-guide.txt": "7b8d2adaafaaa641d43532740937d6f6212956103c9226a87e7fdb947bfba808",
+    "official-guide.html": "09edad0c999923319d3400b079af5083819191dcf34f606dfe188268683edc41"
+  }
+}

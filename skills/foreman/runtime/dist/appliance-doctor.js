@@ -30800,6 +30800,178 @@ function parseLsTreeLine(line) {
   };
 }
 
+// packages/policy/src/install-verify-decode.ts
+function fail8(reason) {
+  return { ok: false, reason };
+}
+function normalizeRelativePath(p) {
+  if (p.length === 0) return null;
+  if (p.startsWith("/") || p.includes("\\") || p.includes("\0")) return null;
+  if (p.includes("..")) return null;
+  let s = p;
+  while (s.startsWith("./")) s = s.slice(2);
+  if (s.includes("//")) return null;
+  return s;
+}
+var PEL_AUTHORING_ASSET_PATH = "assets/pel/default-authoring-snapshot.json";
+var REQUIRED_V2 = /* @__PURE__ */ new Set([
+  "dist/architecture-policy.js",
+  "dist/credential-profile-lane.js",
+  "dist/destruction-guard.js",
+  "dist/execution-guard.js",
+  "dist/lane-queue.js",
+  "dist/lane-round.js",
+  "dist/vendor-preflight.js"
+]);
+function decodeArtifactObject(aobj) {
+  const aUnk = rejectUnknownKeys(aobj, [
+    "byteLength",
+    "id",
+    "relativePath",
+    "sha256"
+  ]);
+  if (aUnk) return { ok: false, reason: "manifest_unknown_field" };
+  if (aobj["id"] !== void 0) {
+    const id = expectString(aobj["id"]);
+    if (isCoreFailure(id) || id.length === 0) {
+      return { ok: false, reason: "manifest_schema" };
+    }
+  }
+  const relativePathRaw = expectString(aobj["relativePath"]);
+  if (isCoreFailure(relativePathRaw)) {
+    return { ok: false, reason: "manifest_relative_path" };
+  }
+  const relativePath = normalizeRelativePath(relativePathRaw);
+  if (relativePath === null || relativePath !== PEL_AUTHORING_ASSET_PATH && !relativePath.startsWith("dist/")) {
+    return { ok: false, reason: "manifest_relative_path" };
+  }
+  const rest = relativePath === PEL_AUTHORING_ASSET_PATH ? "default-authoring-snapshot.json" : relativePath.slice("dist/".length);
+  if (rest.length === 0 || rest.includes("/") || rest.includes("\\") || rest.includes("..")) {
+    return { ok: false, reason: "manifest_relative_path" };
+  }
+  const sha256 = expectString(aobj["sha256"]);
+  if (isCoreFailure(sha256) || !isSha256Hex(sha256)) {
+    return { ok: false, reason: "manifest_sha256" };
+  }
+  const byteLength = expectNumber(aobj["byteLength"]);
+  if (isCoreFailure(byteLength) || !Number.isInteger(byteLength) || byteLength < 0) {
+    return { ok: false, reason: "manifest_byte_length" };
+  }
+  return {
+    ok: true,
+    artifact: { relativePath, sha256, byteLength }
+  };
+}
+function decodeInstallManifestText(text) {
+  if (!text.endsWith("\n")) {
+    return fail8("manifest_missing_trailing_lf");
+  }
+  const body = text.slice(0, -1);
+  const parsed = parseJsonRejectDuplicateKeys(body);
+  if (isCoreFailure(parsed)) {
+    return fail8("manifest_invalid_json");
+  }
+  let canonicalBody;
+  try {
+    canonicalBody = canonicalize(parsed);
+  } catch {
+    return fail8("manifest_non_canonical");
+  }
+  if (canonicalBody !== body) {
+    return fail8("manifest_non_canonical");
+  }
+  const obj = expectObject(parsed);
+  if (isCoreFailure(obj)) return fail8("manifest_schema");
+  const schemaVersion = obj["schemaVersion"];
+  if (schemaVersion === 1) {
+    const unk = rejectUnknownKeys(obj, [
+      "bundle",
+      "nodeRange",
+      "schemaVersion"
+    ]);
+    if (unk) return fail8("manifest_unknown_field");
+    const nodeRange = expectString(obj["nodeRange"]);
+    if (isCoreFailure(nodeRange) || nodeRange !== ">=24 <25") {
+      return fail8("manifest_node_range");
+    }
+    const bundle = expectObject(obj["bundle"]);
+    if (isCoreFailure(bundle)) return fail8("manifest_schema");
+    const bUnk = rejectUnknownKeys(bundle, [
+      "byteLength",
+      "relativePath",
+      "sha256"
+    ]);
+    if (bUnk) return fail8("manifest_unknown_field");
+    const relativePathRaw = expectString(bundle["relativePath"]);
+    if (isCoreFailure(relativePathRaw) || relativePathRaw !== "dist/destruction-guard.js") {
+      return fail8("manifest_relative_path");
+    }
+    const sha256 = expectString(bundle["sha256"]);
+    if (isCoreFailure(sha256) || !isSha256Hex(sha256)) {
+      return fail8("manifest_sha256");
+    }
+    const byteLength = expectNumber(bundle["byteLength"]);
+    if (isCoreFailure(byteLength) || !Number.isInteger(byteLength) || byteLength < 0) {
+      return fail8("manifest_byte_length");
+    }
+    return {
+      ok: true,
+      manifest: {
+        schemaVersion: 1,
+        nodeRange,
+        artifacts: [{ relativePath: relativePathRaw, sha256, byteLength }],
+        canonicalBody
+      }
+    };
+  }
+  if (schemaVersion === 2) {
+    const unk = rejectUnknownKeys(obj, [
+      "artifacts",
+      "nodeRange",
+      "schemaVersion"
+    ]);
+    if (unk) return fail8("manifest_unknown_field");
+    const sv = expectExactLiteral(obj["schemaVersion"], 2);
+    if (isCoreFailure(sv)) return fail8("manifest_schema");
+    const nodeRange = expectString(obj["nodeRange"]);
+    if (isCoreFailure(nodeRange) || nodeRange !== ">=24 <25") {
+      return fail8("manifest_node_range");
+    }
+    const artifactsRaw = expectArray(obj["artifacts"]);
+    if (isCoreFailure(artifactsRaw) || artifactsRaw.length === 0) {
+      return fail8("manifest_schema");
+    }
+    const artifacts = [];
+    const seen = /* @__PURE__ */ new Set();
+    const required = new Set(REQUIRED_V2);
+    for (const item of artifactsRaw) {
+      const aobj = expectObject(item);
+      if (isCoreFailure(aobj)) return fail8("manifest_schema");
+      const art = decodeArtifactObject(aobj);
+      if (!art.ok) return fail8(art.reason);
+      if (seen.has(art.artifact.relativePath)) {
+        return fail8("manifest_duplicate_path");
+      }
+      seen.add(art.artifact.relativePath);
+      artifacts.push(art.artifact);
+      required.delete(art.artifact.relativePath);
+    }
+    if (required.size > 0) {
+      return fail8("manifest_missing_required_artifact");
+    }
+    return {
+      ok: true,
+      manifest: {
+        schemaVersion: 2,
+        nodeRange,
+        artifacts,
+        canonicalBody
+      }
+    };
+  }
+  return fail8("manifest_schema");
+}
+
 // packages/policy/src/architecture-ts-inspect.ts
 var import_parser = __toESM(require_lib(), 1);
 var VALUE_TS_WRAPPERS = /* @__PURE__ */ new Set([
@@ -31121,173 +31293,6 @@ var liveArchitectureGit = Layer_exports.succeed(ArchitectureGit, {
 // packages/policy/src/install-verify.ts
 import { join as join3 } from "node:path";
 
-// packages/policy/src/install-verify-decode.ts
-function fail8(reason) {
-  return { ok: false, reason };
-}
-function normalizeRelativePath(p) {
-  if (p.length === 0) return null;
-  if (p.startsWith("/") || p.includes("\\") || p.includes("\0")) return null;
-  if (p.includes("..")) return null;
-  let s = p;
-  while (s.startsWith("./")) s = s.slice(2);
-  if (s.includes("//")) return null;
-  return s;
-}
-var REQUIRED_V2 = /* @__PURE__ */ new Set([
-  "dist/architecture-policy.js",
-  "dist/credential-profile-lane.js",
-  "dist/destruction-guard.js",
-  "dist/execution-guard.js",
-  "dist/lane-queue.js",
-  "dist/lane-round.js",
-  "dist/vendor-preflight.js"
-]);
-function decodeArtifactObject(aobj) {
-  const aUnk = rejectUnknownKeys(aobj, [
-    "byteLength",
-    "id",
-    "relativePath",
-    "sha256"
-  ]);
-  if (aUnk) return { ok: false, reason: "manifest_unknown_field" };
-  if (aobj["id"] !== void 0) {
-    const id = expectString(aobj["id"]);
-    if (isCoreFailure(id) || id.length === 0) {
-      return { ok: false, reason: "manifest_schema" };
-    }
-  }
-  const relativePathRaw = expectString(aobj["relativePath"]);
-  if (isCoreFailure(relativePathRaw)) {
-    return { ok: false, reason: "manifest_relative_path" };
-  }
-  const relativePath = normalizeRelativePath(relativePathRaw);
-  if (relativePath === null || !relativePath.startsWith("dist/")) {
-    return { ok: false, reason: "manifest_relative_path" };
-  }
-  const rest = relativePath.slice("dist/".length);
-  if (rest.length === 0 || rest.includes("/") || rest.includes("\\") || rest.includes("..")) {
-    return { ok: false, reason: "manifest_relative_path" };
-  }
-  const sha256 = expectString(aobj["sha256"]);
-  if (isCoreFailure(sha256) || !isSha256Hex(sha256)) {
-    return { ok: false, reason: "manifest_sha256" };
-  }
-  const byteLength = expectNumber(aobj["byteLength"]);
-  if (isCoreFailure(byteLength) || !Number.isInteger(byteLength) || byteLength < 0) {
-    return { ok: false, reason: "manifest_byte_length" };
-  }
-  return {
-    ok: true,
-    artifact: { relativePath, sha256, byteLength }
-  };
-}
-function decodeInstallManifestText(text) {
-  if (!text.endsWith("\n")) {
-    return fail8("manifest_missing_trailing_lf");
-  }
-  const body = text.slice(0, -1);
-  const parsed = parseJsonRejectDuplicateKeys(body);
-  if (isCoreFailure(parsed)) {
-    return fail8("manifest_invalid_json");
-  }
-  let canonicalBody;
-  try {
-    canonicalBody = canonicalize(parsed);
-  } catch {
-    return fail8("manifest_non_canonical");
-  }
-  if (canonicalBody !== body) {
-    return fail8("manifest_non_canonical");
-  }
-  const obj = expectObject(parsed);
-  if (isCoreFailure(obj)) return fail8("manifest_schema");
-  const schemaVersion = obj["schemaVersion"];
-  if (schemaVersion === 1) {
-    const unk = rejectUnknownKeys(obj, ["bundle", "nodeRange", "schemaVersion"]);
-    if (unk) return fail8("manifest_unknown_field");
-    const nodeRange = expectString(obj["nodeRange"]);
-    if (isCoreFailure(nodeRange) || nodeRange !== ">=24 <25") {
-      return fail8("manifest_node_range");
-    }
-    const bundle = expectObject(obj["bundle"]);
-    if (isCoreFailure(bundle)) return fail8("manifest_schema");
-    const bUnk = rejectUnknownKeys(bundle, [
-      "byteLength",
-      "relativePath",
-      "sha256"
-    ]);
-    if (bUnk) return fail8("manifest_unknown_field");
-    const relativePathRaw = expectString(bundle["relativePath"]);
-    if (isCoreFailure(relativePathRaw) || relativePathRaw !== "dist/destruction-guard.js") {
-      return fail8("manifest_relative_path");
-    }
-    const sha256 = expectString(bundle["sha256"]);
-    if (isCoreFailure(sha256) || !isSha256Hex(sha256)) {
-      return fail8("manifest_sha256");
-    }
-    const byteLength = expectNumber(bundle["byteLength"]);
-    if (isCoreFailure(byteLength) || !Number.isInteger(byteLength) || byteLength < 0) {
-      return fail8("manifest_byte_length");
-    }
-    return {
-      ok: true,
-      manifest: {
-        schemaVersion: 1,
-        nodeRange,
-        artifacts: [{ relativePath: relativePathRaw, sha256, byteLength }],
-        canonicalBody
-      }
-    };
-  }
-  if (schemaVersion === 2) {
-    const unk = rejectUnknownKeys(obj, [
-      "artifacts",
-      "nodeRange",
-      "schemaVersion"
-    ]);
-    if (unk) return fail8("manifest_unknown_field");
-    const sv = expectExactLiteral(obj["schemaVersion"], 2);
-    if (isCoreFailure(sv)) return fail8("manifest_schema");
-    const nodeRange = expectString(obj["nodeRange"]);
-    if (isCoreFailure(nodeRange) || nodeRange !== ">=24 <25") {
-      return fail8("manifest_node_range");
-    }
-    const artifactsRaw = expectArray(obj["artifacts"]);
-    if (isCoreFailure(artifactsRaw) || artifactsRaw.length === 0) {
-      return fail8("manifest_schema");
-    }
-    const artifacts = [];
-    const seen = /* @__PURE__ */ new Set();
-    const required = new Set(REQUIRED_V2);
-    for (const item of artifactsRaw) {
-      const aobj = expectObject(item);
-      if (isCoreFailure(aobj)) return fail8("manifest_schema");
-      const art = decodeArtifactObject(aobj);
-      if (!art.ok) return fail8(art.reason);
-      if (seen.has(art.artifact.relativePath)) {
-        return fail8("manifest_duplicate_path");
-      }
-      seen.add(art.artifact.relativePath);
-      artifacts.push(art.artifact);
-      required.delete(art.artifact.relativePath);
-    }
-    if (required.size > 0) {
-      return fail8("manifest_missing_required_artifact");
-    }
-    return {
-      ok: true,
-      manifest: {
-        schemaVersion: 2,
-        nodeRange,
-        artifacts,
-        canonicalBody
-      }
-    };
-  }
-  return fail8("manifest_schema");
-}
-
 // packages/policy/src/install-verify-fs.ts
 import {
   closeSync,
@@ -31519,7 +31524,9 @@ function verifyRuntimeTreeDetailed(runtimeRoot) {
     }
     const dist = yield* enumerateDistExact(fs, runtimeRoot, distPre);
     if (!dist.ok) return { ok: false, result: dist.result };
-    const declared = new Set(artifacts.map((a) => a.relativePath));
+    const declared = new Set(
+      artifacts.filter((a) => a.relativePath.startsWith("dist/")).map((a) => a.relativePath)
+    );
     for (const name of dist.names) {
       if (!declared.has(name)) {
         return {
@@ -31665,12 +31672,29 @@ function readRegularFile(fs, args2) {
 }
 function verifyOneArtifact(fs, runtimeRoot, art) {
   return Effect_exports.gen(function* () {
-    if (art.relativePath.includes("..") || art.relativePath.includes("\\") || !art.relativePath.startsWith("dist/")) {
+    if (art.relativePath.includes("..") || art.relativePath.includes("\\") || art.relativePath !== PEL_AUTHORING_ASSET_PATH && !art.relativePath.startsWith("dist/")) {
       return installFail("bundle_path_escape", art.relativePath);
     }
-    const rest = art.relativePath.slice("dist/".length);
+    const rest = art.relativePath === PEL_AUTHORING_ASSET_PATH ? "default-authoring-snapshot.json" : art.relativePath.slice("dist/".length);
     if (rest.includes("/") || rest.length === 0) {
       return installFail("bundle_path_escape", art.relativePath);
+    }
+    const parents = [];
+    if (art.relativePath === PEL_AUTHORING_ASSET_PATH) {
+      for (const relative of ["assets", "assets/pel"]) {
+        const path = joinRuntime(runtimeRoot, relative);
+        const stat = yield* Effect_exports.either(fs.lstat(path));
+        if (stat._tag === "Left")
+          return installFail(
+            stat.left.kind === "missing" ? "bundle_missing" : "bundle_unreadable",
+            art.relativePath
+          );
+        if (stat.right.isSymbolicLink)
+          return installFail("bundle_linked", art.relativePath);
+        if (!stat.right.isDirectory)
+          return installFail("bundle_not_file", art.relativePath);
+        parents.push({ path, identity: stat.right });
+      }
     }
     const full = joinRuntime(runtimeRoot, art.relativePath);
     const read = yield* readRegularFile(fs, {
@@ -31686,6 +31710,11 @@ function verifyOneArtifact(fs, runtimeRoot, art) {
       artifact: art.relativePath
     });
     if (!read.ok) return read.result;
+    for (const parent of parents) {
+      const after3 = yield* Effect_exports.either(fs.lstat(parent.path));
+      if (after3._tag === "Left" || !identitiesEqual(parent.identity, after3.right))
+        return installFail("bundle_identity_changed", art.relativePath);
+    }
     if (read.bytes.byteLength !== art.byteLength) {
       return installFail("bundle_size_mismatch", art.relativePath);
     }
