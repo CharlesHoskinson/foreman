@@ -29,7 +29,12 @@ import {
   readApiJson,
 } from "./api-http.js";
 import type { ApiHttpPort, ApiHttpResponse, SseFrame } from "./api-http.js";
-import { initialState, object, string } from "./api-protocol.js";
+import {
+  initialState,
+  noToolRequestSurface,
+  object,
+  string,
+} from "./api-protocol.js";
 import type { ApiDialect, ApiState, WireObject } from "./api-protocol.js";
 
 export interface ApiTransportOptions {
@@ -369,6 +374,8 @@ export function createApiTransport(
     response: ApiHttpResponse,
     controller: AbortController,
     resumeIdentity?: ProviderIdentityV1,
+    /** True only when this exact dispatch serialized an empty or omitted tool surface. */
+    toolPolicyNoneEnforced = false,
   ): Effect.Effect<
     Stream.Stream<ProviderEventV1, ProviderFailure>,
     ProviderFailure,
@@ -558,7 +565,20 @@ export function createApiTransport(
           active.set(identityKey(identity), controller);
           const out: ProviderEventV1[] = [];
           if (!started) {
-            out.push(event({ type: "started" }, frame));
+            // Report the enforced request boundary only after this exact
+            // response identity is established. Completion, terminal outcome
+            // and tool rejection remain separate later checks.
+            out.push(
+              event(
+                {
+                  type: "started",
+                  ...(toolPolicyNoneEnforced
+                    ? { observedToolPolicy: "none" as const }
+                    : {}),
+                },
+                frame,
+              ),
+            );
             started = true;
           }
           if (delta.text)
@@ -666,14 +686,23 @@ export function createApiTransport(
         );
       const controller = new AbortController();
       yield* Effect.addFinalizer(() => Effect.sync(() => controller.abort()));
+      const body = dialect.encode(r, schema.jsonSchema);
+      // Evidence comes from the exact serialized body, never from the request flag.
+      const toolPolicyNoneEnforced = noToolRequestSurface(r, body);
       const response = yield* requestHttp(
         r.credentialProfileRef,
         dialect.path,
         "POST",
-        dialect.encode(r, schema.jsonSchema),
+        body,
         controller.signal,
       );
-      return yield* streamResponse(r, response, controller);
+      return yield* streamResponse(
+        r,
+        response,
+        controller,
+        undefined,
+        toolPolicyNoneEnforced,
+      );
     });
   const observe: ProviderTransport["observe"] = (identity) =>
     Effect.scoped(

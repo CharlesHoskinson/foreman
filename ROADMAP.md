@@ -115,6 +115,15 @@ inventory. `Coverage key` values are stable machine identifiers.
 | `roadmap:v050-workflow-weight` | Verification receipts, one-command rounds, tiered gates, doctrine core | `v0.5` | `workflow-weight-reduction` |
 | `roadmap:v050-publication` | Exact-candidate release and publication | `v0.5` | `v050-release-program` |
 
+On 2026-09-13 the user deferred the Return of the ForeDi 40 percent production-code
+reduction target to a separate repository-cleanup release. That release has no
+assigned numerical version and no row in the assignment table above. The
+`v050-release-program` owner retains the deferred obligation until the cleanup
+release receives its own approved scope. The 50 percent required-instruction
+reduction target and every other release obligation remain required. See
+`docs/releases/return-of-the-foredi/scope-amendment-2026-09-13.md` and
+`docs/releases/foredi-repository-cleanup/obligation.json`.
+
 ## Current authority
 
 - Shipped v0.3.1 release notes: `docs/releases/v0.3.1-notes.md`

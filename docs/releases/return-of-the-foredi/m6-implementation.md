@@ -105,6 +105,7 @@ The 40 percent glue and 50 percent instruction targets are not accepted.
 
 Final graph refresh, release-program reconciliation, version assignment, and publication remain open.
 Focused test results do not establish these outcomes.
+
 ## Final source verification
 
 The [M6 verification record](m6-verification.json) retains the final source-test outputs and their hashes.

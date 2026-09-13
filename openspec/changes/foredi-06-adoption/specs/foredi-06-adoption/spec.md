@@ -86,13 +86,13 @@ While a legacy run remains active, the Foreman migration tool SHALL preserve its
 
 ### Requirement: R-M6-009 Historical decoding and thin adapters
 
-When legacy scripts are retired, the Foreman CLI SHALL preserve historical record decoding after their callers migrate to the unified runtime.
+When legacy scripts are retained under the user-authorized temporary exception, the Foreman CLI SHALL preserve historical record decoding, SHALL keep the retained cohort byte-identical to its historical bodies, and SHALL not route migrated Pel workflows through that cohort. Explicit deletion of the twelve-file cohort is deferred until caller migration and `lane-runtime-typescript` parity are complete. The earlier claim of completed deletion was not sustained.
 
 #### Scenario: T-M6-009 Historical decoding and thin adapters
 
-- WHEN the following fixture is prepared: Historical terminal records and the twelve exact legacy shell cohort paths, with caller migration completed.
-- AND the test performs: Assert all twelve files are absent; rg full paths and basenames in packages, components/council, skills/foreman, scripts, env and .github; run migrated CLI workflows and retained Council review/preflight fixtures.
-- THEN No legacy shell cohort entry or active caller remains. Historical identities still decode. No compatibility argv parser or second scheduler is introduced. Every live caller scope has zero deleted-entry references, including retained Council callers. Historical records remain separate and runtime manifests are regenerated.
+- WHEN the following fixture is prepared: Historical terminal records and the twelve exact legacy shell cohort paths, restored byte-for-byte from 6c1515ecf3d28ccbea6205731e9142aede7a8110 with mode 100755 and pinned by exact body hash in the policy adapter.
+- AND the test performs: Assert each of the twelve files matches its independent historical SHA-256, git blob identity, byte length and mode; rg full paths and basenames in packages, components/council, skills/foreman, scripts, env and .github; exercise the scan and body checks against a synthetic changed body and a synthetic unexpected caller; run migrated CLI workflows and retained Council review/preflight fixtures.
+- THEN Every retained entry holds its exact historical bytes, hashes and mode. A changed, truncated or relocated body is rejected, and so is any unexpected new caller in the scanned scopes, including new scripts, Pel and Council paths. Historical identities still decode. No compatibility argv parser, second scheduler, or implicit legacy dispatch is introduced. Every live caller scope has zero cohort references outside the exact restored bodies, their exact policy pin module, and fixed measurement membership metadata, including retained Council callers. Historical records remain separate and runtime manifests are regenerated.
 
 ### Requirement: R-M6-010 Reproducible baseline comparison
 
@@ -106,13 +106,17 @@ When simplification is measured, the Foreman measurement tool SHALL use the spec
 
 ### Requirement: R-M6-011 Measured net simplification
 
-The Foreman migrated workflow cohort SHALL reduce orchestration glue lines by at least 40 percent and required instruction tokens by at least 50 percent.
+The Foreman migrated workflow cohort SHALL reduce required instruction tokens by at least 50 percent and report production-code counts under the unchanged frozen measurement contract.
 
 #### Scenario: T-M6-011 Measured net simplification
 
 - WHEN the following fixture is prepared: The frozen implementation cohort, all new replacement glue, and the complete mandatory quickstart instruction corpus.
 - AND the test performs: Run the simplification measurement against the candidate and compare its acceptance fields.
-- THEN Net glue reduction is at least 0.40 and instruction reduction at least 0.50. Moving code or instructions outside old paths does not remove them from counts.
+- THEN Instruction reduction is at least 0.50. The report retains raw production counts and the original production-target result. Moving code or instructions outside old paths does not remove them from counts.
+
+The [2026-09-13 scope amendment](../../../../../docs/releases/return-of-the-foredi/scope-amendment-2026-09-13.md) defers only the 40 percent production-code target to a separate cleanup release.
+The original measurement inputs and failed production results remain unchanged.
+The instruction target and all other release requirements remain required.
 
 ### Requirement: R-M6-012 Verification receipt reuse
 

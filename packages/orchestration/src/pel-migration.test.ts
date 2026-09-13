@@ -4,7 +4,8 @@ import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {Either} from 'effect';
 import {Effect} from 'effect';
-import {mkdtempSync,writeFileSync,rmSync,symlinkSync,existsSync} from 'node:fs';
+import {mkdtempSync,writeFileSync,rmSync,symlinkSync,existsSync,lstatSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {tmpdir} from 'node:os';
 import {makePelMigrationServices} from './pel-migration-live.js';
 import {sha256Hex} from '@foreman/core';
@@ -102,15 +103,108 @@ test('migration distinguishes input I/O from malformed contract at its original 
  }finally{rmSync(root,{recursive:true,force:true});}
 });
 
-test('T-M6-009 all twelve retired shell entries are absent and live caller scopes contain no references',()=>{
- const retired=['vendor-multiround.sh','lib/worker-cmd.sh','adapters/grok.sh','adapters/codex.sh','adapters/claude.sh','adapters/agy.sh','lane-run.sh','worker-run.sh','audit-run.sh','resume.sh','watch.sh','lane-supervise.sh'];
- for(const path of retired)assert.equal(existsSync(resolve('skills/foreman/scripts',path)),false,path);
- const list=spawnSync('rg',['--files','--hidden','packages','components/council','skills/foreman','scripts','env','.github'],{encoding:'utf8',maxBuffer:8*1048576});assert.equal(list.status,0,list.stderr);
- const names=retired.map(path=>path.split('/').at(-1)!),offenders:string[]=[];
- for(const file of list.stdout.trim().split('\n')){
-  if(file.split('/').some(part=>['node_modules','dist','dist-test','fixtures','__golden__','test','tests','.git'].includes(part))||/\.test\.tsx?$/u.test(file)||file==='packages/orchestration/src/pel-simplification.ts')continue;
+/**
+ * The twelve retired controllers are restored under the user-approved temporary exception.
+ * Each expected identity below is the historical one recorded in the tree of
+ * 6c1515ecf3d28ccbea6205731e9142aede7a8110: `git ls-tree -r` supplies mode and blob id, and
+ * `sha256`/`size` describe those exact blob bytes. They are goldens for this test and are not
+ * read back from the restored files or from the policy pin module they must independently agree with.
+ */
+const RESTORED_COHORT=[
+ {path:'skills/foreman/scripts/adapters/agy.sh',blob:'914d12338c7a1f39a54da50ab9aaf6df47eb2116',sha256:'ae4440daacdff5edee6174844bed7af932792d4b58cf5c9528561c9f179210be',size:12919},
+ {path:'skills/foreman/scripts/adapters/claude.sh',blob:'37c81c4e90e7adad0daf5e99f571042eaecec99a',sha256:'5ab6b2a7e152154d53533cfe4cfeed7d8c46d8664d90fed99ad969b461a4f652',size:11458},
+ {path:'skills/foreman/scripts/adapters/codex.sh',blob:'a8ae33ac8cd16c53afcb8d65da0a2f98c2cf5148',sha256:'cbfaf8ee7e40ce54e2ca0788a08a59c5dc3e8d380b5ed98c5be67179c96452eb',size:13078},
+ {path:'skills/foreman/scripts/adapters/grok.sh',blob:'5ecd4bc8ac4d28340d916599f183bee4341717a5',sha256:'6dcf82398b49681f66129e38f52e7b8c5a70257044028ee1ed7b6381ff3a4232',size:11315},
+ {path:'skills/foreman/scripts/audit-run.sh',blob:'82c690cbd2bc02178eeb7b1d1ee0642a4a995dea',sha256:'0cc03c9c20a103d591413fc576619235077ff41c00e8766e6b5d186a4a5e8263',size:25342},
+ {path:'skills/foreman/scripts/lane-run.sh',blob:'e6c49f00701b5bf4d8f17ddb0a43f2d84b393571',sha256:'5368260642cac6d0ff9d38a45597dc359e6c5a0b9a008f49dee3383bc7f16110',size:76129},
+ {path:'skills/foreman/scripts/lane-supervise.sh',blob:'1ee0bac08cd6e4ce4d421123a9e4c2b0ce12e391',sha256:'a09929d92ce817fc861800b38529300889a62b8324fc67fea9a305ea32ac7062',size:935},
+ {path:'skills/foreman/scripts/lib/worker-cmd.sh',blob:'018fa05ee86f90fa85aa7248ea4999d7cacaed02',sha256:'47deb36862a7bda1c9a174caf215667378e2d03d0ee9796abd81b2f7e364f508',size:2798},
+ {path:'skills/foreman/scripts/resume.sh',blob:'22ae5d5e96d8c537c79566ba7869a56ec093f03c',sha256:'8509bacc869c9c06d26030eeef6abe8cd61fa326fe307ef7bf7c6be7af16fe97',size:10602},
+ {path:'skills/foreman/scripts/vendor-multiround.sh',blob:'c9d8937989a5525041976534cc9938b694c6b959',sha256:'07686f1cad9d660d1b62ccb34de6e0d5171f75a648b1f8fdb6cf380fc917f406',size:11790},
+ {path:'skills/foreman/scripts/watch.sh',blob:'6d4ec0afaca9e3b082fa6f2179bcd776f6adea11',sha256:'6ee0c22f756bf7395c93ff1876d42a877e0c7a0e091b06fe592d23a5b320ff14',size:62260},
+ {path:'skills/foreman/scripts/worker-run.sh',blob:'3a97dc436d34319c50e4e069da1cebefde677572',sha256:'359d694a836c722ff9bb9fca243bdcce24188bef62046c8f9a66d78b456bf480',size:21532},
+]as const;
+type RestoredEntry=(typeof RESTORED_COHORT)[number];
+/** Git blob identity of exact bytes: sha1 over "blob <length>\0" and the body. */
+const gitBlobId=(bytes:Buffer)=>createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${bytes.length}`),Buffer.from([0]),bytes])).digest('hex');
+/** Every way the on-disk cohort member can differ from its historical identity, reported together. */
+function historicalFaults(entry:RestoredEntry,bytes:Buffer,fileMode:number):string[]{
+ const faults:string[]=[],sha256=createHash('sha256').update(bytes).digest('hex'),blob=gitBlobId(bytes),mode=`100${(fileMode&0o7777).toString(8)}`;
+ if(bytes.length!==entry.size)faults.push(`${entry.path}: size ${bytes.length} is not historical ${entry.size}`);
+ if(sha256!==entry.sha256)faults.push(`${entry.path}: sha256 ${sha256} is not historical ${entry.sha256}`);
+ if(blob!==entry.blob)faults.push(`${entry.path}: git blob ${blob} is not historical ${entry.blob}`);
+ if(mode!=='100755')faults.push(`${entry.path}: mode ${mode} is not historical 100755`);
+ return faults;
+}
+/**
+ * Legacy command references are admitted only from the exact restored historical bodies, the exact
+ * policy module that pins them, and the fixed measurement membership metadata. Every other live
+ * path in the scanned scopes, including new scripts, Pel and Council sources, must stay free of them.
+ */
+const LEGACY_REFERENCE_ALLOWLIST=new Set<string>(RESTORED_COHORT.map(entry=>entry.path));
+// Only these reviewed metadata bodies may bypass reference scanning. Changes require explicit review.
+const REFERENCE_METADATA_SHA256=new Map<string,string>([
+ ['packages/policy/src/architecture-adapter.ts','4f68f1209ffb74fc935e7f7789b15218d49529456a0f2919b583f22885f530b3'],
+ ['packages/orchestration/src/pel-simplification.ts','03d7358fa5ab70c863a9488100062aa7f4fb6585cdabfd5a9523e6c82372949e'],
+]);
+function retiredReferenceOffenders(files:readonly string[],read:(file:string)=>string):string[]{
+ const names=RESTORED_COHORT.map(entry=>entry.path.split('/').at(-1)!),offenders:string[]=[];
+ for(const file of files){
+  if(LEGACY_REFERENCE_ALLOWLIST.has(file))continue;
+  if(file.split('/').some(part=>['node_modules','dist','dist-test','fixtures','__golden__','test','tests','.git'].includes(part))||/\.test\.tsx?$/u.test(file))continue;
   if(!/\.(?:tsx?|sh|bash|py|ps1|md|toml|ya?ml|json)$/u.test(file))continue;
-  const content=readFileSync(file,'utf8');for(const name of names)if(content.includes(name))offenders.push(`${file}: ${name}`);
+  const content=read(file);
+  if(REFERENCE_METADATA_SHA256.get(file)===sha256Hex(content))continue;
+  for(const name of names)if(content.includes(name))offenders.push(`${file}: ${name}`);
  }
- assert.deepEqual(offenders,[],'Fixed measurement membership is metadata; all other live scopes must omit retired entries.');
+ return offenders;
+}
+test('T-M6-009 the twelve retained controllers hold their exact historical bytes, hashes and modes',()=>{
+ assert.equal(RESTORED_COHORT.length,12);assert.equal(new Set(RESTORED_COHORT.map(entry=>entry.path)).size,12);
+ const faults:string[]=[];
+ for(const entry of RESTORED_COHORT){
+  const file=resolve(entry.path);
+  if(!existsSync(file)){faults.push(`${entry.path}: absent, but the approved restoration retains it`);continue;}
+  const identity=lstatSync(file);
+  if(!identity.isFile()){faults.push(`${entry.path}: not a regular historical file`);continue;}
+  faults.push(...historicalFaults(entry,readFileSync(file),identity.mode));
+ }
+ assert.deepEqual(faults,[],'Restoration is admitted for the exact historical bodies of 6c1515ecf3d28ccbea6205731e9142aede7a8110 only.');
+});
+test('T-M6-009 live caller scopes reference the retained cohort only from its restored bodies and pins',()=>{
+ const list=spawnSync('rg',['--files','--hidden','packages','components/council','skills/foreman','scripts','env','.github'],{encoding:'utf8',maxBuffer:8*1048576});assert.equal(list.status,0,list.stderr);
+ const offenders=retiredReferenceOffenders(list.stdout.trim().split('\n'),file=>readFileSync(file,'utf8'));
+ assert.deepEqual(offenders,[],'Retained bodies, their exact policy pins and fixed measurement membership are the only admitted references.');
+});
+test('T-M6-009 a changed historical body or an unexpected new caller stays rejected',()=>{
+ const entry=RESTORED_COHORT.find(candidate=>candidate.path.endsWith('lane-supervise.sh'))!,original=readFileSync(resolve(entry.path));
+ assert.deepEqual(historicalFaults(entry,original,0o100755),[]);
+ assert.ok(historicalFaults(entry,original.subarray(0,-1),0o100755).length>0);
+ const edited=Buffer.concat([original,Buffer.from('# appended after restoration\n')]);
+ assert.deepEqual(historicalFaults(entry,edited,0o100755).map(fault=>fault.split(': ')[1]!.split(' ')[0]),['size','sha256','git']);
+ const flipped=Buffer.from(original);flipped[flipped.length-2]=flipped[flipped.length-2]!^0x20;
+ assert.equal(historicalFaults(entry,flipped,0o100755).length,2);
+ const relocatedBody=readFileSync(resolve('skills/foreman/scripts/resume.sh'));
+ assert.ok(historicalFaults(entry,relocatedBody,0o100755).length>0);
+ assert.deepEqual(historicalFaults(entry,original,0o100644).map(fault=>fault.split(': ')[1]),['mode 100644 is not historical 100755']);
+ const probes:readonly[string,boolean][]=[
+  ['packages/orchestration/src/pel-future-dispatch.ts',true],
+  ['components/council/src/council-launch.ts',true],
+  ['scripts/new-release-helper.sh',true],
+  ['skills/foreman/scripts/new-controller.sh',true],
+  ['env/reference-manifest.toml',true],
+  ['.github/workflows/new-lane.yml',true],
+  ['skills/foreman/scripts/lane-run.sh',false],
+  ['packages/policy/src/architecture-adapter.ts',true],
+  ['packages/orchestration/src/pel-simplification.ts',true],
+  ['packages/orchestration/src/pel-migration.test.ts',false],
+  ['packages/orchestration/dist/pel-cli.js',false],
+ ];
+ for(const file of REFERENCE_METADATA_SHA256.keys()){
+  const metadata=readFileSync(resolve(file),'utf8');
+  assert.deepEqual(retiredReferenceOffenders([file],()=>metadata),[]);
+  assert.ok(retiredReferenceOffenders([file],()=>metadata+'\nexec("lane-run.sh");\n').some(fault=>fault.startsWith(file+': ')));
+ }
+ const referencing=(file:string)=>probes.some(([path])=>path===file)?'exec "$ROOT/skills/foreman/scripts/lane-run.sh" "$@"\n':assert.fail(`unexpected read of ${file}`);
+ assert.deepEqual(retiredReferenceOffenders(probes.map(([path])=>path),referencing),probes.filter(([,rejected])=>rejected).map(([path])=>`${path}: lane-run.sh`));
 });

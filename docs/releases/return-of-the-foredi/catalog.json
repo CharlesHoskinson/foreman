@@ -952,7 +952,8 @@
             "R-M3-016",
             "R-M3-017",
             "R-M3-018",
-            "R-M3-026"
+            "R-M3-026",
+            "R-M3-029"
           ]
         }
       ],
@@ -1207,6 +1208,15 @@
           "text": "When provider JSON is decoded, the Foreman provider adapter SHALL construct schema-ordered Pel values before validating the original output schema.",
           "tests": [
             "T-M3-028"
+          ]
+        },
+        {
+          "id": "R-M3-029",
+          "feature": "F-M3-06",
+          "pattern": "event",
+          "text": "When an API no-tool request is qualified, the Foreman provider adapter SHALL report its enforced tool policy only from the exact serialized empty tool surface and SHALL reject returned tool activity and unrecognized action-bearing output.",
+          "tests": [
+            "T-M3-029"
           ]
         }
       ],
@@ -1518,6 +1528,17 @@
           "action": "lowerProviderSchema then decodeProviderOutput and validateFinal.",
           "expected": "Canonical schema order is stable across JSON key order. Invalid keys/types/bounds fail with field paths. Unsupported required schema structure performs zero dispatch.",
           "target": "packages/providers/src/output-codec.test.ts"
+        },
+        {
+          "id": "T-M3-029",
+          "requirements": [
+            "R-M3-029"
+          ],
+          "level": "integration",
+          "fixture": "Each admitted API dialect with its exact controls, an admitted none tool policy, injected fixture credentials and protocol peers that produce complete, refused, incomplete, mismatched-identity, tool and unrecognized-output exchanges.",
+          "action": "Start each dialect, inspect the serialized request body and started event, and run the live qualification assessment over the observed events in packages/orchestration/src/pel-provider-live.test.ts.",
+          "expected": "The started event reports observedToolPolicy none only after an empty or omitted serialized tool surface and an exact established response identity. Automatic tool choice, cursor replay, refusal, incomplete output, identity mismatch, tool activity and an unknown outcome produce no no-tool evidence. Both the streaming and complete-response decoders reject function, tool and server-tool activity and fail closed on unrecognized action-bearing output. Request-side enforcement never substitutes for the separate native empty-catalog observation.",
+          "target": "packages/providers/src/transports/api-transports.test.ts"
         }
       ],
       "source": "openspec/changes/foredi-03-model-adapters/catalog.json",
@@ -2618,7 +2639,7 @@
           "id": "R-M6-009",
           "feature": "F-M6-03",
           "pattern": "event",
-          "text": "When legacy scripts are retired, the Foreman CLI SHALL preserve historical record decoding after their callers migrate to the unified runtime.",
+          "text": "When legacy scripts are retained under the user-authorized temporary exception, the Foreman CLI SHALL preserve historical record decoding, SHALL keep the retained cohort byte-identical to its historical bodies, and SHALL not route migrated Pel workflows through that cohort. Explicit deletion of the twelve-file cohort is deferred until caller migration and `lane-runtime-typescript` parity are complete. The earlier claim of completed deletion was not sustained.",
           "tests": [
             "T-M6-009"
           ]
@@ -2636,7 +2657,7 @@
           "id": "R-M6-011",
           "feature": "F-M6-04",
           "pattern": "ubiquitous",
-          "text": "The Foreman migrated workflow cohort SHALL reduce orchestration glue lines by at least 40 percent and required instruction tokens by at least 50 percent.",
+          "text": "The Foreman migrated workflow cohort SHALL reduce required instruction tokens by at least 50 percent and report production-code counts under the unchanged frozen measurement contract.",
           "tests": [
             "T-M6-011"
           ]
@@ -2845,9 +2866,9 @@
             "R-M6-009"
           ],
           "level": "integration",
-          "fixture": "Historical terminal records and the twelve exact legacy shell cohort paths, with caller migration completed.",
-          "action": "Assert all twelve files are absent; rg full paths and basenames in packages, components/council, skills/foreman, scripts, env and .github; run migrated CLI workflows and retained Council review/preflight fixtures.",
-          "expected": "No legacy shell cohort entry or active caller remains. Historical identities still decode. No compatibility argv parser or second scheduler is introduced. Every live caller scope has zero deleted-entry references, including retained Council callers. Historical records remain separate and runtime manifests are regenerated.",
+          "fixture": "Historical terminal records and the twelve exact legacy shell cohort paths, restored byte-for-byte from 6c1515ecf3d28ccbea6205731e9142aede7a8110 with mode 100755 and pinned by exact body hash in the policy adapter.",
+          "action": "Assert each of the twelve files matches its independent historical SHA-256, git blob identity, byte length and mode; rg full paths and basenames in packages, components/council, skills/foreman, scripts, env and .github; exercise the scan and body checks against a synthetic changed body and a synthetic unexpected caller; run migrated CLI workflows and retained Council review/preflight fixtures.",
+          "expected": "Every retained entry holds its exact historical bytes, hashes and mode. A changed, truncated or relocated body is rejected, and so is any unexpected new caller in the scanned scopes, including new scripts, Pel and Council paths. Historical identities still decode. No compatibility argv parser, second scheduler, or implicit legacy dispatch is introduced. Every live caller scope has zero cohort references outside the exact restored bodies, their exact policy pin module, and fixed measurement membership metadata, including retained Council callers. Historical records remain separate and runtime manifests are regenerated.",
           "target": "packages/orchestration/src/pel-migration.test.ts"
         },
         {
@@ -2869,7 +2890,7 @@
           "level": "integration",
           "fixture": "The frozen implementation cohort, all new replacement glue, and the complete mandatory quickstart instruction corpus.",
           "action": "Run the simplification measurement against the candidate and compare its acceptance fields.",
-          "expected": "Net glue reduction is at least 0.40 and instruction reduction at least 0.50. Moving code or instructions outside old paths does not remove them from counts.",
+          "expected": "Instruction reduction is at least 0.50. The report retains raw production counts and the original production-target result. Moving code or instructions outside old paths does not remove them from counts.",
           "target": "packages/orchestration/src/pel-simplification.test.ts"
         },
         {

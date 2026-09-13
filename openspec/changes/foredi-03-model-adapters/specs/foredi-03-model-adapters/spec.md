@@ -284,3 +284,13 @@ When provider JSON is decoded, the Foreman provider adapter SHALL construct sche
 - AND the test performs: lowerProviderSchema then decodeProviderOutput and validateFinal.
 - THEN Canonical schema order is stable across JSON key order. Invalid keys/types/bounds fail with field paths. Unsupported required schema structure performs zero dispatch.
 
+### Requirement: R-M3-029 API no-tool request evidence
+
+When an API no-tool request is qualified, the Foreman provider adapter SHALL report its enforced tool policy only from the exact serialized empty tool surface and SHALL reject returned tool activity and unrecognized action-bearing output.
+
+#### Scenario: T-M3-029 API no-tool request evidence
+
+- WHEN the following fixture is prepared: Each admitted API dialect with its exact controls, an admitted none tool policy, injected fixture credentials and protocol peers that produce complete, refused, incomplete, mismatched-identity, tool and unrecognized-output exchanges.
+- AND the test performs: Start each dialect, inspect the serialized request body and started event, and run the live qualification assessment over the observed events.
+- THEN The started event reports observedToolPolicy none only after an empty or omitted serialized tool surface and an exact established response identity. Automatic tool choice, cursor replay, refusal, incomplete output, identity mismatch, tool activity and an unknown outcome produce no no-tool evidence. Both the streaming and complete-response decoders reject function, tool and server-tool activity and fail closed on unrecognized action-bearing output. Request-side enforcement never substitutes for the separate native empty-catalog observation.
+

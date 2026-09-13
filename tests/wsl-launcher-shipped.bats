@@ -35,6 +35,7 @@ setup() {
 #!/usr/bin/env bash
 case "${1:-}" in
   --version) echo "grok 0.2.118"; exit 0 ;;
+  --single) echo "FOREMAN_GROK_READY_V1"; exit 0 ;;
   models) echo "You are logged in with grok.com."; exit 0 ;;
   *) exit 0 ;;
 esac

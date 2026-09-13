@@ -1,6 +1,6 @@
 # Return of the ForeDi
 
-Status: M1–M5 are implemented. The M6 source candidate passes implementation review and verification. Simplification acceptance and final release qualification remain open. See the [M1 report](m1-implementation.md), [M2 report](m2-implementation.md), [M3 report](m3-implementation.md), [M4 report](m4-implementation.md), [M5 report](m5-implementation.md), [M6 progress](m6-implementation.md), and [latest live qualification observations](m6-live-qualification.md).
+Status: M1–M5 are implemented. The M6 source candidate passes implementation review and verification. Final-candidate instruction acceptance and release qualification remain open. The production-code target is deferred to a separate cleanup release. See the [M1 report](m1-implementation.md), [M2 report](m2-implementation.md), [M3 report](m3-implementation.md), [M4 report](m4-implementation.md), [M5 report](m5-implementation.md), [M6 progress](m6-implementation.md), and [latest live qualification observations](m6-live-qualification.md).
 
 Pel is the common language for Foreman planning and execution. A person or model writes one program. Foreman checks the program, explains its effects, and runs it through the existing host authority. The release replaces duplicate planning and execution machinery.
 
@@ -30,7 +30,7 @@ M2 owns the minimal provider package and generation port. M3 extends that packag
 - [EARS method](EARS-METHOD.md): requirement syntax, identifiers, and coverage rules.
 - [Audit report](AUDIT.md): three Opus reviews, findings, and their resolution.
 
-Each OpenSpec `catalog.json` owns its milestone records. The release catalog combines those records without changing their identifiers or wording. Requirement text in the catalog matches the corresponding OpenSpec requirement. M1–M5 have executable acceptance tests linked in their coverage matrices. M6 tests cover adoption behavior. Final candidate validation and numerical reduction acceptance remain open.
+Each OpenSpec `catalog.json` owns its milestone records. The release catalog combines those records without changing their identifiers or wording. Requirement text in the catalog matches the corresponding OpenSpec requirement. M1–M5 have executable acceptance tests linked in their coverage matrices. M6 tests cover adoption behavior. Final candidate validation and retained instruction-reduction acceptance remain open.
 
 ## Keep the implementation small
 
@@ -57,15 +57,17 @@ The [release graph coverage](GRAPH-COVERAGE.md) describes the updated advisory g
 The [M6 source candidate](m6-candidate-acceptance.md) passes verification and actual archive installation.
 Both measured simplification targets fail at `f734d99`.
 The [instruction improvement candidate](m6-instruction-acceptance.md) meets the 50% instruction target with 8,122 required tokens.
-The 40% production-line target remains unmet, and the release remains unaccepted.
+The original 40% production-line target remains unmet.
+The [2026-09-13 scope amendment](scope-amendment-2026-09-13.md) defers that target to a separate cleanup release.
+The retained instruction target requires final-candidate evidence. Other release requirements remain open.
 
 The [current advisory graph](evidence/m6/instruction-graph-summary.md) covers source candidate `bb0c1e9` with explicit extraction limits.
 The [earlier M6 graph](m6-graph-coverage.md) retains its separate `f734d99` evidence boundary.
 
 The [vault receipt](evidence/m6/instruction-vault-apply.json) records 16 immutable source captures and eight updated pages.
 The [vault health check](evidence/m6/instruction-vault-lint.json) reports no issues across 28 pages.
-The [reconciliation proposal](reconciliation-proposal.md) identifies remaining release obligations for review.
-It does not change their criteria or declare them complete.
+The [reconciliation record](reconciliation-proposal.md) records the authorized code-reduction deferral and the remaining release obligations.
+It preserves their original assertions and does not declare them complete.
 
 ## Release documentation and semantics extension
 
@@ -75,5 +77,6 @@ The [release artwork](../../../assets/return-of-the-foredi.png) continues the bl
 
 M7 adds executable K semantics, a pinned toolchain, and differential conformance tests to the release plan.
 Its feature requirements, EARS catalog, and test plan remain planned work.
+M7 is a sprint-plan deliverable. Its implementation is outside this completion request.
 Moriarty provides the documentation pattern: distinguish execution evidence, correspondence tests, assumptions, and unproved claims.
 The sprint does not add another runtime owner or claim a general equivalence proof.

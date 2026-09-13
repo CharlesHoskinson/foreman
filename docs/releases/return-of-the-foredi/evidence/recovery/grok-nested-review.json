@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "scope": "Nested-output correction only. This is a code review, not a host publication receipt.",
+  "requestedModel": "grok-4.6",
+  "observedModels": [
+    "grok-4.6-build"
+  ],
+  "stopReason": "end_turn",
+  "review": "**Verdict:** No blocking findings.\n\nThe nested no-tool hole is closed on the paths this patch actually owns. Known tool names reject as `noTool()`. Unknown part/delta types fail closed as `unknownOutput()`. Message `output_text`, reasoning/`summary_text`/`reasoning_text`, refusal, Google `text`/`thought`/`thought_signature`, and Anthropic `text_delta`/`thinking_delta`/`signature_delta`/`citations_delta` stay inert. Reasoning/thought/summary text is not copied into user text. Refusal on the Responses complete path now waits until every item and nested part is classified, so a refusal cannot mask a later tool or unknown part.\n\n`scanResponseItem` returning `failure: classified` is a `WireDelta` (already `{ failure: ProviderFailure }` or equivalent). Callers return that object; they do not wrap it again.\n\n## Limits (non-blocking)\n\n- Unknown **top-level** stream event types still fall through to `return {}` in all three consumers. This patch classifies nested parts/deltas and (Responses) `output_item.done` / `content_part.*` only.\n- Google `step.start` still classifies the step type only. Nested tool/unknown content on that event fails at `step.delta` or at `complete()`, not at start.\n- Anthropic `complete()` still classifies sibling blocks only. That matches Messages shape; nested fail-closed for this dialect is the new delta classifier.\n- `responseComplete` still returns cancelled/incomplete/failed before scanning `output`, so those terminals can still beat a nested tool/unknown part (pre-existing order).\n- Inert catalogs are allow-lists. A legitimate new part name that is not in those sets will fail closed by design.\n\nI did not run tests or open other files. Root’s before-fix reproduction and the focused 108 API tests are taken as given.",
+  "binding": {
+    "diffSha256": "9ae02ddcace40a42a19889c2ce54cc0bc13276226b0ef4d4c83cc25d692b5aa7",
+    "files": {
+      "api-protocol.ts": "3468ee029301b780761f2f4d648b368894f9c6bfb77832385101917ed2347fa5",
+      "google-interactions.ts": "6077939bc0b78df52ccedcdb0a5d4ca3dfbbaa76888903d7107fb25c9ae00f83",
+      "anthropic-messages.ts": "1554873c6975943059def97801c111664c66b02bef3b5a9e32ba394ffac24de9"
+    }
+  }
+}

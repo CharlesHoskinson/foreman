@@ -2,7 +2,7 @@
 
 Status: M1–M6 have executed implementation tests recorded in their coverage and acceptance reports. M7 tests remain planned.
 
-This plan contains 147 test scenarios for 145 requirements. Each entry states a concrete fixture, action, expected result, and target file.
+This plan contains 148 test scenarios for 146 requirements. Each entry states a concrete fixture, action, expected result, and target file.
 
 Run the milestone commands in each OpenSpec `tasks.md` after its implementation exists. Unit and contract fixtures run without provider accounts. Live qualification uses the exact profile and transport combinations stated in M3. Record unsupported or inaccessible combinations as such. Do not substitute a different model to claim a pass.
 
@@ -603,6 +603,15 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 - Action: lowerProviderSchema then decodeProviderOutput and validateFinal.
 - Expected: Canonical schema order is stable across JSON key order. Invalid keys/types/bounds fail with field paths. Unsupported required schema structure performs zero dispatch.
 
+### T-M3-029
+
+- Requirements: R-M3-029.
+- Level: integration.
+- Target: `packages/providers/src/transports/api-transports.test.ts`.
+- Fixture: Each admitted API dialect with its exact controls, an admitted none tool policy, injected fixture credentials and protocol peers that produce complete, refused, incomplete, mismatched-identity, tool and unrecognized-output exchanges.
+- Action: Start each dialect, inspect the serialized request body and started event, and run the live qualification assessment over the observed events in packages/orchestration/src/pel-provider-live.test.ts.
+- Expected: The started event reports observedToolPolicy none only after an empty or omitted serialized tool surface and an exact established response identity. Automatic tool choice, cursor replay, refusal, incomplete output, identity mismatch, tool activity and an unknown outcome produce no no-tool evidence. Both the streaming and complete-response decoders reject function, tool and server-tool activity and fail closed on unrecognized action-bearing output. Request-side enforcement never substitutes for the separate native empty-catalog observation.
+
 ## M4: Execute and recover Pel programs
 
 [OpenSpec](../../../openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md) · [Implementation tasks](../../../openspec/changes/foredi-04-durable-execution/tasks.md)
@@ -1043,9 +1052,9 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 - Requirements: R-M6-009.
 - Level: integration.
 - Target: `packages/orchestration/src/pel-migration.test.ts`.
-- Fixture: Historical terminal records and the twelve exact legacy shell cohort paths, with caller migration completed.
-- Action: Assert all twelve files are absent; rg full paths and basenames in packages, components/council, skills/foreman, scripts, env and .github; run migrated CLI workflows and retained Council review/preflight fixtures.
-- Expected: No legacy shell cohort entry or active caller remains. Historical identities still decode. No compatibility argv parser or second scheduler is introduced. Every live caller scope has zero deleted-entry references, including retained Council callers. Historical records remain separate and runtime manifests are regenerated.
+- Fixture: Historical terminal records and the twelve exact legacy shell cohort paths, restored byte-for-byte from 6c1515ecf3d28ccbea6205731e9142aede7a8110 with mode 100755 and pinned by exact body hash in the policy adapter.
+- Action: Assert each of the twelve files matches its independent historical SHA-256, git blob identity, byte length and mode; rg full paths and basenames in packages, components/council, skills/foreman, scripts, env and .github; exercise the scan and body checks against a synthetic changed body and a synthetic unexpected caller; run migrated CLI workflows and retained Council review/preflight fixtures.
+- Expected: Every retained entry holds its exact historical bytes, hashes and mode. A changed, truncated or relocated body is rejected, and so is any unexpected new caller in the scanned scopes, including new scripts, Pel and Council paths. Historical identities still decode. No compatibility argv parser, second scheduler, or implicit legacy dispatch is introduced. Every live caller scope has zero cohort references outside the exact restored bodies, their exact policy pin module, and fixed measurement membership metadata, including retained Council callers. Historical records remain separate and runtime manifests are regenerated.
 
 ### T-M6-010
 
@@ -1063,7 +1072,7 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 - Target: `packages/orchestration/src/pel-simplification.test.ts`.
 - Fixture: The frozen implementation cohort, all new replacement glue, and the complete mandatory quickstart instruction corpus.
 - Action: Run the simplification measurement against the candidate and compare its acceptance fields.
-- Expected: Net glue reduction is at least 0.40 and instruction reduction at least 0.50. Moving code or instructions outside old paths does not remove them from counts.
+- Expected: Instruction reduction is at least 0.50. The report retains raw production counts and the original production-target result. Moving code or instructions outside old paths does not remove them from counts.
 
 ### T-M6-012
 

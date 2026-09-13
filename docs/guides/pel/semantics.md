@@ -4,6 +4,10 @@ Status: **PLANNED**. The TypeScript Pel engine is implemented. The K semantics s
 
 The [M7 proposal](../../../openspec/changes/foredi-07-k-semantics/proposal.md) adds an executable description of `pel-paper-v2-foreman-1`. Its [catalog](../../../openspec/changes/foredi-07-k-semantics/catalog.json) maps six features to twenty requirements and planned test scenarios. The [task list](../../../openspec/changes/foredi-07-k-semantics/tasks.md) keeps implementation work unchecked.
 
+The [mapping audit](k-mapping-audit.md) connects every current compatibility row, builtin signature, AST constructor, evaluation operation, and diagnostic to planned K requirements.
+Its [source inventory](k-mapping-audit.json) records the audited source hashes and continuation fields.
+All destinations remain planned. No executable Pel K mapping or correspondence proof is present.
+
 ## What the semantics will describe
 
 K will parse Pel and apply small-step rules to explicit configurations. The planned definition covers tagged values, callable lists, lexical closures, argument defaults, pipes, non-strict branches, scoped loops, dependency-ready work, located errors and limits. Host calls stop at abstract request/receipt boundaries. Continuation tests will compare preserved lexical state, counters and completed-prefix replay with M1.

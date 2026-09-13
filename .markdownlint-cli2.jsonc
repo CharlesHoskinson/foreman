@@ -24,6 +24,14 @@
     "components/council/.claude/**",
     "components/council/.codex/**",
     "components/council/.gemini/**",
-    "docs/evidence/**"
+    "docs/evidence/**",
+    // Externally captured vendor documentation, stored byte-for-byte as fetched
+    // (docs/reference/models/fetch-model-docs.py writes it). Same archive class as
+    // docs/research/**: reformatting a capture to satisfy a style linter would make
+    // it no longer the source it claims to be. Authored model references outside
+    // this raw/ capture tree stay linted.
+    "docs/reference/models/raw/**",
+    // Generated package copies of the archived docs/research sources.
+    "skills/foreman/runtime/assets/pel/research/**"
   ]
 }

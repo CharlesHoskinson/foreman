@@ -325,12 +325,13 @@ Earlier milestone records retain their original candidate boundaries and test co
 | Required instruction tokens, at least 50% reduction | 16,502 | 8,122 | **PASS**. Reduction: 50.78%. |
 
 No threshold, cohort, tokenizer, or startup recipe changed to obtain the instruction result.
-The failed production target remains binding.
-The user’s choice about redesign versus scope and measurement review remains pending.
+The [2026-09-13 scope amendment](scope-amendment-2026-09-13.md) defers only the production-code target to a separate cleanup release.
+The original failed result remains unchanged. The 50% instruction target remains required on the final candidate.
 Operational counts for workflow loops, provider conditionals, active owners, and authoritative histories remain unknown in the startup report.
 
 The existing v0.5 predicates, designated-host requirements, exact-candidate cold audit, numerical reconciliation, and publication authority remain unresolved.
-The [reconciliation proposal](reconciliation-proposal.md) is a draft, not an approved criterion change or deferral.
+The [reconciliation record](reconciliation-proposal.md) records this authorized deferral.
+Its other replacement mappings remain proposed. No other requirement is waived.
 The [adoption obligations](adoption-obligations.json) preserve the original open requirements.
 
 Command outcomes distinguish completion, failure, invalid admission, needs-action, and cancellation as exit codes 0, 1, 2, 3, and 4.
@@ -340,6 +341,7 @@ An unresolved external outcome is not successful delivery, even when local clean
 ## Planned: K semantics sprint
 
 **PLANNED — not implemented in this candidate.**
+M7 is the requested sprint-plan deliverable. Its implementation is outside this completion request.
 The [K semantics proposal](../../../openspec/changes/foredi-07-k-semantics/proposal.md) describes the next semantics work.
 The [semantics guide](../../guides/pel/semantics.md) explains its intended relationship to the current Pel implementation.
 No K executable semantics, equivalence proof, or additional formal release guarantee is claimed here.

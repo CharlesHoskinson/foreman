@@ -1,7 +1,7 @@
 schema_version = 2
 baseline_commit = "387dcd7521a45e91b2a58b309e20ffcc72902ec0"
-active_inventory_sha256 = "bdcf321989fee8396a5c173a15812d804918f90986b350f988682c4d6c587985"
-roadmap_sha256 = "56707b7fb5594cf662d187e159b12b6279fbc8b13ce89b45af8ac1b394d25350"
+active_inventory_sha256 = "58edce0c6e54c05dcf0d8a1c38d3941b67bdfdf67291e764bc41614da9c4704b"
+roadmap_sha256 = "5187a6b3ea945de7205d6c5e0fdea6872a924f2d080f7bc4cd46f45661d52530"
 
 [[future_owner]]
 name = "lane-runtime-typescript"
@@ -771,7 +771,7 @@ disposition = "v050_dependency"
 owner = "v050-release-program"
 target_release = "v0.5"
 reconcile = "required"
-reason = "Return of the ForeDi replaces runtime behavior covered by the active release program. Reconcile retained, replaced, and deferred obligations before numerical release assignment. This entry does not mark implementation or v0.5 complete."
+reason = "Return of the ForeDi replaces runtime behavior covered by the active release program. Reconcile retained, replaced, and deferred obligations before numerical release assignment. This entry does not mark implementation or v0.5 complete. The 2026-09-13 user instruction defers only the R-M6-011 production-code threshold to an unnumbered cleanup release. Instruction reduction and every inherited release obligation remain required. See docs/releases/return-of-the-foredi/adoption-obligations.json."
 
 [[entry]]
 key = "change:foredi-07-k-semantics"
@@ -781,4 +781,4 @@ disposition = "v050_dependency"
 owner = "v050-release-program"
 target_release = "v0.5"
 reconcile = "required"
-reason = "User added executable K semantics and TypeScript differential conformance to the ForeDi release plan. This sprint is planned. It does not establish semantic equivalence or complete numerical release acceptance."
+reason = "M7 is the user-requested sprint-plan deliverable for executable K semantics and TypeScript differential conformance. Its implementation and differential test execution are outside the current completion request. The plan remains PLANNED and establishes no executable semantics or proof. Numerical release reconciliation remains required."

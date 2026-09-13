@@ -1,6 +1,6 @@
 # M3 EARS coverage
 
-M3 has six features, 28 EARS requirements, and 28 catalog scenarios. The original catalog wording remains authoritative. The table names the executable acceptance targets and the behavior they test. All provider paths below are under `packages/providers/src` unless specified.
+M3 has six features, 29 EARS requirements, and 29 catalog scenarios. The original catalog wording remains authoritative. The table names the executable acceptance targets and the behavior they test. All provider paths below are under `packages/providers/src` unless specified.
 
 | Requirement / test | Executable target | Acceptance behavior |
 | --- | --- | --- |
@@ -32,5 +32,6 @@ M3 has six features, 28 EARS requirements, and 28 catalog scenarios. The origina
 | R-M3-026 / T-M3-026 | orchestration/src/pel-provider-cli.test.ts | Provider command outcomes map to exits 0–4; unresolved attached work never uses final exit 5. |
 | R-M3-027 / T-M3-027 | credentials.test.ts | Exact injected credentials, lease cleanup, and AST-checked package import directions. |
 | R-M3-028 / T-M3-028 | output-codec.test.ts | Canonical Pel output, duplicate-aware decoding, immutable schema IDs, and unsupported subsets. |
+| R-M3-029 / T-M3-029 | transports/api-transports.test.ts; orchestration/src/pel-provider-live.test.ts | The serialized empty tool surface and exact response identity precede any reported no-tool boundary. Automatic tool choice, replay, refusal, incomplete output, identity mismatch, tool activity, and unrecognized action-bearing output produce no evidence. Request enforcement does not replace the native empty-catalog observation. |
 
 Additional integration tests cover live generation admission, read-only evidence listing, explicit credential selection, existing preflight-record reuse, and launcher stream cleanup. `orchestration/src/pel-provider-readiness-live.test.ts` checks record freshness, executable/version matching, account-bound authentication, and metadata/workload separation. Deterministic tests cannot establish account access or live provider qualification.

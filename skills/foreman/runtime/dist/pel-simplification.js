@@ -57724,6 +57724,18 @@ var BUILTIN_PROVIDER_SCHEMAS = Object.freeze({
   "schema:pel-boolean-v1": { type: "boolean" },
   "schema:pel-source-v1": { type: "association", additionalKeys: false, fields: [{ key: "pelSource", required: true, schema: { type: "string", maxBytes: 1048576 } }] }
 });
+var toolSteps = /* @__PURE__ */ new Set([
+  "function_call",
+  "function_response",
+  "tool_call",
+  "tool_result",
+  "code_execution",
+  "code_execution_result",
+  "google_search",
+  "url_context",
+  "mcp_call"
+]);
+var toolContent = /* @__PURE__ */ new Set([...toolSteps, "executable_code"]);
 var FOREMAN_LAUNCH_VERSION = "0.3.0";
 var EXIT_TIMEOUT = 124;
 var EXIT_LAUNCHER_ERROR = 125;

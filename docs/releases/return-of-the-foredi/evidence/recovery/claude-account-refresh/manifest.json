@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "compiledSha256": "6f6b5f60cbb11efebc9c539645ff3d65f312c9276e8e29283e3fbb1ad4409a5a",
+  "rows": [
+    {
+      "profile": "claude-opus-5",
+      "transport": "claude-code",
+      "credential": "native:claude:default",
+      "coding": false,
+      "startedAt": "2026-09-13T16:56:06.169Z",
+      "completedAt": "2026-09-13T16:56:08.759Z",
+      "exitCode": 0,
+      "outcome": "success",
+      "errorCode": null,
+      "evidence": 3,
+      "report": "claude-opus-5-claude-code.json",
+      "reportSha256": "e7cd0ff154aed0841a7d7842f4d41d5c1842a94580adbbca5aaab1e2ebbf52cd",
+      "originalReportSha256": "5106359a7c8ff9b8952d3e82aa7bbb1c929efea87a9b9a90a61fdfe44f92d628"
+    },
+    {
+      "profile": "claude-fable-5-1",
+      "transport": "claude-code",
+      "credential": "native:claude:default",
+      "coding": false,
+      "startedAt": "2026-09-13T16:56:08.760Z",
+      "completedAt": "2026-09-13T16:56:13.892Z",
+      "exitCode": 3,
+      "outcome": "needs-action",
+      "errorCode": "OutputIncomplete",
+      "evidence": 0,
+      "report": "claude-fable-5-1-claude-code.json",
+      "reportSha256": "ba8fe96ff47d2ac9af9f4dac55c8fec8340edb785522963d8ab9a485128f4e13",
+      "originalReportSha256": "a78dd0c968f3586532fb25544f660bd90250eedafe90c44eda76768395347f7d"
+    }
+  ],
+  "sanitization": "Provider session identifiers removed. Reports contain typed outcomes, capability evidence, and usage counters only.",
+  "limits": {
+    "deadlineMs": 60000,
+    "maxCostUsd": 0.25,
+    "maxInputTokens": 12000,
+    "maxOutputTokens": 1024,
+    "codingMaxToolCalls": 2,
+    "otherMaxToolCalls": 0
+  }
+}

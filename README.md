@@ -26,19 +26,111 @@ and WSL/Linux side by side, see [`docs/INSTALL.md`](docs/INSTALL.md).
 
 ![George Foreman holding a green lightsaber in a Van Gogh-inspired forest landscape](assets/return-of-the-foredi.png)
 
-Orchestration begins with a simple difficulty: the work we describe and the work our tools execute often inhabit different forms. A plan names intentions. A controller supplies the order, the conditions, and the recovery behavior. Each translation becomes another place where the meaning can change. Return of the ForeDi adopts Pel so that these relations can be expressed in one program, shared by people and models.
+**Status:** implemented release candidate, numerical version unassigned.
+Final candidate qualification and release acceptance remain open.
 
-The useful object is a program whose effects can be inspected before execution. Pel supplies values, calls, closures, pipes, and conditional computation. Foreman supplies the host operations that act on repositories, models, checks, and candidates. This division gives each extension a specific obligation: an adapter must preserve the requested model and controls, while a host operation must respect the authority and limits already granted to it. A successful language check establishes neither permission nor provider readiness.
+### Why we implemented Pel
 
-Consider a task that asks one model to implement a change and another to review it. Its essential structure is the relation between the candidate, the verification result, and the independent review. Pel makes that relation visible in the source. Durable execution retains the observations needed to recover interrupted work. The same language can then express a conditional repair or independent parallel work, without making each workflow require its own controller.
+A plan names the work. The controller supplies its order, conditions, and
+recovery behavior. When these live in separate scripts and prompts, each
+translation can change the intended workflow. Similar workflows also need
+repeated control logic.
 
-The next question concerns the meaning of these programs. A planned K-semantics sprint will state evaluation rules and compare their observable results with the TypeScript implementation. Executable examples and differential tests will support specific correspondence claims. They will not establish a general equivalence theorem by themselves. The present candidate already meets its instruction-reduction target, but its production-code reduction target remains unmet. The common language is implemented. The promised simplification still has work to do.
+Return of the ForeDi brings these relations into one program that people
+and models can read, write, and inspect before execution. Pel expresses the
+workflow. Foreman retains authority over repository access, model calls,
+verification, and durable state. This division makes the dependencies
+explicit without granting a program new permissions.
 
-**Status:** implemented release candidate, numerical version unassigned. The fixed 40% production-code reduction and complete live qualification remain open.
+### What Pel is
 
-- [Comprehensive release notes](docs/releases/return-of-the-foredi/RELEASE-NOTES.md)
-- [Pel tutorial](docs/guides/pel/tutorial.md)
-- [Pel semantics and the planned K sprint](docs/guides/pel/semantics.md)
+Pel is a small programming language for orchestrating agents, published by
+Behnam Mohammadi (arXiv `2505.13453v2`). Foreman adopts and extends that design
+in strict TypeScript for Node.js 24. No verified upstream implementation was available for comparison.
+The implemented profile,
+[`pel-paper-v2-foreman-1`](docs/reference/pel/compatibility.md), records the
+selected interpretations, extensions, and errata.
+
+Parentheses call functions, brackets hold lists, and pipes pass values from
+one call to the next. Bindings, closures, conditions, and loops express
+reusable workflows, including conditional repair and independent parallel
+work. A call uses positional or named arguments, never both. The
+[Pel tutorial](docs/guides/pel/tutorial.md) develops these rules from small
+expressions to delivery workflows.
+
+Foreman exposes operations through the reserved `fm/` namespace, including
+`fm/task`, `fm/verify`, `fm/review`, `fm/publish`, `fm/research`, and
+`fm/checkpoint`. Pel does not evaluate arbitrary JavaScript or shell source.
+It has no implicit `eval`.
+
+### How it works
+
+The commands separate inspection from execution:
+
+- `foreman check workflow.pel` parses and statically validates the program.
+- `foreman plan workflow.pel` previews values, effects, dependencies,
+  capabilities, resources, and bounds without dispatching work.
+- `foreman run workflow.pel` executes under existing project authority.
+  Each fully supplied host call suspends evaluation until Foreman validates
+  its exact model, capability, path, and limits before performing the operation.
+
+A successful check establishes neither permission nor provider readiness.
+
+The shipped [implementation-and-review example](examples/pel/implement-verify-review.pel)
+shows the central dependency: review must concern the candidate that passed
+verification.
+
+```pel
+(fm/task :id "implement" :model "role:implementer"
+  :input "artifact:approved-spec" :output "schema:candidate-v1")
+|> (fm/verify :id "verify" :input ^ :gate "candidate-full")
+|> (fm/review :id "review" :model "role:reviewer"
+  :input ^ :policy "independent-review")
+```
+
+The implementer produces a candidate from an approved specification.
+The ASCII pipe `|>` passes the result onward, and `^` marks its destination.
+Here, verification receives the candidate and review receives the
+verification result. Foreman captures an immutable candidate, runs the
+registered verification check against it, and binds independent review to
+that candidate and its verification evidence.
+
+During execution, durable history records completed operations and their
+receipts. `foreman status` inspects the run, and `foreman resume` continues
+under its original identity, retaining host evidence and reusing completed
+receipts. The program declares bounds for retries and correction rounds.
+
+### Improvements and open questions
+
+The aim is to make workflows easier to author, inspect, combine, and
+recover. Model identities remain registry data,
+so vendor changes need not change the language or weaken exact model and
+capability controls. Their practical benefit still needs evaluation.
+No speed, cost, or throughput improvement has been measured.
+
+The [historical C2 measurement](docs/releases/return-of-the-foredi/scope-amendment-2026-09-13.md)
+compares required workflow guidance with a
+[frozen baseline at commit `441c3fb`](docs/release-metrics/foredi-baseline.json).
+That baseline contains the Foreman skill and instructions for roles, agent
+execution, durable work, and parallel worktrees. Required instruction
+tokens fell from 16,502 in the baseline to 8,122 at C2, a 50.78 percent
+reduction. This exceeded the 50 percent target.
+The final candidate still needs fresh evidence.
+
+The original 40 percent production-code reduction target failed.
+That obligation is deferred to a separate repository-cleanup release whose
+numerical version is also unassigned. Deferral does not change the failed
+historical result.
+
+The next semantic question is whether an independent executable definition
+agrees with the TypeScript engine under stated assumptions.
+The planned [M7 K semantics sprint](docs/guides/pel/semantics.md) will define
+evaluation rules and compare observable results, including effects and
+recovery. No executable K definition or proof exists yet.
+Matching examples and differential tests can support specific correspondence
+claims, but cannot alone prove general equivalence.
+
+- [Release notes](docs/releases/return-of-the-foredi/RELEASE-NOTES.md)
 - [Release plan and acceptance evidence](docs/releases/return-of-the-foredi/README.md)
 
 ## Current release: George's Odyssey (v0.3.1)

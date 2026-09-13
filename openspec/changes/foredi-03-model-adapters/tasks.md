@@ -112,3 +112,11 @@ Run tests with Node.js 24 and strict TypeScript.
 - [x] Implement OutputSchemaV1 lowering, duplicate-aware JSON parsing and canonical Pel decoding in output.ts.
 - [x] Implement T-M3-028 and extend T-M3-009 for schema order, envelopes, bounds and unsupported subsets.
 - [x] Add pretest:providers invoking M2's test:pel-fixture-build before the provider CLI acceptance tests.
+
+## 10. API no-tool request evidence
+
+- [x] Report `observedToolPolicy: none` on API `started` only after a validated empty or omitted serialized tool surface and an exact established response identity.
+- [x] Reject function, tool and server-tool activity and fail closed on unrecognized action-bearing output in both the streaming and complete-response decoders.
+- [x] Distinguish the API request-enforcement assertion reason from the native empty-catalog observation without weakening either.
+- [x] Implement T-M3-029 in packages/providers/src/transports/api-transports.test.ts and the qualification assessment cases in packages/orchestration/src/pel-provider-live.test.ts.
+- [x] Keep no-tool evidence out of reach for a request flag alone, cursor replay, refusal, incomplete output, identity mismatch, unknown outcome and tool activity.
