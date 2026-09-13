@@ -374,6 +374,7 @@ export function encodeHostArgumentsV1(
       throw Error("invalid host arguments or environment");
     const nodes: Record<string, unknown>[] = [],
       objectIds = new Map<object, string>(),
+      valueIds = new Map<string, string>(),
       envIds = new Map<string, string>();
     const allocate = (): Record<string, unknown> => {
       const n: Record<string, unknown> = { id: `n${nodes.length}` };
@@ -413,8 +414,18 @@ export function encodeHostArgumentsV1(
       if (decodePelData(v).ok) return v;
       const existing = objectIds.get(v);
       if (existing) return { ref: existing };
+      // Continuation JSON preserves immutable records, not JavaScript aliases.
+      // The complete record includes lexical environment IDs, so structurally
+      // equal closures share a node without merging different captures.
+      const identity = canonicalize(v);
+      const equivalent = valueIds.get(identity);
+      if (equivalent) {
+        objectIds.set(v, equivalent);
+        return { ref: equivalent };
+      }
       const n = allocate();
       objectIds.set(v, n.id as string);
+      valueIds.set(identity, n.id as string);
       if (v.tag === "closure") {
         Object.assign(n, {
           kind: "closure-ref",
@@ -458,7 +469,7 @@ export function encodeHostArgumentsV1(
         });
       return { ref: n.id as string };
     }
-    const args = Object.entries(boundArguments).map(([name, value]) => ({
+    const args = Object.entries(boundArguments).sort(([left], [right]) => scalarCompare(left, right)).map(([name, value]) => ({
       name,
       value: val(value),
     }));

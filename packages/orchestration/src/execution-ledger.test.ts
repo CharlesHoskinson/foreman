@@ -564,6 +564,15 @@ describe("EndstopLedger", () => {
         1,
       );
 
+      for (const changed of [false, true]) {
+        const replayed = await Effect.runPromise(Effect.gen(function* () {
+          const ledger = yield* EndstopLedger;
+          return yield* ledger.executeChild({rootContractId:value.contractId,rootContractSha256,familySha256,childId:'v040-t4-appliance',operation:{_tag:'ReserveAction',reservationId:'child-reservation-1',reservationAction:'implement',effectiveAction:'implement',originReservationId:'child-reservation-1',candidate:CANDIDATE,taskPlanSha256:changed?A:C,authorityBundleSha256:D},at:'2026-08-24T12:04:01Z'});
+        }).pipe(Effect.provide(makeLiveEndstopLedgerLayer(root))));
+        assert.equal(replayed.decision._tag,changed?'Refused':'Accepted');
+        assert.equal(replayed.state.totalActions,1);
+      }
+
       const outcome = await Effect.runPromise(
         Effect.gen(function* () {
           const ledger = yield* EndstopLedger;
@@ -864,4 +873,18 @@ describe("EndstopLedger", () => {
       );
     });
   });
+});
+
+describe('M4 stable reservation recovery',()=>{
+ it('reuses the identical V1 reservation atomically and rejects changed action bindings',async()=>{
+  await withRoot(async root=>{
+   const value=contract();await Effect.runPromise(create(root,value));
+   const command={_tag:'ReserveAction' as const,action:'implement' as const,candidateSha256:A,commandSha256:B,reservationId:'pel-stable-reservation',at:'2026-08-05T12:01:00Z'};
+   const first=await Effect.runPromise(executeCommand(root,value,command));assert.equal(first.decision._tag,'Accepted');
+   const replayed=await Promise.all([1,2].map(()=>Effect.runPromise(executeCommand(root,value,{...command,at:'2026-08-05T12:02:00Z'}))));
+   for(const result of replayed){assert.equal(result.decision._tag,'Accepted');assert.equal(result.state.counts.totalActions,1);}
+   const changed=await Effect.runPromise(executeCommand(root,value,{...command,action:'audit',at:'2026-08-05T12:03:00Z'}));assert.equal(changed.decision._tag,'Refused');assert.equal(changed.state.counts.totalActions,1);
+   const expired=await Effect.runPromise(executeCommand(root,value,{...command,at:'2026-08-05T14:00:00Z'}));assert.equal(expired.decision._tag,'Terminated');assert.equal(expired.state.counts.totalActions,1);
+  });
+ });
 });

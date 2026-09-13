@@ -9,6 +9,7 @@ import { realpathSync, statSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import { Effect } from "effect";
 import { decodeRunId } from "@foreman/event-log";
+import { defaultPelLifecycleOptions, makeLivePelSupervisorRecovery } from "./pel-lifecycle-live.js";
 import {
   formatRunResultLines,
   runSupervisor,
@@ -228,6 +229,16 @@ export function runSupervisorCli(
                 env,
                 shellBinary: config.shellBinary,
                 laneRunScript: config.laneRunScript,
+                pelRecovery: canonicalRoot => {
+                  const options = defaultPelLifecycleOptions({
+                    stdout: text => Effect.sync(() => io.writeStdout(text)),
+                    stderr: text => Effect.sync(() => io.writeStderr(text)),
+                  });
+                  return makeLivePelSupervisorRecovery(canonicalRoot, {
+                    ...options, environment: env,
+                    foremanHome: env.FOREMAN_HOME ?? options.foremanHome,
+                  });
+                },
               }),
             ),
           );

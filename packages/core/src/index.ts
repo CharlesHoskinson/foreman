@@ -28,3 +28,5 @@ export {
   isCommitSha40,
 } from "./decode.js";
 export { readFdBounded, boundBytes } from "./bounded-read.js";
+
+export { acquireKernelDirectoryLock } from './kernel-lock.js';

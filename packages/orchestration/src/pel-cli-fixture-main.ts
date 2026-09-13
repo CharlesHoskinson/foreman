@@ -34,6 +34,8 @@ import type {
 } from "../../providers/src/contract.js";
 import type { ProviderFailure } from "../../providers/src/errors.js";
 import type { ProviderCliServices } from "./pel-provider-cli.js";
+import {validateAuthoringSnapshotV1} from '@foreman/pel';
+import {decodePelExecutionFixture,makePelExecutionFixtureServices} from './pel-cli-execution-fixture.js';
 
 const record = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -572,7 +574,7 @@ export function runPelCliFixture(
       !record(manifest.fixtures) ||
       !Array.isArray(manifest.fixtures.responses) ||
       Object.keys(manifest.fixtures).some(
-        (key) => !["responses", "providers"].includes(key),
+        (key) => !["responses", "providers", "execution"].includes(key),
       ) ||
       !("assetRoot" in manifest) ||
       typeof manifest.assetRoot !== "string" ||
@@ -607,6 +609,10 @@ export function runPelCliFixture(
       );
     const assetRoot = manifest.assetRoot;
     const assets = yield* loadAssets(assetRoot, manifest.assetManifestSha256);
+    const execution=manifest.fixtures.execution===undefined?undefined:yield* decodePelExecutionFixture(manifest.fixtures.execution,assetRoot);
+    const parsedSnapshot=execution?validateAuthoringSnapshotV1(JSON.parse(Buffer.from(assets.get(join(assetRoot,snapshotPath))!).toString())):undefined;
+    if(parsedSnapshot&&!parsedSnapshot.ok)return yield* Effect.fail(authoringFailure('PEL_SCHEMA','Fixture execution snapshot is invalid.'));
+    const lifecycle=execution&&parsedSnapshot?.ok?yield* makePelExecutionFixtureServices(execution,parsedSnapshot.value,sha256(bytes),bytes):undefined;
     const command = argv.slice(2);
     const providerFixtures =
       manifest.fixtures.providers === undefined
@@ -624,6 +630,7 @@ export function runPelCliFixture(
       contextIndex < 0 ? undefined : command[contextIndex + 1];
     let at = 0;
     return yield* runPelAuthoringMain(command, {
+      ...(lifecycle?{lifecycle}:{}),
       ...(providerFixtures
         ? {
             providers: fixtureProviderServices(providerFixtures, sha256(bytes)),

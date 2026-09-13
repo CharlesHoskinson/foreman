@@ -194,6 +194,11 @@ function decodeIdentifier(value: unknown): string | null {
   return typeof decodeRunId(value) === "string" ? value : null;
 }
 
+/** Reuse the existing execution limit rules at Pel project and run boundaries. */
+export function decodeExecutionLimitsV1(value: unknown): ExecutionLimitsV1 | ExecutionContractFailure {
+  return decodeLimits(value);
+}
+
 export function decodeExecutionContractV1(
   value: unknown,
 ): ExecutionContractV1 | ExecutionContractFailure {

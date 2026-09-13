@@ -70,6 +70,52 @@ M1 validates the registered failure envelope. M4 validates each operation-specif
 
 ## Project configuration and admission
 
+### Registered authority preimages
+
+Source inspection found no V1 decoder for authorization bytes or allowed-path bytes.
+The existing ledger stores their hashes in `ExecutionContractV1`.
+The V2 ledger stores child action registrations and a family source hash.
+Release evidence bundles bind actions and candidates, but omit physical workspace grants, gate commands, and publication destinations.
+The destruction register belongs to a different policy and cannot supply these permissions.
+
+Add the closed `PelProjectAuthorityV1` artifact in `pel-project-authority.ts`.
+Its fields are `schemaVersion: 1`, `repository`, `stateRoot`, `workspaceGrants`, `taskActions`, `gates`, and `destinations`.
+Serialize the artifact as UTF-8 canonical JSON with exactly one final newline.
+Require its byte hash to equal the already registered root contract's `authorizationSha256` and the selected authority reference hash.
+This artifact uses the existing project input and run artifact stores.
+The decoder cannot register authority, create a contract, or reserve an action.
+
+For V1, define the allowed-path preimage as `{schema: "foreman.execution-paths.v1", allowedPaths: paths}`.
+`paths` contains the sorted unique relative writable paths from all authorized workspace grants.
+Sort paths by UTF-8 bytes and serialize with the same canonical JSON and final newline rule.
+The path `.` explicitly grants the workspace root.
+Require the byte hash to equal the registered contract's `allowedPathsSha256`.
+Reject opaque legacy inputs that cannot supply either typed preimage.
+
+Configured grants can omit authorized paths but cannot change repository, worktree, directory identity, or immutable base.
+Configured task mappings, gate commands, and destinations must exactly match their selected authorized entries.
+Configuration can omit entries.
+For V2, also reconstruct the registered family manifest from its exact source bytes.
+Require a registered child bundle with matching action, candidate, task plan, receipts, and retry origin.
+The project scope alone cannot authorize a child action.
+
+Workspace grants permit recursive writes below each writable path.
+Therefore, V2 admission requires a covering child path ending in `/**` for each configured writable path.
+An exact child file path cannot authorize a recursive workspace grant.
+Copy the original contract, scope, family source, and bundle bytes into the run artifact store before execution.
+Resume loads these immutable bytes without substituting current project settings.
+
+Existing release receipts do not bind Pel recovery decisions or source revisions.
+The existing operator `resume --decision` path can register an unsigned decision under the held run owner.
+The registrar validates the complete decision against the original binding and pending effect or completed revision prefix before it writes authority.
+It stores an immutable decision blob and a `pel.operator-decision.v1` record in the existing run journal. No new authority store or operator gate is required.
+The receipt binds the exact run, contract, checked program, decision kind, and complete decision bytes.
+Model output cannot create this linkage. Full signed input must match registered authority exactly.
+A no-dispatch decision is consumed by the observation before its next dispatch attempt.
+Consumed receipts cannot be submitted again. A later recovery decision must contain new evidence, and it cannot conflict with an unconsumed decision.
+Recovery registration validates the same host receipt schema as recovery execution, including an abandon failure.
+Revision registration and execution use the same bounded read-only preparation for aliases, counters, and completed prefix validation.
+
 Add `packages/orchestration/src/pel-project-config.ts` for `ForemanProjectV1` and its strict decoder.
 Store it at `<canonical Git common directory>/foreman/project.json`, shared across repository worktrees.
 Resolve the repository through `packages/orchestration/src/project-registry.ts`. Reject a config whose project ID or repository identity differs.
@@ -129,13 +175,19 @@ Use `pel.run.v1`, `pel.suspension.v1`, `pel.effect.intent.v1`, `pel.effect.obser
 Tool and stream durability also use `pel.tool.intent.v1`, `pel.tool.result.v1`, and `pel.provider.cursor.v1`.
 The remaining Pel record types are `pel.child-suspension.v1`, `pel.revision.v1`, `pel.revision-mapping.v1`, `pel.recovery-decision.v1`, and `pel.output.v1`.
 `pel.effect.intent.v1` contains preparation digest and ledger reservation reference together. There are no separate Pel preparation or reservation-reference records.
-The external-effect sequence is suspension, existing-ledger reservation, combined Pel intent, observation, and result.
+The external-effect sequence is suspension, optional local preparation observation, existing-ledger reservation, combined Pel intent, observation, and result.
+Provider preparation retains the exact bounded request in an immutable artifact and references it from an existing `pel.effect.observed.v1` record with stage `provider-preparation`.
+Preparation is read-only with respect to candidate resources, external resources, authority, and action or spend counters. Local retention cannot grant dispatch.
+If the owner stops after reservation but before intent, preparation reuses these exact request bytes and the same reservation identity.
 Read-only reuse has suspension then result without an external intent or action reservation.
 Recoverable needs-action has suspension then observation, leaving its evaluator request pending without a terminal result.
 Also register `pel.failed-step.v1`, `pel.race.decision.v1`, and `pel.authority-observed.v1` payloads under the frozen event envelope.
+The implementation also registers `pel.run-result.v1` with a single immutable `resultRef`. It persists the final `RunResultV1`, including final pure values and the distinction between pending-effect and final-value needs-action. Status and recovery read this record without treating it as print output. Flush and validate the referenced result before appending the record.
 Each payload includes schema version, checked digest, runtime version, language profile, attempt identity, and relevant authority binding.
 `pel.run.v1` references immutable artifacts containing exact source bytes, complete `AuthoringSnapshotV1`, registry content, and project configuration.
 Each reference contains artifact ID, byte length, and SHA-256. Use the existing artifact state root, not another database.
+The concrete blob directory is `<stateRoot>/runs/<runId>/artifacts`, inside existing run state. No generic artifact writer existed in the inspected runtime, so M4 adds a bounded immutable file adapter there. A separate injected project-input reader resolves registered snapshot and authority references before a run ID exists; admission copies those inputs into the run directory.
+Registered project inputs use `<stateRoot>/project-inputs/<projectId>/sha256-<SHA256>`. The reader requires the active project registry association, validates the content hash and byte bound, and rejects symlink paths. Configure can read candidate inputs for authority validation before it registers the project. An input file does not create authority.
 Persist and verify these artifacts before run admission completes. The journal remains authoritative for their identity.
 Resume reads these bytes and re-checks their hashes. It never rereads the operator's current source file or installed default snapshot.
 A missing or mismatched artifact yields `binding-mismatch`, with no dispatch.
@@ -156,7 +208,7 @@ Persist child state at allocation, each suspension, and terminal/abandoned trans
 Recovery restores the complete parent/child tree before issuing nested requests, including all outstanding receipts and remaining allocations.
 Charge only each child's newly consumed counter delta at a new tranche ordinal. Replaying the same child record cannot charge it twice.
 Retry resumes its recorded current attempt. Race restores both contenders and any already committed winner before considering new work.
-`pel.race.decision.v1` binds the parent request, eligible contender result receipts, selected source index, grant references, and decision sequence.
+`pel.race.decision.v1` binds the parent request, eligible contender result receipts, selected source index, and grant references. The enclosing stored event supplies the decision sequence. The decision blob does not predict a journal sequence before append.
 Commit the decision before exposing the winner value. Recovery without a decision selects from existing durable eligible results and appends one decision.
 Recovery reuses allocated worktree grants and never allocates replacement grants for already recorded contenders.
 
@@ -221,6 +273,9 @@ Never infer no dispatch from a missing provider ID. Reconcile through M3 when su
 The supported decision file schema is `PelRecoveryDecisionV1` with run, effect, checked digest, decision, evidence refs, and authority receipt.
 Decisions are `accept-result`, `confirm-no-dispatch`, or `abandon`. A decision cannot grant broader capabilities or replenish limits.
 Unresolved external cost keeps the original conservative reservation. Recorded receipt replay performs zero provider calls.
+Each provider intent contains `usageReservation` for maximum input tokens, output tokens, and USD cost; non-provider intents contain `null`. The existing journal transaction admits an intent only if aggregate provider commitments remain within the binding. Concurrent preparations can see the same remaining allowance, but only the transaction grants it. No side ledger stores provider usage.
+Observation metadata can contain input-token, output-token, and decimal USD usage. Only a confirmed terminal observation replaces a reservation for a dimension whose final usage is known. Missing dimensions and unknown outcomes retain their original commitments. USD projection uses exact decimal arithmetic and rounds any returned provider-number allowance downward.
+Recovery can continue an exact saved provider session through its immutable request, cursor, and opaque checkpoint. It validates the original reservation, schema, transport identity, deadline, and limits, then acquires the existing resource scope and calls transport resume. This path does not call preparation, reserve another action, or start a new provider session. Unsupported observation alone grants no fresh dispatch.
 Identical duplicate receipts are no-ops. Conflicting receipts fail with `journal-corrupt` and preserve both evidence references.
 
 Unknown external outcomes, reconciliation-required, timeout with an unconfirmed remote outcome, and publication awaiting authority are recoverable observations.
@@ -261,6 +316,7 @@ Native tools wholly executed inside a provider remain external effects subject t
 The host does not claim per-tool receipts for native operations that the transport does not expose.
 
 `fm/checkpoint :name` returns `[:name "label" :sequence 12]`, using its actual label and journal sequence.
+The `pel.checkpoint.v1` record binds `effectId` and `continuationRef`. If execution stops before the receipt is committed, recovery reuses that effect's checkpoint record and original sequence. Concurrent checkpoint calls keep distinct effect identities.
 Resume validates journal ordering, hashes, attempt identity, runtime compatibility, and the owner lease before evaluator activation.
 Resume retains the admitted execution attempt identity. `reserveResumeAttempt` increments only its resume counter, not a new execution attempt.
 A source edit requires `foreman resume RUN --revision FILE --decision FILE` with a separate `PelRevisionDecisionV1`.
@@ -269,6 +325,8 @@ This decision contains parent and revised source digests, completed-prefix diges
 Each row records old request ID, old effect ID, revised node ID, revised invocation path, new request ID, argument digest, and result receipt.
 The completed prefix contains whole top-level forms with identical normalized AST subtrees and invocation paths.
 Every mapped call must have identical normalized arguments and result schema. A changed completed call fails `continuation-incompatible` before dispatch.
+Argument normalization uses the validated M1 host-argument graph. It retains captured data, lexical edges, defaults, argument specifications, and callable AST contents. It replaces only the current source digest and its node-ID prefix, removes AST source spans, and removes codec-derived environment and options hashes. The normalized graph receives a new canonical digest. Admission and crash replay use the same digest function.
+Across repeated revisions, each alias still points to the original effect receipt. M1 reconstructs current request IDs and lexical environments from immutable source using that alias chain. Failed-work counters come from the latest failed-step record for the current checked digest.
 A partially completed top-level form with completed host effects cannot be revised. Resolve it first or submit a separate admitted run.
 A failed top-level suffix with no completed host effect can be replaced, retaining all consumed work counters.
 Arbitrary edited expression interiors that require effect remapping remain outside this release's revision support.
@@ -385,6 +443,10 @@ Lifecycle exit codes are `0` succeeded, `1` failed, `2` invalid request, `3` nee
 `status` returns that state code. `cancel` returns `5` while confirmation is pending, then `4` only for confirmed cancellation.
 A successful read of a failed run does not emit an execution-success code.
 Local ownership recovery uses existing supervisor lease evidence. A stale process identifier alone cannot authorize takeover.
+On Linux with procfs and the installed root-owned `flock` utility, the existing `RunLease` holds a kernel lock on an inherited no-follow file descriptor. The helper process exits after acquisition; the attached command retains the same open file description. Command exit or SIGKILL releases the kernel lock. No PID check or polling loop grants ownership.
+The existing `.supervise.lock` directory remains as a compatibility barrier. Its protected `owner-v1.lock` file contains a versioned marker bound to the run-directory, lock-directory, and lock-file device/inode identities. Release closes descriptors and does not unlink either entry. All new contenders bind the same inode. Older mkdir-only clients therefore remain Busy while this protocol is present.
+An unmarked legacy directory, an interrupted protocol initialization, a changed inode, a symlink, a hardlink, an unprotected entry, or an unavailable kernel-lock primitive fails closed as Busy. M4 does not automatically migrate such evidence. This recovery path requires Linux procfs and the trusted installed utility; unsupported hosts do not fall back to unsafe pathname or stale-PID ownership.
+The existing journal attempt and event transaction lock paths use the same core kernel primitive with a separate journal protocol marker. Each path is a persistent protected directory. Legacy exclusive-create lockfiles remain Busy and are not removed. EndstopLedger uses these existing journal transactions, so SIGKILL after a flushed action reservation releases ownership without removing the debit. A new transaction replays that reservation before it can reserve another action.
 
 ## Failure and cancellation outcomes
 

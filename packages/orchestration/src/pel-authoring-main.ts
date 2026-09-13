@@ -6,6 +6,7 @@ import { Effect } from "effect";
 import { makeForemanCli } from "./pel-authoring-cli.js";
 import { defaultLiveProviderContext, makeLiveProviderCliServices } from './pel-provider-live.js';
 import { makeLiveAuthoringGenerate } from './pel-provider-generation-live.js';
+import {makeLivePelLifecycleServices,defaultPelLifecycleOptions} from './pel-lifecycle-live.js';
 import {
   authoringFailure,
   type AuthoringInputPort,
@@ -118,6 +119,7 @@ export function runPelAuthoringMain(
         context: { defaultSnapshotPath: defaultAuthoringSnapshotPath() },
         providers: makeLiveProviderCliServices(providerContext),
         generate: makeLiveAuthoringGenerate(providerContext),
+        lifecycle: makeLivePelLifecycleServices(defaultPelLifecycleOptions(overrides.output ?? nodeAuthoringOutput)),
         ...overrides,
         ...(terminal ? { terminal } : {}),
       }).run(argv);

@@ -6,6 +6,10 @@
  * Never direct-spawns when pueue is unavailable.
  */
 
+import type { Scope } from "effect";
+import type { RunId } from "@foreman/event-log";
+import type { PelOwnedRunContextV1, RunFailure, RunResultV1 } from "./pel-run-contract.js";
+import { pelFailure } from "./pel-journal.js";
 import { Context, Effect, Layer } from "effect";
 import {
   RunJournal,
@@ -204,7 +208,7 @@ export type RunResumeQueueExecutionInput = {
  * restore and queue. A successful reservation remains durable if later steps
  * fail.
  */
-export function runResumeQueueExecution(
+function runLegacyResumeQueueExecution(
   input: RunResumeQueueExecutionInput,
 ): Effect.Effect<
   ResumeQueueExecutionResultV1,
@@ -450,4 +454,20 @@ export function makeStubQueueSubmitter(impl: {
   ) => Effect.Effect<QueueSubmissionV1, QueueSubmitFailure>;
 }): Layer.Layer<QueueSubmitter> {
   return Layer.succeed(QueueSubmitter, impl);
+}
+
+/** Pel recovery runs inside the caller's existing owner and reserves its own resume budget once. */
+export interface PelResumeQueueExecutionInput {
+  readonly kind: "pel";
+  readonly runId: RunId;
+  readonly owner: PelOwnedRunContextV1["owner"];
+  readonly resume: (owner: PelOwnedRunContextV1["owner"]) => Effect.Effect<RunResultV1, RunFailure, Scope.Scope>;
+}
+export function runResumeQueueExecution(input: PelResumeQueueExecutionInput): Effect.Effect<RunResultV1, RunFailure, Scope.Scope>;
+export function runResumeQueueExecution(input: RunResumeQueueExecutionInput): Effect.Effect<ResumeQueueExecutionResultV1, ResumeQueueExecutionFailure, WorktreeRestore | RunJournal | QueueSubmitter>;
+export function runResumeQueueExecution(input: PelResumeQueueExecutionInput | RunResumeQueueExecutionInput): Effect.Effect<RunResultV1 | ResumeQueueExecutionResultV1, RunFailure | ResumeQueueExecutionFailure, Scope.Scope | WorktreeRestore | RunJournal | QueueSubmitter> {
+  if ("kind" in input) {
+    return input.owner.runId === input.runId ? input.resume(input.owner) : Effect.fail(pelFailure("owner-busy", "Pel recovery requires the already-held owner."));
+  }
+  return runLegacyResumeQueueExecution(input);
 }

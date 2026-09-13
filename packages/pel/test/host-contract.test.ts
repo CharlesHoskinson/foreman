@@ -217,3 +217,11 @@ test("T-M1-020 revised prefix reuses two receipts and retains 14 failed-step red
     assert.equal(bad.tag, "failed");
   }
 });
+
+test('M4 predicate cancellation, refusal and reconciliation abandonment retain closed host failures',async()=>{
+ const {validateHostReceipt}=await import('../src/host-contract.js');
+ const registry=createHostRegistry();assert.ok(registry.ok);
+ const request={requestId:'predicate',sourceDigest:'a'.repeat(64),nodeId:'node',invocationOrdinal:0,invocationPath:'root/condition',registryId:'pel/nl-condition',boundArguments:{scrut:{tag:'number' as const,value:2},condition:{tag:'string' as const,value:'even'}},expectedResultSchemaId:'schema:pel-boolean-v1'};
+ for(const code of ['cancelled','provider-refused','reconciliation-abandoned'])assert.equal(validateHostReceipt(registry.value,request,{requestId:request.requestId,outcome:{tag:'failure',failure:{code,message:'Observed terminal provider outcome.'}}}).ok,true,code);
+ assert.equal(validateHostReceipt(registry.value,request,{requestId:request.requestId,outcome:{tag:'failure',failure:{code:'invented-failure',message:'Unknown'}}}).ok,false);
+});

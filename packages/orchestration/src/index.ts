@@ -964,3 +964,20 @@ export {
   type RootlessEngineQualificationReasonV1,
   type RootlessEngineQualificationResultV1,
 } from "./rootless-engine-qualification.js";
+
+export { runProgram, withPelRunOwner, signalPelRunCancellation } from './pel-runner.js';
+export { resumeProgram, loadPelRecovery, readPelRunResult } from './pel-recovery.js';
+export { pelStatus, cancelPelRun, readPelExecutionBinding } from './pel-run-status.js';
+export { decodeForemanProjectV1, configurePelSnapshot, deriveExecutionBinding } from './pel-project-config.js';
+export { makeLivePelProjectServices } from './pel-project-live.js';
+export { makePelLifecycleServices } from './pel-lifecycle-services.js';
+export { makeLivePelLifecycleServices } from './pel-lifecycle-live.js';
+export { classifyPelFinalResult, decodeRunResultV1 } from './pel-run-result.js';
+export { PelSupervisorRecovery } from './supervisor.js';
+export {
+  PelRuntime, decodeExecutionBindingV1, decodeRunStatusV1,
+  type ForemanProjectV1, type ExecutionBindingV1, type RunStatusV1, type RunResultV1,
+  type RunFailure, type RunServices, type PelRuntimePorts, type HostContextV1,
+  type ResourceSetV1, type PreparedHostEffectV1, type HostDispatchOutcomeV1,
+  type PelRecoveryDecisionV1, type PelRevisionDecisionV1,
+} from './pel-run-contract.js';

@@ -33,6 +33,7 @@ import {
   makeLiveRunJournalLayer,
   RunJournal,
   type RunId,
+  type LiveRunJournalOptions,
   type StoredEvent,
 } from "@foreman/event-log";
 import { Context, Effect, Layer } from "effect";
@@ -1528,8 +1529,9 @@ function publishFamilyManifestLive(
 
 export function makeLiveEndstopLedgerLayer(
   stateRoot: string,
+  journalOptions: LiveRunJournalOptions = {},
 ): Layer.Layer<EndstopLedger> {
-  const journalLayer = makeLiveRunJournalLayer(stateRoot);
+  const journalLayer = makeLiveRunJournalLayer(stateRoot, journalOptions);
   const loadManifest = (familySha256: string): ExecutionContractFamilyV2 | null =>
     loadFamilyManifestLive(stateRoot, familySha256);
   const readHistory = (
@@ -1672,6 +1674,19 @@ export function makeLiveEndstopLedgerLayer(
                 failure: ledgerFailure("family_active"),
               } as const,
             };
+          }
+          // A crash can occur after this ledger flush and before the Pel intent.
+          // Reuse its stable reservation atomically in this existing transaction.
+          if (command._tag === "ReserveAction" && !isExecutionTerminal(history.state.root) && isUtcSecondTimestamp(command.at) && Date.parse(command.at) >= Date.parse(history.state.root.lastEventAt) && Date.parse(command.at) < Date.parse(history.state.root.contract.deadlineAt) && Date.parse(command.at) - Date.parse(history.state.root.lastProductChangeAt) < history.state.root.contract.limits.noProductChangeMs) {
+            for (const stored of events) {
+              if (stored.type !== DECISION_EVENT || !isRecord(stored.payload) || !Array.isArray(stored.payload.events)) continue;
+              for (const raw of stored.payload.events) {
+                const previous = executionEventFromUnknown(raw);
+                if (previous?._tag !== "ActionReserved" || previous.reservationId !== command.reservationId) continue;
+                const same = previous.action === command.action && previous.candidateSha256 === command.candidateSha256 && previous.commandSha256 === command.commandSha256;
+                return {_tag:"Return",value:{_tag:"Ok",value:{decision:same?{_tag:"Accepted",events:[]}:{_tag:"Refused",reason:"invalid_command"},state:history.state.root}}} as const;
+              }
+            }
           }
           const decision = decideExecutionCommand(history.state.root, command);
           if (
@@ -2342,6 +2357,16 @@ export function makeLiveEndstopLedgerLayer(
                 failure: ledgerFailure("family_missing"),
               } as const,
             };
+          }
+          // The existing child reservation binds every authority and operation field.
+          // A duplicate is a read of that spent reservation, never another debit.
+          if (operation._tag === "ReserveAction" && family._tag === "Running" && family.children[input.childId]?._tag === "Running") {
+            const previous = family.children[input.childId]?.reservations[operation.reservationId];
+            const currentDecision = previous === undefined ? null : decideExecutionChildOperationV2({state:family,childId:input.childId,operation,at:input.at});
+            if (previous !== undefined && currentDecision?._tag === "Refused" && currentDecision.reason === "invalid_operation") {
+              const same = canonicalize({...previous, _tag:"ReserveAction"}) === canonicalize(operation);
+              return {_tag:"Return",value:{_tag:"Ok",value:{decision:same?{_tag:"Accepted",events:[]}:{_tag:"Refused",reason:"invalid_operation"},state:family}}} as const;
+            }
           }
           if (
             operation._tag === "ReserveAction" &&

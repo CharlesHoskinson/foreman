@@ -711,7 +711,7 @@ describe("makeLiveTypedJournalReader", () => {
 
 describe("makeLiveRunLease", () => {
   it(
-    "acquires exclusive mkdir lease and Busy on second hold",
+    "acquires a kernel lease, refuses a second hold, and retains its inode on release",
     { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
@@ -742,7 +742,7 @@ describe("makeLiveRunLease", () => {
         }
         assert.equal(
           existsSync(join(root, "runs", run, ".supervise.lock")),
-          false,
+          true,
         );
 
         const third = await Effect.runPromise(
@@ -853,8 +853,8 @@ describe("makeLiveRunLease", () => {
         if (result._tag === "Held") {
           await Effect.runPromise(result.release());
         }
-        // Release removes only the original lock, never outside.
-        assert.equal(existsSync(join(parked, ".supervise.lock")), false);
+        // Release closes ownership and retains the original lock inode.
+        assert.equal(existsSync(join(parked, ".supervise.lock")), true);
         assert.equal(existsSync(join(outside, ".supervise.lock")), false);
         assert.deepEqual(readdirSync(outside).sort(), ["sentinel"]);
       } finally {
@@ -904,7 +904,7 @@ describe("makeLiveRunLease", () => {
         }
         assert.equal(
           existsSync(join(parkedRuns, String(run), ".supervise.lock")),
-          false,
+          true,
         );
         assert.equal(
           existsSync(join(outside, String(run), ".supervise.lock")),
@@ -952,9 +952,9 @@ describe("makeLiveRunLease", () => {
         // Outside fake lock and payload must remain.
         assert.ok(existsSync(join(outside, ".supervise.lock")));
         assert.equal(readFileSync(join(outside, "keep-me"), "utf8"), "x");
-        // Original lock under parked identity is gone.
+        // Original lock inode under the parked identity remains.
         const parked = join(root, "runs", `${String(run)}.parked-identity`);
-        assert.equal(existsSync(join(parked, ".supervise.lock")), false);
+        assert.equal(existsSync(join(parked, ".supervise.lock")), true);
       } finally {
         cleanup();
         rmSync(outside, { recursive: true, force: true });
@@ -1009,7 +1009,7 @@ describe("makeLiveRunLease", () => {
         }
         assert.equal(
           existsSync(join(parkedRoot, "runs", String(run), ".supervise.lock")),
-          false,
+          true,
         );
         assert.equal(
           existsSync(join(outside, "runs", String(run), ".supervise.lock")),
@@ -1064,7 +1064,7 @@ describe("makeLiveRunLease", () => {
         }
         assert.equal(
           existsSync(join(parkedRoot, "runs", String(run), ".supervise.lock")),
-          false,
+          true,
         );
         assert.equal(existsSync(join(outside, "runs")), false);
       } finally {
@@ -1118,7 +1118,7 @@ describe("makeLiveRunLease", () => {
         );
         assert.equal(
           existsSync(join(parkedRoot, "runs", String(run), ".supervise.lock")),
-          false,
+          true,
         );
       } finally {
         cleanup();

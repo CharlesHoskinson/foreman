@@ -6,7 +6,9 @@
  * decideRoundResume; derives worktrees only from ownership events.
  */
 
-import { Context, Effect } from "effect";
+import type { Scope } from "effect";
+import type { PelOwnedRunContextV1, RunFailure, RunResultV1 } from "./pel-run-contract.js";
+import { Context, Effect, Option } from "effect";
 import {
   decodeLaneId,
   decodeRunId,
@@ -41,6 +43,11 @@ import { join } from "node:path";
 // ---------------------------------------------------------------------------
 // Injectable services
 // ---------------------------------------------------------------------------
+
+/** Optional Pel branch. The installed closure supplies run services without another owner. */
+export class PelSupervisorRecovery extends Context.Tag("PelSupervisorRecovery")<PelSupervisorRecovery, {
+  readonly recover: (runId: RunId, owner: PelOwnedRunContextV1["owner"]) => Effect.Effect<RunResultV1, RunFailure, Scope.Scope>;
+}>() {}
 
 export class RunDiscovery extends Context.Tag("RunDiscovery")<
   RunDiscovery,
@@ -233,6 +240,9 @@ export type SupervisorLaneActionV1 =
     };
 
 export type SupervisorRunResultV1 =
+  | { readonly _tag: "PelSwept"; readonly runId: RunId; readonly result: RunResultV1 }
+  | { readonly _tag: "PelPlanned"; readonly runId: RunId }
+  | { readonly _tag: "PelFailed"; readonly runId: RunId; readonly failure: RunFailure | null }
   | {
       readonly _tag: "Swept";
       readonly runId: RunId;
@@ -287,6 +297,14 @@ export function sweepOneRun(
 
       const records = read.records;
       const events = eventsFromRecords(records);
+      if (events.some(event => event.type === "pel.run.v1")) {
+        if (config.dryRun) return { _tag: "PelPlanned" as const, runId };
+        const recovery = yield* Effect.serviceOption(PelSupervisorRecovery);
+        if (Option.isNone(recovery)) return { _tag: "PelFailed" as const, runId, failure: null };
+        const owner = { runId, release: () => Effect.void };
+        const resumed = yield* Effect.either(Effect.scoped(runResumeQueueExecution({kind: "pel", runId, owner, resume: held => recovery.value.recover(runId, held)})));
+        return resumed._tag === "Left" ? { _tag: "PelFailed" as const, runId, failure: resumed.left } : { _tag: "PelSwept" as const, runId, result: resumed.right };
+      }
       const lanes = lanesFromEvents(events);
       const actions: SupervisorLaneActionV1[] = [];
 
@@ -539,6 +557,9 @@ export function formatRunResultLines(
   result: SupervisorRunResultV1,
 ): readonly string[] {
   switch (result._tag) {
+    case "PelSwept": return [`run ${String(result.runId)}: Pel ${result.result.state}`];
+    case "PelPlanned": return [`run ${String(result.runId)}: [dry-run] would recover Pel`];
+    case "PelFailed": return [`run ${String(result.runId)}: Pel recovery failed ${result.failure?.code ?? "service-unavailable"}`];
     case "Busy":
       return [
         `run ${String(result.runId)}: .supervise.lock held by another sweep`,

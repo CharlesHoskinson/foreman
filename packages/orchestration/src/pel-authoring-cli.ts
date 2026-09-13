@@ -20,6 +20,7 @@ import {
 } from "./pel-authoring-contract.js";
 import { makePelDraftSession } from "./pel-draft-session.js";
 import { runProviderCli } from "./pel-provider-cli.js";
+import { runPelLifecycleCli } from './pel-lifecycle-cli.js';
 
 const SOURCE_LIMIT = 1024 * 1024;
 const JSON_LIMIT = 16 * 1024 * 1024;
@@ -175,6 +176,7 @@ export function makeForemanCli(services: AuthoringServices): ForemanCli {
   return {
     run: (argv) => {
       if (argv[0] === 'providers') return runProviderCli(argv, services);
+      if (['run', 'resume', 'status', 'cancel', 'project'].includes(argv[0] ?? '')) return runPelLifecycleCli(argv, services);
       let source: Uint8Array = new Uint8Array();
       let file = "<input>";
       const json = argv.includes("--json");
@@ -236,6 +238,7 @@ export function makeForemanCli(services: AuthoringServices): ForemanCli {
             );
           snapshot = effective.value;
         }
+        if (services.lifecycle?.configuredSnapshot) snapshot = yield* services.lifecycle.configuredSnapshot(snapshot, args.flags['--context'] !== undefined || args.flags['--selection'] !== undefined);
         const generate = (prompt: string) =>
           Effect.gen(function* () {
             const model = args.flags["--model"];

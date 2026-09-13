@@ -196,3 +196,34 @@ test("environment parent validation visits a long chain in linear work and rejec
   records.e0!.parent = "absent";
   assert.equal(codec.validEnvironmentTable({ ...bindings, records }), false);
 });
+
+test('canonical host argument graphs survive continuation JSON losing physical object sharing', async () => {
+  const {parsePel}=await import('../src/parser.js');
+  const {createHostRegistry}=await import('../src/host-contract.js');
+  const {startPel,createPelEnvironment}=await import('../src/evaluator.js');
+  const {encodePelContinuation,decodePelContinuation}=await import('../src/continuation.js');
+  const parsed=parsePel(Buffer.from('(def captured [4 5]) (print (lambda [] captured))'));assert.ok(parsed.ok);
+  const registry=createHostRegistry();assert.ok(registry.ok);
+  const step=startPel(parsed.value,createPelEnvironment(registry.value));assert.equal(step.tag,'suspend');if(step.tag!=='suspend')return;
+  const original=step.continuation;
+  const bytes=encodePelContinuation(original);assert.ok(bytes.ok);
+  const saved=decodePelContinuation(bytes.value,{sourceDigest:original.sourceDigest,profileDigest:original.profileDigest,registryDigest:original.registryDigest,optionsDigest:original.optionsDigest});assert.ok(saved.ok);
+  const graph=(parent:typeof original)=>codec.encodeHostArgumentsV1(parent.pending[step.ready[0].requestId]!.request.boundArguments,{sourceDigest:parent.sourceDigest,registryDigest:parent.registryDigest,optionsDigest:parent.optionsDigest,records:parent.environments});
+  const before=graph(original),after=graph(saved.value);assert.ok(before.ok);assert.ok(after.ok);assert.deepEqual(after.value,before.value);
+});
+test('host argument name insertion order does not change canonical graph identity',()=>{
+ const {closure,environmentTable}=fixture();
+ const first=codec.encodeHostArgumentsV1({z:closure,a:{tag:'number',value:1}},environmentTable);
+ const second=codec.encodeHostArgumentsV1({a:{tag:'number',value:1},z:closure},environmentTable);
+ assert.ok(first.ok);assert.ok(second.ok);assert.deepEqual(first.value,second.value);
+});
+test('structural interning keeps distinct lexical environment captures distinct',()=>{
+ const {closure,environmentTable}=fixture();
+ const other={...closure,environmentId:'e1'};
+ const table={...environmentTable,records:{...environmentTable.records,e1:{id:'e1',bindings:{self:other,captured:{tag:'number' as const,value:2}}}}};
+ const encoded=codec.encodeHostArgumentsV1({first:closure,second:other},table);assert.ok(encoded.ok);
+ const decoded=codec.decodeHostArgumentsV1(encoded.value,bindings);assert.ok(decoded.ok);
+ const first=decoded.value.boundArguments.first as PelClosureValue,second=decoded.value.boundArguments.second as PelClosureValue;
+ assert.notEqual(first.environmentId,second.environmentId);
+ assert.deepEqual(decoded.value.environmentTable.records[second.environmentId]?.bindings.captured,{tag:'number',value:2});
+});

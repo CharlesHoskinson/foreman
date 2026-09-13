@@ -1,0 +1,5 @@
+
+> verify-register-doc
+> tsx scripts/verify-register-doc.ts
+
+verify-register-doc: ok entries=22 sha256=8218c689f3775840bc6aa8f894912b0379a63bd231f27fc5d5cc4e684370ea99
