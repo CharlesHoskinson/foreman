@@ -55,3 +55,12 @@ K remains a development and verification dependency. Foreman production executio
 Repository cleanup and production-code reduction stay in the separate release requested by the user.
 Existing v0.5 P1-P15 predicates, live-provider qualifications, platform evidence, and legacy-controller obligations retain their authority.
 Passing K1 cannot publish a numbered Foreman release while its other required predicates fail.
+
+## Pel execution form
+
+The [Pel workflow collection](../../../examples/pel/k-release/README.md) expresses this agenda using the current runtime.
+Its [agenda](../../../examples/pel/k-release/agenda.pel) maps all packages and inherited M7 requirements to numbered workflows.
+Each workflow implements a checkpoint, candidate capture, verification, and independent review.
+A separate correction program requires an explicitly bound input packet after the beta test exposed missing correction context.
+Project and artifact bindings remain unbound. Promotion and release publication remain explicit host-owned boundaries.
+These authored programs do not complete any K implementation task.

@@ -1,0 +1,25 @@
+; One separately admitted correction, using a newly bound immutable input packet.
+; Include the original spec and failed candidate/check/review evidence as actual content.
+; Do not pass nested artifact strings and expect automatic dereferencing.
+
+(def needs-action (lambda [:current :reason]
+  [:status "needs-action" :candidate (current :at ':candidate)
+   :delivery current :reason reason :round-count 0
+   :findings (current :at ':findings)]))
+
+(do
+  (fm/checkpoint :name "pel-k-admitted-unit-before-correct")
+  (def candidate (fm/task :id "correct" :model "role:implementer"
+    :input "artifact:approved-spec" :output "schema:candidate-v1"))
+  (if (eq (candidate :at ':status) "no-change")
+    (needs-action candidate "no-product-change")
+    (do
+      (def checked (fm/verify :id "verify" :input candidate :gate "candidate-full"))
+      (if (checked :at ':passed)
+        (do
+          (def delivery (fm/review :id "review" :model "role:reviewer"
+            :input checked :policy "independent-review"))
+          (if (eq (delivery :at ':status) "approved")
+            delivery
+            (needs-action delivery "correction-context-required")))
+        (needs-action checked "correction-context-required")))))

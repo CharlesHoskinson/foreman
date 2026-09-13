@@ -1,0 +1,58 @@
+{
+  "roleBindings": {
+    "role:implementer": {
+      "profileId": "claude-opus-5",
+      "transportId": "claude-code",
+      "credentialProfileRef": "account:default",
+      "controls": {
+        "effort": "high",
+        "execution": {
+          "mode": "foreground",
+          "store": "provider-default"
+        },
+        "sampling": {},
+        "thinking": {
+          "mode": "adaptive"
+        },
+        "toolChoice": "auto"
+      }
+    },
+    "role:reviewer": {
+      "profileId": "grok-4.6",
+      "transportId": "grok-acp",
+      "credentialProfileRef": "account:default",
+      "controls": {
+        "effort": "high",
+        "execution": {
+          "mode": "foreground",
+          "store": "provider-default"
+        },
+        "sampling": {},
+        "thinking": {
+          "mode": "provider-default"
+        },
+        "toolChoice": "auto"
+      }
+    }
+  },
+  "taskActions": {
+    "implement": "implement",
+    "correct": "correct"
+  },
+  "dependencyMode": "ordered",
+  "requiredMilestones": [
+    "checks",
+    "audit"
+  ],
+  "limits": {
+    "execution": {
+      "implementationRounds": 1,
+      "correctionRounds": 1,
+      "auditRounds": 1,
+      "providerRetries": 1,
+      "resumeAttempts": 2,
+      "verificationRunsPerCandidate": 1,
+      "totalActions": 4
+    }
+  }
+}

@@ -1,0 +1,26 @@
+; Package: pel-k-continuations
+; Contract: openspec/changes/pel-k-continuations/tasks.md
+; Bind artifact:approved-spec to the exact admitted unit and prerequisite evidence.
+; This workflow stops after independent review.
+
+(def needs-action (lambda [:current :reason]
+  [:status "needs-action" :candidate (current :at ':candidate)
+   :delivery current :reason reason :round-count 0
+   :findings (current :at ':findings)]))
+
+(do
+  (fm/checkpoint :name "pel-k-continuations-before-implement")
+  (def candidate (fm/task :id "implement" :model "role:implementer"
+    :input "artifact:approved-spec" :output "schema:candidate-v1"))
+  (if (eq (candidate :at ':status) "no-change")
+    (needs-action candidate "no-product-change")
+    (do
+      (def checked (fm/verify :id "verify" :input candidate :gate "candidate-full"))
+      (if (checked :at ':passed)
+        (do
+          (def delivery (fm/review :id "review" :model "role:reviewer"
+            :input checked :policy "independent-review"))
+          (if (eq (delivery :at ':status) "approved")
+            delivery
+            (needs-action delivery "correction-context-required")))
+        (needs-action checked "correction-context-required")))))
