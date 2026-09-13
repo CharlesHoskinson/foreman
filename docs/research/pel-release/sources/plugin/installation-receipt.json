@@ -1,0 +1,26 @@
+{
+  "repo": "hardbyte/obsidian-llm-plugin",
+  "tag": "v1.0.0",
+  "commit": "f504039838b6273b039563cd8c35ca7f79d353f8",
+  "verified_at": "2026-09-13T03:01:04.565690+00:00",
+  "assets": [
+    {
+      "name": "main.js",
+      "sha256": "1947dbb3819e2b64acb77ab5fb43e0c0f6f7d7072ed594dd30d3ef4c30d001ab",
+      "url": "https://github.com/hardbyte/obsidian-llm-plugin/releases/download/v1.0.0/main.js",
+      "bytes": 720504
+    },
+    {
+      "name": "manifest.json",
+      "sha256": "a597e30e67d52ac7d61f5c2ee91724d4fbbb37439bc3cd74b9fc4d48f5bc1d2e",
+      "url": "https://github.com/hardbyte/obsidian-llm-plugin/releases/download/v1.0.0/manifest.json",
+      "bytes": 315
+    },
+    {
+      "name": "styles.css",
+      "sha256": "03bf771cc9fa5204922e81c8392c06f8b59d63b23e1ec61bc74971e5eb852ddb",
+      "url": "https://github.com/hardbyte/obsidian-llm-plugin/releases/download/v1.0.0/styles.css",
+      "bytes": 14141
+    }
+  ]
+}

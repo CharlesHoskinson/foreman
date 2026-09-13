@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# Content Signals (draft) — declare AI/search usage preferences
+# See: https://contentsignals.org/
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+
+Sitemap: https://docs.x.ai/sitemap.xml

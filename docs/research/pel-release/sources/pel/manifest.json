@@ -1,0 +1,124 @@
+[
+  {
+    "file": "arxiv-2505.13453v2-abs.html",
+    "url": "https://arxiv.org/abs/2505.13453v2",
+    "final_url": "https://arxiv.org/abs/2505.13453v2",
+    "status": 200,
+    "bytes": 42121,
+    "sha256": "739e03e4d2bd06163d42749a3036128f91114ad946ef11ffc6e57eb0255287dd",
+    "retrieved_at": "2026-09-13T02:59:28.344234+00:00",
+    "fetcher": "Scrapling 0.4.15"
+  },
+  {
+    "file": "arxiv-2505.13453v2.pdf",
+    "url": "https://arxiv.org/pdf/2505.13453v2",
+    "final_url": "https://arxiv.org/pdf/2505.13453v2",
+    "status": 200,
+    "bytes": 226986,
+    "sha256": "8060369dde44dace725eadf856bbfa43db96e79c61bfe406c0d2598d10c6f178",
+    "retrieved_at": "2026-09-13T02:59:28.471722+00:00",
+    "fetcher": "Scrapling 0.4.15"
+  },
+  {
+    "file": "karpathy-llm-wiki-gist.json",
+    "url": "https://api.github.com/gists/442a6bf555914893e9891c11519de94f",
+    "final_url": "https://api.github.com/gists/442a6bf555914893e9891c11519de94f",
+    "status": 502,
+    "bytes": 32,
+    "sha256": "66f94f66a4663eb2a43d552b17609a828166862b7c5dba75b425301de772f858",
+    "retrieved_at": "2026-09-13T02:59:39.151045+00:00",
+    "fetcher": "Scrapling 0.4.15"
+  },
+  {
+    "file": "karpathy-llm-wiki.html",
+    "url": "https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f",
+    "status": 200,
+    "bytes": 461830,
+    "sha256": "ebe740051534398405a1469fbeb951c1f3430a69e525a717d00420053ea9d276",
+    "retrieved_at": "2026-09-13T03:00:17.910618+00:00",
+    "fetcher": "Scrapling 0.4.15"
+  },
+  {
+    "file": "karpathy-llm-wiki.md",
+    "url": "https://gist.githubusercontent.com/karpathy/442a6bf555914893e9891c11519de94f/raw/ac46de1ad27f92b28ac95459c782c07f6b8c964a/llm-wiki.md",
+    "final_url": "https://gist.githubusercontent.com/karpathy/442a6bf555914893e9891c11519de94f/raw/ac46de1ad27f92b28ac95459c782c07f6b8c964a/llm-wiki.md",
+    "status": 200,
+    "bytes": 11985,
+    "sha256": "dc3efe98ae62f23dd08acad13aba2e95287beb20b6bec2f4af0423557fe37401",
+    "retrieved_at": "2026-09-13T03:01:11.360751+00:00",
+    "fetcher": "Scrapling 0.4.15"
+  },
+  {
+    "file": "author-homepage.html",
+    "url": "https://aplaceofmind.notion.site/Behnam-Mohammadi-6104801661e0448998b58569b25d1d2e",
+    "final_url": "https://aplaceofmind.notion.site/Behnam-Mohammadi-6104801661e0448998b58569b25d1d2e",
+    "status": 200,
+    "bytes": 20034,
+    "sha256": "cf817bd1e4a18f3f76fe4208cba61fe7281fcd07f0c1f8e90033949bcef097ee",
+    "retrieved_at": "2026-09-13T03:01:11.634217+00:00",
+    "fetcher": "Scrapling 0.4.15"
+  },
+  {
+    "file": "github-pel-search.json",
+    "url": "https://api.github.com/search/repositories?q=pel+orchestrating+agents",
+    "final_url": "https://api.github.com/search/repositories?q=pel+orchestrating+agents",
+    "status": 200,
+    "bytes": 5995,
+    "sha256": "310f90182857c70191c1fc43a10d9b55eff58b304cd06a7f0c3d40adce02f739",
+    "retrieved_at": "2026-09-13T03:01:13.031676+00:00",
+    "fetcher": "Scrapling 0.4.15"
+  },
+  {
+    "file": "github-pel-author-search.json",
+    "url": "https://api.github.com/search/repositories?q=pel+Mohammadi",
+    "final_url": "https://api.github.com/search/repositories?q=pel+Mohammadi",
+    "status": 200,
+    "bytes": 73,
+    "sha256": "08c082fdf7ca87ba911a2aabb0f0cf2d3e482a6feeaac9713e4578c20b2600b2",
+    "retrieved_at": "2026-09-13T03:01:13.350550+00:00",
+    "fetcher": "Scrapling 0.4.15"
+  },
+  {
+    "file": "github-pel-language-search.json",
+    "url": "https://api.github.com/search/repositories?q=%22Pel%22+%22language%22+%22LLM%22",
+    "final_url": "https://api.github.com/search/repositories?q=%22Pel%22+%22language%22+%22LLM%22",
+    "status": 200,
+    "bytes": 12696,
+    "sha256": "6a3ca3132e5c83c200c4f5c1bbdf58f375e2fc445db7c85dbbff0034cb3126e6",
+    "retrieved_at": "2026-09-13T03:01:43.414559+00:00",
+    "fetcher": "Scrapling 0.4.15"
+  },
+  {
+    "file": "karpathy-llm-wiki-gist-retry.json",
+    "url": "https://api.github.com/gists/442a6bf555914893e9891c11519de94f",
+    "final_url": "https://api.github.com/gists/442a6bf555914893e9891c11519de94f",
+    "status": 502,
+    "bytes": 32,
+    "sha256": "66f94f66a4663eb2a43d552b17609a828166862b7c5dba75b425301de772f858",
+    "retrieved_at": "2026-09-13T03:01:53.976900+00:00",
+    "fetcher": "Scrapling 0.4.15"
+  },
+  {
+    "file": "arxiv-2505.13453v2.txt",
+    "kind": "derived",
+    "derived_from": [
+      "arxiv-2505.13453v2.pdf"
+    ],
+    "method": "pdftotext -layout",
+    "bytes": 56590,
+    "sha256": "b96d8a8b8d6c55266253977913ebb1364b05fa36fde544881db00b67a3ffa924",
+    "created_at": "2026-09-13T03:04:21.661026+00:00"
+  },
+  {
+    "file": "CAPTURE-NOTES.md",
+    "kind": "derived",
+    "derived_from": [
+      "manifest.json",
+      "author-homepage.html"
+    ],
+    "method": "host-agent capture audit and web retrieval observation",
+    "bytes": 2276,
+    "sha256": "e4cb3a9ff289beb49dd782fbb3d92569b49ddfcafa8250818505b9333123e2cb",
+    "created_at": "2026-09-13T03:04:21.661060+00:00"
+  }
+]

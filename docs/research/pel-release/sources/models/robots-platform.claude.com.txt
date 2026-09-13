@@ -1,0 +1,5 @@
+User-Agent: *
+Disallow: /api/
+
+Sitemap: https://platform.claude.com/sitemap.xml
+Sitemap: https://platform.claude.com/cookbook/sitemap.xml

@@ -1,0 +1,342 @@
+{
+  "dangling_edges": 1554,
+  "relations": {
+    "imports_from": 1010,
+    "imports": 544
+  },
+  "missing_targets": 208,
+  "missing_sources": 0,
+  "examples": [
+    {
+      "source": "components_council_eslint_config",
+      "target": "ref_eslint_js",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/eslint.config.mjs",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_eslint_config",
+      "target": "ref_globals",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/eslint.config.mjs",
+      "source_location": "L2",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_eslint_config",
+      "target": "ref_typescript_eslint",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/eslint.config.mjs",
+      "source_location": "L3",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_src_preflight",
+      "target": "components_council_packages_application_src_index_providercanarybuildinput",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/src/preflight.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_src_preflight",
+      "target": "components_council_packages_application_src_index_providercanarydecoded",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/src/preflight.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_src_preflight",
+      "target": "components_council_packages_application_src_index_providerprocessobservation",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/src/preflight.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_src_preflight",
+      "target": "components_council_packages_application_src_index_providerprocessrequest",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/src/preflight.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_src_preflight",
+      "target": "components_council_packages_application_src_index_providercanaryadapter",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/src/preflight.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_src_preflight",
+      "target": "components_council_packages_application_src_index_providercanaryadaptererror",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/src/preflight.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_src_preflight",
+      "target": "components_council_packages_schema_src_index_terminalobservationv1",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/src/preflight.ts",
+      "source_location": "L9",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_src_preflight",
+      "target": "ref_effect",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/src/preflight.ts",
+      "source_location": "L10",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_test_preflight_test",
+      "target": "ref_node_crypto",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/test/preflight.test.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_test_preflight_test",
+      "target": "ref_effect",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/test/preflight.test.ts",
+      "source_location": "L2",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_test_preflight_test",
+      "target": "ref_effect",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/test/preflight.test.ts",
+      "source_location": "L3",
+      "weight": 1.0,
+      "type_only": true,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_test_preflight_test",
+      "target": "ref_vitest",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/test/preflight.test.ts",
+      "source_location": "L4",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_test_preflight_test",
+      "target": "components_council_packages_application_src_index_providercanaryadaptererror",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/test/preflight.test.ts",
+      "source_location": "L5",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_test_preflight_test",
+      "target": "components_council_packages_application_src_index_providercanarybuildinput",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/test/preflight.test.ts",
+      "source_location": "L5",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_test_preflight_test",
+      "target": "components_council_packages_application_src_index_providerprocessobservation",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/test/preflight.test.ts",
+      "source_location": "L5",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_test_preflight_test",
+      "target": "components_council_packages_application_src_index_providerprocessrequest",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/test/preflight.test.ts",
+      "source_location": "L5",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_test_preflight_test",
+      "target": "components_council_packages_application_src_index_providercanaryadapter",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/test/preflight.test.ts",
+      "source_location": "L11",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_test_preflight_test",
+      "target": "components_council_packages_schema_src_index_sha256digest",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/test/preflight.test.ts",
+      "source_location": "L12",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_claude_test_preflight_test",
+      "target": "components_council_packages_schema_src_index_issuccessfulterminalobservation",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-claude/test/preflight.test.ts",
+      "source_location": "L13",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_codex_src_preflight",
+      "target": "components_council_packages_application_src_index_providercanarybuildinput",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-codex/src/preflight.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_codex_src_preflight",
+      "target": "components_council_packages_application_src_index_providercanarydecoded",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-codex/src/preflight.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_codex_src_preflight",
+      "target": "components_council_packages_application_src_index_providerprocessobservation",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-codex/src/preflight.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_codex_src_preflight",
+      "target": "components_council_packages_application_src_index_providerprocessrequest",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-codex/src/preflight.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_codex_src_preflight",
+      "target": "components_council_packages_application_src_index_providercanaryadapter",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-codex/src/preflight.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_codex_src_preflight",
+      "target": "components_council_packages_application_src_index_providercanaryadaptererror",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-codex/src/preflight.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_codex_src_preflight",
+      "target": "components_council_packages_schema_src_index_terminalobservationv1",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-codex/src/preflight.ts",
+      "source_location": "L9",
+      "weight": 1.0,
+      "_origin": "ast"
+    },
+    {
+      "source": "components_council_packages_adapter_codex_src_preflight",
+      "target": "ref_effect",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "components/council/packages/adapter-codex/src/preflight.ts",
+      "source_location": "L10",
+      "weight": 1.0,
+      "_origin": "ast"
+    }
+  ]
+}

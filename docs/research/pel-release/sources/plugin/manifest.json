@@ -1,0 +1,21 @@
+{
+  "fetched_at": "2026-09-13T03:03:14.680838+00:00",
+  "records": [
+    {
+      "path": "README.md",
+      "url": "https://raw.githubusercontent.com/hardbyte/obsidian-llm-plugin/f504039838b6273b039563cd8c35ca7f79d353f8/README.md",
+      "sha256": "a9f686b90fcc751007840ada7b7c4c8c68eb749e45660768fb3265e4cd198dc7",
+      "bytes": 7234,
+      "status": 200,
+      "fetcher": "Scrapling Fetcher"
+    },
+    {
+      "path": "release.json",
+      "url": "https://api.github.com/repos/hardbyte/obsidian-llm-plugin/releases/tags/v1.0.0",
+      "sha256": "8eb13b9bb99001c93911414e3322bf76cdc8e09ff163bd062722055d43496792",
+      "bytes": 8963,
+      "status": 200,
+      "fetcher": "Scrapling Fetcher"
+    }
+  ]
+}
