@@ -30,8 +30,8 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install --yes apparmor bubblewrap ripgrep
-          sudo install --mode=0644 .github/apparmor/foreman-bwrap /etc/apparmor.d/foreman-ci-bwrap
-          sudo apparmor_parser --replace /etc/apparmor.d/foreman-ci-bwrap
+          sudo install --mode=0644 .github/apparmor/foreman-bwrap /etc/apparmor.d/bwrap-userns-restrict
+          sudo apparmor_parser --replace /etc/apparmor.d/bwrap-userns-restrict
           /usr/bin/bwrap --ro-bind / / --unshare-user --unshare-pid --proc /proc --dev /dev /usr/bin/true
           rg --version
 
