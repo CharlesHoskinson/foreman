@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-09-13T16:30:26.124Z",
+  "candidateCommit": "bb0c1e9f3868d6bf36a91f78ceec55800192fc5c",
+  "scope": "Read-only evidence integrity for source candidate; later documentation does not change source identity.",
+  "sourceChanged": false,
+  "verifiedSha256Records": 22,
+  "secretScan": {
+    "command": "node skills/foreman/runtime/dist/secret-scan.js /home/charl/fm-wt/foreman-dsl-release",
+    "exitCode": 0,
+    "verdict": "clean",
+    "path": "docs/releases/return-of-the-foredi/evidence/m6/instruction-secret-scan.json",
+    "sha256": "f894be2db7b24b0796774b6054b6bc2323487274fcbb2bd5e07b0613b82163bf"
+  },
+  "releaseAccepted": false
+}

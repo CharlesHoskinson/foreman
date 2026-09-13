@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "releaseName": "Return of the ForeDi",
+  "version": null,
+  "candidateCommit": "bb0c1e9f3868d6bf36a91f78ceec55800192fc5c",
+  "observedAt": "2026-09-13T14:01:03.631Z",
+  "acceptance": "not-accepted",
+  "verification": {
+    "tests": 3212,
+    "passed": 3205,
+    "failed": 0,
+    "skipped": 7,
+    "record": "docs/releases/return-of-the-foredi/m6-instruction-verification.json"
+  },
+  "package": {
+    "buildId": "af6d527ce0970c6c928d4dc5a074f8722eb816dde1bada096781b6a92c67408d",
+    "archivePath": "/tmp/foreman-dsl-research/m6-instruction-release-artifacts/af6d527ce0970c6c928d4dc5a074f8722eb816dde1bada096781b6a92c67408d.tar.gz",
+    "archiveSha256": "36011e9c322c9fd5c392f7bf8e58ccdfe29a5863bb3153f839c7e32938908bda",
+    "archiveProducedTwiceWithIdenticalSha256": true,
+    "installedProductChecks": 19,
+    "configuredRunEvidenceKind": "test-fixture",
+    "configuredRunPassed": true
+  },
+  "simplification": {
+    "baseline": {
+      "productionNonblankLines": 6916,
+      "requiredInstructionTokens": 16502
+    },
+    "candidate": {
+      "productionNonblankLines": 48912,
+      "requiredInstructionTokens": 8122
+    },
+    "ratios": {
+      "glueReduction": -6.072296124927703,
+      "instructionReduction": 0.5078172342746334
+    },
+    "acceptance": {
+      "glue": false,
+      "instructions": true
+    },
+    "exitCode": 1,
+    "operational": {
+      "commandsAfterPrerequisites": 3,
+      "startCommands": 1,
+      "entryPoints": 1,
+      "workflowLoops": null,
+      "providerConditionals": null,
+      "activeControlOwners": null,
+      "authoritativeHistories": null
+    }
+  },
+  "graph": {
+    "advisory": true,
+    "candidateCommit": "bb0c1e9f3868d6bf36a91f78ceec55800192fc5c",
+    "toolVersion": "0.9.61",
+    "trackedEntries": 2660,
+    "sourceBytes": 177521000,
+    "nodes": 27398,
+    "edges": 57120,
+    "communities": 1994,
+    "graphSha256": "3140a2b7cd1ac094301d3bd9bb9e9666c8f323afc87de3fd44908e52b763dc7a",
+    "syntaxWarningFiles": 4,
+    "codePathsWithoutObservedEntities": 218,
+    "unresolvedAstReferenceNodes": 330,
+    "missingOrExternalDocumentReferences": 3078,
+    "finalDanglingEdges": 0,
+    "normalizationIdempotent": false,
+    "historicalSemanticUsage": null,
+    "canonicalQualifiedGraphUnchanged": true,
+    "archiveSha256": "cceb613f4b2ba1f9ce755f6aa947eeb2cf2de2e898bbab9f9534006a9a9efcfa"
+  },
+  "assets": [
+    {
+      "path": "/home/charl/foreman-release-artifacts/return-of-the-foredi/bb0c1e9f3868d6bf36a91f78ceec55800192fc5c/af6d527ce0970c6c928d4dc5a074f8722eb816dde1bada096781b6a92c67408d.tar.gz",
+      "sha256": "36011e9c322c9fd5c392f7bf8e58ccdfe29a5863bb3153f839c7e32938908bda",
+      "kind": "unversioned-package",
+      "byteLength": 69763807
+    },
+    {
+      "path": "/home/charl/foreman-release-artifacts/return-of-the-foredi/bb0c1e9f3868d6bf36a91f78ceec55800192fc5c/foredi-bb0c1e9-advisory.tar.gz",
+      "sha256": "cceb613f4b2ba1f9ce755f6aa947eeb2cf2de2e898bbab9f9534006a9a9efcfa",
+      "kind": "advisory-graph",
+      "byteLength": 5208288
+    }
+  ],
+  "evidence": [
+    {
+      "path": "docs/releases/return-of-the-foredi/evidence/m6/instruction-simplification.json",
+      "sha256": "1eba9f6c83d751d73f799a7f132790db1f550854b0cef96d2fd998732c7982f9"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/evidence/m6/instruction-startup-trace.json",
+      "sha256": "553766cec3c7393be16a76b2add77f595a0887123f459ca21a6ccf072d586c2a"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/evidence/m6/instruction-install-acceptance.json",
+      "sha256": "5eb492b71b79ca646cd4d28993e6760e6432f42bf784c0ba810119e9c3e5857e"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/evidence/m6/instruction-configured-run.txt",
+      "sha256": "797c191ed96fc7a65b92e3cf3cbe74c4544a2f212d59ac979ceee7923a350ff1"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/evidence/m6/instruction-package.json",
+      "sha256": "4dc03ebe48340e7d286a29726c5fbf3b4a09f8cefeaba4deceabb13ceeb15473"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/evidence/m6/instruction-architecture.txt",
+      "sha256": "d406719da0a31f984a22b4d84c1e68fba4559dd1319bd292db91703aaa031e7e"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/evidence/m6/instruction-artifact-locations.json",
+      "sha256": "7180bfbfcc3f2c6a837a60df2ad47391e1c10d701b21e3b72b1b61748046ae8d"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/evidence/m6/instruction-graph-manifest.json",
+      "sha256": "87bdd2bab93d9eb7387ebe30df2e47cef92b0b9d381b45f113a06b12146e9f09"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/evidence/m6/instruction-graph-coverage.json",
+      "sha256": "a9940cd12f3394de15f0f01eb86aa742860852feaa2b34beb34cbafe9b045316"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/evidence/m6/instruction-graph-summary.md",
+      "sha256": "35992cc721ac34c04993f38ee3813558493089eecf4bae11d4de111cfbf213ec"
+    }
+  ],
+  "remaining": [
+    "The frozen 40 percent production reduction remains unmet: 48912 counted lines versus maximum 4149.",
+    "User scope question remains pending. No revised target or counting rule is approved.",
+    "Operational workflow-loop, provider-conditional, owner and history counts remain unknown in the startup report.",
+    "Exact live coding readiness requires unavailable account/credential state for the dated requested transport attempts.",
+    "Numerical release reconciliation and final publication authority remain unresolved."
+  ],
+  "supersedesForCurrentStatus": "f734d99caf17c3ac5e958a161627eecdc6e43494"
+}

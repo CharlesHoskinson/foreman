@@ -1,0 +1,1454 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "441c3fb9f6acb2656760d03cc79e7c706fb8b7dd",
+  "candidateCommit": "bb0c1e9f3868d6bf36a91f78ceec55800192fc5c",
+  "baseline": {
+    "productionNonblankLines": 6916,
+    "requiredInstructionTokens": 16502
+  },
+  "candidate": {
+    "productionNonblankLines": 48912,
+    "requiredInstructionTokens": 8122
+  },
+  "production": {
+    "files": [
+      {
+        "path": "env/wsl-clock-preflight.sh",
+        "sha256": "50e5244978ec1760a34a80e9d0ede947e00c1a8dbe4abf5bb1d1e4f455531a98",
+        "utf8Bytes": 6223,
+        "nonblankLines": 118
+      },
+      {
+        "path": "examples/pel/conditional.pel",
+        "sha256": "03f050331f6088ce02e4aaafaaa30fef5b3e86ccb6d638684d5f1266c5f181f9",
+        "utf8Bytes": 347,
+        "nonblankLines": 8
+      },
+      {
+        "path": "examples/pel/implement-verify-review.pel",
+        "sha256": "9cea3c10124da4a2d6548b7700dd0ec5b8ff60bdc50ca6bf10722cf8cd538779",
+        "utf8Bytes": 267,
+        "nonblankLines": 5
+      },
+      {
+        "path": "examples/pel/parallel-read.pel",
+        "sha256": "56ac01f0fbfd9a5827126599695036c6712e315afd6d60663e24a43eeebf95c1",
+        "utf8Bytes": 216,
+        "nonblankLines": 3
+      },
+      {
+        "path": "examples/pel/profiles/claude-fable-5-1.pel",
+        "sha256": "634c4c75b6975f090a8e02c5b0898edec0b9f17009fca640d0dc2cb0238f7787",
+        "utf8Bytes": 141,
+        "nonblankLines": 2
+      },
+      {
+        "path": "examples/pel/profiles/claude-opus-5.pel",
+        "sha256": "d820a343e65582cd56bc546bbc9ba1b478a0d9ab702f11fd3a2e8bb3716fb5a5",
+        "utf8Bytes": 138,
+        "nonblankLines": 2
+      },
+      {
+        "path": "examples/pel/profiles/gemini-3.8-flash.pel",
+        "sha256": "1d8708cae72f00a3d0694d61cf86f2f4203a1cd55ff981ae061cf473e9d0e746",
+        "utf8Bytes": 140,
+        "nonblankLines": 2
+      },
+      {
+        "path": "examples/pel/profiles/gpt-5.6-sol.pel",
+        "sha256": "9bd41348960e6cfa1c85960ed7800d57a8929d87f4634a2c4d72f3c1bb30c883",
+        "utf8Bytes": 141,
+        "nonblankLines": 2
+      },
+      {
+        "path": "examples/pel/profiles/gpt-6-astra.pel",
+        "sha256": "cdbb00935836bada8d3ca8a58757445a1eb1dace5457d555d51ad351d05e4da2",
+        "utf8Bytes": 141,
+        "nonblankLines": 2
+      },
+      {
+        "path": "examples/pel/profiles/grok-4.6.pel",
+        "sha256": "e8d8769b416f225fc251f6801e50c36e9bfe10db85aabe6559ecbd77c2f4ca34",
+        "utf8Bytes": 130,
+        "nonblankLines": 2
+      },
+      {
+        "path": "examples/pel/race-cancel.pel",
+        "sha256": "55dc0114eead29b456c5f856cadc733a0cbdec596a6dd95afd3a9d0444120319",
+        "utf8Bytes": 521,
+        "nonblankLines": 12
+      },
+      {
+        "path": "examples/pel/repair-and-publish.pel",
+        "sha256": "619a4d3a7bd0012c9546d09a8b5e94758568cbc8507eeded3294899a008ee0de",
+        "utf8Bytes": 1353,
+        "nonblankLines": 28
+      },
+      {
+        "path": "examples/pel/repair.pel",
+        "sha256": "182bd06b9ed6c4010c5f9f0bc63be230d4ae437f0499d6ac22e9bf59f1e5384d",
+        "utf8Bytes": 197,
+        "nonblankLines": 3
+      },
+      {
+        "path": "examples/pel/research-prepare.pel",
+        "sha256": "c65326b7e2a15d0fd6189043bfd5219ca76ed3589ba9b81660614963d7b5e96b",
+        "utf8Bytes": 101,
+        "nonblankLines": 1
+      },
+      {
+        "path": "examples/pel/resume-checkpoint.pel",
+        "sha256": "45a9651cd30d396cbcb096416bc7e2184fc3e99b13300123de3c08ff2de059ef",
+        "utf8Bytes": 330,
+        "nonblankLines": 7
+      },
+      {
+        "path": "packages/core/src/index.ts",
+        "sha256": "747c1b75f338129ac6972c7159eb1cd6d256ecb9243e07b98224b155843061bd",
+        "utf8Bytes": 754,
+        "nonblankLines": 31
+      },
+      {
+        "path": "packages/core/src/kernel-lock.ts",
+        "sha256": "5be1664f1e69e7f6bdcd7f727d376ed03ad8b601df245e9a19bb927cba2e9a99",
+        "utf8Bytes": 4316,
+        "nonblankLines": 57
+      },
+      {
+        "path": "packages/event-log/src/run-journal.ts",
+        "sha256": "2c5853d7f51fddced81b5d271ebeb32aead1d33b1a44a455707acb9995e0f4c5",
+        "utf8Bytes": 44998,
+        "nonblankLines": 1401
+      },
+      {
+        "path": "packages/launcher/src/index.ts",
+        "sha256": "0bb05e2bce7c79cf1d0d4a10973647ce8c5a8e556d52140740dab3ebecff3d91",
+        "utf8Bytes": 1904,
+        "nonblankLines": 88
+      },
+      {
+        "path": "packages/launcher/src/services.ts",
+        "sha256": "d3ec08506895c6ed9a87aab1d1a7fbcaf78725bf56e38fdb80312df9e58a21b9",
+        "utf8Bytes": 15802,
+        "nonblankLines": 494
+      },
+      {
+        "path": "packages/launcher/src/supervise.ts",
+        "sha256": "49c072bc6df975261ceda6e968e57039ae243e97964a727d6ec52c2ff3c21fa6",
+        "utf8Bytes": 12362,
+        "nonblankLines": 329
+      },
+      {
+        "path": "packages/orchestration/src/execution-contract.ts",
+        "sha256": "2169c324b6f2d0b1c0a5fae7e265ae253f96a9a4737f0457956b30c83212e329",
+        "utf8Bytes": 36346,
+        "nonblankLines": 1147
+      },
+      {
+        "path": "packages/orchestration/src/execution-ledger.ts",
+        "sha256": "a422b5acfc71d1a90ec1f816af79a2c7a31934b76b36587f03c10340ff1ac4ad",
+        "utf8Bytes": 88558,
+        "nonblankLines": 2461
+      },
+      {
+        "path": "packages/orchestration/src/execution-terminal-policy.ts",
+        "sha256": "fc978acd354c87c30ddf2b5ffed404af903f9dbbfb1091ae7ccd260735b46160",
+        "utf8Bytes": 43264,
+        "nonblankLines": 1295
+      },
+      {
+        "path": "packages/orchestration/src/fm-session-main.ts",
+        "sha256": "575f2fb4a4202c979a3dbb0c4b1b2f42d478a22a9f345684fec325427fd35b83",
+        "utf8Bytes": 62344,
+        "nonblankLines": 1838
+      },
+      {
+        "path": "packages/orchestration/src/index.ts",
+        "sha256": "37dad7553772e41574889e41890409461a1d3e9551640c46d8fc9dc77339afca",
+        "utf8Bytes": 26225,
+        "nonblankLines": 893
+      },
+      {
+        "path": "packages/orchestration/src/pel-adoption-cli.ts",
+        "sha256": "578ea3559884d54e7dc1d7fe618ae6941c97abbd8f6b8f1a4d44b3448593f07a",
+        "utf8Bytes": 3099,
+        "nonblankLines": 26
+      },
+      {
+        "path": "packages/orchestration/src/pel-adoption.ts",
+        "sha256": "870c0455e179eff4a2ab4b7223e7b608ae4d9dce845a1ad7c0faac5910c0366a",
+        "utf8Bytes": 17452,
+        "nonblankLines": 51
+      },
+      {
+        "path": "packages/orchestration/src/pel-authoring-cli.ts",
+        "sha256": "bf244f253e0c04ad6ff103be48aa76258ae3496fe2dec4dbb3106b0489c585f4",
+        "utf8Bytes": 21135,
+        "nonblankLines": 575
+      },
+      {
+        "path": "packages/orchestration/src/pel-authoring-contract.ts",
+        "sha256": "d578874aaf79b82124c444fa9d1e0b80bace8fe2d5d76ce8249e29bd90727542",
+        "utf8Bytes": 2692,
+        "nonblankLines": 86
+      },
+      {
+        "path": "packages/orchestration/src/pel-authoring-main.ts",
+        "sha256": "2f637cd1543e5809bdecc5726d77e6cb23deb0e4d9460d217951481bad600afb",
+        "utf8Bytes": 6336,
+        "nonblankLines": 165
+      },
+      {
+        "path": "packages/orchestration/src/pel-candidate-capture.ts",
+        "sha256": "13a3b41282d59d79ec976718b119f1b51976d95012d2def8f701449909a3d712",
+        "utf8Bytes": 18036,
+        "nonblankLines": 146
+      },
+      {
+        "path": "packages/orchestration/src/pel-cli-delivery-fixture.ts",
+        "sha256": "9339c18cf5980e556ca637a6c811fc5c01735bb02cc93f7fd0d411b6237189e2",
+        "utf8Bytes": 28794,
+        "nonblankLines": 123
+      },
+      {
+        "path": "packages/orchestration/src/pel-cli-execution-fixture.ts",
+        "sha256": "86198829ea53ab58f8db836501309af94c3ffada9c06e6785d5400d9a8e8dd95",
+        "utf8Bytes": 17497,
+        "nonblankLines": 124
+      },
+      {
+        "path": "packages/orchestration/src/pel-cli-fixture-main.ts",
+        "sha256": "bb91bcef5d42b4dca262122c2622d55f1fe9a551f615128017c4edfd42fb11dd",
+        "utf8Bytes": 28613,
+        "nonblankLines": 761
+      },
+      {
+        "path": "packages/orchestration/src/pel-cli-predicate-fixture.ts",
+        "sha256": "41c0c5d63b0e50a6a92cc3f7857f5c203cebf88435a30c2d224cf16af18998d7",
+        "utf8Bytes": 6833,
+        "nonblankLines": 41
+      },
+      {
+        "path": "packages/orchestration/src/pel-cli-provider-run-fixture.ts",
+        "sha256": "f0f3c9eeb4ab93eaba0f6b832e17e85a274082d6db3fab264e3d3ff8da74aaff",
+        "utf8Bytes": 15535,
+        "nonblankLines": 137
+      },
+      {
+        "path": "packages/orchestration/src/pel-cli-research-fixture.ts",
+        "sha256": "e222b853e227e4140eea53c56ea7de094fc0ee008f6c38773b0f15ccc4d8f175",
+        "utf8Bytes": 3658,
+        "nonblankLines": 30
+      },
+      {
+        "path": "packages/orchestration/src/pel-control-functions.ts",
+        "sha256": "f37924fffb1f9af26eac4990c54f05930da9814ce3cbca90fd5598144ecf3d5d",
+        "utf8Bytes": 26633,
+        "nonblankLines": 286
+      },
+      {
+        "path": "packages/orchestration/src/pel-decision-authority.ts",
+        "sha256": "cb0126d40ed0861062ea4d74051e41a46a8fdfe69ab8e12f1be4f2eaead87d4b",
+        "utf8Bytes": 14748,
+        "nonblankLines": 105
+      },
+      {
+        "path": "packages/orchestration/src/pel-delivery-result.ts",
+        "sha256": "f3f2b9cfaf1c4131487ea925bdaf3dcf9489bc9cd51a28ad9e9e92285eed267d",
+        "utf8Bytes": 9131,
+        "nonblankLines": 85
+      },
+      {
+        "path": "packages/orchestration/src/pel-draft-session.ts",
+        "sha256": "f594c1d13148ec1e45246120e4acc1e0a23a3638b634ab131e542a2217c21622",
+        "utf8Bytes": 5781,
+        "nonblankLines": 171
+      },
+      {
+        "path": "packages/orchestration/src/pel-effects.ts",
+        "sha256": "658ed275a6204abc7cba4647396725af175238c183dc9d40cb5251ee9f394fd7",
+        "utf8Bytes": 28388,
+        "nonblankLines": 229
+      },
+      {
+        "path": "packages/orchestration/src/pel-execution-provider-live.ts",
+        "sha256": "82af169ccb4ee511ef193c46e5096541c864a8a387fe6a1f701d40de9bba5229",
+        "utf8Bytes": 13454,
+        "nonblankLines": 130
+      },
+      {
+        "path": "packages/orchestration/src/pel-gate-execution.ts",
+        "sha256": "8e7dae815d8940e15462e30f2b095f56ee8fa3291f7f14f6b5511153016f12d3",
+        "utf8Bytes": 5709,
+        "nonblankLines": 57
+      },
+      {
+        "path": "packages/orchestration/src/pel-generation.ts",
+        "sha256": "9e7e03991c4e17b2c4a53b9ba2213e46e3c78ab64b7fa13f37a2f19e2f715e6d",
+        "utf8Bytes": 31807,
+        "nonblankLines": 910
+      },
+      {
+        "path": "packages/orchestration/src/pel-host-candidate-scope.ts",
+        "sha256": "8c5bc792560334d20837d0e8723369b82007fd90409e36b1b29f07f44d291f9c",
+        "utf8Bytes": 5226,
+        "nonblankLines": 71
+      },
+      {
+        "path": "packages/orchestration/src/pel-host-contract.ts",
+        "sha256": "8576bd38b75ca7a1f74cb03ddd6f8a0ccfccd6b0323551c4d5c5e1eb3b8df543",
+        "utf8Bytes": 13541,
+        "nonblankLines": 155
+      },
+      {
+        "path": "packages/orchestration/src/pel-host-descriptors.ts",
+        "sha256": "fa1f3bfe95af62bb453be543e0f1c84402cf64439fb1df7d8a3ce13e7492f0c9",
+        "utf8Bytes": 15859,
+        "nonblankLines": 557
+      },
+      {
+        "path": "packages/orchestration/src/pel-host-evidence.ts",
+        "sha256": "5946ba8dc9322d598757df7efbdfd4fc3202436402f20d0cc77736195a48b265",
+        "utf8Bytes": 13821,
+        "nonblankLines": 145
+      },
+      {
+        "path": "packages/orchestration/src/pel-host-library.ts",
+        "sha256": "36b75e9555ef4da78edb32de451230a0c7c7db711fed75ac6f4cb48ed0d202f7",
+        "utf8Bytes": 27285,
+        "nonblankLines": 217
+      },
+      {
+        "path": "packages/orchestration/src/pel-host-milestone.ts",
+        "sha256": "07ded40a9831cbe4e7179b1b313ba6a554148a75257eddd67ce2ed58858c9303",
+        "utf8Bytes": 8036,
+        "nonblankLines": 49
+      },
+      {
+        "path": "packages/orchestration/src/pel-host-preflight.ts",
+        "sha256": "db6b037f9783f0eb2b774f937315cb209957f12a342a804fe37cfa2b5fd00d9f",
+        "utf8Bytes": 6706,
+        "nonblankLines": 64
+      },
+      {
+        "path": "packages/orchestration/src/pel-host-publish.ts",
+        "sha256": "0c9ce7d8899b001d17660bd9315e1e47a3f13648bb34a3c67cecb6145ff3ffce",
+        "utf8Bytes": 15671,
+        "nonblankLines": 99
+      },
+      {
+        "path": "packages/orchestration/src/pel-host-recovery.ts",
+        "sha256": "761f25485e52ffb50bbd3c0dbcf013e75172d91c966f28c64eca8192598db71e",
+        "utf8Bytes": 9383,
+        "nonblankLines": 112
+      },
+      {
+        "path": "packages/orchestration/src/pel-host-review.ts",
+        "sha256": "c2d9ce3742a5d0c389e3bfd4b9496d75059ae1362b8bfd13068e597881c1ea55",
+        "utf8Bytes": 22668,
+        "nonblankLines": 158
+      },
+      {
+        "path": "packages/orchestration/src/pel-host-task.ts",
+        "sha256": "7dba5ed982d8968e415c595be833136f3e9ae968decec56b221ff9a4d1a5c762",
+        "utf8Bytes": 19463,
+        "nonblankLines": 125
+      },
+      {
+        "path": "packages/orchestration/src/pel-host-test-fixture.ts",
+        "sha256": "8b2c9ca39a3cb9c016b01335d904743ac6fe4aa843308a1a45285ff595d5d549",
+        "utf8Bytes": 8484,
+        "nonblankLines": 45
+      },
+      {
+        "path": "packages/orchestration/src/pel-host-verify.ts",
+        "sha256": "d5f0a69b85362b67b5dcc7732d1aa95a049de37628193afc03212d2f1e8aa26f",
+        "utf8Bytes": 16416,
+        "nonblankLines": 128
+      },
+      {
+        "path": "packages/orchestration/src/pel-install-admission.ts",
+        "sha256": "431ec70811d97862fe78478e456dd99006015e170db0026959659194289aaa5d",
+        "utf8Bytes": 2165,
+        "nonblankLines": 30
+      },
+      {
+        "path": "packages/orchestration/src/pel-install-main.ts",
+        "sha256": "1793d2210dfd45133d7a5e55f5ca0e70f6efc86d843bf5581dad021ce4191607",
+        "utf8Bytes": 1577,
+        "nonblankLines": 9
+      },
+      {
+        "path": "packages/orchestration/src/pel-install.ts",
+        "sha256": "6e225921600a950561dd4863fd8f754c82166f5782a93dcc82e6694c270a18d9",
+        "utf8Bytes": 8334,
+        "nonblankLines": 41
+      },
+      {
+        "path": "packages/orchestration/src/pel-journal.ts",
+        "sha256": "11e7dc30a7cb2962c1fe9d2718442e4a5807d36dab6e39eb8ec25d1a5933ed61",
+        "utf8Bytes": 44490,
+        "nonblankLines": 584
+      },
+      {
+        "path": "packages/orchestration/src/pel-legacy-status.ts",
+        "sha256": "9308b690d5c91db932964cafcb1abba21530654ab6d09e2d716a7a0c71d6a692",
+        "utf8Bytes": 3341,
+        "nonblankLines": 34
+      },
+      {
+        "path": "packages/orchestration/src/pel-lifecycle-cli.ts",
+        "sha256": "40462c8166ec396db3591455ba9da82aca25ab2aa99a712d905eae9666ec26f9",
+        "utf8Bytes": 8126,
+        "nonblankLines": 100
+      },
+      {
+        "path": "packages/orchestration/src/pel-lifecycle-live.ts",
+        "sha256": "8c5396bf465d6027b154e9d535275fdf84c03c9083f98810bc5700b22f535182",
+        "utf8Bytes": 25234,
+        "nonblankLines": 232
+      },
+      {
+        "path": "packages/orchestration/src/pel-lifecycle-services.ts",
+        "sha256": "c14d9ee8c8c36c277588c21741bb51aacd49205eb8505a75c244bb0febcdac13",
+        "utf8Bytes": 14361,
+        "nonblankLines": 149
+      },
+      {
+        "path": "packages/orchestration/src/pel-migration-cli.ts",
+        "sha256": "32cfd803ade2e6dc8a6b8e4bc9ed033a2da27e321c4cdcb6cda495c62876829b",
+        "utf8Bytes": 1985,
+        "nonblankLines": 11
+      },
+      {
+        "path": "packages/orchestration/src/pel-migration-live.ts",
+        "sha256": "f00638449fd74b68ac5f9c810ee310e2926b9efa338b21ad74e198eed42009d5",
+        "utf8Bytes": 13998,
+        "nonblankLines": 80
+      },
+      {
+        "path": "packages/orchestration/src/pel-migration-sources.ts",
+        "sha256": "9020851866a63fc9a7188cfb58f7f2538344505c5f3f6b11897d2e29b4905a80",
+        "utf8Bytes": 1915,
+        "nonblankLines": 5
+      },
+      {
+        "path": "packages/orchestration/src/pel-migration.ts",
+        "sha256": "3b24738250e37b617d938257b173ebc5dc69524379a7597a00f8914989d2d5af",
+        "utf8Bytes": 14136,
+        "nonblankLines": 71
+      },
+      {
+        "path": "packages/orchestration/src/pel-native-boundary.ts",
+        "sha256": "0110b28f882dc590f4b8866355beba3c695721ebbba134c4983ab244bc1aae2d",
+        "utf8Bytes": 10982,
+        "nonblankLines": 91
+      },
+      {
+        "path": "packages/orchestration/src/pel-native-host.ts",
+        "sha256": "f3e01c5b1caf7e33d7bb48485db5dc46c5b053c58e831237fd2d10d66138b9b7",
+        "utf8Bytes": 8064,
+        "nonblankLines": 83
+      },
+      {
+        "path": "packages/orchestration/src/pel-native-live.ts",
+        "sha256": "12c474cfdc54c0fae4235b48ae7dea4faa814720b68bf5d05b7bea6f3c0e94dc",
+        "utf8Bytes": 8479,
+        "nonblankLines": 68
+      },
+      {
+        "path": "packages/orchestration/src/pel-native-permissions.ts",
+        "sha256": "f5316c96675f923c15f5d915732a80be3ff05bbf82c530340cd6a812df8acfd4",
+        "utf8Bytes": 5266,
+        "nonblankLines": 42
+      },
+      {
+        "path": "packages/orchestration/src/pel-native-qualification.ts",
+        "sha256": "70ee5629cca7209f5afa16e855e9d88e3feeabc5b0288f5bd1d87eae3e15a8c0",
+        "utf8Bytes": 14580,
+        "nonblankLines": 138
+      },
+      {
+        "path": "packages/orchestration/src/pel-native-scope.ts",
+        "sha256": "998e47d39452bbd6f41ca3c94b1932b478121c985be79ced4573627e9f75f250",
+        "utf8Bytes": 754,
+        "nonblankLines": 23
+      },
+      {
+        "path": "packages/orchestration/src/pel-package-main.ts",
+        "sha256": "fb516b5a1e80e8e77cb3fb326f4c218b78481e7ad728844599bb7c40ef3ef761",
+        "utf8Bytes": 1829,
+        "nonblankLines": 8
+      },
+      {
+        "path": "packages/orchestration/src/pel-package.ts",
+        "sha256": "d7b1f18e9a4b4059b3d90e87171c417ff19fc54a8e605a087dbf5950a6123f95",
+        "utf8Bytes": 23806,
+        "nonblankLines": 125
+      },
+      {
+        "path": "packages/orchestration/src/pel-plan-render.ts",
+        "sha256": "dd97024d597def97821163440555ae2c979fe7657b3498e5c543fa91ce49fa87",
+        "utf8Bytes": 5389,
+        "nonblankLines": 38
+      },
+      {
+        "path": "packages/orchestration/src/pel-project-authority.ts",
+        "sha256": "d61f0a589ed5ad200ad70203bb7fd8bb58f30fb57aa66aa9890d41f97ba51fe4",
+        "utf8Bytes": 18586,
+        "nonblankLines": 126
+      },
+      {
+        "path": "packages/orchestration/src/pel-project-config.ts",
+        "sha256": "fb1aa00dbbbad6158be735e6f410395722325f39c8289b2f269b99f874f8c85f",
+        "utf8Bytes": 14005,
+        "nonblankLines": 129
+      },
+      {
+        "path": "packages/orchestration/src/pel-project-live.ts",
+        "sha256": "e952ad919792aef41b7f2275c37b6d28a35a590b018425fb31a252b3a34ba586",
+        "utf8Bytes": 13154,
+        "nonblankLines": 156
+      },
+      {
+        "path": "packages/orchestration/src/pel-provider-cli.ts",
+        "sha256": "14edf0721d14458f9a9bf9bd57510c98b2bbdfcfe8c6a2f26a27fa361c1533b5",
+        "utf8Bytes": 9889,
+        "nonblankLines": 116
+      },
+      {
+        "path": "packages/orchestration/src/pel-provider-evidence.ts",
+        "sha256": "e8c1eeb4050f19cbdaaa4f0bac678e04de60453003d1d5ec358b276773a2b4aa",
+        "utf8Bytes": 8081,
+        "nonblankLines": 229
+      },
+      {
+        "path": "packages/orchestration/src/pel-provider-generation-live.ts",
+        "sha256": "209764459eb3c7ffd90a6dbdc4c02910db8521bbf9480e9f18c50d7882b2b601",
+        "utf8Bytes": 8471,
+        "nonblankLines": 237
+      },
+      {
+        "path": "packages/orchestration/src/pel-provider-list-live.ts",
+        "sha256": "0803b4f172b03ff1ad0d890e6ef120e395294686cb64dc19fd61fcfab88d398c",
+        "utf8Bytes": 2968,
+        "nonblankLines": 80
+      },
+      {
+        "path": "packages/orchestration/src/pel-provider-live.ts",
+        "sha256": "24487d7d5c2c5fa9dd118ff0db2575795130a54b2c1b781f1f0b2f1f3875e00b",
+        "utf8Bytes": 14793,
+        "nonblankLines": 159
+      },
+      {
+        "path": "packages/orchestration/src/pel-provider-readiness-live.ts",
+        "sha256": "d0dfa22711f402710652a94ad50a7accc56d540ffcbff1a064ea80ed333f2b0a",
+        "utf8Bytes": 9451,
+        "nonblankLines": 237
+      },
+      {
+        "path": "packages/orchestration/src/pel-provider-tools.ts",
+        "sha256": "195a36da04e65834ea454e61235d327f3ebeb9daf6c9dbbac5992e92d2832ef3",
+        "utf8Bytes": 27463,
+        "nonblankLines": 255
+      },
+      {
+        "path": "packages/orchestration/src/pel-publication-integration-fixture.ts",
+        "sha256": "fe700136ee32cf938b67c52611303b01a1caed1d1975122e5394287f77566943",
+        "utf8Bytes": 25598,
+        "nonblankLines": 104
+      },
+      {
+        "path": "packages/orchestration/src/pel-publication-service.ts",
+        "sha256": "b08f0235af244613025f6abf0eeb100fc09993057b04d1ee959f44c283406d7d",
+        "utf8Bytes": 19630,
+        "nonblankLines": 145
+      },
+      {
+        "path": "packages/orchestration/src/pel-qualification-permissions.ts",
+        "sha256": "f37f04402530ed4b25b82013080628904af014ebbd5acb2f1f3a1cd6908a25e8",
+        "utf8Bytes": 3912,
+        "nonblankLines": 50
+      },
+      {
+        "path": "packages/orchestration/src/pel-recovery-crash-fixture.ts",
+        "sha256": "2198aa489204cfec248db3a2ad8f9d8bcb4026560bc4f682eebadd1eb9589ef5",
+        "utf8Bytes": 14489,
+        "nonblankLines": 129
+      },
+      {
+        "path": "packages/orchestration/src/pel-recovery.ts",
+        "sha256": "4b0dfdb2f412028806dc10de053f0bcf3150882d6ce9aa46b0d81e874e8c8e97",
+        "utf8Bytes": 58400,
+        "nonblankLines": 609
+      },
+      {
+        "path": "packages/orchestration/src/pel-registered-root.ts",
+        "sha256": "034f1ff5fdabe33d04e9cf41d70839f8346daf817a88c76695b2588fb984d9fa",
+        "utf8Bytes": 2131,
+        "nonblankLines": 30
+      },
+      {
+        "path": "packages/orchestration/src/pel-registry-transaction.ts",
+        "sha256": "8fb3dd77cd6a97c8aa6219db8bc4b0e2036bcb3ef2ad6f5bb036d5f1f682662f",
+        "utf8Bytes": 1894,
+        "nonblankLines": 22
+      },
+      {
+        "path": "packages/orchestration/src/pel-research-cli.ts",
+        "sha256": "a42d96fbe346f70680277d3941a28adb6f684b36aa29184ad501d206f44a6010",
+        "utf8Bytes": 3317,
+        "nonblankLines": 19
+      },
+      {
+        "path": "packages/orchestration/src/pel-research-context.ts",
+        "sha256": "16539be8af7fb833048ca0c102fa2ad8fc4c154c8758eef630d770767c7fb5fb",
+        "utf8Bytes": 22030,
+        "nonblankLines": 88
+      },
+      {
+        "path": "packages/orchestration/src/pel-research-host.ts",
+        "sha256": "9d2e35fd6bd5508442423bdd20c9024c40db7db5d75471a3f69b1e5fc862a7f7",
+        "utf8Bytes": 11000,
+        "nonblankLines": 63
+      },
+      {
+        "path": "packages/orchestration/src/pel-research-refresh.ts",
+        "sha256": "5f8c8d0638f98c0bcf5ec0c62ea67f152632f3c24027b7250d51b9a3b0e3983e",
+        "utf8Bytes": 7206,
+        "nonblankLines": 53
+      },
+      {
+        "path": "packages/orchestration/src/pel-resource-scope.ts",
+        "sha256": "8b010bb5cbf8a4f8f0c4f7c9c225314f955048c6bbb84ee7431fa003bb3e73a2",
+        "utf8Bytes": 8984,
+        "nonblankLines": 115
+      },
+      {
+        "path": "packages/orchestration/src/pel-run-contract.ts",
+        "sha256": "e002f9099b0ca4e30777e201e81ff5fa099b488a82db6240c77ab64e8e0111be",
+        "utf8Bytes": 42139,
+        "nonblankLines": 695
+      },
+      {
+        "path": "packages/orchestration/src/pel-run-result.ts",
+        "sha256": "921538dab314fa1e903d292b80f8acf171bab9b40a893b5e44b1d31ef59b81a4",
+        "utf8Bytes": 11186,
+        "nonblankLines": 103
+      },
+      {
+        "path": "packages/orchestration/src/pel-run-status.ts",
+        "sha256": "b854d82a5d8f3e91486f3e5d938018c6c3f53421a935ea72135805f68d680169",
+        "utf8Bytes": 6504,
+        "nonblankLines": 77
+      },
+      {
+        "path": "packages/orchestration/src/pel-runner.ts",
+        "sha256": "ca09c800df257a73386ce43717e818bebb85ef0ac83ab0e381d143adf5868a3e",
+        "utf8Bytes": 28975,
+        "nonblankLines": 293
+      },
+      {
+        "path": "packages/orchestration/src/pel-runtime-inputs.ts",
+        "sha256": "16d86845866de16c05059927e68eab40403322dcbef7a548cdd9240fe22a046b",
+        "utf8Bytes": 5387,
+        "nonblankLines": 41
+      },
+      {
+        "path": "packages/orchestration/src/pel-runtime-version.ts",
+        "sha256": "fa92c64cb500ce4b7e28ff79964fe82d6ec91e8bb570199220f9c9a16f1c5ff0",
+        "utf8Bytes": 199,
+        "nonblankLines": 3
+      },
+      {
+        "path": "packages/orchestration/src/pel-simplification-live.ts",
+        "sha256": "c89217128df7ddc5f564f0671e7a25178939830df3653201f92914e1e55f2f7b",
+        "utf8Bytes": 9087,
+        "nonblankLines": 92
+      },
+      {
+        "path": "packages/orchestration/src/pel-simplification-main.ts",
+        "sha256": "e03afc64171ca2327cff3894ef986aa906bccc0f1f92d52e4f056e36eff9e4d9",
+        "utf8Bytes": 2901,
+        "nonblankLines": 25
+      },
+      {
+        "path": "packages/orchestration/src/pel-simplification-trace-fixture.ts",
+        "sha256": "b47d5eb7f717d6a145c4005b92ed828ca280198a071db6e08c7c1a9584f69d32",
+        "utf8Bytes": 10863,
+        "nonblankLines": 63
+      },
+      {
+        "path": "packages/orchestration/src/pel-simplification-trace.ts",
+        "sha256": "0de259f570d3c12f9728fea69f75a482cf83ede14bdda13bd5f4d6ae6765976d",
+        "utf8Bytes": 6984,
+        "nonblankLines": 46
+      },
+      {
+        "path": "packages/orchestration/src/pel-simplification.ts",
+        "sha256": "03d7358fa5ab70c863a9488100062aa7f4fb6585cdabfd5a9523e6c82372949e",
+        "utf8Bytes": 14054,
+        "nonblankLines": 234
+      },
+      {
+        "path": "packages/orchestration/src/pel-support.ts",
+        "sha256": "826385170c1de29ff851402f639e2f0c2e13bc94ef6c9058e674a9911226b1bc",
+        "utf8Bytes": 4437,
+        "nonblankLines": 29
+      },
+      {
+        "path": "packages/orchestration/src/resume-queue-execution.ts",
+        "sha256": "726c99ce142f6328847b1cc623f656dbe9276dc5d6aec3198f0b3d20a7afc0ae",
+        "utf8Bytes": 1878,
+        "nonblankLines": 29
+      },
+      {
+        "path": "packages/orchestration/src/round-reducer.ts",
+        "sha256": "684d16bfdf76c4fac15cf0b191fb16363907fbf05f87bf069877c15e59cfe474",
+        "utf8Bytes": 16792,
+        "nonblankLines": 538
+      },
+      {
+        "path": "packages/orchestration/src/run-lease-kernel.ts",
+        "sha256": "bbd833a88ffdab8a119274e2ffc71b683be23b50423368aaa1c1be97ad37ae7a",
+        "utf8Bytes": 332,
+        "nonblankLines": 5
+      },
+      {
+        "path": "packages/orchestration/src/secret-scan.ts",
+        "sha256": "c12d5f2c107a5fcde5938303c79fa02acfa2e4f266c0ebc78f6c454fe89216ae",
+        "utf8Bytes": 38454,
+        "nonblankLines": 1122
+      },
+      {
+        "path": "packages/orchestration/src/supervisor-cli.ts",
+        "sha256": "5bf156efdac61e2a5e6c8e4df2c5134d5fa570ba5a0bb56e365602a8a89cde3f",
+        "utf8Bytes": 7341,
+        "nonblankLines": 239
+      },
+      {
+        "path": "packages/orchestration/src/supervisor-live-services.ts",
+        "sha256": "4e3e1754bce79aa1b8f31eb32ddc9721367b9e30d603c9b5f7b75da3b09aa21c",
+        "utf8Bytes": 21988,
+        "nonblankLines": 646
+      },
+      {
+        "path": "packages/orchestration/src/supervisor.ts",
+        "sha256": "097309672bcb28e225d7febe331a5d27318d66c37d83ca8ba16905e5ea9c2dd2",
+        "utf8Bytes": 16701,
+        "nonblankLines": 486
+      },
+      {
+        "path": "packages/pel/src/analysis-types.ts",
+        "sha256": "3cf808c4a12205ede124eb1af34b1274ceb9e0a84cf96a9acf26543b11bdd7ec",
+        "utf8Bytes": 4008,
+        "nonblankLines": 125
+      },
+      {
+        "path": "packages/pel/src/analysis.ts",
+        "sha256": "94818ae4a7f2c7f7d715dee4b853afecd551fafa1441f7dc15ead38c2ebae3c0",
+        "utf8Bytes": 52946,
+        "nonblankLines": 1625
+      },
+      {
+        "path": "packages/pel/src/arguments.ts",
+        "sha256": "63873552587acc34d4026e42072860e24caa09c18764a3c374785964b94a4ef7",
+        "utf8Bytes": 3042,
+        "nonblankLines": 98
+      },
+      {
+        "path": "packages/pel/src/ast.ts",
+        "sha256": "38ab396c45fdf7ec2d603d084fadbff94a04b5c9634b03210e8ec87a6394fab4",
+        "utf8Bytes": 1540,
+        "nonblankLines": 50
+      },
+      {
+        "path": "packages/pel/src/authoring-profile-ceilings.ts",
+        "sha256": "251a90520ed054f863e01ed47857419fbe633c04f131174d7a87f2637f70da09",
+        "utf8Bytes": 3173,
+        "nonblankLines": 87
+      },
+      {
+        "path": "packages/pel/src/authoring-types.ts",
+        "sha256": "ec9bcac937904f94aee833bf2f8a33d69635eba0aa0d8384a98d0d4591d8645b",
+        "utf8Bytes": 5921,
+        "nonblankLines": 162
+      },
+      {
+        "path": "packages/pel/src/binding.ts",
+        "sha256": "987d919d21913178d35eed1430447c3ac621982e6dea8df3d274c40ffcae0c9b",
+        "utf8Bytes": 4304,
+        "nonblankLines": 127
+      },
+      {
+        "path": "packages/pel/src/builtins.ts",
+        "sha256": "a527dd9a0f6525bb958e73436a3c1f4be7bf3cc224bfff73d4ceca9bac53978f",
+        "utf8Bytes": 15184,
+        "nonblankLines": 494
+      },
+      {
+        "path": "packages/pel/src/checker.ts",
+        "sha256": "a46c39f29e773f663ee407219bf235ddadabdf02fd749b7f4217b1a069206771",
+        "utf8Bytes": 6805,
+        "nonblankLines": 206
+      },
+      {
+        "path": "packages/pel/src/continuation.ts",
+        "sha256": "d2c59a667e27d8114a0062fa42b51ff6981bcc2b1e536fb1e0bb3253989bbcd1",
+        "utf8Bytes": 28389,
+        "nonblankLines": 828
+      },
+      {
+        "path": "packages/pel/src/dependencies.ts",
+        "sha256": "e2b8007995aebab8e49a9c2001169d2a8a729a9c7c0fd86ed21dd05cf25b4fbe",
+        "utf8Bytes": 8731,
+        "nonblankLines": 262
+      },
+      {
+        "path": "packages/pel/src/diagnostics.ts",
+        "sha256": "a1aba48340de54d0d742cf325eba1e81f8250c0b1403ce66cfa2f0507ac33d9e",
+        "utf8Bytes": 2273,
+        "nonblankLines": 79
+      },
+      {
+        "path": "packages/pel/src/evaluator.ts",
+        "sha256": "1d6d9e7252e44b303066f2a3db85a9faf6ead824b65e2ccf571b4346f86b7c07",
+        "utf8Bytes": 58241,
+        "nonblankLines": 2075
+      },
+      {
+        "path": "packages/pel/src/host-arguments.ts",
+        "sha256": "32d34305c6def74db55cfd2c312cd2d7f63c087e2770a75fd1cbb920b59863c5",
+        "utf8Bytes": 23797,
+        "nonblankLines": 705
+      },
+      {
+        "path": "packages/pel/src/host-contract.ts",
+        "sha256": "af7c9d478167023201024be1cbbc987ece3ba8257c200c3d169354d9c60525bb",
+        "utf8Bytes": 27721,
+        "nonblankLines": 860
+      },
+      {
+        "path": "packages/pel/src/index.ts",
+        "sha256": "bf721b4aa802a76b9aa26d28d77ff292e2ea7bb420650b07b7b6ebc20d6f3cb8",
+        "utf8Bytes": 713,
+        "nonblankLines": 22
+      },
+      {
+        "path": "packages/pel/src/parser.ts",
+        "sha256": "cbebfc2b3597e68a70b1134c0e9f2818066d5a43dc5fbc437e51d623fb409dd4",
+        "utf8Bytes": 9010,
+        "nonblankLines": 296
+      },
+      {
+        "path": "packages/pel/src/preview.ts",
+        "sha256": "97d60fc93de5b7557dbb51bf2f3c8e3554763ae7f6a4500bde8dbcd4d8b314db",
+        "utf8Bytes": 599,
+        "nonblankLines": 16
+      },
+      {
+        "path": "packages/pel/src/profile.ts",
+        "sha256": "50ece61e97a24f64eb9258589a29a711157fac3f99d655dbc37fdd2dbdf881ad",
+        "utf8Bytes": 711,
+        "nonblankLines": 25
+      },
+      {
+        "path": "packages/pel/src/revision.ts",
+        "sha256": "3621ada004d7300cd1ab329e97781205166c6daaa86546814f882e72bd0bd646",
+        "utf8Bytes": 12423,
+        "nonblankLines": 393
+      },
+      {
+        "path": "packages/pel/src/runtime-validation.ts",
+        "sha256": "2e9bdf67a099207a40bba31a8d676cb77e765dd10fe93eb76b16fa32ad639b54",
+        "utf8Bytes": 10183,
+        "nonblankLines": 338
+      },
+      {
+        "path": "packages/pel/src/snapshot.ts",
+        "sha256": "b1a5f14dfa0ccfdb5c4f8550379be1b3c69de73c1dab19b315244315f6ab245d",
+        "utf8Bytes": 23218,
+        "nonblankLines": 696
+      },
+      {
+        "path": "packages/pel/src/tokenizer.ts",
+        "sha256": "6d621e7f33ed79986985e9d2ff8d782e7e272cacbbf95162285b169ea32cb5c4",
+        "utf8Bytes": 8569,
+        "nonblankLines": 287
+      },
+      {
+        "path": "packages/pel/src/types.ts",
+        "sha256": "d544452c6423a2cbcfd7760dca7daedebfaf0ef645cd3afb57db888ef59deca5",
+        "utf8Bytes": 3944,
+        "nonblankLines": 115
+      },
+      {
+        "path": "packages/pel/src/values.ts",
+        "sha256": "2f939270169278ed1fd663dcd58dc1c3a9d0904751d6ed8ba62ed42edad6fffd",
+        "utf8Bytes": 10254,
+        "nonblankLines": 303
+      },
+      {
+        "path": "packages/policy/src/architecture-adapter.ts",
+        "sha256": "eaba0faf69aa75f36593b3e3ae072b13413dff04f04e0f0c55c7a0aba9dee899",
+        "utf8Bytes": 13925,
+        "nonblankLines": 320
+      },
+      {
+        "path": "packages/policy/src/architecture-manifest.ts",
+        "sha256": "22f72a0018727ec0037bf65b7c86430aeb3a39cb580cb92202ad38f3f00d67f8",
+        "utf8Bytes": 8000,
+        "nonblankLines": 235
+      },
+      {
+        "path": "packages/policy/src/index.ts",
+        "sha256": "2598b7fa21fb91cd92e4107835680a40e12b7be3a0c32431703f5bc22ef441b2",
+        "utf8Bytes": 4906,
+        "nonblankLines": 190
+      },
+      {
+        "path": "packages/policy/src/install-verify-decode.ts",
+        "sha256": "0c4e46f033a1a759ffb1357a258e67859477359efd1806d280153593979bb48c",
+        "utf8Bytes": 7229,
+        "nonblankLines": 234
+      },
+      {
+        "path": "packages/policy/src/install-verify.ts",
+        "sha256": "bd4a7fe08317c8a2193b6c4967bbca5347cab40652858741905de818197edb14",
+        "utf8Bytes": 18620,
+        "nonblankLines": 576
+      },
+      {
+        "path": "packages/providers/src/continuation.ts",
+        "sha256": "c795fe906d1b23a8d5d692553c7e30d0e9082c952e9d31423b9c59111901c747",
+        "utf8Bytes": 3118,
+        "nonblankLines": 40
+      },
+      {
+        "path": "packages/providers/src/contract.ts",
+        "sha256": "b20734372870047fce4dcede60c41116d82524ea25e697ba60f14ac0e0f8199e",
+        "utf8Bytes": 13338,
+        "nonblankLines": 409
+      },
+      {
+        "path": "packages/providers/src/controls.ts",
+        "sha256": "d9da9d698d2c592668b197a58265cdecc8c6b9f636a0cc2d23895075c7761f92",
+        "utf8Bytes": 4336,
+        "nonblankLines": 129
+      },
+      {
+        "path": "packages/providers/src/errors.ts",
+        "sha256": "5c6dcab93d1303f365f20212db8cc3a3c02c96e639e77bfaaa3427f768454735",
+        "utf8Bytes": 1929,
+        "nonblankLines": 50
+      },
+      {
+        "path": "packages/providers/src/events.ts",
+        "sha256": "c7dcd64d985a888a6068b737ae2fd315447b61ce9c06feed56ec6e7626514fd7",
+        "utf8Bytes": 5369,
+        "nonblankLines": 102
+      },
+      {
+        "path": "packages/providers/src/generation.ts",
+        "sha256": "83507b2bbade7a7375b59076da2cc47673f66931cee7a3718decf0f45f6b823c",
+        "utf8Bytes": 9125,
+        "nonblankLines": 100
+      },
+      {
+        "path": "packages/providers/src/identity.ts",
+        "sha256": "352cf4b7e7fe27c6f7a853d5d6294570bdfa30e86abab5e519f09ee5e790c5f8",
+        "utf8Bytes": 661,
+        "nonblankLines": 23
+      },
+      {
+        "path": "packages/providers/src/index.ts",
+        "sha256": "d540a19e6f0ac8fd6ab7fb9a18acf47d2b38c8861fe7e475fbaf2c1645a077c2",
+        "utf8Bytes": 999,
+        "nonblankLines": 26
+      },
+      {
+        "path": "packages/providers/src/output.ts",
+        "sha256": "c74bdbb40c84a608086f65a78badcc6c74d0887eb85064d1739e0e05359074c0",
+        "utf8Bytes": 16018,
+        "nonblankLines": 285
+      },
+      {
+        "path": "packages/providers/src/profiles.ts",
+        "sha256": "7147205ef989a57e6e7c231194657d3647c7cb6bfc5ac93e622c3a89e073c47e",
+        "utf8Bytes": 22422,
+        "nonblankLines": 701
+      },
+      {
+        "path": "packages/providers/src/qualification.ts",
+        "sha256": "2e4a71ba77f79f3e29450c188fa9e524a3560898f5ae265ba255ce59eeff1adf",
+        "utf8Bytes": 18258,
+        "nonblankLines": 471
+      },
+      {
+        "path": "packages/providers/src/readiness.ts",
+        "sha256": "db7811d8491d00eda650635bc54bcca5a602c5ca0f69412a501b11aa2a898bb5",
+        "utf8Bytes": 5297,
+        "nonblankLines": 165
+      },
+      {
+        "path": "packages/providers/src/registry.ts",
+        "sha256": "6cb21de7361e9a6f90b16d4b1e358ce48ebb6208a469384da88e2d6576bdb4ad",
+        "utf8Bytes": 10363,
+        "nonblankLines": 323
+      },
+      {
+        "path": "packages/providers/src/tools.ts",
+        "sha256": "9c79ad1eed9d34fe0b820229c4eee2b69a7bdd2ea10336690f2e6a419e033c1f",
+        "utf8Bytes": 2594,
+        "nonblankLines": 39
+      },
+      {
+        "path": "packages/providers/src/transports/anthropic-messages.ts",
+        "sha256": "73d133dcc2cacfd61da20d4008f33538ac3baf31557f5ab7f48259b19afda099",
+        "utf8Bytes": 5078,
+        "nonblankLines": 176
+      },
+      {
+        "path": "packages/providers/src/transports/api-http.ts",
+        "sha256": "94bad7c9ee29947377248526230409a4585400510a67172efa509a0ae7c8b20f",
+        "utf8Bytes": 6941,
+        "nonblankLines": 206
+      },
+      {
+        "path": "packages/providers/src/transports/api-protocol.ts",
+        "sha256": "e52d62d245357441e92b2460dca9026b187cdcbbced24edb41ebda7d3025c6d4",
+        "utf8Bytes": 5735,
+        "nonblankLines": 178
+      },
+      {
+        "path": "packages/providers/src/transports/api-transport.ts",
+        "sha256": "4769de564c97a55bced66834df70892097804bbbe4ef218691231bb2b2088d0f",
+        "utf8Bytes": 33183,
+        "nonblankLines": 977
+      },
+      {
+        "path": "packages/providers/src/transports/claude-code.ts",
+        "sha256": "29eddfc7ad9a1a6c0215b051892027d561940d5a20007af4e4d71847784d1aca",
+        "utf8Bytes": 21006,
+        "nonblankLines": 239
+      },
+      {
+        "path": "packages/providers/src/transports/codex-app-server.ts",
+        "sha256": "98e6931068fa0f557785f71a7cf2615fd5415ee6c31903f48be33f70e19f47da",
+        "utf8Bytes": 21158,
+        "nonblankLines": 244
+      },
+      {
+        "path": "packages/providers/src/transports/gemini-cli.ts",
+        "sha256": "3e73cd09f7892144865b84b9196ab9e3155286d7d887002dc34369e687aee959",
+        "utf8Bytes": 19410,
+        "nonblankLines": 565
+      },
+      {
+        "path": "packages/providers/src/transports/google-interactions.ts",
+        "sha256": "c998fe922876a1459ea5fe86906a34758803bb121b9362c4d4c59939f5417965",
+        "utf8Bytes": 4462,
+        "nonblankLines": 155
+      },
+      {
+        "path": "packages/providers/src/transports/grok-acp.ts",
+        "sha256": "6d50219b8ee05d1dffaf98c69dbbe4231c41013583ef8efaab7202cae8607d86",
+        "utf8Bytes": 30668,
+        "nonblankLines": 804
+      },
+      {
+        "path": "packages/providers/src/transports/native-host.ts",
+        "sha256": "f76455b82e169b46a7d77f8d8b4183b847714577e60dbec557b65b83d3342829",
+        "utf8Bytes": 3389,
+        "nonblankLines": 97
+      },
+      {
+        "path": "packages/providers/src/transports/native-process.ts",
+        "sha256": "fddb7e0e7803ce10928ac4b125696609695d83e9e27bfbc45c21773507307227",
+        "utf8Bytes": 7456,
+        "nonblankLines": 112
+      },
+      {
+        "path": "packages/providers/src/transports/openai-responses.ts",
+        "sha256": "03ef6f5a573cb736a2330f4950b0fbe5b83f25231cb273dac16b6581b4da2198",
+        "utf8Bytes": 1736,
+        "nonblankLines": 53
+      },
+      {
+        "path": "packages/providers/src/transports/xai-responses.ts",
+        "sha256": "59bec4a12fca570a762681f4754e89b6b72e70fffa18cf1b3af9730a22ea8f1f",
+        "utf8Bytes": 1750,
+        "nonblankLines": 55
+      },
+      {
+        "path": "packages/providers/src/usage.ts",
+        "sha256": "af4b7947181256b53f5ebce3f0bdd6c9189b5f9f6c2e1aff4edb12395ac20a3b",
+        "utf8Bytes": 3315,
+        "nonblankLines": 51
+      },
+      {
+        "path": "scripts/build-pel-test-fixture.ts",
+        "sha256": "673daed9cbc35d11f06eb3160d65d1297563d077df9755aaeef440c6d33ef7ba",
+        "utf8Bytes": 3207,
+        "nonblankLines": 80
+      },
+      {
+        "path": "scripts/build-runtime.ts",
+        "sha256": "cc2e2eca153f780d1547074532fa8e91c614f3c19e4a41d579ecf155ca2c38da",
+        "utf8Bytes": 13222,
+        "nonblankLines": 384
+      },
+      {
+        "path": "scripts/collect-pel-startup-trace.ts",
+        "sha256": "9985ee9bb2deac715bbaa2ad3874166e6197b0a23cb1306b3f555c7b04e35a87",
+        "utf8Bytes": 1446,
+        "nonblankLines": 7
+      },
+      {
+        "path": "scripts/verify-runtime.ts",
+        "sha256": "37ad7c3c07456a4b34c3d4f91d92df9a7a51d5a088cc3025c106dbb25eac9acc",
+        "utf8Bytes": 35883,
+        "nonblankLines": 885
+      },
+      {
+        "path": "skills/foreman/scripts/foreman-cleanup.sh",
+        "sha256": "12945ea8367e4cad4294440d8449cf32501064921f063651060a1dff55dd2e23",
+        "utf8Bytes": 6167,
+        "nonblankLines": 125
+      },
+      {
+        "path": "skills/foreman/scripts/lane-complete-check.sh",
+        "sha256": "60e4010797b1d03bdcc153f2520cb3aaf2284e06da6d12c7206221591f9f6770",
+        "utf8Bytes": 5796,
+        "nonblankLines": 115
+      },
+      {
+        "path": "skills/foreman/scripts/lib/config.sh",
+        "sha256": "f721c5c4eb1d603e3ccafcfd328c41210958d96162a47c31e8cc07e521f57d29",
+        "utf8Bytes": 11387,
+        "nonblankLines": 220
+      },
+      {
+        "path": "skills/foreman/scripts/lib/eventlog.sh",
+        "sha256": "7fbf4436350e56b5f21dcab8714a7040e0f5bc8863212cbb0ab8bffd4965f392",
+        "utf8Bytes": 25807,
+        "nonblankLines": 496
+      },
+      {
+        "path": "skills/foreman/scripts/lib/evidence.sh",
+        "sha256": "04fa2b71f40288fd7500f429c7d9715dc9bbebc8848e121fb9137c5673e9e5e8",
+        "utf8Bytes": 17665,
+        "nonblankLines": 445
+      },
+      {
+        "path": "skills/foreman/scripts/lib/launch.sh",
+        "sha256": "e26a233bcd01553719f359276ef6d4695306124a102751cc0a9fb03ab93d18fd",
+        "utf8Bytes": 1681,
+        "nonblankLines": 39
+      },
+      {
+        "path": "skills/foreman/scripts/lib/telemetry.sh",
+        "sha256": "f305b1a792ba8f066a77d8581ae51b4df5942622ad43f04a10e42a031cc689dd",
+        "utf8Bytes": 9176,
+        "nonblankLines": 219
+      },
+      {
+        "path": "skills/foreman/scripts/merge-gate.sh",
+        "sha256": "5af0591b3b458da11b602037582da4fed6a81d60d05b54198a3d4cd31c8a9cfb",
+        "utf8Bytes": 10443,
+        "nonblankLines": 210
+      },
+      {
+        "path": "skills/foreman/scripts/vendor-concurrency-test.sh",
+        "sha256": "543d0827ea0039dd5cb0452e0f27b5a6df61171b91e1535fa22fff27e8bbb0e7",
+        "utf8Bytes": 16416,
+        "nonblankLines": 355
+      },
+      {
+        "path": "skills/foreman/scripts/wt-cleanup.sh",
+        "sha256": "2709e63ecfd0fcff7e649bf321937261c73fa6ddce1933190981b100a35e9902",
+        "utf8Bytes": 10464,
+        "nonblankLines": 215
+      },
+      {
+        "path": "skills/foreman/scripts/wt-new.sh",
+        "sha256": "84e1df1c1be23a5c0b9d181fe188cf720b5487649a773a11507b28cf52172bed",
+        "utf8Bytes": 11168,
+        "nonblankLines": 240
+      }
+    ],
+    "deletedBaselinePaths": [
+      "skills/foreman/scripts/vendor-multiround.sh",
+      "skills/foreman/scripts/lib/worker-cmd.sh",
+      "skills/foreman/scripts/adapters/grok.sh",
+      "skills/foreman/scripts/adapters/codex.sh",
+      "skills/foreman/scripts/adapters/claude.sh",
+      "skills/foreman/scripts/adapters/agy.sh",
+      "skills/foreman/scripts/lane-run.sh",
+      "skills/foreman/scripts/worker-run.sh",
+      "skills/foreman/scripts/audit-run.sh",
+      "skills/foreman/scripts/resume.sh",
+      "skills/foreman/scripts/watch.sh",
+      "skills/foreman/scripts/lane-supervise.sh"
+    ],
+    "repository": {
+      "baseline": 106640,
+      "candidate": 130737,
+      "growth": 24097
+    },
+    "packages": {
+      "core": {
+        "baseline": 490,
+        "candidate": 548,
+        "growth": 58
+      },
+      "event-log": {
+        "baseline": 2475,
+        "candidate": 2420,
+        "growth": -55
+      },
+      "graph-store": {
+        "baseline": 4261,
+        "candidate": 4261,
+        "growth": 0
+      },
+      "launcher": {
+        "baseline": 2050,
+        "candidate": 2073,
+        "growth": 23
+      },
+      "memory": {
+        "baseline": 980,
+        "candidate": 980,
+        "growth": 0
+      },
+      "orchestration": {
+        "baseline": 37366,
+        "candidate": 49896,
+        "growth": 12530
+      },
+      "pel": {
+        "baseline": 0,
+        "candidate": 10274,
+        "growth": 10274
+      },
+      "policy": {
+        "baseline": 13543,
+        "candidate": 13543,
+        "growth": 0
+      },
+      "providers": {
+        "baseline": 0,
+        "candidate": 6775,
+        "growth": 6775
+      },
+      "session-store": {
+        "baseline": 7769,
+        "candidate": 7769,
+        "growth": 0
+      }
+    },
+    "exclusions": {
+      "test": {
+        "files": 609,
+        "bytes": 5855999,
+        "nonblankLines": 149489
+      },
+      "archive": {
+        "files": 199,
+        "bytes": 85813723,
+        "nonblankLines": 121662
+      },
+      "generated": {
+        "files": 31,
+        "bytes": 38213977,
+        "nonblankLines": 897708
+      }
+    }
+  },
+  "instructions": {
+    "complete": true,
+    "knownRequiredTokens": 8122,
+    "requiredFiles": [
+      {
+        "path": "skills/foreman/SKILL.md",
+        "sha256": "64f994a39a9d2276efc293bd8e1b32901705885868120b7a5441da6bd9db1152",
+        "utf8Bytes": 7012,
+        "nonblankLines": 61
+      },
+      {
+        "path": "skills/foreman/references/roles.md",
+        "sha256": "133813b886e891266a6fec2c522e4fb3be2439241fc04ccc41c327338580379c",
+        "utf8Bytes": 1797,
+        "nonblankLines": 11
+      },
+      {
+        "path": "skills/foreman/references/durable-lanes.md",
+        "sha256": "04746be89a7d4a4fdf92bb297e6baa0865817c70a5f909ba87a9f008d4bcddfb",
+        "utf8Bytes": 3091,
+        "nonblankLines": 19
+      },
+      {
+        "path": "skills/foreman/references/lanes.md",
+        "sha256": "bcfd588db5e1a768f817015cae5926c17bee35c28f7145a9c9262763e8ef12d6",
+        "utf8Bytes": 1648,
+        "nonblankLines": 10
+      },
+      {
+        "path": "skills/foreman/references/parallel-worktrees.md",
+        "sha256": "94136c27c13d081c3e2acb199c3201c90ff27729694143f55683497e264af35f",
+        "utf8Bytes": 1694,
+        "nonblankLines": 8
+      },
+      {
+        "path": "docs/guides/pel/quickstart.md",
+        "sha256": "dc2d2abf975924a22cbe044033190a46b541efa6de2f6bb8c51225960df3b9de",
+        "utf8Bytes": 3946,
+        "nonblankLines": 42
+      },
+      {
+        "path": "startup-trace/0-stdout.txt",
+        "sha256": "09c53ac71f1cdb678ab81c171e7afc23b8490bfe55471443863c1fd3eb7b1635",
+        "utf8Bytes": 117,
+        "nonblankLines": 1
+      },
+      {
+        "path": "startup-trace/1-stdout.txt",
+        "sha256": "162f5228886ace43bbf28695fdfc0a5d6af6e950cf653341f63a4550fa4364ba",
+        "utf8Bytes": 12239,
+        "nonblankLines": 1
+      },
+      {
+        "path": "startup-trace/2-stdout.txt",
+        "sha256": "c0cebc1078b373d87cf9e3f936dacb21cb1ac29a3cca2420ce0d5d7877a84d08",
+        "utf8Bytes": 39,
+        "nonblankLines": 1
+      },
+      {
+        "path": "startup-trace/3-stdout.txt",
+        "sha256": "488d9acad8c06c7f79b7b21e10bb93107fe0bc41b34326c17c5cd4f467da6e7b",
+        "utf8Bytes": 3773,
+        "nonblankLines": 37
+      },
+      {
+        "path": "startup-trace/provider-0-grok-system-override.txt",
+        "sha256": "ef07bc65e4f29b795f6c5d081e3c9862626cce255307f52b72e44599ac8e001b",
+        "utf8Bytes": 311,
+        "nonblankLines": 1
+      },
+      {
+        "path": "startup-trace/provider-1-grok-output-schema.txt",
+        "sha256": "b488be17e4d5dd23b9c03b0b74efe33aa4589373ab083fb15ae7d979ca1a5687",
+        "utf8Bytes": 307,
+        "nonblankLines": 1
+      },
+      {
+        "path": "startup-trace/provider-2-grok-session-prompt.txt",
+        "sha256": "15c6f64df45f5d1d44f87f98b7150d701391fb2389907b26c4b34c3cecdc08d6",
+        "utf8Bytes": 685,
+        "nonblankLines": 1
+      }
+    ],
+    "optionalFiles": [
+      {
+        "path": "docs/guides/pel/examples.md",
+        "sha256": "4c9e65f48b879f9795d95cdc51bc78373d22a84a3a68f00bcc0205f3e9203f6f",
+        "utf8Bytes": 4436,
+        "nonblankLines": 37
+      },
+      {
+        "path": "docs/guides/pel/install.md",
+        "sha256": "cf91256f3ce431aab5c936253a9b6e146770d2debede7e52b6bee6bdcc11575a",
+        "utf8Bytes": 4043,
+        "nonblankLines": 29
+      },
+      {
+        "path": "docs/guides/pel/migration.md",
+        "sha256": "12c0f64c8e694ca62bb014dbff3439560023a5338ec32b04018eacf7e49d1c0a",
+        "utf8Bytes": 6078,
+        "nonblankLines": 38
+      },
+      {
+        "path": "docs/guides/pel/qualification.md",
+        "sha256": "e217e0c611459b043a036ece25d7b975078c838c50cf40e518cf628f5667421b",
+        "utf8Bytes": 3190,
+        "nonblankLines": 16
+      },
+      {
+        "path": "docs/guides/pel/research.md",
+        "sha256": "0ce43dc33edce7331c85a16ee4c6b2723014e56162fb4cf0967b979dc3af982f",
+        "utf8Bytes": 3630,
+        "nonblankLines": 60
+      },
+      {
+        "path": "docs/guides/pel/support.md",
+        "sha256": "83c93f5355966afc860f4d883e6243aeb12f7aaf3447400794044792ec171fbc",
+        "utf8Bytes": 2642,
+        "nonblankLines": 23
+      },
+      {
+        "path": "examples/pel/profiles/claude-fable-5-1.pel",
+        "sha256": "634c4c75b6975f090a8e02c5b0898edec0b9f17009fca640d0dc2cb0238f7787",
+        "utf8Bytes": 141,
+        "nonblankLines": 2
+      },
+      {
+        "path": "examples/pel/profiles/claude-opus-5.pel",
+        "sha256": "d820a343e65582cd56bc546bbc9ba1b478a0d9ab702f11fd3a2e8bb3716fb5a5",
+        "utf8Bytes": 138,
+        "nonblankLines": 2
+      },
+      {
+        "path": "examples/pel/profiles/gemini-3.8-flash.pel",
+        "sha256": "1d8708cae72f00a3d0694d61cf86f2f4203a1cd55ff981ae061cf473e9d0e746",
+        "utf8Bytes": 140,
+        "nonblankLines": 2
+      },
+      {
+        "path": "examples/pel/profiles/gpt-5.6-sol.pel",
+        "sha256": "9bd41348960e6cfa1c85960ed7800d57a8929d87f4634a2c4d72f3c1bb30c883",
+        "utf8Bytes": 141,
+        "nonblankLines": 2
+      },
+      {
+        "path": "examples/pel/profiles/gpt-6-astra.pel",
+        "sha256": "cdbb00935836bada8d3ca8a58757445a1eb1dace5457d555d51ad351d05e4da2",
+        "utf8Bytes": 141,
+        "nonblankLines": 2
+      },
+      {
+        "path": "examples/pel/profiles/grok-4.6.pel",
+        "sha256": "e8d8769b416f225fc251f6801e50c36e9bfe10db85aabe6559ecbd77c2f4ca34",
+        "utf8Bytes": 130,
+        "nonblankLines": 2
+      }
+    ],
+    "optionalTokens": 4993,
+    "mandatoryCorpusSha256": "47a33c9a1ff782ce0a88a5dc612357c043d738257fba599c8ec9721c9a73e5f4",
+    "countingNote": "Complete for the fixed standard-start trace (test-fixture); this does not establish live-account readiness or cover other workflows. Full surviving baseline files and quickstart plus exact rendered command and transmitted provider instruction bytes are counted. Unknown control-flow and ownership counts remain null."
+  },
+  "ratios": {
+    "glueReduction": -6.072296124927703,
+    "instructionReduction": 0.5078172342746334
+  },
+  "acceptance": {
+    "glue": false,
+    "instructions": true
+  },
+  "startupTrace": {
+    "evidenceKind": "test-fixture",
+    "sha256": "139573ae1c22e1597ddb659e39ca85b73b1148281bdb466e0ce03c1153077056",
+    "sourceDigest": "760b5c0d07111f33f804a76bcf86cd8d3cb9ef09f2479526a7a5f3a4c4655c6c",
+    "boundary": "first-provider-prompt-sent"
+  },
+  "operational": {
+    "commandsAfterPrerequisites": 3,
+    "startCommands": 1,
+    "entryPoints": 1,
+    "workflowLoops": null,
+    "providerConditionals": null,
+    "activeControlOwners": null,
+    "authoritativeHistories": null
+  },
+  "exitCode": 1
+}

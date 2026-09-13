@@ -1,0 +1,10 @@
+✔ T-M6-002/T-M6-019 compiled project configure writes canonical settings and bare run uses the registered project (4738.40203ms)
+ℹ {"evidenceKind":"test-fixture","files":[{"byteLength":63519,"relativePath":"runtime/assets/pel/default-authoring-snapshot.json","sha256":"42a6bf180a286175c1528a29b4afc4ac719667d0513cb797454a7ec4613e415a"},{"byteLength":267,"relativePath":"examples/pel/implement-verify-review.pel","sha256":"9cea3c10124da4a2d6548b7700dd0ec5b8ff60bdc50ca6bf10722cf8cd538779"}],"packageBuildId":"af6d527ce0970c6c928d4dc5a074f8722eb816dde1bada096781b6a92c67408d","packageSource":"verified-extracted-package","runId":"pel-df5ebd5b-c844-4d98-83a9-a79b34d1c377"}
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6099.787215

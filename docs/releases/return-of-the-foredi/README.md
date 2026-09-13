@@ -55,6 +55,13 @@ The [release graph coverage](GRAPH-COVERAGE.md) describes the updated advisory g
 
 The [M6 source candidate](m6-candidate-acceptance.md) passes verification and actual archive installation.
 Both measured simplification targets fail at `f734d99`.
-The release remains unaccepted while instruction simplification and the source-complexity scope decision are open.
+The [instruction improvement candidate](m6-instruction-acceptance.md) meets the 50% instruction target with 8,122 required tokens.
+The 40% production-line target remains unmet, and the release remains unaccepted.
 
-The [M6 candidate graph](m6-graph-coverage.md) covers the committed implementation and captured sources with explicit extraction limits.
+The [current advisory graph](evidence/m6/instruction-graph-summary.md) covers source candidate `bb0c1e9` with explicit extraction limits.
+The [earlier M6 graph](m6-graph-coverage.md) retains its separate `f734d99` evidence boundary.
+
+The [vault receipt](evidence/m6/instruction-vault-apply.json) records 16 immutable source captures and eight updated pages.
+The [vault health check](evidence/m6/instruction-vault-lint.json) reports no issues across 28 pages.
+The [reconciliation proposal](reconciliation-proposal.md) identifies remaining release obligations for review.
+It does not change their criteria or declare them complete.

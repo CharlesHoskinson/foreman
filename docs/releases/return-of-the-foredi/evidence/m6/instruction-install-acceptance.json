@@ -1,0 +1,241 @@
+{
+  "schemaVersion": 1,
+  "root": "/tmp/foredi-release-acceptance-Fa3g4g",
+  "unpacked": "/tmp/foredi-release-acceptance-Fa3g4g/unpacked",
+  "prefix": "/tmp/foredi-release-acceptance-Fa3g4g/prefix",
+  "buildId": "af6d527ce0970c6c928d4dc5a074f8722eb816dde1bada096781b6a92c67408d",
+  "archiveSha256": "36011e9c322c9fd5c392f7bf8e58ccdfe29a5863bb3153f839c7e32938908bda",
+  "candidateCommit": "bb0c1e9f3868d6bf36a91f78ceec55800192fc5c",
+  "checks": [
+    {
+      "name": "install",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/unpacked/runtime/dist/install.js",
+        "--prefix",
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "b551bc5056592aa77e85c2bb1c7fb640e516739fbfba249fb69fa1bc1bdbd6e4",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "version",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "--version",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "abc68ac86d33b5f53ffccb02e4b6591f2340fe887157375f799a280ad4ae75af",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "check-conditional.pel",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "check",
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/current/examples/pel/conditional.pel",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "b92e05c07ff10034d2d9027d1c7c9cb20a8bdb5f93947a36cd8b81e4afc672e2",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "check-implement-verify-review.pel",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "check",
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/current/examples/pel/implement-verify-review.pel",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "b92e05c07ff10034d2d9027d1c7c9cb20a8bdb5f93947a36cd8b81e4afc672e2",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "check-parallel-read.pel",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "check",
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/current/examples/pel/parallel-read.pel",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "b92e05c07ff10034d2d9027d1c7c9cb20a8bdb5f93947a36cd8b81e4afc672e2",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "check-race-cancel.pel",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "check",
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/current/examples/pel/race-cancel.pel",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "b92e05c07ff10034d2d9027d1c7c9cb20a8bdb5f93947a36cd8b81e4afc672e2",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "check-repair-and-publish.pel",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "check",
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/current/examples/pel/repair-and-publish.pel",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "b92e05c07ff10034d2d9027d1c7c9cb20a8bdb5f93947a36cd8b81e4afc672e2",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "check-repair.pel",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "check",
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/current/examples/pel/repair.pel",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "b92e05c07ff10034d2d9027d1c7c9cb20a8bdb5f93947a36cd8b81e4afc672e2",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "check-research-prepare.pel",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "check",
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/current/examples/pel/research-prepare.pel",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "b92e05c07ff10034d2d9027d1c7c9cb20a8bdb5f93947a36cd8b81e4afc672e2",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "check-resume-checkpoint.pel",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "check",
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/current/examples/pel/resume-checkpoint.pel",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "b92e05c07ff10034d2d9027d1c7c9cb20a8bdb5f93947a36cd8b81e4afc672e2",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "check-profile-claude-fable-5-1.pel",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "check",
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/current/examples/pel/profiles/claude-fable-5-1.pel",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "b92e05c07ff10034d2d9027d1c7c9cb20a8bdb5f93947a36cd8b81e4afc672e2",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "check-profile-claude-opus-5.pel",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "check",
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/current/examples/pel/profiles/claude-opus-5.pel",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "b92e05c07ff10034d2d9027d1c7c9cb20a8bdb5f93947a36cd8b81e4afc672e2",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "check-profile-gemini-3.8-flash.pel",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "check",
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/current/examples/pel/profiles/gemini-3.8-flash.pel",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "b92e05c07ff10034d2d9027d1c7c9cb20a8bdb5f93947a36cd8b81e4afc672e2",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "check-profile-gpt-5.6-sol.pel",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "check",
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/current/examples/pel/profiles/gpt-5.6-sol.pel",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "b92e05c07ff10034d2d9027d1c7c9cb20a8bdb5f93947a36cd8b81e4afc672e2",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "check-profile-gpt-6-astra.pel",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "check",
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/current/examples/pel/profiles/gpt-6-astra.pel",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "b92e05c07ff10034d2d9027d1c7c9cb20a8bdb5f93947a36cd8b81e4afc672e2",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "check-profile-grok-4.6.pel",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "check",
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/current/examples/pel/profiles/grok-4.6.pel",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "b92e05c07ff10034d2d9027d1c7c9cb20a8bdb5f93947a36cd8b81e4afc672e2",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "providers",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "providers",
+        "list",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "162f5228886ace43bbf28695fdfc0a5d6af6e950cf653341f63a4550fa4364ba",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "research-status",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "research",
+        "status",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "cd0cf1f7a4f08d7d1e6be07e932569b3c2b79085b2fd1d91b76d81f520db7f22",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "research-query",
+      "argv": [
+        "/tmp/foredi-release-acceptance-Fa3g4g/prefix/bin/foreman",
+        "research",
+        "query",
+        "Fable forced tools",
+        "--limit",
+        "5",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "dea9ac428ff49926df1f2e2ac43ebf768b23439f6870967c43f3c01836abc95a",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "scope": "Actual produced archive, Linux x64 Node24, no checkout or external vault in child environment. Static product checks do not qualify provider accounts."
+}

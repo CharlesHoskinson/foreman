@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "candidateCommit": "bb0c1e9f3868d6bf36a91f78ceec55800192fc5c",
+  "releaseName": "Return of the ForeDi",
+  "version": null,
+  "acceptance": "not-accepted",
+  "assets": [
+    {
+      "path": "/home/charl/foreman-release-artifacts/return-of-the-foredi/bb0c1e9f3868d6bf36a91f78ceec55800192fc5c/af6d527ce0970c6c928d4dc5a074f8722eb816dde1bada096781b6a92c67408d.tar.gz",
+      "sha256": "36011e9c322c9fd5c392f7bf8e58ccdfe29a5863bb3153f839c7e32938908bda",
+      "kind": "unversioned-package",
+      "byteLength": 69763807
+    },
+    {
+      "path": "/home/charl/foreman-release-artifacts/return-of-the-foredi/bb0c1e9f3868d6bf36a91f78ceec55800192fc5c/foredi-bb0c1e9-advisory.tar.gz",
+      "sha256": "cceb613f4b2ba1f9ce755f6aa947eeb2cf2de2e898bbab9f9534006a9a9efcfa",
+      "kind": "advisory-graph",
+      "byteLength": 5208288
+    }
+  ]
+}
