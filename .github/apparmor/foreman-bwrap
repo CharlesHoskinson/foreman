@@ -1,0 +1,10 @@
+# CI-only permission for the native isolation executable.
+# Keep the host-wide user namespace restriction enabled.
+abi <abi/4.0>,
+include <tunables/global>
+
+# Use the packaged profile identity so --replace cannot create an
+# ambiguous second attachment for the same executable.
+profile bwrap /usr/bin/bwrap flags=(unconfined) {
+  userns,
+}
