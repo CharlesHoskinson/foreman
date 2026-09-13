@@ -2,6 +2,10 @@
 
 Status: **PLANNED**. Acceptance is not done. All paths below are proposed outputs, not implemented commands. Do not mark a task complete because its design or fixture name exists.
 
+The [mapping audit](../../../docs/guides/pel/k-mapping-audit.md) lists the current syntax and semantic inventory against these requirements.
+Before implementation, verify its source hashes and account for every added or changed member.
+The inventory audit does not complete any implementation task below.
+
 ## F-M7-01 Pinned profile and executable syntax
 
 - [ ] Implement R-M7-001 and its distinguishing T-M7-001 fixture in packages/pel/test/k/toolchain.test.ts; record a failing test before implementation and the executed result after correction.

@@ -4,6 +4,10 @@ Status: **PLANNED**. No definition, conformance result or theorem is delivered b
 
 ## Normative domain
 
+The [mapping audit](../../../docs/guides/pel/k-mapping-audit.md) supplies the explicit implementation inventory for this plan.
+Use its [source hashes and member lists](../../../docs/guides/pel/k-mapping-audit.json) to detect changes before implementing rules.
+Its complete inventory mapping does not establish executable coverage. Each planned destination still needs distinguishing cases and actual K results.
+
 The target is the selected Foreman Pel profile, not an invented upstream implementation. Bind `packages/pel/src/profile.ts`, `docs/reference/pel/compatibility.md`, `docs/reference/pel/extensions.md`, the M1 OpenSpec and `packages/pel/test/fixtures/paper-v2.json` by exact source hashes. Inventory all current constructors and builtin signatures before implementing rules. M4's retry, race, transport, ledger and publication policies are external host behavior; model their M1 child interfaces without claiming those policies proved.
 
 The paper's compatibility decisions and independent fixture expectations constrain both implementations. A mismatch is a counterexample to investigate, not permission to automatically copy the TypeScript result into K. Changes to the normative profile need their own compatibility decision and invalidate affected evidence.
