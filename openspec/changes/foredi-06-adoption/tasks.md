@@ -35,11 +35,11 @@ See docs/releases/return-of-the-foredi/m6-implementation.md and m6-ears-coverage
 - [x] Reject unsupported legacy constructs with exact source diagnostics.
 - [x] Refuse migration of active legacy runs without transferring their leases.
 - [x] Replace one complete caller-to-controller path before expanding the migration cohort.
-- [x] Remove replaced retry, dispatch and command-construction behavior from the named legacy files.
+- [ ] Deferred: remove legacy retry, dispatch and command-construction behavior after `lane-runtime-typescript` parity. The approved restoration retains those exact historical bodies. Migrated Pel workflows must not call them.
 - [x] Preserve historical record decoders and existing safety services.
-- [x] Delete the twelve named shell cohort files after migrating and testing all callers.
+- [ ] Deferred: delete the twelve named shell cohort files after migrating and testing all callers. The earlier deletion was reverted by user-authorized byte-identical restoration on 2026-09-13; deletion waits on completed caller migration and `lane-runtime-typescript` parity. Owner: `lane-runtime-typescript`. See [restoration proposal](../../../docs/releases/return-of-the-foredi/legacy-restoration-proposal.md).
 - [x] Implement T-M6-007 through T-M6-009 in `pel-migration.test.ts`.
-- [x] Search remaining callers with `rg` and execute parity tests before retiring each path.
+- [ ] Complete caller migration and parity checks before retiring each restored path. The bounded reference scan does not establish that parity.
 - [x] Assert one owner controls each migrated run and deferred Council paths remain unchanged.
 
 ## 4. F-M6-04 measured simplification
@@ -120,13 +120,13 @@ See docs/releases/return-of-the-foredi/m6-implementation.md and m6-ears-coverage
 - [x] Implement pel-research-host.ts against M2's frozen fm/research descriptor and schema.
 - [x] Return M4 read-result preparation with empty write sets and zero external reservations.
 - [x] Implement T-M6-022 with research-prepare and parallel-read through the fixture launcher.
-- [x] Delete all twelve legacy shell cohort files after caller migration and extend T-M6-009 absence/caller checks.
+- [x] Extend T-M6-009 to pin all twelve retained legacy shell cohort files to their exact historical bytes, hashes and modes and to keep the live-caller scan bounded to the restored bodies and their exact policy pins. Their deletion is deferred with the F-M6-03 item above.
 - [x] Add pel-package-main.ts, its runtime bundle entry and package:pel npm script.
 - [x] Pin tar 7.5.22 for deterministic TypeScript archive production.
 - [x] Implement ManifestPayloadV1 canonical hashing and artifacts/foredi/<buildId>.tar.gz output.
 - [x] Implement T-M6-023 and make T-M6-001 install the archive produced by T-M6-016.
 - [x] Extend T-M6-010 to count a new research file and full residual instruction files under the exact membership rule.
-- [x] Search packages, components/council, skills/foreman, scripts, env and .github for all deleted paths and basenames.
+- [x] Search packages, components/council, skills/foreman, scripts, env and .github for all cohort paths and basenames.
 - [x] Migrate retained Council shared-entry callers to existing compiled interfaces before deleting their dependencies.
 - [x] Run retained Council review/preflight fixtures and regenerate runtime manifests after shared caller changes.
 - [x] Add pretest:adoption invoking M2's test:pel-fixture-build before copied-asset runtime acceptance.

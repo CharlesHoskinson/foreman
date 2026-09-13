@@ -1,5 +1,10 @@
 # Spec delta: resume supervisor
 
+The [ForeDi R-M6-008 ownership requirement](../../../foredi-06-adoption/specs/foredi-06-adoption/spec.md)
+supersedes automatic legacy resume through the new supervisor.
+Its `ActiveLegacyRun` refusal precedes reservation, restore, and queue submission.
+The original controller's command-preservation and migration obligations remain open.
+
 ## ADDED Requirements
 
 ### Requirement: resume-budget inspection uses one validator
@@ -19,6 +24,13 @@ reservation SHALL use the same validator.
 The restore service SHALL require equal run, lane, and attempt identity in the
 checkpoint and reservation. It SHALL reject a dirty, changed, aliased, or
 invalid worktree before checkout.
+The ForeDi supervisor SHALL refuse legacy resume before invoking this service.
+
+#### Scenario: a legacy checkpoint is valid and its worktree is clean
+
+- WHEN the ForeDi supervisor selects that legacy round
+- THEN it returns `ActiveLegacyRun` and exits 3 before restore-service inspection
+- AND the valid checkpoint does not authorize reservation, checkout, or queue submission.
 
 #### Scenario: a dirty worktree is selected
 
@@ -35,15 +47,26 @@ invalid worktree before checkout.
 
 ### Requirement: queue execution preserves the stored round
 
-The executor SHALL submit `lane-run.sh --round` with the exact stored gate,
-report path, run, lane, worktree, and command vector. It SHALL preserve empty
-arguments, Unicode, spaces, and shell metacharacters as argument values.
+The original controller's command-preservation contract remains a migration
+obligation owned by `lane-runtime-typescript`. It requires the exact stored
+gate, report path, run, lane, worktree, and command vector, including empty
+arguments, Unicode, spaces, and shell metacharacters.
+This obligation is not completed by ForeDi's refusal path.
+
+For a legacy round, the ForeDi supervisor SHALL return `ActiveLegacyRun` with
+exit code 3 before reservation, restore, or queue submission.
+It SHALL preserve the journal, worktree contents, and `HEAD`.
+It SHALL NOT return a ready command vector or infer a verified original
+controller executable from historical ownership records.
+This boundary does not change direct `lane-run.sh --round` execution.
 
 #### Scenario: pueue is unavailable
 
-- WHEN queue readiness is unavailable
-- THEN the executor SHALL return one ready command vector
-- AND SHALL not spawn the round directly.
+- WHEN the ForeDi supervisor selects a recoverable legacy round
+- AND pueue is unavailable
+- THEN it SHALL return `ActiveLegacyRun` and exit 3
+- AND no resume attempt, worktree restore, ready command, or round spawn occurs
+- AND the journal, worktree contents, and `HEAD` remain unchanged.
 
 ### Requirement: supervisor decisions are fail-safe
 

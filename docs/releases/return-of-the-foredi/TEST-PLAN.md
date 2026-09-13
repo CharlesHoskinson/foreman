@@ -1052,9 +1052,9 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 - Requirements: R-M6-009.
 - Level: integration.
 - Target: `packages/orchestration/src/pel-migration.test.ts`.
-- Fixture: Historical terminal records and the twelve exact legacy shell cohort paths, with caller migration completed.
-- Action: Assert all twelve files are absent; rg full paths and basenames in packages, components/council, skills/foreman, scripts, env and .github; run migrated CLI workflows and retained Council review/preflight fixtures.
-- Expected: No legacy shell cohort entry or active caller remains. Historical identities still decode. No compatibility argv parser or second scheduler is introduced. Every live caller scope has zero deleted-entry references, including retained Council callers. Historical records remain separate and runtime manifests are regenerated.
+- Fixture: Historical terminal records and the twelve exact legacy shell cohort paths, restored byte-for-byte from 6c1515ecf3d28ccbea6205731e9142aede7a8110 with mode 100755 and pinned by exact body hash in the policy adapter.
+- Action: Assert each of the twelve files matches its independent historical SHA-256, git blob identity, byte length and mode; rg full paths and basenames in packages, components/council, skills/foreman, scripts, env and .github; exercise the scan and body checks against a synthetic changed body and a synthetic unexpected caller; run migrated CLI workflows and retained Council review/preflight fixtures.
+- Expected: Every retained entry holds its exact historical bytes, hashes and mode. A changed, truncated or relocated body is rejected, and so is any unexpected new caller in the scanned scopes, including new scripts, Pel and Council paths. Historical identities still decode. No compatibility argv parser, second scheduler, or implicit legacy dispatch is introduced. Every live caller scope has zero cohort references outside the exact restored bodies, their exact policy pin module, and fixed measurement membership metadata, including retained Council callers. Historical records remain separate and runtime manifests are regenerated.
 
 ### T-M6-010
 

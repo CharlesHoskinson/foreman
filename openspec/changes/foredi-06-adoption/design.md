@@ -514,9 +514,16 @@ Package production exits 0 after a verified archive, 2 for invalid candidate/opt
 
 ## Final migration and measurement rules
 
-All twelve shell files listed in Fixed measurement membership are deleted after their callers migrate.
+All twelve shell files listed in Fixed measurement membership stay retained byte-for-byte from
+6c1515ecf3d28ccbea6205731e9142aede7a8110 under the user-authorized temporary exception recorded in
+`docs/releases/return-of-the-foredi/legacy-restoration-proposal.md` and pinned by exact body hash in
+`packages/policy/src/architecture-adapter.ts`. Their explicit deletion is deferred until caller
+migration and `lane-runtime-typescript` parity are complete; the earlier deletion was reverted rather
+than closed. The retention records debt, not parity.
 Do not retain forwarding wrappers or introduce compatibility subcommands for their old argv.
-T-M6-009 checks each path is absent, scans production callers with rg and executes migrated workflow entry points.
+T-M6-009 checks each retained path against its independent historical SHA-256, git blob identity, byte
+length and mode, scans production callers with rg, proves a changed body and an unexpected new caller
+stay rejected, and executes migrated workflow entry points.
 Historical record decoders remain available through the unified CLI independently of old script filenames.
 
 Candidate production membership uses these suffixes: .ts, .tsx, .pel, .sh, .py and .ps1.
@@ -545,10 +552,12 @@ The known caller inventory includes supervisor-live-services.ts, resume-queue-ex
 env/reference-manifest.toml, cleanup/worktree scripts, merge-gate.sh and shared launch/eventlog helpers.
 Classify historical fixtures and archived prose separately. Production references cannot be waived as historical.
 Retained Council plan imports and policy remain supported through their existing compiled paths.
-Migrate any Council use of a deleted shared entry point to the existing compiled transport/host interface before deletion.
+Migrate any Council use of a retained shared entry point to the existing compiled transport/host interface before deletion.
 Run Council's retained review and preflight fixtures after those caller changes.
 This changes shared transport invocation only. It does not import Council plans into Pel or add another scheduler.
-T-M6-009 requires zero live references in every named scope and passing retained Council invocation fixtures.
+T-M6-009 requires zero unexpected references in the named live scopes, subject to its declared historical, test, and generated-file exclusions. Retained Council invocation fixtures remain required.
+While deletion is deferred, the only admitted references are the exact restored bodies themselves, the exact
+policy pin module, and fixed measurement membership metadata. New scripts, Pel and Council paths are not exempt.
 
 pretest:adoption invokes M2's test:pel-fixture-build before runtime acceptance.
 The shared root pretest invokes the same builder before npm test and therefore before verify's test stage.

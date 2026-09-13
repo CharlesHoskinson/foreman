@@ -610,7 +610,7 @@ Tests: [T-M6-007](TEST-PLAN.md#t-m6-007).
 
 Tests: [T-M6-008](TEST-PLAN.md#t-m6-008).
 
-**R-M6-009** (event). When legacy scripts are retired, the Foreman CLI SHALL preserve historical record decoding after their callers migrate to the unified runtime.
+**R-M6-009** (event). When legacy scripts are retained under the user-authorized temporary exception, the Foreman CLI SHALL preserve historical record decoding, SHALL keep the retained cohort byte-identical to its historical bodies, and SHALL not route migrated Pel workflows through that cohort. Explicit deletion of the twelve-file cohort is deferred until caller migration and `lane-runtime-typescript` parity are complete. The earlier claim of completed deletion was not sustained.
 
 Tests: [T-M6-009](TEST-PLAN.md#t-m6-009).
 

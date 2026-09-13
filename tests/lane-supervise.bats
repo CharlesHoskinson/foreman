@@ -277,7 +277,7 @@ setup() {
   [ "$status" -eq 2 ]
 }
 
-@test "integration: clean worktree restore + Ready when pueue forced missing" {
+@test "integration: recoverable legacy round requires its original controller without mutation" {
   local wt="$BATS_TEST_TMPDIR/wt-int"
   mkdir -p "$wt"
   git -C "$wt" init -q -b main
@@ -294,13 +294,22 @@ setup() {
   sha="$(git -C "$wt" rev-parse HEAD)"
   # Worktree is clean at tip; checkpoint is tip (overlay checkout of same tree).
   _seed_recoverable run1 lane-real "$wt" "$sha" "echo recovered"
+  local before
+  before="$(cat "$(run_dir run1)/events.ndjson")"
+  # M6 refuses legacy restart before queue readiness, reservation, or restore.
   run env FOREMAN_HOME="$FOREMAN_HOME" LANE_QUEUE_FORCE_MISSING=1 \
     FOREMAN_SKILL_ROOT="$SCRIPTS/.." \
     bash "$SCRIPTS/lane-supervise.sh" --once run1
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"resumed"* ]] || [[ "$output" == *"ready-to-run"* ]]
+  [ "$status" -eq 3 ]
+  [[ "$output" == *"ActiveLegacyRun"* ]]
+  [[ "$output" == *"original controller"* ]]
+  [ "$(cat "$(run_dir run1)/events.ndjson")" = "$before" ]
   local resumes
   resumes="$(jq -c 'select(.type=="resume_attempt")' "$(run_dir run1)/events.ndjson" | wc -l)"
-  [ "$resumes" -ge 1 ]
-  [[ "$output" == *"--round"* ]] || [[ "$output" == *"lane-run.sh"* ]]
+  [ "$resumes" -eq 0 ]
+  [ "$(git -C "$wt" rev-parse HEAD)" = "$sha" ]
+  [ -z "$(git -C "$wt" status --porcelain)" ]
+  [ "$(cat "$wt/f")" = "resumed-content" ]
+  [[ "$output" != *"ready-to-run"* ]]
+  [[ "$output" != *"--round"* ]]
 }
