@@ -818,7 +818,8 @@ describe("EndstopLedger", () => {
             bundleSha256: D,
             receiptSchemas: ["foreman.evaluation-authority.v1"],
             receiptSha256s: [A],
-            evaluationManifestSha256: A,
+            // The manifest and its authority receipt have distinct canonical bytes.
+            evaluationManifestSha256: D,
             registeredAt: at(),
           });
           yield* ledger.executeChild({
@@ -838,7 +839,7 @@ describe("EndstopLedger", () => {
             },
             at: at(),
           });
-          return yield* ledger.registerEvaluationVerdict({
+          const registration = {
             rootContractId: value.contractId,
             rootContractSha256,
             familySha256,
@@ -852,7 +853,13 @@ describe("EndstopLedger", () => {
             evaluationAuthorityReceiptSha256: A,
             verdictSha256: B,
             registeredAt: at(),
-          });
+          } as const;
+          const wrongReceipt = yield* ledger.registerEvaluationVerdict({
+            ...registration,
+            evaluationAuthorityReceiptSha256: D,
+          }).pipe(Effect.either);
+          assert.equal(wrongReceipt._tag, "Left");
+          return yield* ledger.registerEvaluationVerdict(registration);
         }).pipe(Effect.provide(layer)),
       );
 

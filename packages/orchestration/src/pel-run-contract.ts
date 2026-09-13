@@ -101,7 +101,8 @@ export interface PelDestinationBindingV1 {
         readonly kind: 'exact';
         readonly oid: string;
     };
-    readonly authorityRef: PelArtifactRefV1;
+    /** Null for publication binds the target now and requires a later exact registered candidate authority. */
+    readonly authorityRef: PelArtifactRefV1 | null;
 }
 /** Stored at <canonical Git common directory>/foreman/project.json. */
 export interface ForemanProjectV1 {
@@ -281,6 +282,8 @@ export type PreparedHostEffectV1 = {
     readonly inputs: PelArtifactRefV1;
     readonly candidate: ReleaseCandidateIdentityV1 | null;
     readonly usageReservation?: PelProviderUsageReservationV1;
+    /** A different action bundle must already be registered under this same root, family, child, and candidate. */
+    readonly actionAuthority?: PelActionAuthorityV1;
 };
 export type PelReservationTokenV1 = {
     readonly schemaVersion: 1;
@@ -456,7 +459,14 @@ export interface PelPreparedHandlerV1 {
     readonly dispatch: (prepared: Extract<PreparedHostEffectV1, {
         readonly kind: 'dispatch';
     }>, token: PelReservationTokenV1, context: HostContextV1) => Effect.Effect<PelHandlerOutcomeV1, PelHostEffectFailureV1 | RunFailure, Scope.Scope | PelRuntime | RunJournal>;
+    /** The provider report can differ from the final host result. Resolve it from immutable prepared inputs. */
+    readonly providerResultSchema?: (prepared: PelDispatchPreparationV1, context: HostContextV1) => Effect.Effect<string, PelHostEffectFailureV1 | RunFailure, PelRuntime | RunJournal>;
+    /** Complete host evidence after an observed provider completion. Never start or resume a provider here. */
+    readonly completeProvider?: (prepared: PelDispatchPreparationV1, token: PelReservationTokenV1, completion: { readonly value: PelDataValue; readonly identity: ProviderIdentityV1 }, context: HostContextV1) => Effect.Effect<PelHandlerOutcomeV1, PelHostEffectFailureV1 | RunFailure, Scope.Scope | PelRuntime | RunJournal>;
+    /** Observe an unresolved host operation or finish its durable local evidence. Never repeat an external mutation. */
+    readonly recover?: (prepared: PelDispatchPreparationV1, token: PelReservationTokenV1, context: HostContextV1) => Effect.Effect<PelHandlerOutcomeV1 | null, PelHostEffectFailureV1 | RunFailure, Scope.Scope | PelRuntime | RunJournal>;
 }
+export type PelDispatchPreparationV1 = Extract<PreparedHostEffectV1, { readonly kind: 'dispatch' }>;
 /** The dispatcher validates and journals a handler outcome before creating a settled receiptRef. */
 export type PelHandlerOutcomeV1 = {
     readonly kind: 'settled';
@@ -473,6 +483,8 @@ export interface PelProviderPort {
     readonly resolve: (request: ProviderRequestV1, context: HostContextV1) => Effect.Effect<{
         readonly admitted: AdmittedCellV1;
         readonly transport: ProviderTransport;
+        readonly permissions?: HostPermissionPort;
+        readonly toolExecutor?: import('./pel-provider-tools.js').PelToolExecutorV1;
     }, RunFailure | ProviderFailure, Scope.Scope>;
     readonly permissions: HostPermissionPort;
 }
@@ -481,6 +493,10 @@ export interface PelClockPort {
     readonly sleep: (milliseconds: number) => Effect.Effect<void>;
 }
 export interface PelRuntimePorts {
+    /** Resolve a captured candidate's original admitted workspace before host execution. */
+    readonly workspaceForHostRequest?: (request: HostRequestV1, context: HostContextV1) => Effect.Effect<PelWorkspaceGrantV1, RunFailure, RunJournal | PelRuntime>;
+    /** Promote only the durable winner, using its original implementation reservation. */
+    readonly commitRaceWinner?: (value: PelDataValue, child: PelChildStateV1, context: HostContextV1) => Effect.Effect<void, RunFailure, RunJournal | PelRuntime>;
     /** Resolve existing registered authority. Model and print receipts confer no authority. */
     readonly validateDecisionAuthority: (receipt: PelReceiptRefV1, binding: ExecutionBindingV1, kind: 'recovery' | 'revision', decision: PelRecoveryDecisionV1 | PelRevisionDecisionV1) => Effect.Effect<void, RunFailure, RunJournal | PelRuntime>;
     readonly hostEvidence: (binding: ExecutionBindingV1) => Effect.Effect<{ readonly milestones: readonly ExecutionMilestone[]; readonly receiptRefs: readonly string[]; readonly receiptCandidates?: Readonly<Record<string, string>> }, RunFailure>;
@@ -619,6 +635,16 @@ const absolutePath = (value: unknown): value is string => text(value) && !/[\u00
 export function decodePelRepositoryIdentityV1(value: unknown): Decode<PelRepositoryIdentityV1> {
     return record(value) && keys(value, ['gitCommonDir', 'identitySha256']) && absolutePath(value.gitCommonDir) && digest(value.identitySha256)
         ? { ok: true, value: structuredClone(value) as unknown as PelRepositoryIdentityV1 } : bad('repository');
+}
+export interface PelActionAuthorityV1 {
+    readonly taskPlanSha256: string;
+    readonly authorityBundleSha256: string;
+    readonly retry?: { readonly priorReservationId: string; readonly originReservationId: string };
+}
+export function decodePelActionAuthorityV1(value: unknown): Decode<PelActionAuthorityV1> {
+    if (!record(value) || !keys(value, ['taskPlanSha256', 'authorityBundleSha256', ...(Object.hasOwn(value, 'retry') ? ['retry'] : [])]) || !digest(value.taskPlanSha256) || !digest(value.authorityBundleSha256)) return bad('actionAuthority');
+    if (Object.hasOwn(value, 'retry') && (!record(value.retry) || !keys(value.retry, ['priorReservationId', 'originReservationId']) || typeof value.retry.priorReservationId !== 'string' || typeof decodeRunId(value.retry.priorReservationId) !== 'string' || typeof value.retry.originReservationId !== 'string' || typeof decodeRunId(value.retry.originReservationId) !== 'string')) return bad('actionAuthority.retry');
+    return { ok: true, value: structuredClone(value) as unknown as PelActionAuthorityV1 };
 }
 export function decodePelAuthorityBindingV1(value: unknown): Decode<PelAuthorityBindingV1> {
     if (!record(value) || (value.kind !== 'v1' && value.kind !== 'v2-child')) return bad('authority.kind');

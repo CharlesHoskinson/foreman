@@ -1,5 +1,7 @@
 /** Assemble M3 adapters for admitted execution, separately from disposable qualification hosts. */
 import { Effect } from 'effect';
+import { originalPelProviderSchema } from './pel-host-recovery.js';
+import { makeDurablePelPermissionPort, type PelToolExecutorV1 } from './pel-provider-tools.js';
 import type { Scope } from 'effect';
 import { canonicalAuthoringJson } from '@foreman/pel';
 import { admitCell, createXaiResponsesTransport, createAnthropicMessagesTransport, createOpenaiResponsesTransport, createGoogleInteractionsTransport, createGrokAcpTransport, createClaudeCodeTransport, createCodexAppServerTransport, createGeminiCliTransport, validateNativeHost, resolveProfile, type NativeHostPort, type ProviderRequestV1, type ProviderTransport, type ProviderFailure, type HostPermissionPort, type GeminiConfigurationV1, type CapabilityEvidenceV1, type Capability, type ProviderIdentityV1, type ApiHttpPort, type ReadinessV1 } from '@foreman/providers';
@@ -9,7 +11,7 @@ import { withLiveProviderReadiness } from './pel-provider-readiness-live.js';
 import { readProviderEvidence } from './pel-provider-evidence.js';
 import { canonicalWorkspacePath } from './pel-resource-scope.js';
 import { readPelRecords, replayPelRun, pelFailure, pelHash } from './pel-journal.js';
-import type { HostContextV1, PelProviderPort, PelRuntimePorts, RunFailure, PelArtifactRefV1 } from './pel-run-contract.js';
+import { PelRuntime, type HostContextV1, type PelProviderPort, type PelRuntimePorts, type RunFailure, type PelArtifactRefV1 } from './pel-run-contract.js';
 const failure=(message:string):ProviderFailure=>({_tag:'CapabilityUnverified',retryClass:'never',message});
 const asRun=(error:ProviderFailure):RunFailure=>pelFailure('binding-mismatch',`Execution provider admission failed: ${error._tag}.`);
 const api=(transportId:string):boolean=>['xai-responses','anthropic-messages','openai-responses','google-interactions'].includes(transportId);
@@ -56,6 +58,8 @@ export function makeExecutionProviderTransport(request:ProviderRequestV1,context
  });
 }
 export interface PelExecutionProviderOptions extends PelExecutionTransportOptions {
+ readonly nativeAuthorize?:(request:ProviderRequestV1,context:HostContextV1)=>HostPermissionPort['authorize'];
+ readonly nativeToolExecutor?:(request:ProviderRequestV1,context:HostContextV1)=>PelToolExecutorV1;
  readonly journal:typeof RunJournal.Service;
  readonly runtime:()=>PelRuntimePorts;
  readonly readEvidence?:(live:LiveProviderContext)=>Effect.Effect<readonly CapabilityEvidenceV1[],ProviderFailure>;
@@ -76,11 +80,12 @@ export function loadOriginalPelProviderRequest(identity:ProviderIdentityV1,conte
   }
   if(!reference || !observedIdentity) return yield* Effect.fail(pelFailure('binding-mismatch','The journal does not bind this provider identity to an original request.'));
   const bytes=yield* options.runtime().artifacts.get(context.binding.runId,reference,64*1024*1024);
+  const outerSchema=replay.value.intents.get(context.effect.effectId)?.expectedResultSchemaId;
+  const originalSchema=outerSchema ? yield* originalPelProviderSchema(context,outerSchema).pipe(Effect.provideService(PelRuntime,options.runtime())) : undefined;
   return yield* Effect.try({try:()=>{
    const request=JSON.parse(Buffer.from(bytes).toString('utf8')) as ProviderRequestV1;
    const profile=resolveProfile(request.profileId),schema=context.checked.snapshot.registry.dataSchemas[request.outputSchema.id];
    if(request.schemaVersion!==1 || request.effectId!==context.effect.effectId || request.profileId!==identity.profileId || request.transportId!==identity.transportId || request.credentialProfileRef!==identity.credentialProfileRef || !profile.ok || request.profileHash!==profile.value.profileHash || request.sourceManifestHash!==profile.value.sourceManifestHash || !schema || pelHash(schema)!==pelHash(request.outputSchema.content)) throw Error('request');
-   const originalSchema=replay.value.intents.get(context.effect.effectId)?.expectedResultSchemaId;
    if(originalSchema && originalSchema!==request.outputSchema.id) throw Error('schema');
    const {continuation:_,...ordinary}=request;
    return ordinary;
@@ -88,7 +93,8 @@ export function loadOriginalPelProviderRequest(identity:ProviderIdentityV1,conte
  }).pipe(Effect.provideService(RunJournal,options.journal));
 }
 export function makePelExecutionProviderPort(options:PelExecutionProviderOptions):PelProviderPort {
- const make=(request:ProviderRequestV1,context:HostContextV1,boundary?:PelExecutionNativeBoundaryV1)=>makeExecutionProviderTransport(request,context,{...options,...(boundary?{nativeBoundary:()=>Effect.succeed(boundary)}:{}),requestForIdentity:identity=>loadOriginalPelProviderRequest(identity,context,options).pipe(Effect.mapError(()=>failure('The original provider request is unavailable.')))});
+ const permissionsFor=(request:ProviderRequestV1,context:HostContextV1)=>makeDurablePelPermissionPort({context,journal:options.journal,runtime:options.runtime(),authorize:request.toolPolicy.mode==='native-coding'&&options.nativeAuthorize?options.nativeAuthorize(request,context):options.permissions.authorize});
+ const make=(request:ProviderRequestV1,context:HostContextV1,boundary?:PelExecutionNativeBoundaryV1,permissions=permissionsFor(request,context))=>makeExecutionProviderTransport(request,context,{...options,permissions,...(boundary?{nativeBoundary:()=>Effect.succeed(boundary)}:{}),requestForIdentity:identity=>loadOriginalPelProviderRequest(identity,context,options).pipe(Effect.mapError(()=>failure('The original provider request is unavailable.')))});
  return {
   permissions:options.permissions,
   resolve:(request,context)=>Effect.gen(function*(){
@@ -107,12 +113,12 @@ export function makePelExecutionProviderPort(options:PelExecutionProviderOptions
    const revision=api(request.transportId)?({'xai-responses':'v1','openai-responses':'v1','anthropic-messages':'2023-06-01','google-interactions':'v1beta'} as Record<string,string>)[request.transportId]!:boundary!.identityRevision;
    const admitted=admitCell(request.profileId,request.transportId,required,evidence,{kind:'product',expectedIdentityRevision:revision,now,transportVersion:request.transportVersion,controls:request.controls,credentialProfileRef:request.credentialProfileRef});
    if(!admitted.ok) return yield* Effect.fail(admitted.error);
-   const transport=yield* make(request,context,boundary);
+   const permissions=permissionsFor(request,context),transport=yield* make(request,context,boundary,permissions);
    if(transport.version!==request.transportVersion) return yield* Effect.fail(pelFailure('binding-mismatch','Installed execution transport differs from admission.'));
    const ready=yield* (options.readiness?options.readiness(transport,request):withLiveProviderReadiness(transport,request,options.live).probe({profileId:request.profileId,transportId:request.transportId,credentialProfileRef:request.credentialProfileRef,mode:'metadata-only'}));
    if(ready.authentication.state!=='authenticated') return yield* Effect.fail({_tag:'AuthenticationRequired',retryClass:'never',message:'Current provider authentication is unavailable.'} as const);
    if(ready.discovery.state!=='available' || ready.currency.state!=='current' || ready.identity.state!=='exact') return yield* Effect.fail({_tag:'ProbeUnknown',retryClass:'never',message:'Current execution provider readiness is incomplete.'} as const);
-   return {transport,admitted:admitted.value};
+   return {transport,admitted:admitted.value,permissions,...(request.toolPolicy.mode==='native-coding'&&options.nativeToolExecutor?{toolExecutor:options.nativeToolExecutor(request,context)}:{})};
   }),
   observe:(identity,context)=>Effect.gen(function*(){
    const request=yield* loadOriginalPelProviderRequest(identity,context,options);

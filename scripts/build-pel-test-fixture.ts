@@ -13,6 +13,7 @@ export async function buildPelTestFixture(): Promise<void> {
   await mkdir(dirname(outfile), { recursive: true });
   const assetRoot = join(dirname(outfile), "assets");
   const assets = [
+    {source:'packages/orchestration/src/fixtures/pel-adoption/project-settings.json',relativePath:'fixtures/pel-adoption/project-settings.json'},
     {
       source:
         "skills/foreman/runtime/assets/pel/default-authoring-snapshot.json",
@@ -23,6 +24,7 @@ export async function buildPelTestFixture(): Promise<void> {
       "conditional.pel",
       "parallel-read.pel",
       "repair.pel",
+      "repair-and-publish.pel",
     ].map((name) => ({
       source: `examples/pel/${name}`,
       relativePath: `examples/pel/${name}`,

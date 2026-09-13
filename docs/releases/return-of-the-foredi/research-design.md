@@ -4,7 +4,7 @@ Status: proposed release design. The user selected **adopt and extend Pel** on 2
 Baseline: `441c3fb9f6ac`, the merge of the v0.5 bootstrap tranche. The remaining v0.5 work is not presumed complete.
 Release name: **Return of the ForeDi**. Assign a version after reconciling the active release program.
 
-The [feature OpenSpecs and EARS catalog](../../releases/return-of-the-foredi/README.md) define the implementation milestones for this design.
+The [feature OpenSpecs and EARS catalog](README.md) define the implementation milestones for this design.
 
 ## Outcome
 

@@ -53,7 +53,7 @@ const verify = association([
   ["status", string(64, ["verified", "verification-failed"])],
   ["passed", boolean],
   ["candidate", reference],
-  ["task", task],
+  ["task", nullable(task)],
   ["verification", reference],
   ["checks", list(data)],
   ["findings", findings],
@@ -108,6 +108,11 @@ const researchRow = association([
   ["coverage", string(128, ["complete", "partial", "unknown"])],
 ]);
 export const foremanDataSchemasV1: Readonly<Record<string, PelDataSchemaV1>> = {
+  "schema:review-report-v1": association([
+    ["candidateSha256", string(64)],
+    ["verdict", string(64, ["approved", "changes-requested", "unverified"])],
+    ["findings", list(string(), 100)],
+  ]),
   "schema:candidate-v1": association([
     ["summary", string(8192)],
     ["claimedPaths", list(string(), 1000)],
@@ -482,6 +487,7 @@ export function createDefaultAuthoringSnapshotV1(): AuthoringSnapshotV1 {
         "policy:default",
       ],
       allowedDestinations: [
+        "reviewed-branch",
         "destination:pull-request",
         "destination:local",
         "pull-request",

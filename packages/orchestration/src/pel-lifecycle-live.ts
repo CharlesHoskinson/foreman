@@ -22,6 +22,14 @@ import {makePelResourceScope} from './pel-resource-scope.js';
 import {makePelControlHandlers} from './pel-control-functions.js';
 import {makePelPredicateHandler} from './pel-native-host.js';
 import {makePelExecutionProviderPort} from './pel-execution-provider-live.js';
+import {makePelHostLibraryServices,makeForemanHostRegistry} from './pel-host-library.js';
+import {preflightPelDeliveryProviders} from './pel-host-preflight.js';
+import {makePelTaskHandler} from './pel-host-task.js';
+import {makeLivePelNativeServices} from './pel-native-live.js';
+import {makePelNativePermissionAuthorizer,makePelNativePermissionExecutor} from './pel-native-permissions.js';
+import {projectPelHostReceiptEvidence} from './pel-host-evidence.js';
+import {inspectPelCandidate} from './pel-candidate-capture.js';
+import {ProcessExec,liveProcessExec} from './queue-services.js';
 import {loadImmutablePelRunInputs,parsePelInputJson} from './pel-runtime-inputs.js';
 import {readPelExecutionBinding} from './pel-run-status.js';
 import {makePelLifecycleServices,type PelLifecycleBackend,type PelLoadedProjectV1} from './pel-lifecycle-services.js';
@@ -35,7 +43,7 @@ import type {PelLifecycleCliServices} from './pel-lifecycle-cli.js';
 
 export const PEL_EXECUTION_RUNTIME_VERSION='1';
 export const PEL_EXECUTION_HANDLER_VERSION='1';
-const handlerIds=new Set(['print','fm/checkpoint','fm/retry','fm/race','pel/nl-condition']);
+const handlerIds=new Set(['print','fm/checkpoint','fm/retry','fm/race','pel/nl-condition','fm/task','fm/verify','fm/review','fm/publish']);
 const asAuthoring=(error:RunFailure):AuthoringFailure=>authoringFailure(error.code,error.diagnostic.message);
 const providerFailure=(message:string):ProviderFailure=>({_tag:'UnsupportedCapability',retryClass:'never',message});
 const denyPermissions:HostPermissionPort={authorize:()=>Effect.fail(providerFailure('This execution host has no admitted native tool boundary.')),submit:()=>Effect.fail(providerFailure('This execution host has no admitted tool-result channel.'))};
@@ -76,7 +84,7 @@ export function makeLivePelLifecycleBackend(options:PelLiveLifecycleOptions):Pel
   function services(root:Pick<PelRegisteredRootV1,'stateRoot'|'projectId'|'repository'|'worktreePath'>,outputMode:'text'|'json'='text'):Layer.Layer<RunServices,AuthoringFailure>{
     const journalLayer=makeLiveRunJournalLayer(root.stateRoot),ledgerLayer=makeLiveEndstopLedgerLayer(root.stateRoot),leaseLayer=makeLiveRunLease(root.stateRoot);
     const runtimeLayer=Layer.effect(PelRuntime,Effect.gen(function*(){
-      const journal=yield* RunJournal,ledger=yield* EndstopLedger,resources=yield* makePelResourceScope(),artifacts=makeLivePelArtifactPort(root.stateRoot);
+      const journal=yield* RunJournal,ledger=yield* EndstopLedger,processExec=yield* ProcessExec,resources=yield* makePelResourceScope(),artifacts=makeLivePelArtifactPort(root.stateRoot),native=makeLivePelNativeServices(liveContext(root));
       const retained=(runId:RunId):PelAuthorityInputReaderV1=>(locator,max)=>Effect.gen(function*(){
         let ref:PelArtifactRefV1;
         if('byteLength' in locator)ref=locator;
@@ -91,7 +99,7 @@ export function makeLivePelLifecycleBackend(options:PelLiveLifecycleOptions):Pel
       const handlers=new Map<string,import('./pel-run-contract.js').PelPreparedHandlerV1>();
       runtime={artifacts,resources,clock:{now:Effect.sync(Date.now),sleep:Effect.sleep},handlers,controls:makePelControlHandlers(),
         output:(_ref,text)=>outputMode==='json'?Effect.void:options.output.stderr(text).pipe(Effect.mapError(()=>pelFailure('journal-write-failed','Program output could not be written.'))),
-        providers:makePelExecutionProviderPort({live:liveContext(root),journal,runtime:()=>runtime,permissions:denyPermissions}),
+        providers:makePelExecutionProviderPort({live:liveContext(root),journal,runtime:()=>runtime,permissions:denyPermissions,nativeBoundary:native.boundary,nativeAuthorize:makePelNativePermissionAuthorizer,nativeToolExecutor:makePelNativePermissionExecutor}),
         validateDecisionAuthority:validatePelRegisteredDecisionAuthority,
         loadRunInputs:binding=>Effect.gen(function*(){
           if(binding.stateRoot!==root.stateRoot||hashAuthoringContent(binding.repository)!==hashAuthoringContent(root.repository))return yield* Effect.fail(pelFailure('binding-mismatch','Run state belongs to another registered repository.'));
@@ -110,16 +118,44 @@ export function makeLivePelLifecycleBackend(options:PelLiveLifecycleOptions):Pel
             candidate=child.currentCandidate?.candidateSha256??null;milestoneCandidate=child.milestoneCandidateSha256;earned=child.milestones;
           }
           const milestones:ExecutionMilestone[]=candidate!==null&&candidate===milestoneCandidate?(Object.keys(earned) as ExecutionMilestone[]):[];
-          // M5 delivery handlers add candidate-bound receipt projections. M4 does not manufacture them.
-          return {milestones,receiptRefs:[],receiptCandidates:{}};
+          const receipts=yield* projectPelHostReceiptEvidence(binding,candidate).pipe(Effect.provideService(PelRuntime,runtime),Effect.provideService(RunJournal,journal));
+          return {milestones,...receipts};
         }),
       };
       handlers.set('pel/nl-condition',makePelPredicateHandler({runtime,
         transportVersion:context=>context.checked.snapshot.nlConditionProfile&&Object.hasOwn(apiVersions,context.checked.snapshot.nlConditionProfile.transportId)?Effect.succeed('1'):Effect.fail({code:'capability-denied',message:'This host has no admitted native predicate boundary.'}),
         candidate:context=>resolvePelRegisteredCandidate(context.binding.authority,'evaluate').pipe(Effect.provideService(EndstopLedger,ledger),Effect.map(record=>record.candidate),Effect.mapError(error=>({code:'capability-denied',message:error.diagnostic.message}))),
       }));
+      const retainAuthorityByHash=(sha256:string,context:import('./pel-run-contract.js').HostContextV1)=>Effect.gen(function*(){
+        const bytes=yield* projectServices.readHash(context.project,sha256,64*1024*1024);
+        if(importHash(bytes)!==sha256)return yield* Effect.fail(pelFailure('binding-mismatch','Registered action authority bytes changed.'));
+        return yield* artifacts.put(context.binding.runId,bytes,64*1024*1024,'ordinary');
+      });
+      const library=makePelHostLibraryServices({journal,ledger,processExec,runtime:()=>runtime,transportVersion:native.transportVersion,retainAuthorityByHash,
+        readAuthority:(ref,context)=>artifacts.get(context.binding.runId,ref,64*1024*1024).pipe(Effect.catchAll(()=>Effect.gen(function*(){
+          const bytes=yield* projectServices.input.read(context.project,ref,64*1024*1024),retainedRef=yield* artifacts.put(context.binding.runId,bytes,64*1024*1024,'ordinary');
+          if(hashAuthoringContent(retainedRef)!==hashAuthoringContent(ref))return yield* Effect.fail(pelFailure('binding-mismatch','The original publication authority reference changed.'));
+          return bytes;
+        }))),
+      });
+      handlers.set('fm/task',makePelTaskHandler({resolveInput:library.resolveTaskInput,nativePolicy:native.nativePolicy,transportVersion:native.transportVersion,recordImplementation:library.recordImplementation,actionAuthority:(action,candidate,context)=>library.actionAuthority(action,candidate,context).pipe(Effect.mapError(error=>'_tag' in error?error:pelFailure('binding-mismatch',error.message))),
+        allowedPathsSha256:context=>Effect.gen(function*(){
+          if(context.binding.authority.kind==='v2-child'){
+            const family=yield* ledger.familyStatus(context.binding.authority).pipe(Effect.mapError(()=>pelFailure('binding-mismatch','The original child path authority is unavailable.'))),child=family.family.children[context.binding.authority.childId];
+            if(!child)return yield* Effect.fail(pelFailure('binding-mismatch','The registered child is absent.'));
+            return child.contract.allowedPathsSha256;
+          }
+          const state=yield* ledger.status(context.binding.contractId).pipe(Effect.mapError(()=>pelFailure('binding-mismatch','The original path authority is unavailable.')));
+          if(state.contractSha256!==context.binding.contractSha256)return yield* Effect.fail(pelFailure('binding-mismatch','The original path authority changed.'));
+          return state.contract.allowedPathsSha256;
+        }),
+        actionCandidate:(action,context)=>context.binding.authority.kind==='v2-child'?resolvePelRegisteredCandidate(context.binding.authority,action).pipe(Effect.provideService(EndstopLedger,ledger),Effect.map(row=>row.candidate)):inspectPelCandidate(context).pipe(Effect.provideService(PelRuntime,runtime),Effect.provideService(ProcessExec,processExec),Effect.map(observed=>({commit:observed.headCommit,tree:observed.headTree,candidateSha256:importHash(observed.headCommit)})),Effect.mapError(error=>pelFailure('binding-mismatch',error.message))),
+      }));
+      Object.assign(runtime,{workspaceForHostRequest:library.workspaceForHostRequest,commitRaceWinner:library.commitRaceWinner});
+      handlers.set('fm/verify',library.verification);handlers.set('fm/review',library.review);handlers.set('fm/publish',library.publication);
+      makeForemanHostRegistry(handlers);
       return runtime;
-    })).pipe(Layer.provide(Layer.merge(journalLayer,ledgerLayer)));
+    })).pipe(Layer.provide(Layer.mergeAll(journalLayer,ledgerLayer,liveProcessExec)));
     return Layer.mergeAll(runtimeLayer,journalLayer,ledgerLayer,leaseLayer);
   }
   const rootFromLoaded=(loaded:PelLoadedProjectV1)=>({stateRoot:loaded.project.stateRoot,projectId:loaded.project.projectId,repository:loaded.project.repository,worktreePath:loaded.project.workspaces.grants[0]!.canonicalRoot});
@@ -144,6 +180,7 @@ export function makeLivePelLifecycleBackend(options:PelLiveLifecycleOptions):Pel
     if(active._tag!=='Running'||active.contractSha256!==executionContractSha256(loaded.authority.contract))return yield* Effect.fail(authoringFailure('binding-mismatch','Fresh execution requires the matching active contract.'));
     const reachable=new Set([...checked.analysis.effects.map(e=>e.registryId),...checked.analysis.dynamicRegions.flatMap(r=>r.possibleRegistryIds)]);
     for(const id of reachable)if(!handlerIds.has(id))return yield* Effect.fail(authoringFailure('binding-mismatch',`The runtime has no handler for ${id}.`));
+    yield* preflightPelDeliveryProviders(checked,liveContext(rootFromLoaded(loaded)));
     if(!reachable.has('pel/nl-condition'))return;
     const selection=checked.snapshot.nlConditionProfile;
     if(!selection||loaded.authority.binding.kind!=='v2-child'||!Object.hasOwn(apiVersions,selection.transportId))return yield* Effect.fail(authoringFailure('binding-mismatch','The predicate lacks registered V2 evaluation authority or an admitted transport boundary.'));

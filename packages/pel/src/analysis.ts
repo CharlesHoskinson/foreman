@@ -43,6 +43,7 @@ type A = {
       schemaId?: string;
     }
   | { tag: "list"; items: A[] }
+  | { tag: "list-alternatives"; choices: A[] }
   | { tag: "pair"; key: string; value: A }
   | { tag: "functions"; choices: F[] }
   | { tag: "conditional"; origins: SourceSpan[] }
@@ -199,7 +200,14 @@ function merge(a: A, b: A, span: SourceSpan): A {
       a.schemaId === b.schemaId ? a.schemaId : undefined,
     );
   }
-  if (a.tag === "list" && b.tag === "list" && a.items.length === b.items.length)
+  if (
+    a.tag === "list" && b.tag === "list" && a.items.length === b.items.length &&
+    a.items.every((item, index) => {
+      const other = b.items[index]!;
+      return item.tag !== "pair" && other.tag !== "pair" ||
+        item.tag === "pair" && other.tag === "pair" && item.key === other.key;
+    })
+  )
     return {
       tag: "list",
       items: a.items.map((v, i) => merge(v, b.items[i]!, span)),
@@ -210,6 +218,22 @@ function merge(a: A, b: A, span: SourceSpan): A {
         : {}),
       origins: [...(a.origins ?? []), ...(b.origins ?? [])],
     };
+  // Different finite list layouts remain callable lists. In particular, a
+  // recursive return can choose either an approved or needs-action association.
+  const listChoices = (value: A): A[] | null => {
+    if (value.tag === "list-alternatives") return value.choices;
+    if (value.tag === "list") return [value];
+    if (value.tag === "known" && value.value.tag === "list") return [value];
+    return null;
+  };
+  const left = listChoices(a), right = listChoices(b);
+  if (left && right) {
+    const choices = [...new Set([...left, ...right])];
+    // Losing precision is safe: the ordinary unknown-call check still refuses
+    // dispatch. This cap prevents an abstract branch union from growing forever.
+    if (choices.length <= 256)
+      return { tag: "list-alternatives", choices, deps: dependencies };
+  }
   const schema =
     ac &&
     bc &&
@@ -329,7 +353,7 @@ export function analyzePel(input: AnalysisInputV1): PelAnalysisV1 {
     const cv = concrete(v);
     const type =
       cv?.tag ??
-      (v.tag === "list"
+      ((v.tag === "list" || v.tag === "list-alternatives")
         ? "list"
         : v.tag === "functions"
           ? "closure"
@@ -666,7 +690,7 @@ export function analyzePel(input: AnalysisInputV1): PelAnalysisV1 {
         ),
       };
     }
-    const result = unknown(
+    let result = unknown(
       resultSchema,
       n.span,
       new Set([effectId]),
@@ -720,7 +744,7 @@ export function analyzePel(input: AnalysisInputV1): PelAnalysisV1 {
             n,
             "Retry categories must be an evaluated list of quoted keys",
           );
-        region(n, context, "unknown condition", count.value, (rc) =>
+        result = region(n, context, "unknown condition", count.value, (rc) =>
           runBody(args.body, rc),
         );
       } else {
@@ -737,7 +761,7 @@ export function analyzePel(input: AnalysisInputV1): PelAnalysisV1 {
             n,
             "Race tasks require a finite nonempty closure list",
           );
-        region(n, context, "unknown callable", 1, (rc) => {
+        const winnerValue = region(n, context, "unknown callable", 1, (rc) => {
           const values = tasks.items.map((body, i) =>
             runBody(body, {
               ...rc,
@@ -747,7 +771,27 @@ export function analyzePel(input: AnalysisInputV1): PelAnalysisV1 {
           );
           return values.reduce((a, b) => merge(a, b, n.span));
         });
+        const indexSchema: PelDataSchemaV1 = {
+          type: "number", integer: true, minimum: 1, maximum: tasks.items.length,
+        };
+        const loserSchema: PelDataSchemaV1 = {
+          type: "association", additionalKeys: false, fields: [
+            { key: "index", required: true, schema: indexSchema },
+            { key: "cancellation", required: true, schema: { type: "string", maxBytes: s.limits.maxValueBytes } },
+            { key: "artifacts", required: true, schema: { type: "list", minItems: 0, maxItems: 1, items: { type: "string", maxBytes: s.limits.maxValueBytes } } },
+          ],
+        };
+        const field = (key: string, value: A): A => ({ tag: "pair", key, value, deps: value.deps });
+        result = {
+          tag: "list", deps: winnerValue.deps,
+          items: [
+            field("winner-index", unknown(indexSchema, n.span)),
+            field("value", winnerValue),
+            field("losers", unknown({ type: "list", items: loserSchema, minItems: 0, maxItems: tasks.items.length - 1 }, n.span)),
+          ],
+        };
       }
+      result = { ...result, deps: new Set([effectId, ...result.deps]) };
     }
     if (unresolved && !c.region)
       dynamicRegions.push({
@@ -1268,6 +1312,26 @@ export function analyzePel(input: AnalysisInputV1): PelAnalysisV1 {
         return values.reduce((a, b) => merge(a, b, n.span));
       });
     }
+    if (fn.tag === "list-alternatives") {
+      const plan = planArguments(
+        { argSpec: builtinArgSpecs.list, boundArguments: {} } as unknown as PelClosureValue,
+        raw,
+        n.span,
+      );
+      if (!plan.ok) throw new AnalysisFailure(plan.error);
+      // Strict selector arguments run once, even when the receiver has several
+      // layouts. Only the pure list projection is distributed over alternatives.
+      const env = new Map(c.env);
+      const argumentsOnce = plan.value.map((argument, index): PelNode => {
+        const name = `#abstract-list-selector-${index}`;
+        env.set(name, ev(argument.node, c));
+        return { ...n, kind: "pair", key: argument.name, valuePresent: true,
+          value: { ...n, kind: "symbol", name } };
+      });
+      const values = fn.choices.map(choice => call(choice, argumentsOnce, n, { ...c, env }));
+      const result = values.reduce((a, b) => merge(a, b, n.span));
+      return { ...result, deps: deps([fn, result]) };
+    }
     const cv = concrete(fn);
     if (
       fn.tag === "list" ||
@@ -1382,16 +1446,11 @@ export function analyzePel(input: AnalysisInputV1): PelAnalysisV1 {
           n,
           "List index is outside every admitted collection length",
         );
-      if (fn.tag === "list" && at?.tag === "key")
-        return fn.items.find(
-          (v) => v.tag === "pair" && v.key === at.name && v.value,
-        )?.tag === "pair"
-          ? (
-              fn.items.find(
-                (v) => v.tag === "pair" && v.key === at.name,
-              ) as Extract<A, { tag: "pair" }>
-            ).value
-          : nil();
+      if (fn.tag === "list" && at?.tag === "key") {
+        const field = fn.items.find(value => value.tag === "pair" && value.key === at.name);
+        const value = field?.tag === "pair" ? field.value : nil();
+        return { ...value, deps: deps([fn, value, ...Object.values(args)]) };
+      }
       if (fn.tag === "list" && at?.tag === "number") {
         if (
           !Number.isSafeInteger(at.value) ||
@@ -1399,7 +1458,8 @@ export function analyzePel(input: AnalysisInputV1): PelAnalysisV1 {
           at.value > fn.items.length
         )
           fail("PEL_INDEX", n, "List index is out of bounds");
-        return fn.items[at.value - 1]!;
+        const value = fn.items[at.value - 1]!;
+        return { ...value, deps: deps([fn, value, ...Object.values(args)]) };
       }
       if (cv?.tag === "list" && Object.values(args).every((a) => concrete(a))) {
         const r = callableList(
@@ -1487,12 +1547,12 @@ export function analyzePel(input: AnalysisInputV1): PelAnalysisV1 {
       case "pipe": {
         const left = ev(n.left, c);
         const context = { ...c, caret: left };
-        return ev(
-          caretUsed(n.right, context)
-            ? n.right
-            : inject(n.right, left, context),
-          context,
-        );
+        const right = caretUsed(n.right, context)
+          ? n.right
+          : inject(n.right, left, context);
+        // M1 applies a direct pipe target on the enclosing pipe task. Its
+        // durable host request therefore uses the pipe's call-site identity.
+        return ev(right.kind === "call" ? { ...right, nodeId: n.nodeId, span: n.span } : right, context);
       }
     }
   }

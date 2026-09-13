@@ -948,7 +948,7 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 
 - Requirements: R-M5-015.
 - Level: acceptance.
-- Target: `packages/orchestration/src/pel-delivery.test.ts`.
+- Target: `packages/orchestration/src/pel-host-preflight.test.ts`.
 - Fixture: Production admission sees documented-only and fixture-only evidence for required grok-4.6/grok-acp capabilities. Another fixture allows two transports without a selector. The explicit test Layer supplies fixture evidence separately.
 - Action: Run the compiled production command with each invalid admission fixture, and the fixture CLI with its explicitly injected binding.
 - Expected: Production exits exactly 2 and names the missing live capability evidence or ambiguous transport, with zero fallback or dispatch. Test injection succeeds only in the test CLI and remains labeled test-fixture. Changed source role mappings resolve exact profiles rather than substituting literal model IDs.

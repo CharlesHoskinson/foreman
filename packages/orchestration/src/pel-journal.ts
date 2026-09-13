@@ -556,11 +556,14 @@ function downwardNumber(value: DecimalAmount): number {
 function remainingProviderBudget(binding: ExecutionBindingV1, replay: PelReplayV1): Result<PelProviderBudgetV1, RunFailure> {
     let input = 0n, output = 0n;
     const costs: DecimalAmount[] = [];
+    const usageObservations = new Map<string, PelObservedDataV1>();
+    for (const record of replay.records) if (record.type === 'pel.effect.observed.v1' && record.data.usage !== undefined) usageObservations.set(record.data.effectId, record.data);
     for (const intent of replay.intents.values()) {
         const reserved = intent.usageReservation;
         if (!reserved) continue;
-        const observed = replay.observations.get(intent.effect.effectId), settled = observed?.externalOutcome === 'confirmed-complete' || observed?.externalOutcome === 'confirmed-cancelled';
-        const usage = observed?.usage;
+        const observed = replay.observations.get(intent.effect.effectId), usageObservation = usageObservations.get(intent.effect.effectId);
+        const isSettled = (value: PelObservedDataV1 | undefined) => value?.externalOutcome === 'confirmed-complete' || value?.externalOutcome === 'confirmed-cancelled';
+        const settled = isSettled(observed) && isSettled(usageObservation), usage = usageObservation?.usage;
         input += BigInt(settled && usage?.inputTokens !== undefined ? usage.inputTokens : Math.max(reserved.maxInputTokens, usage?.inputTokens ?? 0));
         output += BigInt(settled && usage?.outputTokens !== undefined ? usage.outputTokens : Math.max(reserved.maxOutputTokens, usage?.outputTokens ?? 0));
         const reservation = decimalAmount(reserved.maxCostUsd), actual = usage?.costUsd === undefined ? null : decimalAmount(usage.costUsd);

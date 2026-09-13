@@ -1,0 +1,50 @@
+
+> build
+> npm run build --workspace @foreman/pel && npm run build --workspace @foreman/providers && tsx scripts/build-runtime.ts
+
+
+> @foreman/pel@0.4.0 build
+> esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/pel.js
+
+
+  dist/pel.js  259.7kb
+
+⚡ Done in 16ms
+
+> @foreman/providers@0.4.0 build
+> esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/providers.js
+
+
+  dist/providers.js  1.1mb ⚠️
+
+⚡ Done in 151ms
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/assets/pel/default-authoring-snapshot.json sha256=6b1ea34153d7535f06c222d0e0b37b7c91ba60a6c4227b4a53f6e404fc2cd2e1 bytes=63518
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/appliance-doctor.js sha256=727c57dee7b2a9434b7eb06bb53b31be591ec7890c46a76386b389a11eb0c997 bytes=1134381
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/architecture-policy.js sha256=f022b3d1431e684a98958df7798c1487f4b9b9d0651f42b6cd9596d84f529e36 bytes=1190407
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/credential-profile-lane.js sha256=ad452c4fb88bf08bf78bb153d4e2a4c0ce9ce0f4df192c42cd1fc87b3ea2b7ad bytes=593837
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/credential-profile.js sha256=71f7739940377b780ed0ba6290be4f23b11eb0a90115d33ff0bcedd52c4cadcd bytes=554340
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/dependency-drift.js sha256=7eb21f4a895f2847a5f032ee5f05df753e498e54e022c3d656030d5e04832ba5 bytes=552900
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/destruction-guard.js sha256=83350eda0454cad8d4465b0b9f9454b6a5000cec3a58db6b7ee76ee55eee79ab bytes=586924
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/execution-guard.js sha256=c8f81eb7626eb1ec0d631c2dcb0ba9f74174125e37b4defcfce1e597288a0230 bytes=1360388
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/fm-session.js sha256=a760c2d63b5d9a4de8123080a872046914e93039e335bcd3c855038a602efb42 bytes=746830
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/foreman-launch.js sha256=3a126b0ebc10f09aa4e37c2d41bb14629e15963e38ac38e26ca69228c6fdc1dc bytes=559080
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/foreman-setup.js sha256=9a22303fdf83d45d71075b838c99bc102cdcd5975554369d3f2b776b4303b9b8 bytes=742317
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/foreman.js sha256=3e2c4a349e4fd5cbcf19f51188643675a484c080d0c97c3af94a82ec354957a2 bytes=4642929
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/graph-context.js sha256=d28480633337e1ccd99a581df42cac3e10c07678888b729a256994472f7657f6 bytes=18840
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/graph-evaluation.js sha256=3e75185d11c5f3eaa23a63ff69c3ccd843c225f94382f369aeea9b5f13b9b397 bytes=12000
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/graph-store.js sha256=f76b44130aba4042c779bb020668324ce14a56629119235bcde02c462d34610f bytes=613787
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/graphify-qualification.js sha256=d4b3f5b27ba52b8d575e65f9322de6277fbb58bcd472ec6aa6c264e72b02f385 bytes=42999
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/lane-queue.js sha256=e606224c03d0e4d7f8de326ed071f9ac6e2761415b5d5b61cf770fd505d6b432 bytes=1475715
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/lane-round.js sha256=0358f05d223e6995515fd029370f3067872041ff8764b269d1441d9bfb41338b bytes=601534
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/lane-supervise.js sha256=e734605856c07b0cdaf7b2a3f2d7da1904a36a1b599251051358ef00608c7501 bytes=4572533
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/release-admission.js sha256=efb58d346fa1cc0e28b676b82f32ebb4b95858f52340b3549fcc77be8cd4b95a bytes=552745
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/release-authority.js sha256=deb90b04bb9b6e8f134d7aabcc1d95a189fdf3a518e61d99e0791d383ec03c96 bytes=1323351
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/release-coverage.js sha256=5d74b342a8f3e0b009e5aaf4eec50f8e60e034444984e88fb6b1fb33cd90e66c bytes=1383599
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/release-policy.js sha256=f4099f4db41ce6c5a496c6d53cdb25767b81631d7f847a887e1a787af3209350 bytes=1446623
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/repo-hygiene.js sha256=2db8ce2f911af97fb4d4a4953fae2de6fee59dbff2e38f6f31ff241a6878f082 bytes=10531
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/secret-scan.js sha256=d9ba3643a5176fbf3f631dffca6a24b90d7f7d44be51c1a6fa6ae2b970501e8f bytes=530143
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/tier2-collect.js sha256=4c5cf83b5a1f0d7e25132389299bc53cbfdc1a660d7ac4eb3190cc50a5a99dd4 bytes=14224
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/tier2-compare.js sha256=d3c54d2b4ea7390d94a3f5c674168ec9cd56aca173ce6596914c7038127d24b5 bytes=28544
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/tool-check.js sha256=cc1acf037a7abc4df94901368d39963b91593c5332fbb9abc92d0768c31b0662 bytes=632638
+built /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/dist/vendor-preflight.js sha256=fc534f20f4d902665ffb760773d169ca7a94047a356c67bf7c2c24e093d716a4 bytes=582303
+manifest /home/charl/fm-wt/foreman-dsl-release/skills/foreman/runtime/manifest.json

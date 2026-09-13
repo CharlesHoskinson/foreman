@@ -36,9 +36,10 @@ export function makeDurablePelPermissionPort(options:{readonly context:HostConte
   })).pipe(Effect.mapError(error=>'_tag' in error && error._tag==='PelRunFailure'?providerCorrupt():error as ProviderFailure)),
  };
 }
-export function executeDurableProviderTool(event:{readonly providerIdentity:ProviderIdentityV1;readonly request:ToolRequestV1},request:ProviderRequestV1,context:HostContextV1,transport:ProviderTransport,executor:PelToolExecutorV1) {
+export function executeDurableProviderTool(event:{readonly providerIdentity:ProviderIdentityV1;readonly request:ToolRequestV1},request:ProviderRequestV1,context:HostContextV1,transport:ProviderTransport,executor:PelToolExecutorV1,permissionPort?:HostPermissionPort) {
  return Effect.gen(function*(){
   const runtime=yield* PelRuntime, identity=event.providerIdentity, tool=event.request;
+  const permissions=permissionPort??runtime.providers.permissions;
   if(request.toolPolicy.mode==='none') return yield* Effect.fail(providerDenied('The admitted provider request forbids tools.'));
   const key=toolDeduplicationKey({effectId:context.effect.effectId,providerIdentity:identity,callId:tool.callId}), argumentsSha256=canonicalToolArgumentsDigest(tool.arguments);
   const replay=replayPelRun(yield* readPelRecords(context.binding.runId));
@@ -52,7 +53,7 @@ export function executeDurableProviderTool(event:{readonly providerIdentity:Prov
    result={...prior.result.result,content:JSON.parse(Buffer.from(contentBytes).toString('utf8')) as ToolContentV1};
   } else {
    if(prior?.intent) return yield* Effect.fail({_tag:'OutcomeUnknown',retryClass:'never',message:'A durable tool intent has no terminal result. Reconciliation is required.'} as const);
-   const authorization=yield* runtime.providers.permissions.authorize(identity,tool,request.toolPolicy);
+   const authorization=yield* permissions.authorize(identity,tool,request.toolPolicy);
    if(authorization!==tool.authorizationBinding) return yield* Effect.fail(providerDenied('Tool authorization differs from the bound host grant.'));
    const requestRef=yield* runtime.artifacts.put(context.binding.runId,Buffer.from(canonicalAuthoringJson(tool)),Math.min(request.limits.maxOutputBytes,1048576),'ordinary');
    yield* appendPelRecord(context.binding,'pel.tool.intent.v1',{effectId:context.effect.effectId,providerIdentity:identity,callId:tool.callId,argumentsSha256,authorizationBinding:authorization,requestRef});
@@ -65,7 +66,7 @@ export function executeDurableProviderTool(event:{readonly providerIdentity:Prov
    yield* appendPelRecord(context.binding,'pel.tool.result.v1',{effectId:context.effect.effectId,providerIdentity:identity,callId:tool.callId,argumentsSha256,result:{...stored,contentRef}});
   }
   const valid=validateToolResult(identity,result); if(!valid.ok) return yield* Effect.fail(pelFailure('journal-corrupt','The durable provider tool content failed integrity validation.'));
-  yield* submitToolResult(runtime.providers.permissions,identity,result,()=>transport.sendToolResult(identity,result));
+  yield* submitToolResult(permissions,identity,result,()=>transport.sendToolResult(identity,result));
   return result;
  });
 }
@@ -92,7 +93,7 @@ export function preparePelProviderRequest(request:ProviderRequestV1,context:Host
  return {request:prepared,requestRef};
 });}
 /** Consume M3's stream in the owner's scope. No retries, budget ledger, or transport implementation here. */
-export function executePelProviderRequest(request:ProviderRequestV1,context:HostContextV1,executor:PelToolExecutorV1=noTools) {
+export function executePelProviderRequest(request:ProviderRequestV1,context:HostContextV1,executor?:PelToolExecutorV1) {
  return Effect.gen(function*(){
   const runtime=yield* PelRuntime;
   const restored=replayPelRun(yield* readPelRecords(context.binding.runId));
@@ -118,6 +119,7 @@ export function executePelProviderRequest(request:ProviderRequestV1,context:Host
    return {kind:'settled',outcome:{tag:'failure',failure:providerFailureToHostFailure(error)}} as const;
   }
   const transport=resolving.right.transport;
+  const selectedExecutor=executor??resolving.right.toolExecutor??noTools;
   let identity:ProviderIdentityV1|null=saved?.providerIdentity??null, checkpoint:PelStoredProviderContinuationV1|null=saved?.checkpoint??null;
   let terminal:PelHandlerOutcomeV1|null=null;
   let toolCalls=0, outputBytes=0;
@@ -169,14 +171,14 @@ export function executePelProviderRequest(request:ProviderRequestV1,context:Host
       yield* observe({usage:payload.usage},'pending',payload.usage); break;
      case 'tool-request':
       toolCalls++; if(toolCalls>request.limits.maxToolCalls) return yield* Effect.fail(providerDenied('Provider tool count exceeded the admitted bound.'));
-      yield* executeDurableProviderTool({providerIdentity:identity,request:payload.request},request,context,transport,executor); break;
+      yield* executeDurableProviderTool({providerIdentity:identity,request:payload.request},request,context,transport,selectedExecutor,resolving.right.permissions); break;
      case 'checkpoint': {
       if(canonicalAuthoringJson(payload.checkpoint.providerIdentity)!==canonicalAuthoringJson(identity) || pelBytesHash(payload.checkpoint.bytes)!==payload.checkpoint.sha256) return yield* Effect.fail(pelFailure('journal-corrupt','Provider checkpoint identity or hash changed.'));
       const artifact=yield* runtime.artifacts.put(context.binding.runId,payload.checkpoint.bytes,64*1024*1024,'provider-opaque');
       const {bytes:_,...metadata}=payload.checkpoint; checkpoint={...metadata,artifact}; break;
      }
      case 'completed':
-      if(payload.result.schemaId!==request.outputSchema.id || !validateDataSchema(payload.result.value,request.outputSchema.content)) return yield* Effect.fail({_tag:'OutputInvalid',retryClass:'never',message:'Provider result does not satisfy its original output schema.'} as const);
+      if(payload.result.schemaId!==request.outputSchema.id || payload.result.schemaSha256!==pelHash(request.outputSchema.content) || !Number.isSafeInteger(payload.result.byteLength) || payload.result.byteLength<0 || payload.result.byteLength>request.limits.maxOutputBytes || !validateDataSchema(payload.result.value,request.outputSchema.content)) return yield* Effect.fail({_tag:'OutputInvalid',retryClass:'never',message:'Provider result does not satisfy its original output schema.'} as const);
       yield* observe({type:'completed',result:payload.result,...(payload.usage?{usage:payload.usage}:{})},'confirmed-complete',payload.usage);
       terminal={kind:'settled',outcome:{tag:'success',value:payload.result.value}}; break;
      case 'refused': yield* observe({type:'refused'},'confirmed-complete'); terminal={kind:'settled',outcome:{tag:'failure',failure:{code:'provider-refused',message:'The provider refused the admitted request.'}}}; break;

@@ -248,7 +248,7 @@ test('T-M4-014 repeated revision chains reuse the original receipt and retain bo
 });
 
 test('T-M4-012 T-M4-014 nested captured closures survive receipt replay and revised-prefix crash recovery', async () => {
-    const prefixSource = "(def captured [1 2])\n(def x (fm/retry :attempts 1 :on [':rate-limited] :body (lambda [] (fm/retry :attempts 1 :on [':rate-limited] :body (lambda [] (len captured))))))\n";
+    const prefixSource = "(def captured [1 2])\n(def x (fm/retry :attempts 1 :on [':rate-limited] :body (lambda [] (fm/retry :attempts 1 :on [':rate-limited] :body (lambda [] (print (len captured)))))))\n";
     const f = durableFixture(prefixSource + '(/ 1 (- x 2))', 5);
     Object.assign(f.ports, { validateDecisionAuthority: () => Effect.void });
     try {
@@ -307,6 +307,38 @@ import { resolveProfile, type ProviderRequestV1, type ProviderTransport, type Pr
 import { stablePelReservationId } from './pel-journal.js';
 import { makePelResourceScope } from './pel-resource-scope.js';
 import { statSync } from 'node:fs';
+import { retainPelHostPreparation } from './pel-host-recovery.js';
+test('M5 durable internal provider completion becomes the host result without observe, resume or dispatch', async () => {
+    const f = durableFixture('(fm/task :id "task" :model "role:implementer" :input "artifact:approved-spec" :output "schema:candidate-v1")', 4);
+    let completed = 0;
+    try {
+        await Effect.runPromise(f.provide(Effect.gen(function* () {
+            const fixture = yield* f.setup;
+            Object.assign(f.ports, { resources: yield* makePelResourceScope() });
+            const context = { checked: fixture.checked, binding: fixture.binding, project: fixture.context.project, effect: fixture.effect, workspace: fixture.context.project.workspaces.grants[0]! };
+            const prepared = { kind: 'dispatch' as const, operationDigest: 'b'.repeat(64), resources: { reads: [], writes: [] }, action: 'implement' as const, inputs: yield* fixture.put({ output: 'schema:candidate-v1' }), candidate: null };
+            const preparationDigest = pelHash(prepared), reservation = { schemaVersion: 1 as const, kind: 'v1' as const, effect: fixture.effect, preparationDigest, operationDigest: prepared.operationDigest, authoritySha256: fixture.binding.authoritySha256, reservationId: stablePelReservationId(fixture.effect.effectId, 'implement', preparationDigest), candidate: null, contractId: fixture.binding.contractId, contractSha256: fixture.binding.contractSha256, action: 'implement' as const };
+            const value: import('@foreman/pel').PelDataValue = { tag: 'list', items: [{ tag: 'pair', key: 'status', value: { tag: 'string', value: 'no-change' } }, { tag: 'pair', key: 'candidate', value: { tag: 'nil' } }, { tag: 'pair', key: 'artifacts', value: { tag: 'list', items: [] } }, { tag: 'pair', key: 'implementation-receipt', value: { tag: 'nil' } }, { tag: 'pair', key: 'findings', value: { tag: 'list', items: [] } }] };
+            const report: import('@foreman/pel').PelDataValue = { tag: 'list', items: [{ tag: 'pair', key: 'summary', value: { tag: 'string', value: 'Observed no change.' } }, { tag: 'pair', key: 'claimedPaths', value: { tag: 'list', items: [] } }, { tag: 'pair', key: 'findings', value: { tag: 'list', items: [] } }] };
+            const identity = { kind: 'api' as const, provider: 'openai', profileId: 'gpt-6-astra', transportId: 'openai-responses', credentialProfileRef: 'fixture', endpointRevision: 'v1', responseId: 'completed' };
+            (f.ports.handlers as Map<string, import('./pel-run-contract.js').PelPreparedHandlerV1>).set('fm/task', {
+                prepare: () => Effect.die('completed task prepared again'), dispatch: () => Effect.die('completed provider dispatched again'),
+                providerResultSchema: () => Effect.succeed('schema:candidate-v1'),
+                completeProvider: (original, token, completion) => Effect.sync(() => { completed++; assert.equal(pelHash(original), preparationDigest); assert.equal(token.reservationId, reservation.reservationId); assert.equal(pelHash(completion), pelHash({ value: report, identity })); return { kind: 'settled' as const, outcome: { tag: 'success' as const, value } }; }),
+            });
+            yield* retainPelHostPreparation(prepared, fixture.request, context);
+            yield* appendPelRecord(fixture.binding, 'pel.effect.intent.v1', { effect: fixture.effect, argumentsRef: fixture.argumentsRef, expectedResultSchemaId: fixture.request.expectedResultSchemaId, preparationDigest, reservation, usageReservation: null });
+            const result = { value: report, json: {}, schemaId: 'schema:candidate-v1', schemaSha256: pelHash(fixture.context.registry.dataSchemas['schema:candidate-v1']), byteLength: 1 };
+            const observationRef = yield* fixture.put({ type: 'completed', result });
+            yield* appendPelRecord(fixture.binding, 'pel.effect.observed.v1', { effectId: fixture.effect.effectId, observationRef, providerIdentity: identity, externalOutcome: 'confirmed-complete' });
+            const recovered = yield* recovery.resumeProgram(f.runId, fixture.context);
+            assert.equal(recovered.state, 'succeeded'); assert.deepEqual(recovered.finalValue, value); assert.equal(completed, 1);
+            const replayed = yield* recovery.resumeProgram(f.runId, fixture.context).pipe(Effect.either);
+            assert.equal(replayed._tag, 'Left'); if (replayed._tag === 'Left') assert.equal(replayed.left.code, 'terminal-run'); assert.equal(completed, 1);
+            assert.equal((yield* historyRead(f.runId)).filter(record => record.type === 'pel.effect.intent.v1').length, 1);
+        })));
+    } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
 for (const observedState of ['pending', 'unsupported'] as const) test(`T-M4-018 resumeProgram restores the original provider cursor after ${observedState} observation with zero starts or new reservations`, async () => {
     const f = durableFixture('(fm/task :id "task" :model "role:implementer" :input "artifact:approved-spec" :output "schema:task-result-v1")', 4);
     let starts = 0, resumes = 0;

@@ -30,6 +30,7 @@ export interface PelLifecycleCliServices {
   readonly cancel:(runId:RunId,stateRoot?:string)=>Effect.Effect<RunStatusV1|RunResultV1,AuthoringFailure>;
   readonly configure:(bytes:Uint8Array)=>Effect.Effect<void,AuthoringFailure>;
   readonly configuredSnapshot?:(base:AuthoringSnapshotV1,explicit:boolean)=>Effect.Effect<AuthoringSnapshotV1,AuthoringFailure>;
+  readonly renderResult?:(result:RunResultV1,format:'text'|'json',stateRoot?:string)=>Effect.Effect<string|null,AuthoringFailure>;
 }
 export function pelLifecycleExit(status:RunStatusV1):CliResult['exitCode'] {
   switch(status.state){case 'succeeded':return 0;case 'failed':return 1;case 'needs-action':return 3;case 'cancelled':return 4;default:return 5;}
@@ -81,7 +82,8 @@ export function runPelLifecycleCli(argv:readonly string[],services:AuthoringServ
       for(const d of result.diagnostics)rendered+=`${d.sourceSpan?`line ${d.sourceSpan.line}:${d.sourceSpan.column}: `:''}${d.code}: ${d.message}${d.effectId?` (effect ${d.effectId})`:''}\nNext action: ${d.nextAction}\nEvidence: ${JSON.stringify(d.evidenceRefs)}\n`;
       rendered+=`Final value: ${JSON.stringify(result.finalValue)}\nUsage: ${JSON.stringify(result.usage)}\nArtifacts: ${JSON.stringify(result.artifacts)}\nReceipts: ${JSON.stringify(result.receipts)}\nOutputs: ${JSON.stringify(result.outputs)}\n`;
     }
-    yield* services.output.stdout(json?JSON.stringify(result)+'\n':rendered);
+    const delivery='finalValue' in result&&lifecycle.renderResult?yield* lifecycle.renderResult(result,json?'json':'text',stateRoot):null;
+    yield* services.output.stdout(delivery??(json?JSON.stringify(result)+'\n':rendered));
     return {exitCode:pelLifecycleExit(result)};
   }).pipe(Effect.catchAll(e=>Effect.gen(function*(){
     if(json)yield* services.output.stdout(JSON.stringify({schemaVersion:1,outcome:e.exitCode===2?'invalid':'failed',code:e.code,diagnostics:e.diagnostics??[{message:e.message}]})+'\n');

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { checkPel } from "../src/checker.js";
-import { validateAuthoringSnapshotV1 } from "../src/snapshot.js";
+import { createAuthoringSnapshotV1, validateAuthoringSnapshotV1 } from "../src/snapshot.js";
 const snapshot = () => {
   const value = validateAuthoringSnapshotV1(
     JSON.parse(
@@ -134,4 +134,63 @@ test("T-M2-011 errors expose registered signatures and nearby symbol suggestions
 test("T-M2-001 dead case clauses retain the scrutinee caret scope", () => {
   const result = checked("(case 7 [#t 1 (gt ^ 5) 2])");
   assert.equal(result.tag, "ok");
+});
+
+test('piped host preview preserves the exact M1 call-site identity for explicit and injected arguments', async () => {
+  const { startPel, createPelEnvironment } = await import('../src/evaluator.js');
+  for (const source of ['7 |> (print ^)', '7 |> (print)', '7 |> (+ 1) |> (print ^)', '(def output print) 7 |> (output ^)']) {
+    const result = checked(source); assert.equal(result.tag, 'ok'); if (result.tag !== 'ok') continue;
+    const step = startPel(result.checked.program, createPelEnvironment(result.checked.snapshot.registry), result.checked.snapshot.limits, result.checked.snapshot.options);
+    assert.equal(step.tag, 'suspend'); if (step.tag !== 'suspend') continue;
+    const request = step.ready[0]!;
+    const preview = result.checked.analysis.effects.filter(effect => effect.nodeId === request.nodeId && effect.registryId === request.registryId);
+    assert.equal(preview.length, 1, JSON.stringify({ source, request, effects: result.checked.analysis.effects }));
+    for (const [key, value] of Object.entries(request.boundArguments)) assert.deepEqual(preview[0]!.arguments[key], { kind: 'known', value });
+  }
+});
+
+test('finite recursive delivery branches retain list shapes for keyword lookup', () => {
+  const base = snapshot();
+  const admitted = createAuthoringSnapshotV1({ ...base, policy: { ...base.policy, allowedDestinations: [...new Set([...base.policy.allowedDestinations, 'reviewed-branch'])] } });
+  assert.ok(admitted.ok);
+  const result = checkPel({ source: readFileSync('examples/pel/repair-and-publish.pel'), snapshot: admitted.value });
+  assert.equal(result.tag, 'ok', JSON.stringify(result));
+  if (result.tag === 'ok') {
+    assert.ok(result.checked.analysis.effects.some(effect => effect.registryId === 'fm/publish'));
+    assert.ok(result.checked.analysis.effects.filter(effect => effect.registryId === 'fm/task').length >= 2);
+  }
+});
+test('finite association alternatives preserve keyword values without admitting unknown callable branches', () => {
+  const prefix = '(def checked (fm/verify :id "verify" :input "artifact:approved-spec" :gate "candidate-full")) ';
+  for (const branches of ['[:status "ok"] [:status "needs-action" :reason "checks"]', '[:status "ok" :left 1] [:right 2 :status "needs-action"]']) {
+    const result = checked(`${prefix}(def result (if (checked :at ':passed) ${branches})) (result :at ':status)`);
+    assert.equal(result.tag, 'ok', JSON.stringify(result));
+    if (result.tag === 'ok') assert.equal(result.checked.analysis.finalValueSummary.kind, 'unresolved');
+  }
+  const selector = checked(`${prefix}(def result (if (checked :at ':passed) [:status "ok"] [:status "needs-action" :reason "checks"])) (result :at (do (print 1) ':status))`);
+  assert.equal(selector.tag, 'ok', JSON.stringify(selector));
+  if (selector.tag === 'ok') assert.equal(selector.checked.analysis.effects.filter(effect => effect.registryId === 'print').length, 1);
+  const unsafe = checked(`${prefix}(def result (if (checked :at ':passed) [:action (print)] [:other 1])) ((result :at ':action) 1)`);
+  assert.equal(unsafe.tag, 'invalid');
+  if (unsafe.tag === 'invalid') assert.equal(unsafe.diagnostics[0]?.code, 'PEL_DYNAMIC_EFFECT_UNBOUNDED');
+  const mixed = checked(`${prefix}(def result (if (checked :at ':passed) [:status "ok"] "unknown callable")) (result :at ':status)`);
+  assert.equal(mixed.tag, 'invalid');
+});
+
+test('bounded race and retry expose their ordinary success shapes to downstream host calls', () => {
+  for (const source of [
+    '(def raceResult (fm/race :tasks [(lambda [] [:candidate "artifact:approved-spec"]) (lambda [] [:candidate "artifact:approved-spec" :extra 1])] :winner "first-valid")) (def winner (raceResult :at \':value)) (fm/verify :id "verify" :input (winner :at \':candidate) :gate "candidate-full")',
+    '(def retried (fm/retry :attempts 2 :on [\':timeout] :body (lambda [] [:candidate "artifact:approved-spec"]))) (fm/verify :id "verify" :input (retried :at \':candidate) :gate "candidate-full")',
+  ]) {
+    const result = checked(source);
+    assert.equal(result.tag, 'ok', JSON.stringify(result));
+    if (result.tag === 'ok') {
+      const verify = result.checked.analysis.effects.find(effect => effect.registryId === 'fm/verify');
+      assert.ok(verify);
+      assert.deepEqual(verify.arguments.input, { kind: 'known', value: { tag: 'string', value: 'artifact:approved-spec' } });
+      assert.ok(result.checked.analysis.dependencies.some(dependency => dependency.to === verify.effectId && dependency.kind === "value"));
+    }
+  }
+  const missing = checked('(fm/race :tasks [(lambda [] [:candidate "artifact:approved-spec"]) (lambda [] [:other 1])] :winner "first-valid") |> (^ :at \':value) |> (^ :at \':candidate) |> (^ 1)');
+  assert.equal(missing.tag, 'invalid');
 });

@@ -1332,8 +1332,10 @@ function replayHistory(
             registered.childId !== item.childId ||
             registered.effectiveAction !== "evaluate" ||
             registered.candidate.candidateSha256 !== item.candidateSha256 ||
-            registered.evaluationManifestSha256 !==
-              item.evaluationAuthorityReceiptSha256,
+            !registered.receiptSchemas.some((schema, index) =>
+              schema === "foreman.evaluation-authority.v1" &&
+              registered.receiptSha256s[index] === item.evaluationAuthorityReceiptSha256,
+            ),
         ) ||
         evaluationRunSetSha256(family) !== item.runSetSha256
       ) {
@@ -2206,8 +2208,10 @@ export function makeLiveEndstopLedgerLayer(
                 authority.childId !== decoded.childId ||
                 authority.effectiveAction !== "evaluate" ||
                 authority.candidate.candidateSha256 !== decoded.candidateSha256 ||
-                authority.evaluationManifestSha256 !==
-                  decoded.evaluationAuthorityReceiptSha256,
+                !authority.receiptSchemas.some((schema, index) =>
+                  schema === "foreman.evaluation-authority.v1" &&
+                  authority.receiptSha256s[index] === decoded.evaluationAuthorityReceiptSha256,
+                ),
             )
           ) {
             return {

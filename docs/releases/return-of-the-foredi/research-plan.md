@@ -1,10 +1,10 @@
 # Return of the ForeDi research plan
 
-The [six feature OpenSpecs](../../releases/return-of-the-foredi/README.md) refine this research sequence into implementable milestones. Use their EARS catalog and test plan for release implementation.
+The [six feature OpenSpecs](README.md) refine this research sequence into implementable milestones. Use their EARS catalog and test plan for release implementation.
 
 Status: proposed release sequence, 2026-09-12. This document authorizes no runtime dispatch or publication.
 The user selected adoption and extension of Pel to simplify Foreman.
-Read the [release design](../specs/2026-09-12-pel-release-design.md) first.
+Read the [release design](research-design.md) first.
 
 **Goal:** Replace Foreman's distributed orchestration instructions and control loops with one Pel execution path and shared provider adapters.
 

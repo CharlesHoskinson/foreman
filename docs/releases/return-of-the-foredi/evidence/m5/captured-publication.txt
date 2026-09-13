@@ -1,0 +1,13 @@
+✔ T-M5-011 T-M5-012 real V2 publication waits without charge, then publishes once after exact authority registration (2451.07404ms)
+✔ T-M5-013 real V2 lost acknowledgement stays pending until observation and never republishes (2282.75362ms)
+✔ T-M5-012 real V2 prepared candidate or destination mutation fails before the Git publication command (4111.706577ms)
+✔ T-M5-011 a destination admitted before candidate creation resolves later exact V2 publication authority (2218.457881ms)
+✔ T-M5-011 T-M5-012 T-M5-013 real V2 synthetic captured candidate waits for deferred authority and recovers lost acknowledgement with one push (2790.937854ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 15121.525679

@@ -167,6 +167,9 @@ test('provider budget admission is atomic, preserves unknown reserves, and settl
             assert.deepEqual(yield* history.projectPelRemainingProviderBudget(binding), { maxInputTokens: 40, maxOutputTokens: 40, maxCostUsd: 0.1 });
             yield* history.appendPelRecord(binding, 'pel.effect.observed.v1', { effectId: winner.effect.effectId, observationRef: artifact, providerIdentity: null, externalOutcome: 'confirmed-complete', usage: { inputTokens: 10, costUsd: '0.1' } });
             assert.deepEqual(yield* history.projectPelRemainingProviderBudget(binding), { maxInputTokens: 90, maxOutputTokens: 40, maxCostUsd: 0.2 });
+            // Host completion/evidence records do not erase the provider's final usage.
+            yield* history.appendPelRecord(binding, 'pel.effect.observed.v1', { effectId: winner.effect.effectId, observationRef: artifact, providerIdentity: null, externalOutcome: 'confirmed-complete' });
+            assert.deepEqual(yield* history.projectPelRemainingProviderBudget(binding), { maxInputTokens: 90, maxOutputTokens: 40, maxCostUsd: 0.2 });
             const c = { ...intent('c', 90, 0.2), usageReservation: { maxInputTokens: 90, maxOutputTokens: 40, maxCostUsd: 0.2 } };
             yield* history.appendPelRecord(binding, 'pel.effect.intent.v1', c);
             assert.deepEqual(yield* history.projectPelRemainingProviderBudget(binding), { maxInputTokens: 0, maxOutputTokens: 0, maxCostUsd: 0 });

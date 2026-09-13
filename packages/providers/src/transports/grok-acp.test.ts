@@ -1,4 +1,4 @@
-import { canonicalize } from "@foreman/core";
+import { canonicalize, sha256Hex } from "@foreman/core";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Effect, Queue, Redacted, Stream } from "effect";
@@ -348,19 +348,18 @@ test("Grok ACP coding permission uses one host authorization and cannot select p
       hostPermissionPortRef: "host:permissions",
     },
   };
-  const events = await Effect.runPromise(
-    Effect.scoped(
-      Effect.flatMap(
-        createGrokAcpTransport({
-          credentials: f.credentials,
-          process: f.process,
-          host: codingHost,
-          now: () => 100,
-        }).start(coding),
-        Stream.runCollect,
-      ),
-    ),
-  );
+  const transport=createGrokAcpTransport({credentials:f.credentials,process:f.process,host:codingHost,now:()=>100});
+  const events = await Effect.runPromise(Effect.scoped(Effect.gen(function*(){
+    const stream=yield* transport.start(coding);
+    return yield* Stream.runCollect(stream.pipe(Stream.tap(event=>Effect.gen(function*(){
+      if(event.payload.type!=='tool-request')return;
+      assert.equal(f.sent.filter(message=>message.id===99).length,0,'allow_once must wait for the durable result');
+      const result={effectId:coding.effectId,providerIdentity:event.providerIdentity,callId:event.payload.request.callId,authorizationBinding:event.payload.request.authorizationBinding,receiptRef:'durable:fixture',content:{kind:'json' as const,value:{decision:'accept'}},contentSha256:sha256Hex(canonicalize({decision:'accept'})),isError:false,maxBytes:1024};
+      yield* transport.sendToolResult(event.providerIdentity,result);
+      yield* transport.sendToolResult(event.providerIdentity,result);
+    }))));
+  })));
+  assert.equal(f.sent.filter(message=>message.id===99).length,1,'repeated durable acknowledgement sends once');
   assert.equal(authorizations, 1);
   assert.equal(
     Array.from(events).filter((e) => e.payload.type === "tool-request").length,

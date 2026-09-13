@@ -1,0 +1,21 @@
+✔ T-M5-001 captures observed dirty bytes, untracked files, deletion, symlink and mode without moving HEAD or index (457.009053ms)
+✔ T-M5-002 observes forbidden paths and refuses candidate promotion with retained evidence (97.091184ms)
+✔ T-M5-001 no-op has no invented candidate and preserves preexisting staged index (98.111535ms)
+✔ T-M5-002 rejects escaping symlinks and changed Git HEAD (118.417141ms)
+✔ T-M5-002 ignored secrets and build output never enter candidate artifacts or mutation observations (233.392404ms)
+✔ T-M5-002 rejects preexisting local commits beyond the admitted immutable base before retaining candidate bytes (41.53686ms)
+✔ T-M5-002 refuses preexisting nonignored dirty content outside the admitted writable set (111.146771ms)
+✔ T-M5-002 private candidate comparison detects tracked bytes hidden by --skip-worktree (174.319716ms)
+✔ T-M5-002 private candidate comparison detects tracked bytes hidden by --assume-unchanged (162.8182ms)
+✔ T-M5-001 ordinary git status cache refresh and staging preserve candidate content identity (272.018574ms)
+✔ T-M5-002 force-added ignored secrets remain excluded even with real index flags (173.115259ms)
+✔ T-M5-002 ambient Git ignore files cannot hide nonignored candidate bytes (159.457817ms)
+✔ T-M5-002 index flags cannot hide changed tracked bytes outside the write grant (105.066117ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3488.394057

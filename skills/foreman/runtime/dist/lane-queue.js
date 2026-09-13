@@ -37302,6 +37302,8 @@ function evolveExecution(state, event) {
       return {
         ...state,
         currentCandidateSha256: event.candidateSha256,
+        milestoneCandidateSha256: state.milestoneCandidateSha256 === event.candidateSha256 ? state.milestoneCandidateSha256 : null,
+        milestones: state.milestoneCandidateSha256 === event.candidateSha256 ? state.milestones : {},
         lastProductChangeAt: event.candidateSha256 === state.currentCandidateSha256 ? state.lastProductChangeAt : event.at,
         lastEventAt: event.at
       };
@@ -38469,7 +38471,9 @@ function replayHistory(events, loadManifest) {
       if (family === null || item.rootContractId !== decoded.contractId || item.rootContractSha256 !== hash2 || item.familySha256 !== family.familySha256 || evaluationVerdicts.some(
         (existing) => existing.childId === item.childId
       ) || Date.parse(item.registeredAt) < Date.parse(family.children[item.childId].lastEventAt) || childAuthorities.every(
-        (registered) => registered.childId !== item.childId || registered.effectiveAction !== "evaluate" || registered.candidate.candidateSha256 !== item.candidateSha256 || registered.evaluationManifestSha256 !== item.evaluationAuthorityReceiptSha256
+        (registered) => registered.childId !== item.childId || registered.effectiveAction !== "evaluate" || registered.candidate.candidateSha256 !== item.candidateSha256 || !registered.receiptSchemas.some(
+          (schema, index) => schema === "foreman.evaluation-authority.v1" && registered.receiptSha256s[index] === item.evaluationAuthorityReceiptSha256
+        )
       ) || evaluationRunSetSha256(family) !== item.runSetSha256) {
         return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
       }
@@ -39182,7 +39186,9 @@ function makeLiveEndstopLedgerLayer(stateRoot, journalOptions = {}) {
           const family = history.state.family;
           const child = family?.children[decoded.childId];
           if (family === null || family === void 0 || child === void 0 || family.familySha256 !== decoded.familySha256 || Date.parse(decoded.registeredAt) < Date.parse(child.lastEventAt) || evaluationRunSetSha256(family) !== decoded.runSetSha256 || history.state.childAuthorities.every(
-            (authority) => authority.childId !== decoded.childId || authority.effectiveAction !== "evaluate" || authority.candidate.candidateSha256 !== decoded.candidateSha256 || authority.evaluationManifestSha256 !== decoded.evaluationAuthorityReceiptSha256
+            (authority) => authority.childId !== decoded.childId || authority.effectiveAction !== "evaluate" || authority.candidate.candidateSha256 !== decoded.candidateSha256 || !authority.receiptSchemas.some(
+              (schema, index) => schema === "foreman.evaluation-authority.v1" && authority.receiptSha256s[index] === decoded.evaluationAuthorityReceiptSha256
+            )
           )) {
             return {
               _tag: "Return",

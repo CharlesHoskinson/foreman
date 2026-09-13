@@ -1,6 +1,7 @@
 /** Recover immutable M1 state under the existing run owner. */
 import { executePelProviderRequest, projectPelProviderUsage } from './pel-provider-tools.js';
 import { loadOriginalPelProviderRequest } from './pel-execution-provider-live.js';
+import { completePelHostProvider, originalPelProviderSchema, recoverPelHostOperation } from './pel-host-recovery.js';
 import { decodeForemanProjectV1 } from './pel-project-config.js';
 import { Effect, type Scope } from 'effect';
 import { canonicalize } from '@foreman/core';
@@ -265,6 +266,7 @@ export function resumeProgram(runId: RunId, context: PelOwnedRunContextV1, optio
                     requests.set(intent.effect.effectId, { request, observationOnly: child.phase === 'abandoned' || child.childKind === 'race' && raceWinners.has(child.parentRequestId) && raceWinners.get(child.parentRequestId) !== child.index, context: { checked: activation.checked, binding, project: recovered.context.project, effect: intent.effect, workspace: child.workspaceGrant, parentRequestId: child.parentRequestId, childInvocationId: child.childInvocationId, ...(child.retryContext ? { retryContext: child.retryContext } : {}) } });
             }
         }
+        if (runtime.workspaceForHostRequest) for (const entry of requests.values()) if (!entry.observationOnly) entry.context = { ...entry.context, workspace: yield* runtime.workspaceForHostRequest(entry.request, entry.context) };
         const decisions = new Map<string, PelRecoveryDecisionV1>();
         for (const record of recovered.replay.records) {
             if (record.type !== 'pel.recovery-decision.v1')
@@ -311,6 +313,8 @@ export function resumeProgram(runId: RunId, context: PelOwnedRunContextV1, optio
                     continue;
             }
             else {
+                const local = yield* recoverPelHostOperation(pending.context, pending.observationOnly);
+                if (local?.kind === 'settled') receipt = { requestId: intent.effect.requestId, outcome: local.outcome };
                 const observation = recovered.replay.observations.get(effectId);
                 if (observation?.externalOutcome === 'none' && observation.providerIdentity === null) {
                     const evidence = yield* readPelArtifactJson(runId, observation.observationRef);
@@ -319,7 +323,7 @@ export function resumeProgram(runId: RunId, context: PelOwnedRunContextV1, optio
                         receipt = { requestId: intent.effect.requestId, outcome: { tag: 'failure', failure: { code: 'cancelled', message: 'The abandoned child had no external dispatch.' } } };
                     }
                 }
-                if (observation?.providerIdentity) {
+                if (!receipt && observation?.providerIdentity) {
                     const observed = yield* Effect.either(runtime.providers.observe(observation.providerIdentity, pending.context));
                     if (observed._tag === 'Right') {
                         if (!same(observed.right.providerIdentity, observation.providerIdentity))
@@ -327,10 +331,11 @@ export function resumeProgram(runId: RunId, context: PelOwnedRunContextV1, optio
                         const observationRef = yield* runtime.artifacts.put(runId, Buffer.from(canonicalize(observed.right)), PEL_MAX_ARTIFACT_BYTES, 'ordinary');
                         yield* appendPelRecord(binding, 'pel.effect.observed.v1', { effectId, observationRef, providerIdentity: observation.providerIdentity, externalOutcome: observed.right.status === 'completed' ? 'confirmed-complete' : observed.right.status === 'cancelled' ? 'confirmed-cancelled' : 'unknown' });
                         if (observed.right.status === 'completed') {
-                            const descriptor = getHostDescriptor(recovered.context.registry, pending.request.registryId), schema = descriptor && recovered.context.registry.dataSchemas[descriptor.resultSchemaId];
-                            if (!schema || observed.right.result.schemaId !== pending.request.expectedResultSchemaId || observed.right.result.schemaSha256 !== pelHash(schema) || observed.right.result.byteLength > binding.limits.maxOutputBytes || !validateDataSchema(observed.right.result.value, schema))
+                            const schemaId = yield* originalPelProviderSchema(pending.context, pending.request.expectedResultSchemaId), schema = recovered.context.registry.dataSchemas[schemaId];
+                            if (!schema || observed.right.result.schemaId !== schemaId || observed.right.result.schemaSha256 !== pelHash(schema) || observed.right.result.byteLength > binding.limits.maxOutputBytes || !validateDataSchema(observed.right.result.value, schema))
                                 return yield* Effect.fail(pelFailure('binding-mismatch', 'Observed provider result violates the original schema.'));
-                            receipt = { requestId: intent.effect.requestId, outcome: { tag: 'success', value: observed.right.result.value } };
+                            const completed = yield* completePelHostProvider(pending.context, { value: observed.right.result.value, identity: observation.providerIdentity }, pending.observationOnly);
+                            if (completed.kind === 'settled') receipt = { requestId: intent.effect.requestId, outcome: completed.outcome };
                         }
                         if (observed.right.status === 'cancelled')
                             receipt = { requestId: intent.effect.requestId, outcome: { tag: 'failure', failure: { code: 'cancelled', message: 'The provider confirmed cancellation.' } } };
@@ -342,8 +347,9 @@ export function resumeProgram(runId: RunId, context: PelOwnedRunContextV1, optio
                                 if (!same(saved.providerIdentity, observation.providerIdentity) || !intent.reservation)
                                     return yield* Effect.fail(pelFailure('binding-mismatch', 'The saved provider cursor lost its original identity or reservation.'));
                                 const original = yield* loadOriginalPelProviderRequest(saved.providerIdentity, pending.context, { journal, runtime: () => runtime });
+                                const providerSchema = yield* originalPelProviderSchema(pending.context, intent.expectedResultSchemaId);
                                 const limits = original.limits;
-                                if (limits.spendReservationRef !== intent.reservation.reservationId || original.outputSchema.id !== intent.expectedResultSchemaId || !Number.isSafeInteger(limits.deadline) || limits.deadline > binding.limits.deadline || (yield* runtime.clock.now) >= limits.deadline || ['maxInputTokens', 'maxOutputTokens', 'maxToolCalls', 'maxOutputBytes', 'maxCostUsd'].some(key => { const dimension = key as 'maxInputTokens' | 'maxOutputTokens' | 'maxToolCalls' | 'maxOutputBytes' | 'maxCostUsd'; return !Number.isFinite(limits[dimension]) || limits[dimension] < 0 || limits[dimension] > binding.limits[dimension]; }) || saved.checkpoint && (!same(saved.checkpoint.providerIdentity, saved.providerIdentity) || saved.checkpoint.transportVersion !== original.transportVersion))
+                                if (limits.spendReservationRef !== intent.reservation.reservationId || original.outputSchema.id !== providerSchema || !Number.isSafeInteger(limits.deadline) || limits.deadline > binding.limits.deadline || (yield* runtime.clock.now) >= limits.deadline || ['maxInputTokens', 'maxOutputTokens', 'maxToolCalls', 'maxOutputBytes', 'maxCostUsd'].some(key => { const dimension = key as 'maxInputTokens' | 'maxOutputTokens' | 'maxToolCalls' | 'maxOutputBytes' | 'maxCostUsd'; return !Number.isFinite(limits[dimension]) || limits[dimension] < 0 || limits[dimension] > binding.limits[dimension]; }) || saved.checkpoint && (!same(saved.checkpoint.providerIdentity, saved.providerIdentity) || saved.checkpoint.transportVersion !== original.transportVersion))
                                     return yield* Effect.fail(pelFailure('binding-mismatch', 'Provider continuation changed its original schema, budget, or transport.'));
                                 const continued = yield* Effect.scoped(Effect.gen(function* () {
                                     const descriptor = getHostDescriptor(recovered.context.registry, pending.request.registryId);
@@ -353,7 +359,10 @@ export function resumeProgram(runId: RunId, context: PelOwnedRunContextV1, optio
                                     yield* runtime.resources.acquireConcurrency(pending.context).pipe(Effect.mapError(error => pelFailure('binding-mismatch', error.message)));
                                     return yield* executePelProviderRequest(original, pending.context);
                                 }));
-                                if (continued.kind === 'settled') receipt = { requestId: intent.effect.requestId, outcome: continued.outcome };
+                                if (continued.kind === 'settled') {
+                                    const completed = continued.outcome.tag === 'success' ? yield* completePelHostProvider(pending.context, { value: continued.outcome.value, identity: saved.providerIdentity }) : continued;
+                                    if (completed.kind === 'settled') receipt = { requestId: intent.effect.requestId, outcome: completed.outcome };
+                                }
                             }
                         }
                     }

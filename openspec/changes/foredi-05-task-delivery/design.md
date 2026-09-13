@@ -124,6 +124,16 @@ Trusted instructions and untrusted task evidence occupy separate fields in `Prov
 Provider tool requests pass through M4 dispatch policy. They cannot expand writable paths or host authority.
 The host captures an immutable candidate manifest after the provider stops. Provider prose cannot certify changed files or completed checks.
 For `fm/race`, the M4 child context supplies a distinct admitted worktree grant before task preparation or provider dispatch.
+Contender implementation receipts retain provenance without changing the shared ledger candidate.
+After the durable winner decision, the host promotes only the selected candidate with its original implementation receipt and reservation.
+The host repeats this idempotent promotion check when it restores an existing winner decision.
+Nested race decisions defer promotion until the outer selected path is committed. Nested retry records retain their original race ancestry.
+Downstream task, verification, review, and publication requests use the candidate's exact admitted workspace grant.
+Recovery derives that grant from the same immutable implementation and child records.
+Unresolved contenders cannot record checks, audit approval, or publication. Such requests fail before an action reservation.
+Task provider allocations divide the original input, output, and cost caps by each enclosing race's durable contender count.
+Integer token allocations round down. Cost allocation rounds down to the adjacent representable number after division.
+The existing atomic run budget still bounds all reservations and known usage.
 For native do/async, inherited workspace conflicts serialize unless the admitted context supplies separate grants.
 A no-op implementation has `status = "no-change"` with observed artifacts and no invented completion evidence.
 A result outside allowed paths fails with `candidate-out-of-scope`. Preserve the candidate for inspection without promoting it.
@@ -141,7 +151,12 @@ This preserves one full verification per unchanged candidate and environment.
 ## Independent review and bounded repair
 
 `fm/review` gives the reviewer immutable candidate artifacts and host verification evidence.
-It records in-progress review state before dispatch. It cannot reuse an old approved report as the current attempt result.
+After reservation-token validation, dispatch records in-progress review state before provider execution.
+Preparation cannot invalidate an earlier approval. Recovery retains the original marker sequence.
+The prepared review binds its admission time and freshness check.
+Completed provider work can finish host receipt registration using that original time after the freshness window expires.
+Fresh dispatch and publication still require current evidence. An old completed review cannot grant stale publication authority.
+The host cannot reuse an old approved report as the current attempt result.
 If incoming verification has `passed = false`, preparation returns an unverified review result with `status = "verification-failed"` and no audit reservation.
 Actual observed vendor identity must differ from the implementer's vendor. Changing only model names cannot satisfy independence.
 Review verdicts are `approved`, `changes-requested`, or `unverified`. Missing, refused, interrupted, or malformed review is unverified.

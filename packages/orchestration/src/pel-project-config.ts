@@ -52,7 +52,7 @@ export function decodeForemanProjectV1(value: unknown): Decoded<ForemanProjectV1
   }
   if (!map(value.destinations)) return bad('project.destinations');
   for (const d of Object.values(value.destinations)) {
-    if (!record(d) || !exact(d, ['operation', 'repositoryIdentitySha256', 'remoteIdentity', 'ref', 'expectedOldObject', 'authorityRef']) || !['integrate', 'publish'].includes(d.operation as string) || d.repositoryIdentitySha256 !== repository.value.identitySha256 || !text(d.remoteIdentity) || !text(d.ref) || !d.ref.startsWith('refs/') || !decodePelArtifactRefV1(d.authorityRef).ok || !record(d.expectedOldObject)) return bad('project.destinations');
+    if (!record(d) || !exact(d, ['operation', 'repositoryIdentitySha256', 'remoteIdentity', 'ref', 'expectedOldObject', 'authorityRef']) || !['integrate', 'publish'].includes(d.operation as string) || d.repositoryIdentitySha256 !== repository.value.identitySha256 || !text(d.remoteIdentity) || !text(d.ref) || !d.ref.startsWith('refs/') || !(d.authorityRef === null ? d.operation === 'publish' : decodePelArtifactRefV1(d.authorityRef).ok) || !record(d.expectedOldObject)) return bad('project.destinations');
     const old = d.expectedOldObject;
     if (!(old.kind === 'absent' && exact(old, ['kind'])) && !(old.kind === 'exact' && exact(old, ['kind', 'oid']) && oid(old.oid))) return bad('project.destinations.expectedOldObject');
   }

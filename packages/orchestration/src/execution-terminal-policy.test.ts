@@ -1353,6 +1353,26 @@ describe("ExecutionContractV2 child policy", () => {
 });
 
 describe("Endstop terminal policy", () => {
+  it("V1 correction invalidates prior candidate milestones while identical product observations preserve them", () => {
+    let state: ExecutionState = initialExecutionState(contract());
+    const at = "2026-08-05T12:01:00Z";
+    state = apply(state, { _tag: "RecordProductChange", candidateSha256: H, allowedPathsSha256: H3, at });
+    state = apply(state, { _tag: "RecordMilestone", milestone: "checks", candidateSha256: H, evidenceSha256: H3, at });
+    const same = apply(state, { _tag: "RecordProductChange", candidateSha256: H, allowedPathsSha256: H3, at });
+    assert.deepEqual(same.milestones, { checks: H3 });
+    assert.equal(same.milestoneCandidateSha256, H);
+    // A reservation can already name the next candidate. It does not make old checks current.
+    state = apply(state, reserve("correct", 1, at));
+    state = apply(state, { _tag: "RecordProductChange", candidateSha256: H2, allowedPathsSha256: H3, at });
+    assert.deepEqual(state.milestones, {});
+    assert.equal(state.milestoneCandidateSha256, null);
+    assert.equal(state.counts.correct, 1);
+    const decision = decideExecutionCommand(state, { _tag: "RecordMilestone", milestone: "checks", candidateSha256: H2, evidenceSha256: H, at });
+    assert.equal(decision._tag, "Accepted");
+    if (decision._tag === "Accepted") for (const event of decision.events) state = evolveExecution(state, event);
+    assert.deepEqual(state.milestones, { checks: H });
+    assert.equal(state.milestoneCandidateSha256, H2);
+  });
   it("keeps every terminal state absorbing", () => {
     const terminalTags: readonly ExecutionTerminalTag[] = [
       "Completed",

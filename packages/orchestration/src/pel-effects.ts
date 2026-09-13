@@ -5,7 +5,7 @@ import { canonicalAuthoringJson, encodeHostArgumentsV1, getHostDescriptor, isPel
 import { executeNativePrint } from './pel-native-host.js';
 import { EndstopLedger } from './execution-ledger.js';
 import { executionActionKinds } from './execution-terminal-policy.js';
-import { PelRuntime, type HostContextV1, type PelHostEffectFailureV1, type ResourceSetV1, type PreparedHostEffectV1, type PelReservationTokenV1, type RunFailure, type HostDispatchOutcomeV1 } from './pel-run-contract.js';
+import { PelRuntime, decodePelActionAuthorityV1, type HostContextV1, type PelHostEffectFailureV1, type ResourceSetV1, type PreparedHostEffectV1, type PelReservationTokenV1, type RunFailure, type HostDispatchOutcomeV1 } from './pel-run-contract.js';
 import { appendPelRecord, appendPelEffectResult, pelHash, pelFailure, readPelRecords, replayPelRun, stablePelReservationId } from './pel-journal.js';
 
 const denied = (message: string): PelHostEffectFailureV1 => ({code:'capability-denied',message});
@@ -58,12 +58,14 @@ export function validateResolvedHostRequest(request:HostRequestV1, context:HostC
  return {ok:true,value:descriptor};
 }
 export function validateReservationToken(prepared:Extract<PreparedHostEffectV1,{kind:'dispatch'}>,token:PelReservationTokenV1,context:HostContextV1):Result<PelReservationTokenV1,PelHostEffectFailureV1> {
+ if(prepared.actionAuthority && !decodePelActionAuthorityV1(prepared.actionAuthority).ok) return {ok:false,error:denied('Prepared action authority is invalid.')};
  const preparationDigest=pelHash(prepared), action=context.retryContext && context.retryContext.attemptIndex>1 && context.effect.priorEffectId ? 'provider_retry' : prepared.action;
+ if(prepared.actionAuthority?.retry && action!=='provider_retry') return {ok:false,error:denied('Retry authority requires a provider retry operation.')};
  if(token.schemaVersion!==1 || token.preparationDigest!==preparationDigest || token.operationDigest!==prepared.operationDigest || token.authoritySha256!==context.binding.authoritySha256 || canonicalAuthoringJson(token.effect)!==canonicalAuthoringJson(context.effect) || canonicalAuthoringJson(token.candidate)!==canonicalAuthoringJson(prepared.candidate) || token.reservationId!==stablePelReservationId(context.effect.effectId,action,preparationDigest) || token.kind!==context.binding.authority.kind) return {ok:false,error:denied('Dispatch token does not bind this prepared operation.')};
  if(token.kind==='v1' && (token.action!==action || token.contractId!==context.binding.contractId || token.contractSha256!==context.binding.contractSha256)) return {ok:false,error:denied('Dispatch token does not bind this execution contract.')};
  if(token.kind==='v2-child') {
-   const authority=context.binding.authority;
-   if(authority.kind!=='v2-child' || token.childId!==authority.childId || token.rootContractId!==authority.rootContractId || token.rootContractSha256!==authority.rootContractSha256 || token.familySha256!==authority.familySha256 || token.operation.reservationId!==token.reservationId || token.operation.reservationAction!==action || token.operation.effectiveAction!==prepared.action || token.operation.originReservationId!==((action==='provider_retry'||action==='resume')?authority.originReservationId:token.reservationId) || token.operation.taskPlanSha256!==authority.taskPlanSha256 || token.operation.authorityBundleSha256!==authority.authorityBundleSha256 || canonicalAuthoringJson(token.operation.candidate)!==canonicalAuthoringJson(prepared.candidate)) return {ok:false,error:denied('Dispatch token does not bind this registered child authority.')};
+   const authority=context.binding.authority,actionAuthority=prepared.actionAuthority??(authority.kind==='v2-child'?authority:null);
+   if(authority.kind!=='v2-child' || token.childId!==authority.childId || token.rootContractId!==authority.rootContractId || token.rootContractSha256!==authority.rootContractSha256 || token.familySha256!==authority.familySha256 || token.operation.reservationId!==token.reservationId || token.operation.reservationAction!==action || token.operation.effectiveAction!==prepared.action || token.operation.originReservationId!==((action==='provider_retry'||action==='resume')?(prepared.actionAuthority?.retry?.originReservationId??authority.originReservationId):token.reservationId) || token.operation.taskPlanSha256!==actionAuthority?.taskPlanSha256 || token.operation.authorityBundleSha256!==actionAuthority?.authorityBundleSha256 || canonicalAuthoringJson(token.operation.candidate)!==canonicalAuthoringJson(prepared.candidate)) return {ok:false,error:denied('Dispatch token does not bind this registered child authority.')};
  }
  return {ok:true,value:token};
 }
@@ -87,6 +89,7 @@ export function executeHostEffect(request:HostRequestV1,context:HostContextV1) {
      if(!checked.ok) return yield* Effect.fail(pelFailure('journal-corrupt','Stored host receipt does not validate.'));
      return {kind:'settled',receipt:checked.value,receiptRef:{effectId:context.effect.effectId,sequence:previous.sequence,sha256:previous.resultHash}} as const;
    }
+   if(runtime.workspaceForHostRequest) context={...context,workspace:yield* runtime.workspaceForHostRequest(request,context)};
    let redispatchDecisionSequence:number|null=null;
    const existingIntent=replay.value.intents.get(context.effect.effectId);
    if(existingIntent) {
@@ -155,6 +158,16 @@ export function executeHostEffect(request:HostRequestV1,context:HostContextV1) {
    const reservationId=stablePelReservationId(context.effect.effectId,action,preparationDigest);
    const common={schemaVersion:1 as const,effect:context.effect,preparationDigest,operationDigest:prepared.operationDigest,authoritySha256:context.binding.authoritySha256,reservationId,candidate:prepared.candidate};
    const ledger=yield* EndstopLedger, now=yield* runtime.clock.now;
+   const prior=action==='provider_retry' && context.effect.priorEffectId?replay.value.intents.get(context.effect.priorEffectId)?.reservation:null;
+   const retryOrigin=prepared.actionAuthority?.retry?.originReservationId??(authority.kind==='v2-child'?authority.originReservationId:null);
+   if(prepared.actionAuthority && !decodePelActionAuthorityV1(prepared.actionAuthority).ok)return yield* Effect.fail(pelFailure('binding-mismatch','Prepared action authority is invalid.'));
+   if(prepared.actionAuthority?.retry && (action!=='provider_retry'||!prior||prior.kind!=='v2-child'||prior.reservationId!==prepared.actionAuthority.retry.priorReservationId||prior.operation.originReservationId!==retryOrigin))return yield* Effect.fail(pelFailure('binding-mismatch','Prepared retry authority does not bind the prior durable reservation.'));
+   if(prepared.actionAuthority){
+     if(authority.kind!=='v2-child'||!prepared.candidate||!/^[a-f0-9]{64}$/u.test(prepared.actionAuthority.taskPlanSha256)||!/^[a-f0-9]{64}$/u.test(prepared.actionAuthority.authorityBundleSha256))return yield* Effect.fail(pelFailure('binding-mismatch','Action-specific authority requires a registered child candidate.'));
+     const family=yield* ledger.familyStatus(authority).pipe(Effect.mapError(()=>pelFailure('binding-mismatch','The original child authority is unavailable.')));
+     const matches=family.childAuthorities.filter(row=>row.rootContractId===authority.rootContractId&&row.rootContractSha256===authority.rootContractSha256&&row.familySha256===authority.familySha256&&row.childId===authority.childId&&row.action===action&&row.effectiveAction===prepared.action&&row.taskPlanSha256===prepared.actionAuthority!.taskPlanSha256&&row.bundleSha256===prepared.actionAuthority!.authorityBundleSha256&&canonicalAuthoringJson(row.candidate)===canonicalAuthoringJson(prepared.candidate)&&(action==='provider_retry'?row.originReservationId===retryOrigin&&row.priorReservationId===prior?.reservationId:row.priorReservationId===null&&row.originReservationId===null));
+     if(matches.length!==1)return yield* Effect.fail(pelFailure('binding-mismatch','The requested action bundle is not registered for this exact child and candidate.'));
+   }
    if(now>=context.binding.limits.deadline) return yield* Effect.fail(pelFailure('budget-exhausted','The admitted execution deadline has expired.'));
    let token:PelReservationTokenV1;
    if(existingIntent?.reservation) {
@@ -170,14 +183,16 @@ export function executeHostEffect(request:HostRequestV1,context:HostContextV1) {
    } else {
      if(!prepared.candidate) return yield* Effect.fail(pelFailure('binding-mismatch','Registered child dispatch requires its authority-bound candidate.'));
      if(action==='provider_retry') {
-       const prior=context.effect.priorEffectId?replay.value.intents.get(context.effect.priorEffectId)?.reservation:null;
-       if(!prior||prior.kind!=='v2-child'||prior.operation.originReservationId!==authority.originReservationId||prior.childId!==authority.childId||prior.familySha256!==authority.familySha256)return yield* Effect.fail(pelFailure('binding-mismatch','A child retry or resume must retain its prior durable reservation origin.'));
+       if(!prior||prior.kind!=='v2-child'||prior.operation.originReservationId!==retryOrigin||prior.childId!==authority.childId||prior.rootContractId!==authority.rootContractId||prior.rootContractSha256!==authority.rootContractSha256||prior.familySha256!==authority.familySha256||prior.operation.effectiveAction!==prepared.action||canonicalAuthoringJson(prior.operation.candidate)!==canonicalAuthoringJson(prepared.candidate))return yield* Effect.fail(pelFailure('binding-mismatch','A child retry or resume must retain its prior durable reservation origin.'));
      }
-     const operation={_tag:'ReserveAction' as const,reservationId,reservationAction:action,effectiveAction:prepared.action,originReservationId:(action==='provider_retry')?authority.originReservationId:reservationId,candidate:prepared.candidate,taskPlanSha256:authority.taskPlanSha256,authorityBundleSha256:authority.authorityBundleSha256};
+     const actionAuthority=prepared.actionAuthority??authority;
+     const operation={_tag:'ReserveAction' as const,reservationId,reservationAction:action,effectiveAction:prepared.action,originReservationId:(action==='provider_retry')?retryOrigin!:reservationId,candidate:prepared.candidate,taskPlanSha256:actionAuthority.taskPlanSha256,authorityBundleSha256:actionAuthority.authorityBundleSha256};
      const reserved=yield* ledger.executeChild({rootContractId:authority.rootContractId,rootContractSha256:authority.rootContractSha256,familySha256:authority.familySha256,childId:authority.childId,operation,at:new Date(now).toISOString().replace(/\.\d{3}Z$/,'Z')}).pipe(Effect.mapError(()=>pelFailure('budget-exhausted','Existing child ledger refused the reservation.')));
      if(reserved.decision._tag!=='Accepted' && reserved.decision._tag!=='ReusedVerification') return yield* Effect.fail(pelFailure('budget-exhausted','Existing child authority denied the action.'));
      token={...common,kind:'v2-child',rootContractId:authority.rootContractId,rootContractSha256:authority.rootContractSha256,familySha256:authority.familySha256,childId:authority.childId,operation};
    }
+   const {retainPelHostPreparation}=yield* Effect.promise(()=>import('./pel-host-recovery.js'));
+   yield* retainPelHostPreparation(prepared,request,context);
    const encodedArgs=encodeHostArgumentsV1(request.boundArguments,{sourceDigest:context.checked.sourceDigest,registryDigest:context.binding.registryDigest,optionsDigest:context.binding.optionsDigest,records:{}});
    if(!encodedArgs.ok) return yield* Effect.fail(pelFailure('binding-mismatch','Host arguments could not be encoded.'));
    const args=encodedArgs.value;

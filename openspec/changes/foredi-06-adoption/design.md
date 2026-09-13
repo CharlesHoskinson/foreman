@@ -8,8 +8,8 @@ Do not interpret the v0.5 bootstrap merge as completion of v0.5.
 
 Use these planning sources:
 
-- [Release design](../../../docs/superpowers/specs/2026-09-12-pel-release-design.md)
-- [Release plan](../../../docs/superpowers/plans/2026-09-12-pel-release-plan.md)
+- [Release design](../../../docs/releases/return-of-the-foredi/research-design.md)
+- [Release plan](../../../docs/releases/return-of-the-foredi/research-plan.md)
 - [Architecture and deletion map](../../../docs/research/pel-release/ARCHITECTURE-AND-DELETION-MAP.md)
 - [Graph coverage](../../../docs/research/pel-release/GRAPH-COVERAGE.md)
 - [Provider evidence](../../../docs/research/pel-release/ADAPTER-EVIDENCE.md)

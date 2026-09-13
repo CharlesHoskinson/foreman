@@ -1,3 +1,4 @@
+import {decodePelDeliveryFixture,makePelDeliveryFixtureServices} from './pel-cli-delivery-fixture.js';
 import { Effect, Stream } from "effect";
 import { createHash } from "node:crypto";
 import { lstat, realpath } from "node:fs/promises";
@@ -574,7 +575,7 @@ export function runPelCliFixture(
       !record(manifest.fixtures) ||
       !Array.isArray(manifest.fixtures.responses) ||
       Object.keys(manifest.fixtures).some(
-        (key) => !["responses", "providers", "execution"].includes(key),
+        (key) => !["responses", "providers", "execution", "delivery"].includes(key),
       ) ||
       !("assetRoot" in manifest) ||
       typeof manifest.assetRoot !== "string" ||
@@ -609,10 +610,12 @@ export function runPelCliFixture(
       );
     const assetRoot = manifest.assetRoot;
     const assets = yield* loadAssets(assetRoot, manifest.assetManifestSha256);
+    if(manifest.fixtures.execution!==undefined&&manifest.fixtures.delivery!==undefined)return yield* Effect.fail(authoringFailure('PEL_SCHEMA','Execution and delivery fixtures are mutually exclusive.'));
+    const delivery=manifest.fixtures.delivery===undefined?undefined:yield* decodePelDeliveryFixture(manifest.fixtures.delivery,assetRoot);
     const execution=manifest.fixtures.execution===undefined?undefined:yield* decodePelExecutionFixture(manifest.fixtures.execution,assetRoot);
-    const parsedSnapshot=execution?validateAuthoringSnapshotV1(JSON.parse(Buffer.from(assets.get(join(assetRoot,snapshotPath))!).toString())):undefined;
+    const parsedSnapshot=execution||delivery?validateAuthoringSnapshotV1(JSON.parse(Buffer.from(assets.get(join(assetRoot,snapshotPath))!).toString())):undefined;
     if(parsedSnapshot&&!parsedSnapshot.ok)return yield* Effect.fail(authoringFailure('PEL_SCHEMA','Fixture execution snapshot is invalid.'));
-    const lifecycle=execution&&parsedSnapshot?.ok?yield* makePelExecutionFixtureServices(execution,parsedSnapshot.value,sha256(bytes),bytes):undefined;
+    const lifecycle=parsedSnapshot?.ok?(execution?yield* makePelExecutionFixtureServices(execution,parsedSnapshot.value,sha256(bytes),bytes):delivery?yield* makePelDeliveryFixtureServices(delivery,parsedSnapshot.value,sha256(bytes),bytes,assets.get(join(assetRoot,'fixtures/pel-adoption/project-settings.json'))??new Uint8Array()):undefined):undefined;
     const command = argv.slice(2);
     const providerFixtures =
       manifest.fixtures.providers === undefined

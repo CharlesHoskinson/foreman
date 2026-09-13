@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { hashAuthoringContent, checkPel, canonicalAuthoringJson } from '@foreman/pel';
 import { createDefaultAuthoringSnapshotV1 } from './pel-host-descriptors.js';
 import { strictEndstopLimits } from './execution-contract.js';
+import { decodePelProjectAuthorityV1 } from './pel-project-authority.js';
 import { decodeForemanProjectV1, configurePelSnapshot, deriveExecutionBinding } from './pel-project-config.js';
 import type { AttemptIdentity } from '@foreman/event-log';
 
@@ -34,6 +35,19 @@ test('T-M4-001 configuration rejects unknown fields, foreign grants and unbounde
     { ...p, workspaces: { ...p.workspaces, maxRaceContenders: 3 } },
     { ...p, taskActions: { work: 'publish' } }, { ...p, stateRoot: '/tmp/../etc' } ]) {
     assert.equal(decodeForemanProjectV1(invalid).ok, false);
+  }
+});
+test('publication scope can defer candidate authority while preserving its exact destination', () => {
+  const p = projectFixture();
+  const destination = { operation: 'publish', repositoryIdentitySha256: p.repository.identitySha256, remoteIdentity: '/tmp/remote.git', ref: 'refs/heads/reviewed', expectedOldObject: { kind: 'absent' }, authorityRef: null };
+  const config = { ...p, destinations: { reviewed: destination } };
+  const scope = { schemaVersion: 1, repository: p.repository, stateRoot: p.stateRoot, workspaceGrants: p.workspaces.grants, taskActions: {}, gates: {}, destinations: config.destinations };
+  assert.equal(decodeForemanProjectV1(config).ok, true);
+  assert.equal(decodePelProjectAuthorityV1(scope).ok, true);
+  for (const patch of [{ authorityRef: undefined }, { authorityRef: {} }, { operation: 'integrate' }, { ref: 'unqualified-ref' }, { repositoryIdentitySha256: 'b'.repeat(64) }]) {
+    const destinations = { reviewed: { ...destination, ...patch } };
+    assert.equal(decodeForemanProjectV1({ ...config, destinations }).ok, false);
+    assert.equal(decodePelProjectAuthorityV1({ ...scope, destinations }).ok, false);
   }
 });
 test('T-M4-001 binding requires registered authority, unchanged checked context and reachable handlers', () => {

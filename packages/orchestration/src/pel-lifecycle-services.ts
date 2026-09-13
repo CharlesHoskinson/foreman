@@ -1,5 +1,7 @@
 /** Attach lifecycle commands to the existing journal, ledger and single run owner. */
 import {randomUUID} from 'node:crypto';
+import {join} from 'node:path';
+import {projectPelDeliveryResult,formatPelDeliveryResultJson,formatPelDeliveryResultText} from './pel-delivery-result.js';
 import {Effect,type Layer,type Scope} from 'effect';
 import {RunJournal,type RunId,type LaneId,type AttemptIdentity} from '@foreman/event-log';
 import {canonicalAuthoringJson,checkPel,hashAuthoringContent,parseAuthoringSnapshotV1,type AuthoringSnapshotV1,type CheckedProgramV1} from '@foreman/pel';
@@ -50,6 +52,15 @@ const reference=(data:Uint8Array)=>{const sha256=pelBytesHash(data);return {arti
 export function makePelLifecycleServices(backend:PelLifecycleBackend):PelLifecycleCliServices {
   return {
     configure:backend.configure,
+    renderResult:(result,format,stateRoot)=>Effect.gen(function*(){
+      const services=yield* backend.servicesForRun(result.runId,stateRoot,format);
+      return yield* Effect.gen(function*(){
+        const binding=yield* readPelExecutionBinding(result.runId);
+        if(binding.resultContract.classification!=='delivery-v1')return null;
+        const delivery=yield* projectPelDeliveryResult(result,{binding});
+        return format==='json'?formatPelDeliveryResultJson(delivery):formatPelDeliveryResultText(delivery,ref=>join(binding.stateRoot,'runs',binding.runId,'artifacts',ref.artifactId));
+      }).pipe(Effect.mapError(failure),Effect.provide(services));
+    }),
     configuredSnapshot:(base,explicit)=>Effect.gen(function*(){
       const loaded=yield* backend.configured();if(!loaded)return base;
       const effective=configurePelSnapshot(loaded.baseSnapshot,loaded.project);

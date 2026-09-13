@@ -34,6 +34,8 @@
   "devDependencies": {
     "@types/node": "26.1.2",
     "esbuild": "0.27.0",
+    "js-tiktoken": "1.0.21",
+    "tar": "7.5.22",
     "tsx": "4.20.5",
     "typescript": "npm:@typescript/typescript6@6.0.2"
   }

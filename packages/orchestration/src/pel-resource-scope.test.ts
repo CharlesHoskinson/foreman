@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { Effect, Deferred, Fiber } from 'effect';
-import { canonicalWorkspacePath, makePelResourceScope } from './pel-resource-scope.js';
+import { canonicalWorkspacePath, makePelResourceScope, pelPublicationResource } from './pel-resource-scope.js';
 import type { HostContextV1 } from './pel-run-contract.js';
 
 async function fixture() {
@@ -23,6 +23,16 @@ test('T-M4-002 canonical aliases share identity and symlink escapes fail', async
     assert.equal((await Effect.runPromise(Effect.either(canonicalWorkspacePath('escape/out', f.context))))._tag, 'Left');
     assert.equal((await Effect.runPromise(Effect.either(canonicalWorkspacePath('../out', f.context))))._tag, 'Left');
   } finally { await f.cleanup(); }
+});
+test('T-M5-012 publication resources serialize exact destinations and reject unregistered identities',async()=>{
+ const f=await fixture();try{await Effect.runPromise(Effect.gen(function*(){
+  const destination={operation:'publish' as const,repositoryIdentitySha256:'a'.repeat(64),remoteIdentity:'/fixture/bare.git',ref:'refs/heads/reviewed',expectedOldObject:{kind:'absent' as const},authorityRef:{artifactId:'sha256-'+ 'b'.repeat(64),sha256:'b'.repeat(64),byteLength:1}},context={...f.context,project:{...f.context.project,destinations:{reviewed:destination}}},name=pelPublicationResource(destination),port=yield* makePelResourceScope();
+  assert.equal((yield* Effect.scoped(Effect.either(port.acquire({reads:[],writes:['publication:'+ 'f'.repeat(64)]},context))))._tag,'Left');
+  yield* Effect.scoped(port.acquire({reads:[],writes:[name]},context));
+  const entered=yield* Deferred.make<void>();let second=false;
+  const first=yield* Effect.fork(Effect.scoped(Effect.gen(function*(){yield* port.acquire({reads:[],writes:[name]},context);yield* Deferred.succeed(entered,undefined);yield* Effect.never;})));yield* Deferred.await(entered);
+  const next=yield* Effect.fork(Effect.scoped(Effect.gen(function*(){yield* port.acquire({reads:[],writes:[name]},context);second=true;})));yield* Effect.yieldNow();assert.equal(second,false);yield* Fiber.interrupt(first);yield* Fiber.join(next);assert.equal(second,true);
+ }));}finally{await f.cleanup();}
 });
 test('T-M4-007 read/read overlaps; conflicting writes wait; interruption releases complete set', async () => {
   const f = await fixture();
@@ -53,4 +63,9 @@ test('T-M4-007 read/read overlaps; conflicting writes wait; interruption release
       yield* Effect.scoped(port.acquireConcurrency(f.context));
     }));
   } finally { await f.cleanup(); }
+});
+test('T-M5-002 a coarse workspace write resolves only the admitted writable subpaths',async()=>{
+ const f=await fixture();try{await Effect.runPromise(Effect.gen(function*(){const port=yield* makePelResourceScope(),context={...f.context,workspace:{...f.context.workspace,writablePaths:['real']}},descriptor={resources:{reads:['workspace:default'],writes:['workspace:default'],unknown:true}} as unknown as import('@foreman/pel').HostFunctionDescriptorV1,request={boundArguments:{}} as import('@foreman/pel').HostRequestV1;
+  const resources=yield* port.resolve(descriptor,request,context);assert.deepEqual(resources.writes,[join(f.root,'real')]);assert.equal(resources.unknownScope,f.root);yield* Effect.scoped(port.acquire(resources,context));assert.equal((yield* Effect.scoped(Effect.either(port.acquire({reads:[],writes:[f.root]},context))))._tag,'Left');
+ }));}finally{await f.cleanup();}
 });

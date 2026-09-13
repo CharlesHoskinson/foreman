@@ -206,6 +206,7 @@ const raceHandler:PelControlHandlerV1={execute:(request,context,parent,driver)=>
       if(child.index!==winnerChild.index) losers.push(list(pair('index',number(child.index)),pair('cancellation',string(loserCancellation(child,replay.value))),pair('artifacts',list(...(child.resultRef?[string(child.resultRef.artifactId)]:[])))));
     }
     yield* persistControlParent(context,charged,driver);
+    if(runtime.commitRaceWinner) yield* runtime.commitRaceWinner(receipt.outcome.value,winnerChild,context);
     return yield* settle(request,context,{tag:'success',value:list(pair('winner-index',number(winnerChild.index)),pair('value',receipt.outcome.value),pair('losers',list(...losers)))},charged);
   }
 
@@ -259,6 +260,7 @@ const raceHandler:PelControlHandlerV1={execute:(request,context,parent,driver)=>
   yield* persistControlParent(context,charged,driver);
   const outcome=selected.result.outcome;
   if(outcome.kind!=='settled'||outcome.receipt.outcome.tag!=='success') return yield* Effect.fail(pelRunnerFailure('journal-corrupt','Race selected an ineligible result'));
+  if(runtime.commitRaceWinner) yield* runtime.commitRaceWinner(outcome.receipt.outcome.value,selected.result.child,context);
   return yield* settle(request,context,{tag:'success',value:list(pair('winner-index',number(selected.index)),pair('value',outcome.receipt.outcome.value),pair('losers',list(...loserRows)))},charged);
 }))};
 export function makePelControlHandlers():ReadonlyMap<string,PelControlHandlerV1> {

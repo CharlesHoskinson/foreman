@@ -1,0 +1,494 @@
+{
+  "schemaVersion": 1,
+  "milestone": "M5",
+  "release": "Return of the ForeDi",
+  "measuredAt": "2026-09-13T11:37:50.957Z",
+  "baselineCommit": "eb8c6deeded5cae3e47412e0247521f98ed5cc97",
+  "nodeVersion": "v24.18.1",
+  "features": 6,
+  "requirements": 16,
+  "catalogScenarios": 16,
+  "checks": [
+    {
+      "id": "workspace-verification",
+      "command": "npm run verify",
+      "exitCode": 0,
+      "output": "docs/releases/return-of-the-foredi/evidence/m5/workspace-verification.txt",
+      "outputSha256": "69ee2ef21abf071a45a8eb6f412b611fdc9ce6e539a4176f09f3705ae72b7e25",
+      "tests": 3097,
+      "passed": 3090,
+      "failed": 0,
+      "skipped": 7
+    },
+    {
+      "id": "runtime-build",
+      "command": "npm run build",
+      "exitCode": 0,
+      "output": "docs/releases/return-of-the-foredi/evidence/m5/runtime-build.txt",
+      "outputSha256": "9ef302eea2e29c7360098f80a12a88b30a86b86439ff0b74fe2b6f292bb281ba"
+    },
+    {
+      "id": "runtime-verification",
+      "command": "npm run verify-runtime",
+      "exitCode": 0,
+      "output": "docs/releases/return-of-the-foredi/evidence/m5/runtime-verification.txt",
+      "outputSha256": "5097e39665345c6e500a9f94a841f97a901452e6dd51f74304ab12d15959440b"
+    },
+    {
+      "id": "strict-openspec",
+      "command": "openspec validate foredi-05-task-delivery --strict",
+      "exitCode": 0,
+      "output": "docs/releases/return-of-the-foredi/evidence/m5/strict-openspec.txt",
+      "outputSha256": "38a654c6c8ca976d578b089e32cf802967ea3e5694d85a954737b17ffff74ad7"
+    },
+    {
+      "id": "capture-regression",
+      "command": "npx tsx --test packages/orchestration/src/pel-candidate-capture.test.ts",
+      "exitCode": 0,
+      "output": "docs/releases/return-of-the-foredi/evidence/m5/capture-regression.txt",
+      "outputSha256": "0dbaa38370217d38e7f61f1c172abb787d3d6b8c794802839dd1057e360174c8",
+      "tests": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "retry-regression",
+      "command": "node --import tsx --test packages/orchestration/src/pel-host-review-retry.test.ts packages/orchestration/src/pel-host-review.test.ts packages/orchestration/src/pel-host-milestone.test.ts packages/orchestration/src/pel-host-library.test.ts packages/orchestration/src/pel-effects.test.ts packages/orchestration/src/pel-recovery.test.ts",
+      "exitCode": 0,
+      "output": "docs/releases/return-of-the-foredi/evidence/m5/retry-regression.txt",
+      "outputSha256": "7cb352a2938787e6c800b45982147316ca6fceb230f90bc58dabce362901f668",
+      "tests": 50,
+      "passed": 50,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "captured-publication",
+      "command": "node --import tsx --test packages/orchestration/src/pel-publication-integration.test.ts",
+      "exitCode": 0,
+      "output": "docs/releases/return-of-the-foredi/evidence/m5/captured-publication.txt",
+      "outputSha256": "2cd4ec78cbf116f000848e0e2f6b3f78fa6886c5bebbccdd41a4d8793de0d6d7",
+      "tests": 5,
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "independentReviews": [
+    "docs/releases/return-of-the-foredi/evidence/m5/opus-host-review.json",
+    "docs/releases/return-of-the-foredi/evidence/m5/opus-followup.json"
+  ],
+  "notes": [
+    "Exact model live qualification remains separate from finite provider fixtures.",
+    "The final build also removes one trailing space in a comment; the full verification includes the same executable logic.",
+    "The three M4 baseline failures are repaired; the complete workspace verification has no failures.",
+    "M6 migration, installation, measurement targets, and final release qualification remain open."
+  ],
+  "inputs": [
+    {
+      "path": "docs/releases/return-of-the-foredi/README.md",
+      "sha256": "da0a1c0573ef8af6b410860125c872a8df8b1437aac45bf8b5382a4162885421"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/TEST-PLAN.md",
+      "sha256": "bb5fb9c60d62eb729ab966f471dfd151afe9e1bdda342fceea195909e164c997"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/catalog.json",
+      "sha256": "f4794b29f4e11882d0943f17994119f1967662336eeb69b671c28de38faa3fb7"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/m5-audit.md",
+      "sha256": "77b763e0fe87b53097487780984451960aaffd8b2dc25c4b34d4001cbb35cae7"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/m5-ears-coverage.md",
+      "sha256": "d28c2c81cdf9284876a7b35395fb02dd7e91f2462d0ff134a7ad58d61c7d9a39"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/m5-implementation.md",
+      "sha256": "ef305a5be89f645a7edee858019fdf7e64ffce2181c2264ca1db76d71305d1ae"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/m6-baseline-repairs.md",
+      "sha256": "76df58984d5690eb008c4ba56d0b941488eba226b75090690e256d431e453b2d"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/research-design.md",
+      "sha256": "e7230dbd42de0192fdfecf40706f2233267abbac0ae6dfaad5f7b5c843d524ce"
+    },
+    {
+      "path": "docs/releases/return-of-the-foredi/research-plan.md",
+      "sha256": "140078f542a7734975e16ca962a087fc840df3aeb13f56fcf10fd3b6944c7e93"
+    },
+    {
+      "path": "docs/research/pel-release/README.md",
+      "sha256": "ac68bb6362f8e7b1855db84770860bd98355e2816f6a191001edbaea3201abc9"
+    },
+    {
+      "path": "examples/pel/repair-and-publish.pel",
+      "sha256": "619a4d3a7bd0012c9546d09a8b5e94758568cbc8507eeded3294899a008ee0de"
+    },
+    {
+      "path": "openspec/changes/foredi-05-task-delivery/catalog.json",
+      "sha256": "e03be54f84f5c8535ea2c58bcfd34dd04b08ab3f748fac8c858eb5f2585f800a"
+    },
+    {
+      "path": "openspec/changes/foredi-05-task-delivery/design.md",
+      "sha256": "68c8283bfb115efcbbcffcf8b20c834bc74d334095c1f269dbd6af2b2b975f04"
+    },
+    {
+      "path": "openspec/changes/foredi-05-task-delivery/tasks.md",
+      "sha256": "387985289cfdc2a62b342e04f472380bfd378b0ba90db319450e4839403500c9"
+    },
+    {
+      "path": "openspec/changes/foredi-06-adoption/design.md",
+      "sha256": "da81b06c9cc44dda87d38a2c627aebcb3af381e993f59b291118c8f9da0607d9"
+    },
+    {
+      "path": "openspec/changes/v050-release-program/coverage.toml",
+      "sha256": "a2ef0b0d51647efed5c6f20cd00dfc99443af4eea158a0fabd2b31ab9ab8e902"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "8087887617a9f1184e123afd536d449f53fcc832fa43f7e441ae25984c89ce70"
+    },
+    {
+      "path": "package.json",
+      "sha256": "dbb5813f32c4835c7e1659326c35caba6326d58e87859d6932604f57838c698f"
+    },
+    {
+      "path": "packages/orchestration/src/execution-ledger.test.ts",
+      "sha256": "03b762392262fd0b24f279a9537d95b03cac85117a31991677d3af1775f538fc"
+    },
+    {
+      "path": "packages/orchestration/src/execution-ledger.ts",
+      "sha256": "a422b5acfc71d1a90ec1f816af79a2c7a31934b76b36587f03c10340ff1ac4ad"
+    },
+    {
+      "path": "packages/orchestration/src/execution-terminal-policy.test.ts",
+      "sha256": "48a12037d5b2437f5e076e9c8399be7c59f37f4cb64ae7945822b9f9708207d7"
+    },
+    {
+      "path": "packages/orchestration/src/execution-terminal-policy.ts",
+      "sha256": "fc978acd354c87c30ddf2b5ffed404af903f9dbbfb1091ae7ccd260735b46160"
+    },
+    {
+      "path": "packages/orchestration/src/fixtures/pel-adoption/project-settings.json",
+      "sha256": "51e72ef641c183dbcb9a67dd3f9eee78bbc07ef724af5f03c215a43e8ffe9c0a"
+    },
+    {
+      "path": "packages/orchestration/src/pel-candidate-capture.test.ts",
+      "sha256": "77846270fd29d00ec731cd0b65bbfd41281d602d38b9fb6a5112bde03a1c6bea"
+    },
+    {
+      "path": "packages/orchestration/src/pel-candidate-capture.ts",
+      "sha256": "13a3b41282d59d79ec976718b119f1b51976d95012d2def8f701449909a3d712"
+    },
+    {
+      "path": "packages/orchestration/src/pel-cli-delivery-fixture.ts",
+      "sha256": "6c4f96c2ae975f7711488f6eeb3718e0bf6ffff1b095564d5817cc96fc242bc0"
+    },
+    {
+      "path": "packages/orchestration/src/pel-cli-fixture-main.ts",
+      "sha256": "de956a35a252c3605362ddb50e96756f3eb688bc7358c6e4b4c279d7b91577bf"
+    },
+    {
+      "path": "packages/orchestration/src/pel-control-functions.ts",
+      "sha256": "f188f773bae6e457656ca54a526db5b23577bcd8b31d5950688cdaced9a0f2c7"
+    },
+    {
+      "path": "packages/orchestration/src/pel-delivery-result.test.ts",
+      "sha256": "21762254a4506ec795cf82600a86fe76f64e4d7a62150fdcd4554476311ad238"
+    },
+    {
+      "path": "packages/orchestration/src/pel-delivery-result.ts",
+      "sha256": "41ad6b7d233be56ca27a45d2e2c90ded0b1c4c6e7902f9a121a3f68ad67c5a2a"
+    },
+    {
+      "path": "packages/orchestration/src/pel-delivery.test.ts",
+      "sha256": "d2e6f3df1dd296a5dec984bb1070572113c5aece1d092041bc9715bda939d2d2"
+    },
+    {
+      "path": "packages/orchestration/src/pel-effects.test.ts",
+      "sha256": "7edfd84233c3c9e8101d5a130a1f4e220e81842b55a6aef24c675e8b039da6f4"
+    },
+    {
+      "path": "packages/orchestration/src/pel-effects.ts",
+      "sha256": "61ef653e9c9b202841afb07f8643ed08a240cfcf8b1d6b7660ec29b77d5673bd"
+    },
+    {
+      "path": "packages/orchestration/src/pel-execution-provider-live.ts",
+      "sha256": "82af169ccb4ee511ef193c46e5096541c864a8a387fe6a1f701d40de9bba5229"
+    },
+    {
+      "path": "packages/orchestration/src/pel-gate-execution.test.ts",
+      "sha256": "218b8bf6f009271adc83807264e5be4160322abb6ee21e72da6e5648a5dac277"
+    },
+    {
+      "path": "packages/orchestration/src/pel-gate-execution.ts",
+      "sha256": "8e7dae815d8940e15462e30f2b095f56ee8fa3291f7f14f6b5511153016f12d3"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-candidate-scope.ts",
+      "sha256": "9e1ccc35c40b3236ac07ab7e3efc0a7c893668e4d099ab82e8a86e672e360594"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-contract.test.ts",
+      "sha256": "2512cced08faeb9635ba0f52b46e786fc6bbf132a1e71bd3546bdbe739ad14e1"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-contract.ts",
+      "sha256": "8576bd38b75ca7a1f74cb03ddd6f8a0ccfccd6b0323551c4d5c5e1eb3b8df543"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-descriptors.ts",
+      "sha256": "9f45ba3a50c79412fa304686958ce4c72d5707fd4ed0f9e85d728250dcb4b83e"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-evidence.ts",
+      "sha256": "5946ba8dc9322d598757df7efbdfd4fc3202436402f20d0cc77736195a48b265"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-library.test.ts",
+      "sha256": "2b3392b1c5fd7994d7f8297068b17746b9ba492be86bf3d4af1280242958ca0a"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-library.ts",
+      "sha256": "36b75e9555ef4da78edb32de451230a0c7c7db711fed75ac6f4cb48ed0d202f7"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-milestone.test.ts",
+      "sha256": "b447da75693788745adfc559d4778ef29cde51baa643b6e0ee6a5431b7bf2e09"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-milestone.ts",
+      "sha256": "07ded40a9831cbe4e7179b1b313ba6a554148a75257eddd67ce2ed58858c9303"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-preflight.test.ts",
+      "sha256": "26ded8fb11a1d18979c75a9a1701ddf76053bba43b986ca42d46ddc337487c63"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-preflight.ts",
+      "sha256": "db6b037f9783f0eb2b774f937315cb209957f12a342a804fe37cfa2b5fd00d9f"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-publish.test.ts",
+      "sha256": "30ac486925dd3ee05eda73b172371a4bc68e030050400ceaab616d1835710834"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-publish.ts",
+      "sha256": "0c9ce7d8899b001d17660bd9315e1e47a3f13648bb34a3c67cecb6145ff3ffce"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-race.test.ts",
+      "sha256": "d79694d316a94facb7df25b44362775fa0ab9df7fecb7f1165463a802fe400b4"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-recovery.ts",
+      "sha256": "761f25485e52ffb50bbd3c0dbcf013e75172d91c966f28c64eca8192598db71e"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-review-retry.test.ts",
+      "sha256": "bbf0b6bf00b4261d332e8c7ddbaa2c55018453fe8f04c25d9735a572534bd2fe"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-review.test.ts",
+      "sha256": "10dc4b06b8ad288b0292f1dfb7f22e5d316a1d3ba98fa6423e6bfe5503d465a2"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-review.ts",
+      "sha256": "c2d9ce3742a5d0c389e3bfd4b9496d75059ae1362b8bfd13068e597881c1ea55"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-task.test.ts",
+      "sha256": "333f8a5914f90fa42867b4a84e6faf4b9f85247205840fcdc41db8c15762624c"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-task.ts",
+      "sha256": "7dba5ed982d8968e415c595be833136f3e9ae968decec56b221ff9a4d1a5c762"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-test-fixture.ts",
+      "sha256": "8b2c9ca39a3cb9c016b01335d904743ac6fe4aa843308a1a45285ff595d5d549"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-verify.test.ts",
+      "sha256": "15683fea29d40775db6620208af366634a4ff25ded99de08752251c08e9e0a97"
+    },
+    {
+      "path": "packages/orchestration/src/pel-host-verify.ts",
+      "sha256": "1c68fed1469762a685c673a749eafeefde9d996034785832567f50712ec987aa"
+    },
+    {
+      "path": "packages/orchestration/src/pel-journal.test.ts",
+      "sha256": "ea4bf812da44f6edadf10758b23c77fe81eb260479dc0962d029361cbf9c0bc2"
+    },
+    {
+      "path": "packages/orchestration/src/pel-journal.ts",
+      "sha256": "11e7dc30a7cb2962c1fe9d2718442e4a5807d36dab6e39eb8ec25d1a5933ed61"
+    },
+    {
+      "path": "packages/orchestration/src/pel-lifecycle-cli.ts",
+      "sha256": "21159a8e0aa58ef5dc8c4217e409b6c5c8f170a2a81a2ced96c396287b3bad1d"
+    },
+    {
+      "path": "packages/orchestration/src/pel-lifecycle-live.ts",
+      "sha256": "e29ef537ec9e3e7dcbd1c6110d0a22c9cc1d39cfad3f6ca5d06d3b0b397eba70"
+    },
+    {
+      "path": "packages/orchestration/src/pel-lifecycle-services.ts",
+      "sha256": "b362bbbd7d02d379c6fcd520fccfb2b6409343af4a2112764260026793eea41b"
+    },
+    {
+      "path": "packages/orchestration/src/pel-native-boundary.test.ts",
+      "sha256": "240beadc605853ba19cbe32335e750431f10348cad66b224d6f7ff582a2f9ae9"
+    },
+    {
+      "path": "packages/orchestration/src/pel-native-boundary.ts",
+      "sha256": "dd6b5998298e54209f57240e7ba5e163f96e490f7f5b94cfb386150da86f7206"
+    },
+    {
+      "path": "packages/orchestration/src/pel-native-live.test.ts",
+      "sha256": "79b68c9ccd1122adc0abc4fc830fb7bd6a3e15e63bf406b844da306abba397eb"
+    },
+    {
+      "path": "packages/orchestration/src/pel-native-live.ts",
+      "sha256": "12c474cfdc54c0fae4235b48ae7dea4faa814720b68bf5d05b7bea6f3c0e94dc"
+    },
+    {
+      "path": "packages/orchestration/src/pel-native-permissions.test.ts",
+      "sha256": "68f857d93795590187b0f915e62fb617a055ddc28a8b0b16b2028253a579947a"
+    },
+    {
+      "path": "packages/orchestration/src/pel-native-permissions.ts",
+      "sha256": "a6be7a1a62aee9978294a1d704211aef208553a0a21603d0325ebae7307fe831"
+    },
+    {
+      "path": "packages/orchestration/src/pel-project-authority.ts",
+      "sha256": "d61f0a589ed5ad200ad70203bb7fd8bb58f30fb57aa66aa9890d41f97ba51fe4"
+    },
+    {
+      "path": "packages/orchestration/src/pel-project-config.test.ts",
+      "sha256": "38d197077011ed526b7b6d5944ec787a4942aef2922de80a4d50fd083f5ebbb2"
+    },
+    {
+      "path": "packages/orchestration/src/pel-project-config.ts",
+      "sha256": "95041675a56c0489fac1af50171894095381a71c03f8595d8c9cbf45fed10a28"
+    },
+    {
+      "path": "packages/orchestration/src/pel-provider-tools.ts",
+      "sha256": "195a36da04e65834ea454e61235d327f3ebeb9daf6c9dbbac5992e92d2832ef3"
+    },
+    {
+      "path": "packages/orchestration/src/pel-publication-capture.test.ts",
+      "sha256": "a2fcc3072ad1d84923f9418e03f4b7e9d111731a4c6859f9f7ed8f36446e791e"
+    },
+    {
+      "path": "packages/orchestration/src/pel-publication-integration-fixture.ts",
+      "sha256": "fe700136ee32cf938b67c52611303b01a1caed1d1975122e5394287f77566943"
+    },
+    {
+      "path": "packages/orchestration/src/pel-publication-integration.test.ts",
+      "sha256": "711170784161954426f5e1d2d7ff14e0da810019e204dc8461a4d12f75b6f30b"
+    },
+    {
+      "path": "packages/orchestration/src/pel-publication-service.test.ts",
+      "sha256": "0ae4d6f0c3b283d68896f518e204e8f2e12432bf9b903e66c6e3debeaaefc83a"
+    },
+    {
+      "path": "packages/orchestration/src/pel-publication-service.ts",
+      "sha256": "b08f0235af244613025f6abf0eeb100fc09993057b04d1ee959f44c283406d7d"
+    },
+    {
+      "path": "packages/orchestration/src/pel-recovery.test.ts",
+      "sha256": "e4fd7ea1c4d2bbda998170d57d56dba8813377db53530852819b020b883b2bed"
+    },
+    {
+      "path": "packages/orchestration/src/pel-recovery.ts",
+      "sha256": "d9142b54e8d0d2bfe8c6182e5b42b9da5c55663c47e15edc26fd487dabe4c7dc"
+    },
+    {
+      "path": "packages/orchestration/src/pel-resource-scope.test.ts",
+      "sha256": "534ef1adc0fc8962dfd6406ae9c0d8017bc9b82d98d62ae744eb973a4746cc57"
+    },
+    {
+      "path": "packages/orchestration/src/pel-resource-scope.ts",
+      "sha256": "ed5e81a54ce45e838b9807650b5051cbb348f20d61a528aeff8b7472bf45f6c3"
+    },
+    {
+      "path": "packages/orchestration/src/pel-run-contract.ts",
+      "sha256": "4e5c5d49c1941de7c30b909f0c856548bf46b9ee26ee8306494d39eac6ecce4f"
+    },
+    {
+      "path": "packages/orchestration/src/secret-scan.ts",
+      "sha256": "c12d5f2c107a5fcde5938303c79fa02acfa2e4f266c0ebc78f6c454fe89216ae"
+    },
+    {
+      "path": "packages/pel/src/analysis.ts",
+      "sha256": "2945e4fa57c5c7dcc65340ecb0e6b363f30b8e1e7bedd0d195daaf769e2de013"
+    },
+    {
+      "path": "packages/pel/test/analysis.test.ts",
+      "sha256": "4165c0fd5915d8fc53e15011d1fac81df7bb75f5b407e240c4ca845639a06074"
+    },
+    {
+      "path": "packages/pel/test/fixtures/authoring-snapshot.json",
+      "sha256": "6b1ea34153d7535f06c222d0e0b37b7c91ba60a6c4227b4a53f6e404fc2cd2e1"
+    },
+    {
+      "path": "packages/providers/src/transports/grok-acp.test.ts",
+      "sha256": "b24ce47ce37266dc9eb4363e69a4ca6a7f358cdf77b40db70447114f2711c8c8"
+    },
+    {
+      "path": "packages/providers/src/transports/grok-acp.ts",
+      "sha256": "6d50219b8ee05d1dffaf98c69dbbe4231c41013583ef8efaab7202cae8607d86"
+    },
+    {
+      "path": "scripts/build-pel-test-fixture.ts",
+      "sha256": "7c03eac40f5aa6466d1475120b1bb6c08bbe6d5f4d30ea57d28d0aff90af8f45"
+    },
+    {
+      "path": "skills/foreman/runtime/assets/pel/default-authoring-snapshot.json",
+      "sha256": "6b1ea34153d7535f06c222d0e0b37b7c91ba60a6c4227b4a53f6e404fc2cd2e1"
+    },
+    {
+      "path": "skills/foreman/runtime/dist/execution-guard.js",
+      "sha256": "c8f81eb7626eb1ec0d631c2dcb0ba9f74174125e37b4defcfce1e597288a0230"
+    },
+    {
+      "path": "skills/foreman/runtime/dist/foreman.js",
+      "sha256": "3e2c4a349e4fd5cbcf19f51188643675a484c080d0c97c3af94a82ec354957a2"
+    },
+    {
+      "path": "skills/foreman/runtime/dist/lane-queue.js",
+      "sha256": "e606224c03d0e4d7f8de326ed071f9ac6e2761415b5d5b61cf770fd505d6b432"
+    },
+    {
+      "path": "skills/foreman/runtime/dist/lane-supervise.js",
+      "sha256": "e734605856c07b0cdaf7b2a3f2d7da1904a36a1b599251051358ef00608c7501"
+    },
+    {
+      "path": "skills/foreman/runtime/dist/release-authority.js",
+      "sha256": "deb90b04bb9b6e8f134d7aabcc1d95a189fdf3a518e61d99e0791d383ec03c96"
+    },
+    {
+      "path": "skills/foreman/runtime/dist/release-coverage.js",
+      "sha256": "5d74b342a8f3e0b009e5aaf4eec50f8e60e034444984e88fb6b1fb33cd90e66c"
+    },
+    {
+      "path": "skills/foreman/runtime/dist/release-policy.js",
+      "sha256": "f4099f4db41ce6c5a496c6d53cdb25767b81631d7f847a887e1a787af3209350"
+    },
+    {
+      "path": "skills/foreman/runtime/dist/secret-scan.js",
+      "sha256": "d9ba3643a5176fbf3f631dffca6a24b90d7f7d44be51c1a6fa6ae2b970501e8f"
+    },
+    {
+      "path": "skills/foreman/runtime/manifest.json",
+      "sha256": "c753cda8938ec6cd1c460b1855bdac0237e86bd2e6974882bf989c3b9fc2e8c8"
+    }
+  ]
+}

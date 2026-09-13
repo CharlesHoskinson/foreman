@@ -1,7 +1,11 @@
 import { realpath, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { Effect, STM, TRef } from 'effect';
-import type { HostContextV1, PelHostEffectFailureV1, PelResourcePort, ResourceSetV1 } from './pel-run-contract.js';
+import {canonicalize,sha256Hex} from '@foreman/core';
+import type { HostContextV1, PelHostEffectFailureV1, PelResourcePort, ResourceSetV1, PelDestinationBindingV1 } from './pel-run-contract.js';
+
+export const pelPublicationResource=(destination:PelDestinationBindingV1):string=>`publication:${sha256Hex(canonicalize({repositoryIdentitySha256:destination.repositoryIdentitySha256,remoteIdentity:destination.remoteIdentity,ref:destination.ref}))}`;
+const admittedPublication=(name:string,context:HostContextV1):boolean=>name.startsWith('publication:')&&Object.values(context.project.destinations??{}).some(destination=>destination.operation==='publish'&&pelPublicationResource(destination)===name);
 
 const denied = (): PelHostEffectFailureV1 => ({ code: 'resource-denied', message: 'Resource is outside the admitted canonical workspace or its identity changed.' });
 const contains = (root: string, path: string): boolean => path === root || path.startsWith(root + sep);
@@ -53,7 +57,7 @@ export function makePelResourceScope(): Effect.Effect<PelResourcePort> {
     const acquire: PelResourcePort['acquire'] = (resources, context) => Effect.gen(function* () {
       const validate = Effect.gen(function* () {
         for (const name of [...resources.reads, ...resources.writes, ...(resources.unknownScope ? [resources.unknownScope] : [])]) {
-          if (!isAbsolute(name)) { if (!name.startsWith('artifact:') && name !== 'host:output') return yield* Effect.fail(denied()); continue; }
+          if (!isAbsolute(name)) { if (!name.startsWith('artifact:') && name !== 'host:output' && !admittedPublication(name,context)) return yield* Effect.fail(denied()); continue; }
           if (yield* canonicalWorkspacePath(name, context).pipe(Effect.map(c => c !== name))) return yield* Effect.fail(denied());
         }
         for (const name of resources.writes.filter(isAbsolute)) {
@@ -79,7 +83,8 @@ export function makePelResourceScope(): Effect.Effect<PelResourcePort> {
           if (value?.tag === 'string' && /^(artifact:|source:|workspace:)/u.test(value.value)) reads.add(value.value);
         }
         const resolvedReads = yield* Effect.forEach([...reads], name => resolveResource(name, context));
-        const writes = yield* Effect.forEach(descriptor.resources.writes, name => resolveResource(name, context));
+        const writeSets = yield* Effect.forEach(descriptor.resources.writes, name => name==='workspace:default'||name===`workspace:${context.workspace.grantId}`||name===`workspace:${context.workspace.worktreeId}`?Effect.forEach(context.workspace.writablePaths,path=>canonicalWorkspacePath(path,context)):resolveResource(name, context).pipe(Effect.map(path=>[path])));
+        const writes=writeSets.flat();
         return { reads: [...new Set(resolvedReads)].sort(), writes: [...new Set(writes)].sort(), ...(descriptor.resources.unknown ? { unknownScope: context.workspace.canonicalRoot } : {}) };
       }),
       acquire,

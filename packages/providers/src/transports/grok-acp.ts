@@ -25,6 +25,7 @@ import {
   type NativeProcessPort,
   type NativeConnectionV1,
 } from "./native-process.js";
+import { submitToolResult } from "../tools.js";
 import { validateNativeHost, type NativeHostPort } from "./native-host.js";
 export interface GrokAcpOptions {
   readonly credentials: typeof CredentialPort.Service;
@@ -47,6 +48,7 @@ interface Session {
   readonly request: ProviderRequestV1;
   readonly queue: Queue.Queue<Item>;
   readonly pendingPermissions: Set<number>;
+  readonly permissionResults: Map<string,{rpcId:number;allowId:string;rejectId:string|undefined;authorization:string;granted?:boolean;resultDigest?:string}>;
   observation: RemoteObservationV1;
   cancelRequested: boolean;
   closed: boolean;
@@ -266,7 +268,6 @@ export function createGrokAcpTransport(
         Deferred.Deferred<RecordValue, ProviderFailure>
       >();
       const seenCalls = new Set<string>();
-      const authorizedCalls = new Set<string>();
       const emit = (payload: ProviderEventPayloadV1, sourceEventId?: string) =>
         Effect.gen(function* () {
           if (!session) return;
@@ -381,7 +382,8 @@ export function createGrokAcpTransport(
               allow
             ) {
               selected = allow;
-              authorizedCalls.add(call.toolCallId);
+              if(session.permissionResults.has(call.toolCallId))return yield* unsupported("duplicate permission call");
+              session.permissionResults.set(call.toolCallId,{rpcId:id,allowId:String(allow.optionId),rejectId:typeof reject?.optionId==="string"?reject.optionId:undefined,authorization:authorization.right});
               yield* emit(
                 {
                   type: "tool-request",
@@ -392,6 +394,7 @@ export function createGrokAcpTransport(
                 },
                 `permission:${id}`,
               );
+              return; // The owner must persist its tool intent and result before allow_once crosses the transport.
             }
           }
           if (!session.pendingPermissions.has(id)) return;
@@ -512,7 +515,7 @@ export function createGrokAcpTransport(
                   ["in_progress", "completed"].includes(
                     String(update.status),
                   ) &&
-                  !authorizedCalls.has(update.toolCallId)
+                  !session?.permissionResults.get(update.toolCallId)?.granted
                 )
                   return yield* Effect.fail(
                     problem(
@@ -601,6 +604,7 @@ export function createGrokAcpTransport(
         request,
         queue,
         pendingPermissions: new Set(),
+        permissionResults: new Map(),
         observation: { status: "pending", providerIdentity: identity },
         cancelRequested: false,
         closed: false,
@@ -722,7 +726,23 @@ export function createGrokAcpTransport(
               capabilities: [],
             }),
     start,
-    sendToolResult: () => unsupported("ACP host tool result submission"),
+    sendToolResult: (identity,result) => Effect.suspend(()=>{
+      const session=sessions.get(key(identity)),pending=session?.permissionResults.get(result.callId),permissions=options.host?.permissions;
+      if(!session||!pending||!permissions||result.effectId!==session.request.effectId||result.authorizationBinding!==pending.authorization)return unsupported("bound durable permission result");
+      const content=result.content.kind==='json'&&record(result.content.value)?result.content.value:{};
+      if(Object.keys(content).join(',')!=='decision'||!['accept','decline','cancel'].includes(String(content.decision)))return unsupported("exact permission decision");
+      const digest=canonicalize(result);
+      if(pending.resultDigest!==undefined)return pending.resultDigest===digest?Effect.void:unsupported("changed permission result");
+      return submitToolResult(permissions,identity,result,()=>Effect.gen(function*(){
+        if(session.cancelRequested||!session.pendingPermissions.has(pending.rpcId))return yield* unsupported("cancelled permission request");
+        const selected=content.decision==='accept'?pending.allowId:content.decision==='decline'?pending.rejectId:undefined;
+        const outcome=selected?{outcome:'selected',optionId:selected}:{outcome:'cancelled'};
+        yield* session.connection.send({jsonrpc:'2.0',id:pending.rpcId,result:{outcome}});
+        pending.resultDigest=digest;
+        pending.granted=content.decision==='accept';
+        session.pendingPermissions.delete(pending.rpcId);
+      }));
+    }),
     cancel: (identity) =>
       Effect.gen(function* () {
         const session = sessions.get(key(identity));
