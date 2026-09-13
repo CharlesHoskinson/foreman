@@ -24,6 +24,76 @@ jobs:
         with:
           node-version: "24"
 
+      # The native execution factory refuses any executable or runtime
+      # directory that carries group or other write bits, and it reaches both
+      # through process.execPath. The hosted image runs `chmod -R 777` over
+      # /opt/hostedtoolcache (runner-images
+      # images/ubuntu/scripts/build/configure-environment.sh), which is where
+      # actions/setup-node keeps the Node build the gates run on, so the
+      # boundary refuses it for the right reason. Install those exact Node
+      # bytes once into a root-owned 0755 runtime directory instead of
+      # widening the cache or weakening the production permission rule.
+      - name: Install a read-only Node runtime for the native boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          original_node="$(command -v node)"
+          original_real="$(readlink --canonicalize-existing "${original_node}")"
+          original_root="$(dirname "$(dirname "${original_real}")")"
+          printf 'original node: %s -> %s (%s)\n' \
+            "${original_node}" "${original_real}" \
+            "$(stat --format '%U:%G %a' "${original_real}")"
+          printf 'original runtime root: %s (%s)\n' \
+            "${original_root}" "$(stat --format '%U:%G %a' "${original_root}")"
+
+          secure_root=/usr/local/lib/foreman-ci-node
+          sudo install --directory --owner=root --group=root --mode=0755 \
+            "${secure_root}" "${secure_root}/bin"
+          sudo install --owner=root --group=root --mode=0755 \
+            "${original_real}" "${secure_root}/bin/node"
+
+          # The boundary resolves the real path of the executable and requires
+          # each runtime root to already be its own real path, so refuse a
+          # symlinked component before any gate depends on it. Live discovery
+          # admits the directory holding the ELF executable, the boundary
+          # admits its parent, so both have to hold.
+          for path in "${secure_root}" "${secure_root}/bin" "${secure_root}/bin/node"; do
+            test "$(readlink --canonicalize-existing "${path}")" = "${path}"
+            test "$(stat --format '%U:%G %a' "${path}")" = 'root:root 755'
+            test $(( 0$(stat --format '%a' "${path}") & 0022 )) -eq 0
+            test ! -w "${path}"
+          done
+          test $(( 0$(stat --format '%a' /usr) & 0022 )) -eq 0
+
+          # Identical bytes and an identical runtime, so the gates observe the
+          # Node build actions/setup-node selected.
+          cmp --silent "${original_real}" "${secure_root}/bin/node"
+          sha256sum "${original_real}" "${secure_root}/bin/node"
+          test "$("${secure_root}/bin/node" --version)" = "$("${original_real}" --version)"
+
+          # Shadow only `node`: npm, npx and corepack stay on the tool
+          # directory actions/setup-node put later in PATH, and their
+          # `#!/usr/bin/env node` shebangs resolve to this copy, so every
+          # descendant reports it as process.execPath.
+          printf '%s\n' "${secure_root}/bin" >> "$GITHUB_PATH"
+          export PATH="${secure_root}/bin:${PATH}"
+          test "$(command -v node)" = "${secure_root}/bin/node"
+          test "$(node --print process.execPath)" = "${secure_root}/bin/node"
+          npm_path="$(command -v npm)"
+          npx_path="$(command -v npx)"
+          printf 'npm: %s\nnpx: %s\n' "${npm_path}" "${npx_path}"
+          test "${npm_path}" != "${secure_root}/bin/npm"
+          test "${npx_path}" != "${secure_root}/bin/npx"
+
+          # npm derives its global prefix from process.execPath, which now
+          # points into a directory the gate user cannot write. Keep global
+          # installs landing in the tool directory that is already on PATH.
+          printf 'npm_config_prefix=%s\n' "${original_root}" >> "$GITHUB_ENV"
+          export npm_config_prefix="${original_root}"
+          test "$(npm prefix --global)" = "${original_root}"
+          test -w "${original_root}/bin"
+          npm --version
+
       - name: Install native test prerequisites
         shell: bash
         run: |

@@ -41,6 +41,23 @@
         "Reconcile verification reuse, gate tiers, landing, instrumentation, and doctrine obligations against their original assertions.",
         "Do not equate M5 delivery fixtures with completion of the original benchmark or numerical reduction targets."
       ]
+    },
+    {
+      "id": "foredi-m6-production-code-reduction",
+      "source": "openspec/changes/foredi-06-adoption/specs/foredi-06-adoption/spec.md",
+      "sourceSha256": "ae55f64fcd88091437b260b8154da97ebc4ef7bc0cfdaae49578c70d994c3198",
+      "amendedSourceSha256": "d57a13918fac6d06ee8c3c65620d88b76dfc2a0e074a8249342076083654b2a4",
+      "requirement": "R-M6-011",
+      "disposition": "deferred",
+      "status": "open",
+      "owner": "v050-release-program",
+      "targetRelease": null,
+      "amendment": "docs/releases/return-of-the-foredi/scope-amendment-2026-09-13.md",
+      "reason": "The user deferred only the 40 percent production-code reduction target on 2026-09-13 to a separate repository-cleanup release. The 50 percent required-instruction reduction target and every other release obligation remain required.",
+      "remaining": [
+        "Assign a cleanup release without rewriting the original failed measurements.",
+        "Meet the original production reduction target under its preserved measurement contract or obtain a separately authorized replacement."
+      ]
     }
   ]
 }

@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "releaseName": "ForeDi repository cleanup",
+  "version": null,
+  "versionAssignment": "unassigned",
+  "versionRule": "The user authorized a separate release without a numerical version. Assigning this release to v0.6 or to any other numbered package requires a separate scope decision.",
+  "authorizedOn": "2026-09-13",
+  "authority": "docs/releases/return-of-the-foredi/scope-amendment-2026-09-13.md",
+  "retainedOwner": "v050-release-program",
+  "retainedOwnerRule": "The existing release program retains ownership of the deferred obligation until this cleanup release receives its own approved scope. This file records scope disposition only. It is not an authorization receipt, a release-family authority, or a publication approval.",
+  "obligations": [
+    {
+      "id": "foredi-m6-production-code-reduction",
+      "requirement": "R-M6-011",
+      "source": "openspec/changes/foredi-06-adoption/specs/foredi-06-adoption/spec.md",
+      "sourceSha256": "ae55f64fcd88091437b260b8154da97ebc4ef7bc0cfdaae49578c70d994c3198",
+      "amendedSourceSha256": "d57a13918fac6d06ee8c3c65620d88b76dfc2a0e074a8249342076083654b2a4",
+      "disposition": "deferred",
+      "status": "open",
+      "formerAssertion": "The Foreman migrated workflow cohort SHALL reduce orchestration glue lines by at least 40 percent and required instruction tokens by at least 50 percent.",
+      "deferredSlice": "The orchestration glue reduction of at least 40 percent. The required-instruction reduction of at least 50 percent is retained by the current release.",
+      "measurementContract": {
+        "implementation": "packages/orchestration/src/pel-simplification.ts",
+        "baseline": "docs/release-metrics/foredi-baseline.json",
+        "baselineCommit": "441c3fb9f6acb2656760d03cc79e7c706fb8b7dd",
+        "acceptanceField": "acceptance.glue",
+        "threshold": 0.4,
+        "unchanged": true
+      },
+      "historicalResult": {
+        "candidateCommit": "bb0c1e9f3868d6bf36a91f78ceec55800192fc5c",
+        "evidence": "docs/releases/return-of-the-foredi/evidence/m6/instruction-simplification.json",
+        "baselineProductionNonblankLines": 6916,
+        "candidateProductionNonblankLines": 48912,
+        "maximumPermittedCount": 4149,
+        "verdict": "FAIL"
+      },
+      "remaining": [
+        "Assign a cleanup release without rewriting the original failed measurements.",
+        "Meet the original production reduction target under its preserved measurement contract, or obtain a separately authorized replacement target.",
+        "Do not change the measurement implementation, baseline bytes, cohort membership, tokenizer, or exclusions to conceal the recorded failure."
+      ]
+    }
+  ]
+}

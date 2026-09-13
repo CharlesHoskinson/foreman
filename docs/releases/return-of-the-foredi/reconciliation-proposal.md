@@ -1,27 +1,42 @@
-# Proposed release reconciliation
+# Release reconciliation and authorized code-reduction deferral
 
-Draft for review, 2026-09-13. No deferral, criterion change, numerical release, or authority is approved by this artifact.
-The user’s scope choice remains pending. This proposal does not reconcile the release program by itself.
+Record of 2026-09-13. One deferral is authorized here. Every other disposition below remains proposed for review.
+No numerical release, publication authority, or criterion change other than the recorded deferral is approved by this artifact.
+This record does not reconcile the release program by itself.
+
+## Authorized scope
+
+> On 2026-09-13, the user deferred the 40 percent production-code reduction target to a separate repository-cleanup release.
+> The cleanup release has no assigned numerical version.
+> The existing release program retains ownership of this deferred obligation until that release receives its own approved scope.
+> The 50 percent required-instruction reduction target remains required.
+> Frozen measurement inputs and historical failed results remain unchanged.
+> This amendment changes only the production-code acceptance threshold's release disposition.
+> It does not complete M6 or waive any P1–P15 predicate, host requirement, audit, receipt, or publication requirement.
+
+The full amendment, with its exact requirement mapping, is [scope-amendment-2026-09-13.md](scope-amendment-2026-09-13.md).
+The deferred obligation is registered in [`docs/releases/foredi-repository-cleanup/obligation.json`](../foredi-repository-cleanup/obligation.json).
 
 ## Current result and decision
 
 C2 source candidate: `bb0c1e9f3868d6bf36a91f78ceec55800192fc5c`.
 The [recorded measurement](evidence/m6/instruction-simplification.json) uses the unchanged [baseline](../../release-metrics/foredi-baseline.json), cohort, tokenizer, and thresholds.
 
-| Current M6 criterion | Baseline | C2 | Result |
-| --- | ---: | ---: | --- |
-| At least 40% fewer production nonblank lines | 6,916 | 48,912 | **FAIL**. Maximum permitted count: 4,149. |
-| At least 50% fewer required instruction tokens | 16,502 | 8,122 | **PASS**. Reduction: 50.78%. |
+| Original M6 criterion | Baseline | C2 | Historical result | Release disposition |
+| --- | ---: | ---: | --- | --- |
+| At least 40% fewer production nonblank lines | 6,916 | 48,912 | **FAIL**. Maximum permitted count: 4,149. | Deferred from this release to the unnumbered cleanup release. Owner retained: `v050-release-program`. |
+| At least 50% fewer required instruction tokens | 16,502 | 8,122 | **PASS**. Reduction: 50.78%. | Retained. Requires fresh final-candidate evidence. |
 
+The historical results are unchanged. “Deferred from this release” is a scope disposition recorded beside the original `FAIL`, not a replacement verdict.
 The [C2 acceptance record](m6-instruction-acceptance.json) preserves source, verification, package, and graph identities.
 It does not establish completed M6 acceptance or a numerical release.
-The pending choice concerns major implementation redesign versus review of the measurement and scope definition.
-The existing 40% target remains binding unless an authorized change replaces it.
-This proposal neither selects that change nor treats instruction improvement as compensation for the failed production target.
+Instruction improvement is not compensation for the failed production target. The deferral is authorized; the failure is preserved.
+Source amendments made after C2 invalidate C2 as the final candidate, so the retained instruction target requires fresh candidate evidence.
 
 ## Proposed feature outcomes
 
-Every disposition below is proposed. Each original obligation remains open until its controlling source and register receive the required reconciliation.
+Only the production-code deferral recorded above is authorized. Every disposition in the tables below is proposed and is not a replacement mapping in force.
+Each original obligation, including the deferred one, remains open until its controlling source and register receive the required reconciliation.
 Linked tests identify evidence targets. They do not establish that the original P predicates executed or passed unchanged.
 
 | Original feature and owner | Proposed ForeDi replacement | Retained obligation or unresolved difference |
@@ -32,7 +47,7 @@ Linked tests identify evidence targets. They do not establish that the original 
 | Bound task requests, one wait, audit, and correction. Workflow tasks 3 and 6. | M2 checked source, M4 admission, and M5 explicit task/verify/review programs replace hidden round scheduling. Target: [host delivery](../../../packages/orchestration/src/pel-host-library.test.ts). | Retain admitted models, exact controls, limits, prerequisites, and independent review. Existing tests do not establish the old wait-exit or audit-launch latency promises. |
 | Landing freeze and publication. Workflow task 7. | Immutable M5 candidate capture and the existing publication transaction supply the delivery path. Targets: [candidate capture](../../../packages/orchestration/src/pel-candidate-capture.test.ts), [publication](../../../packages/orchestration/src/pel-publication-integration.test.ts). | Retain exact checks, independent review, stale-approval refusal, target recheck, and publication authority. Explicitly map synthetic candidate capture against the old worktree-commit requirement. Archive/delete behavior needs separate evidence. |
 | Tier planning, small-change heuristics, queue optimization, test sharding, and doctrine compression. Workflow tasks 4, 5, and 8–12. | No complete ForeDi equivalent. Proposed scope separation avoids reconstructing retired orchestration solely for its command names. | No deferral is approved. These obligations remain with their original owner until source, register, and ROADMAP dispositions change. Existing security and verification requirements remain binding. |
-| Instrumentation and numerical optimization. Workflow tasks 0, 1, and 13, plus P12–P15. | Consider M6 fixed-cohort simplification as the ForeDi-specific promise, subject to the pending scope decision. | Current M6 production reduction fails. Its measurements do not prove idle share, gate duration, landing time, manual-step limits, or the old doctrine read-floor predicate. Preserve those original benchmarks as uncompleted unless explicitly reconciled. |
+| Instrumentation and numerical optimization. Workflow tasks 0, 1, and 13, plus P12–P15. | M6 fixed-cohort simplification is a ForeDi-specific measurement. It does not replace P12–P15, and no such replacement is authorized here. | The original M6 production reduction fails and is deferred to the cleanup release. Its measurements do not prove idle share, gate duration, landing time, manual-step limits, or the old doctrine read-floor predicate. P12–P15 remain required with their original assertions and evidence. |
 
 M1/M2 language and authoring evidence cannot supply host authority, review receipts, or publication approval.
 M3–M6 successor requirements retain those separate responsibilities.
@@ -62,10 +77,10 @@ Lane runtime and workflow reduction remain v050 obligations until their controll
 ## What an approved reconciliation would require
 
 The current [program tasks](../../../openspec/changes/v050-release-program/tasks.md) require source reconciliation, not a register-only status change.
-The [adoption obligations](adoption-obligations.json) retain three open entries and their original source hashes.
-This proposal does not modify either record.
+The [adoption obligations](adoption-obligations.json) retain their three original open entries and source hashes, plus the new deferred production-code entry.
+The 2026-09-13 amendment adds that entry and updates the register `reason`. It does not complete the remaining source reconciliation, and it does not modify the program tasks.
 
-1. Resolve the user’s scope choice and the failed current production criterion.
+1. Carry the deferred production criterion into the separately scoped cleanup release without rewriting its failed measurement.
 2. Review an explicit assertion mapping for affected specs, tasks, register entries, and ROADMAP rows.
 3. Preserve historical source identities and record new identities for any authorized amendments.
 4. Use the existing register checks to validate complete active-change coverage and retained ownership.
@@ -78,10 +93,10 @@ Numerical assignment and publication remain separate authorized actions.
 
 ## Source identities for review
 
-These SHA-256 values identify current file bytes read from the checkout at C2 HEAD on 2026-09-13.
+These SHA-256 values identify the historical file bytes read from the checkout at C2 HEAD on 2026-09-13, before the scope amendment.
 They are review inputs, not replacement obligation identities or completion receipts.
-The adoption record’s three task hashes match the current task files below.
-Any later authorized reconciliation must preserve these identities alongside the amended identities.
+The adoption record’s three task hashes match the task files below as read at that point.
+The amended identities are recorded separately after this table. Both sets are retained.
 
 | Source path, relative to repository root | SHA-256 |
 | --- | --- |
@@ -100,5 +115,33 @@ Any later authorized reconciliation must preserve these identities alongside the
 | `ROADMAP.md` | `56707b7fb5594cf662d187e159b12b6279fbc8b13ce89b45af8ac1b394d25350` |
 | `docs/releases/return-of-the-foredi/adoption-obligations.json` | `b9d453f9ec245f860127d36e74d203af1cb7d97568221cca016222d4482f1706` |
 | `docs/release-metrics/foredi-baseline.json` | `3e6ec17a8d55a510a13889440ded8e3de3c84a7ce60ac26c409dfbae3c22e4c0` |
+
+`docs/release-metrics/foredi-baseline.json` is unchanged by the amendment. Its identity above remains current.
+
+### Amended source identities, 2026-09-13
+
+| Source path, relative to repository root | Amended SHA-256 |
+| --- | --- |
+| `openspec/changes/foredi-06-adoption/specs/foredi-06-adoption/spec.md` | `d57a13918fac6d06ee8c3c65620d88b76dfc2a0e074a8249342076083654b2a4` |
+| `openspec/changes/foredi-06-adoption/catalog.json` | `1801edd923899001727ee4e058cc70e2c1df437f92c29a38db887e1a63e4179f` |
+| `openspec/changes/foredi-06-adoption/design.md` | `d14cc81f038c7eeb0a97f3b1afcfa5b04aaf837dd1c7239464a2bf05afef48a8` |
+| `openspec/changes/foredi-06-adoption/tasks.md` | `3c9a725dc9c57d20b4c2e03b693889d7aabd7e09189294a631fef02decf2d7ff` |
+| `openspec/changes/v050-release-program/coverage.toml` | `80eca739c01d9c7c61f01271decf848e4409dfe660b070a19f47be8ffd5e245c` |
+| `docs/releases/return-of-the-foredi/adoption-obligations.json` | `fd8804d4645f043586c845c956edb907911999f86b32e8d2b659e89380787e77` |
+| `ROADMAP.md` | `5187a6b3ea945de7205d6c5e0fdea6872a924f2d080f7bc4cd46f45661d52530` |
+
+The `coverage.toml` identity in the historical table above (`a2ef0b0d…`) predates both this amendment and the register state recorded in the adoption obligations. Treat the amended value as current.
+
+### R-M6-011 former-to-current mapping
+
+| Position | Text |
+| --- | --- |
+| Former requirement | The Foreman migrated workflow cohort SHALL reduce orchestration glue lines by at least 40 percent and required instruction tokens by at least 50 percent. |
+| Current requirement | The Foreman migrated workflow cohort SHALL reduce required instruction tokens by at least 50 percent and report production-code counts under the unchanged frozen measurement contract. |
+| Former `T-M6-011` result | Net glue reduction is at least 0.40 and instruction reduction at least 0.50. Moving code or instructions outside old paths does not remove them from counts. |
+| Current `T-M6-011` result | Instruction reduction is at least 0.50. The report retains raw production counts and the original production-target result. Moving code or instructions outside old paths does not remove them from counts. |
+| Deferred slice | The 40 percent orchestration glue reduction. Owner retained: `v050-release-program`. Target release: unnumbered repository cleanup. Status: open. |
+
+The identifier `R-M6-011` is not reused to hide a changed assertion. The former assertion is retained verbatim above, in the scope amendment, and in the cleanup obligation record.
 
 Preparation checked local links and source hashes only. It ran no builds, broad tests, original predicates, or publication operations.

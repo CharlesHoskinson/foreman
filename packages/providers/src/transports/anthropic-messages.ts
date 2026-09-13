@@ -7,6 +7,7 @@ import {
   string,
   usage,
   noTool,
+  classifyOutputItem,
 } from "./api-protocol.js";
 import type {
   ApiDialect,
@@ -15,6 +16,30 @@ import type {
   WireDelta,
 } from "./api-protocol.js";
 import { apiFailure } from "./api-http.js";
+/** Messages content blocks that carry no action. Unknown blocks fail closed. */
+const inertBlocks = new Set(["text", "thinking", "redacted_thinking"]);
+/** Documented Messages tool blocks, including server-side and remote-server tools. */
+const toolBlocks = new Set([
+  "tool_use",
+  "server_tool_use",
+  "mcp_tool_use",
+  "web_search_tool_result",
+  "code_execution_tool_result",
+  "mcp_tool_result",
+]);
+const classifyBlock = (type: string) =>
+  classifyOutputItem(type, inertBlocks, toolBlocks);
+/** Content block deltas that carry no action. Unknown deltas fail closed. */
+const inertDeltas = new Set([
+  "text_delta",
+  "thinking_delta",
+  "signature_delta",
+  "citations_delta",
+]);
+/** Documented deltas that stream tool input into an open block. */
+const toolDeltas = new Set(["input_json_delta"]);
+const classifyDelta = (type: string) =>
+  classifyOutputItem(type, inertDeltas, toolDeltas);
 function stop(state: ApiState, reason: unknown): WireDelta {
   if (reason === "max_tokens" || reason === "model_context_window_exceeded")
     return {
@@ -89,8 +114,8 @@ export const anthropicMessagesDialect: ApiDialect = {
     }
     if (type === "content_block_start") {
       const block = object(e.content_block);
-      if (block.type === "tool_use" || block.type === "server_tool_use")
-        return noTool();
+      const classified = classifyBlock(string(block.type));
+      if (classified !== "inert") return classified;
       s.blocks.set(Number(e.index), block);
       return {};
     }
@@ -104,6 +129,8 @@ export const anthropicMessagesDialect: ApiDialect = {
             "Messages delta references an unopened block",
           ),
         };
+      const classified = classifyDelta(string(d.type));
+      if (classified !== "inert") return classified;
       if (d.type === "text_delta" && block.type === "text") {
         const text = string(d.text);
         s.text += text;
@@ -164,7 +191,8 @@ export const anthropicMessagesDialect: ApiDialect = {
     s.model = string(r.model);
     s.usage = usage(r.usage);
     for (const b of objects(r.content)) {
-      if (b.type === "tool_use") return noTool();
+      const classified = classifyBlock(string(b.type));
+      if (classified !== "inert") return classified;
       if (b.type === "text") s.text += string(b.text);
     }
     const result = stop(s, r.stop_reason);

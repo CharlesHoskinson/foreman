@@ -236,7 +236,7 @@ Measure these release targets against a frozen baseline:
 | Authoritative orchestration language | One: Pel. |
 | Active control-flow owners per run | One. |
 | Human commands to start a standard admitted workflow | One `foreman run` command. |
-| Orchestration glue lines in the replacement cohort | At least 40% net reduction, including new replacement code. |
+| Orchestration glue lines in the replacement cohort | Original target: at least 40% net reduction, including new replacement code. Deferred to the separate unnumbered cleanup release by the [2026-09-13 scope amendment](scope-amendment-2026-09-13.md). |
 | Required cold-start orchestration instructions | At least 50% fewer measured tokens. |
 | Full verification executions per unchanged candidate and environment | One reusable host result. |
 | Correctly parsed and admitted model-generated programs | At least 95% first attempt and 99% within two repairs on the fixed evaluation set. |
@@ -244,7 +244,8 @@ Measure these release targets against a frozen baseline:
 
 Freeze the replacement cohort before implementation. Keep generated files, tests, and historical archives in separate counts.
 Report total production code growth as well as the cohort reduction.
-These numbers are acceptance targets. This planning session has not measured the proposed runtime.
+The production-code target is deferred. The other numbers remain acceptance targets.
+This planning session did not measure the proposed runtime.
 
 ## Knowledge workflow and tool state
 

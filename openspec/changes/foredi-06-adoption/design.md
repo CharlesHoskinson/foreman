@@ -166,7 +166,11 @@ Compute:
 - `glueReduction = 1 - candidateReplacementGlueLines / baselineGlueLines`
 - `instructionReduction = 1 - candidateRequiredTokens / baselineRequiredTokens`
 
-Acceptance requires at least 0.40 glue reduction and 0.50 instruction reduction.
+Current release acceptance requires at least 0.50 instruction reduction.
+The [2026-09-13 scope amendment](../../../docs/releases/return-of-the-foredi/scope-amendment-2026-09-13.md) defers the 0.40 production-code reduction target to a separate cleanup release.
+Measurement continues to report both original threshold results with unchanged inputs.
+The measurement command can therefore retain exit 1 for the deferred production-target miss.
+Release scope disposition is separate from that historical measurement result.
 Keep generated files, tests and immutable archives outside production counts, with separate totals.
 Count all new or modified production paths under the fixed candidate rule.
 Do not omit mandatory instruction text because it moved into help, profiles or generated prompts.

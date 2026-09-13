@@ -5,7 +5,7 @@ import { Effect, Redacted } from 'effect';
 import type { Context, Scope } from 'effect';
 import { sha256Hex } from '@foreman/core';
 import { ByteSink, LiveLauncherLayer, supervise } from '@foreman/launcher';
-import { CredentialPort, resolveProfile as resolveModel, runQualification, createXaiResponsesTransport, createAnthropicMessagesTransport, createOpenaiResponsesTransport, createGoogleInteractionsTransport, createGrokAcpTransport, createClaudeCodeTransport, createCodexAppServerTransport, createGeminiCliTransport, geminiConfigurationFiles, controlsHash, type ProviderRequestV1, type ProviderTransport, type TransportId, type ProviderFailure, type NativeHostPort, type Capability, type ProviderEventV1 } from '@foreman/providers';
+import { CredentialPort, resolveProfile as resolveModel, runQualification, createXaiResponsesTransport, createAnthropicMessagesTransport, createOpenaiResponsesTransport, createGoogleInteractionsTransport, createGrokAcpTransport, createClaudeCodeTransport, createCodexAppServerTransport, createGeminiCliTransport, geminiConfigurationFiles, controlsHash, type ProviderRequestV1, type ProviderTransport, type TransportId, type ProviderFailure, type NativeHostPort, type Capability, type ProviderEventV1, type ProviderIdentityV1 } from '@foreman/providers';
 import { resolveProfile as resolveCredentialProfile, liveCredentialProfile } from './credential-profile.js';
 import type { ProviderCliServices, ProviderQualificationSelection } from './pel-provider-cli.js';
 import { makeLiveProviderList } from './pel-provider-list-live.js';
@@ -134,12 +134,17 @@ export function defaultLiveProviderContext(): LiveProviderContext {
     return { stateRoot: join(homedir(), '.foreman'), worktreeRoot: process.cwd(), userHome: homedir(), environment: process.env };
 }
 /** Called after the qualification harness validates identity, schema and bounds. */
-export function assessLiveQualificationCapability(capability: Capability, events: readonly ProviderEventV1[]): { readonly passed: boolean; readonly reason: string } {
+export function assessLiveQualificationCapability(capability: Capability, events: readonly ProviderEventV1[], identity?: ProviderIdentityV1): { readonly passed: boolean; readonly reason: string } {
     const completed = events.some(event => event.payload.type === 'completed');
     if (capability === 'generation' || capability === 'structuredOutput')
         return { passed: completed, reason: 'The bounded request has a validated terminal result' };
-    if (capability === 'toolPolicyNone')
-        return { passed: completed && events.some(event => event.payload.type === 'started' && event.payload.observedToolPolicy === 'none') && !events.some(event => event.payload.type === 'tool-request'), reason: 'The native protocol reported an empty or reply-formatter-only tool catalog and completed without host tool requests' };
+    if (capability === 'toolPolicyNone') {
+        // API adapters report an enforced empty request surface. Native adapters
+        // report an observed protocol catalog. Neither substitutes for the other,
+        // and neither alone establishes the capability without a terminal result.
+        const kind = identity?.kind ?? events.find(event => event.payload.type === 'started')?.providerIdentity.kind;
+        return { passed: completed && events.some(event => event.payload.type === 'started' && event.payload.observedToolPolicy === 'none') && !events.some(event => event.payload.type === 'tool-request'), reason: kind === 'api' ? 'The exact API request offered no tool surface under tool policy none, and its bound response completed without tool activity' : 'The native protocol reported an empty or reply-formatter-only tool catalog and completed without host tool requests' };
+    }
     return { passed: false, reason: 'This capability requires a separate host qualification fixture' };
 }
 export function makeLiveProviderCliServices(context: LiveProviderContext = defaultLiveProviderContext()): ProviderCliServices {
@@ -154,6 +159,6 @@ export function makeLiveProviderCliServices(context: LiveProviderContext = defau
             const prepared = makeQualificationRequest(selection);
             const transport = yield* makeLiveProviderTransport(prepared, context);
             const request = { ...prepared, transportVersion: transport.version };
-            return yield* runQualification({ request, requiredCapabilities: selection.requiredCapabilities, binding: selection.binding }, { transport, now: Date.now, assess: (capability, events) => Effect.succeed(assessLiveQualificationCapability(capability, events)) });
+            return yield* runQualification({ request, requiredCapabilities: selection.requiredCapabilities, binding: selection.binding }, { transport, now: Date.now, assess: (capability, events, identity) => Effect.succeed(assessLiveQualificationCapability(capability, events, identity)) });
         })) };
 }

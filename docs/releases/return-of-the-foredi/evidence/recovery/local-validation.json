@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-13",
+  "evidenceKind": "local-worktree-validation",
+  "command": "npm run verify",
+  "exitCode": 0,
+  "tests": 3310,
+  "passed": 3303,
+  "failed": 0,
+  "skipped": 7,
+  "build": {
+    "command": "npm run build",
+    "exitCode": 0
+  },
+  "checks": [
+    "typecheck",
+    "tests",
+    "verify-runtime",
+    "verify:appliance-lock",
+    "verify-register-doc",
+    "smoke:dst-0060"
+  ],
+  "logSha256": "6e70f7f1ef5a202756e2039abbd416377a21c3afcd54fb316e2394b5507f7a71",
+  "sourceSha256": {
+    "packages/providers/src/transports/api-protocol.ts": "3468ee029301b780761f2f4d648b368894f9c6bfb77832385101917ed2347fa5",
+    "packages/providers/src/transports/api-transport.ts": "78402dfc021feacbfd0ccb82632da61c370ceedd94595941ba53b003b598983b",
+    "packages/providers/src/transports/anthropic-messages.ts": "1554873c6975943059def97801c111664c66b02bef3b5a9e32ba394ffac24de9",
+    "packages/providers/src/transports/google-interactions.ts": "6077939bc0b78df52ccedcdb0a5d4ca3dfbbaa76888903d7107fb25c9ae00f83",
+    "packages/providers/src/transports/api-transports.test.ts": "16a2d012bc144d97d4422be19d1e7e2af791f784ee8534c9e6269c1e72bc4b4c",
+    "packages/orchestration/src/pel-provider-live.ts": "9bc5da7533ab21d7b777c5ec34e4d14f53c96e1af69fd1cb98ae4f69b49c5929",
+    "packages/orchestration/src/pel-provider-live.test.ts": "7ccb8ec7d19e1b6ceae3054f5535ce90c800038668ca185206fafbe7abcb1f18",
+    "skills/foreman/runtime/manifest.json": "3380447cc07996fc206539a3927f57ee359cbdb3f42d56ef36f3061ffba0c4a5",
+    "openspec/changes/v050-release-program/coverage.toml": "80eca739c01d9c7c61f01271decf848e4409dfe660b070a19f47be8ffd5e245c"
+  },
+  "scope": "Local Linux/WSL recovery worktree. Source hashes identify the changed runtime, tests, and register. This does not establish hosted CI, live provider qualification, K semantics, or final release acceptance."
+}

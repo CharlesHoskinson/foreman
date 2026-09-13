@@ -21,7 +21,7 @@ Run `npm run verify` for shared runtime and provider regressions.
 | R/T-M6-008 | `pel-legacy-status.test.ts` | Held legacy ownership and original journal bytes survive status, resume, cancel, and migration refusal. |
 | R/T-M6-009 | `pel-migration.test.ts` | Twelve deleted paths and all live caller scopes are checked. Retained Council fixtures provide separate parity evidence. |
 | R/T-M6-010 | `pel-simplification.test.ts` | Fixed manifest, full-file membership, tokenizer, exclusions, and growth arithmetic. Actual committed-candidate report and operational trace remain pending. |
-| R/T-M6-011 | `pel-simplification.test.ts` | Target arithmetic is tested. Actual 40 percent glue and 50 percent instruction reduction are not accepted. |
+| R/T-M6-011 | `pel-simplification.test.ts` | Target arithmetic is tested. C2 met the instruction target. The [scope amendment](scope-amendment-2026-09-13.md) defers only production reduction. Final-candidate instruction acceptance remains open. |
 | R/T-M6-012 | `pel-host-verify.test.ts` | Matching reuse, real verification after changed bindings, and correct reservation reuse after an interrupted refresh. |
 | R/T-M6-013 | `pel-research-context.test.ts` | Bounded portable results retain locators, hashes, dates, classes, and explicit unknown coverage. |
 | R/T-M6-014 | `pel-research-context.test.ts` | Invalid replacement, changed sources, interruption, and atomic replacement preserve readable state. |

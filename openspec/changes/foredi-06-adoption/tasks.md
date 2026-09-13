@@ -46,11 +46,12 @@ See docs/releases/return-of-the-foredi/m6-implementation.md and m6-ears-coverage
 
 - [x] Freeze `docs/release-metrics/foredi-baseline.json` before changing measured behavior.
 - [x] Record baseline hashes, production ranges, instruction corpus and tokenizer identity.
-- [x] Reconcile v0.5, lane-runtime-typescript and workflow-weight-reduction obligations without inventing completion.
+- [x] Record retained v0.5, lane-runtime-typescript and workflow-weight-reduction obligations without inventing completion. Full source reconciliation remains open in `adoption-obligations.json`.
 - [x] Implement `packages/orchestration/src/pel-simplification.ts` and its compiled measurement entry point.
 - [x] Count the exact full-file candidate union, including every added or modified production path, and report total growth.
 - [x] Implement T-M6-010 through T-M6-012 in the simplification and host-verification test files.
-- [ ] Measure at least 40 percent net glue reduction and 50 percent required instruction reduction.
+- [ ] Confirm at least 50 percent required-instruction reduction on the final unchanged candidate.
+- [ ] Deferred: meet the original 40 percent production-code reduction target in a separately scoped repository-cleanup release. Owner: `v050-release-program`. See [scope amendment](../../../docs/releases/return-of-the-foredi/scope-amendment-2026-09-13.md) and [cleanup obligation](../../../docs/releases/foredi-repository-cleanup/obligation.json).
 - [x] Report raw counts, exclusions and failed targets without relabeling them as completed.
 - [x] Assert matching verification bindings reuse one result and changed bindings force verification.
 

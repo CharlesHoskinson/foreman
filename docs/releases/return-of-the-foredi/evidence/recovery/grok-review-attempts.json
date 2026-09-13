@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "scope": "Independent review attempts of the recovery CI/API diff before the nested-output correction. These attempts do not establish approval.",
+  "diffSha256": "f0dd718380f3ea9e89d4f9f6e13027b6d1bf0231a75d8cd030950265294c9379",
+  "requestedModel": "grok-4.6",
+  "attempts": [
+    {
+      "attempt": 1,
+      "exitCode": 1,
+      "stopReason": "cancelled",
+      "observedModels": [
+        "grok-4.6-build"
+      ],
+      "result": "incomplete: max turns reached before a final review verdict"
+    },
+    {
+      "attempt": 2,
+      "exitCode": 124,
+      "timeoutSeconds": 600,
+      "result": "incomplete: no result JSON before timeout",
+      "observedModels": []
+    }
+  ],
+  "approval": false
+}

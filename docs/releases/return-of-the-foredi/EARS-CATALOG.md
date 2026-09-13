@@ -2,7 +2,7 @@
 
 Status: M1–M6 implementation candidate, acceptance incomplete. M7 K semantics is planned.
 
-Seven milestones contain 42 features and 145 EARS requirements. Each requirement has at least one test in the [test plan](TEST-PLAN.md).
+Seven milestones contain 42 features and 146 EARS requirements. Each requirement has at least one test in the [test plan](TEST-PLAN.md).
 
 See the [EARS method](EARS-METHOD.md) for syntax and coverage rules.
 
@@ -342,6 +342,10 @@ Tests: [T-M3-018](TEST-PLAN.md#t-m3-018).
 
 Tests: [T-M3-026](TEST-PLAN.md#t-m3-026).
 
+**R-M3-029** (event). When an API no-tool request is qualified, the Foreman provider adapter SHALL report its enforced tool policy only from the exact serialized empty tool surface and SHALL reject returned tool activity and unrecognized action-bearing output.
+
+Tests: [T-M3-029](TEST-PLAN.md#t-m3-029).
+
 ## M4: Execute and recover Pel programs
 
 [OpenSpec](../../../openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md) · [Implementation tasks](../../../openspec/changes/foredi-04-durable-execution/tasks.md)
@@ -618,7 +622,7 @@ Demonstrate scoped deletion and reduced instructions against an immutable baseli
 
 Tests: [T-M6-010](TEST-PLAN.md#t-m6-010).
 
-**R-M6-011** (ubiquitous). The Foreman migrated workflow cohort SHALL reduce orchestration glue lines by at least 40 percent and required instruction tokens by at least 50 percent.
+**R-M6-011** (ubiquitous). The Foreman migrated workflow cohort SHALL reduce required instruction tokens by at least 50 percent and report production-code counts under the unchanged frozen measurement contract.
 
 Tests: [T-M6-011](TEST-PLAN.md#t-m6-011).
 

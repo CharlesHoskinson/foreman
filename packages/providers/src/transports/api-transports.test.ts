@@ -14,7 +14,11 @@ import type { ApiHttpPort, ApiHttpRequest } from "./api-http.js";
 import { createOpenaiResponsesTransport } from "./openai-responses.js";
 import { createXaiResponsesTransport } from "./xai-responses.js";
 import { createAnthropicMessagesTransport } from "./anthropic-messages.js";
-import { createGoogleInteractionsTransport } from "./google-interactions.js";
+import {
+  createGoogleInteractionsTransport,
+  googleInteractionsDialect,
+} from "./google-interactions.js";
+import { initialState, responseComplete } from "./api-protocol.js";
 import { defaultProviderControls } from "../controls.js";
 import { resolveProfile, SOURCE_MANIFEST_HASH } from "../profiles.js";
 import type { ApiTransportOptions } from "./api-transport.js";
@@ -363,6 +367,630 @@ for (const cell of cells) {
     assert.equal(touched, 0);
   });
 }
+/** Every admitted API dialect, with the tool item its wire grammar recognizes. */
+const toolActivity: Record<string, { readonly stream: unknown; readonly full: unknown }> = {
+  "anthropic-messages": {
+    stream: {
+      type: "content_block_start",
+      index: 0,
+      content_block: { type: "server_tool_use", id: "t1", name: "web_search" },
+    },
+    full: {
+      id: "r1",
+      content: [{ type: "server_tool_use", id: "t1", name: "web_search" }],
+      stop_reason: "end_turn",
+    },
+  },
+  "google-interactions": {
+    stream: {
+      event_type: "step.start",
+      index: 0,
+      step: { type: "code_execution" },
+    },
+    full: {
+      id: "r1",
+      status: "completed",
+      steps: [{ type: "code_execution" }],
+    },
+  },
+  default: {
+    stream: {
+      type: "response.output_item.added",
+      item: { type: "mcp_call", id: "t1", name: "remote" },
+    },
+    full: {
+      id: "r1",
+      status: "completed",
+      output: [{ type: "mcp_call", id: "t1", name: "remote" }],
+    },
+  },
+};
+const unknownActivity: Record<string, { readonly stream: unknown; readonly full: unknown }> = {
+  "anthropic-messages": {
+    stream: {
+      type: "content_block_start",
+      index: 0,
+      content_block: { type: "future_action_block" },
+    },
+    full: {
+      id: "r1",
+      content: [{ type: "future_action_block" }],
+      stop_reason: "end_turn",
+    },
+  },
+  "google-interactions": {
+    stream: {
+      event_type: "step.start",
+      index: 0,
+      step: { type: "future_action_step" },
+    },
+    full: {
+      id: "r1",
+      status: "completed",
+      steps: [{ type: "future_action_step" }],
+    },
+  },
+  default: {
+    stream: {
+      type: "response.output_item.added",
+      item: { type: "future_action_item", id: "t1" },
+    },
+    full: {
+      id: "r1",
+      status: "completed",
+      output: [{ type: "future_action_item", id: "t1" }],
+    },
+  },
+};
+const openingFrame = (cell: (typeof cells)[number]) =>
+  cell[1] === "anthropic-messages"
+    ? { type: "message_start", message: { id: "r1", model: cell[0] } }
+    : cell[1] === "google-interactions"
+      ? {
+          event_type: "interaction.created",
+          interaction: { id: "r1", model: cell[0] },
+        }
+      : { type: "response.created", response: { id: "r1", model: cell[0] } };
+const withModel = (wire: unknown, model: string) => ({
+  ...(wire as Record<string, unknown>),
+  model,
+});
+for (const cell of cells) {
+  test(`API ${cell[0]} submits no tool surface and reports the enforced no-tool request boundary`, async () => {
+    const r = request(cell);
+    const fake = peer(frames(r.profileId, r.transportId));
+    const events = await collect(
+      cell[3]({ credentials, schemaRegistry, http: fake.http }),
+      r,
+    );
+    const body = JSON.parse(fake.calls[0]!.body!);
+    // Serialized surface: OpenAI and xAI encode empty tools with tool_choice none.
+    // Anthropic and Google omit tool declarations entirely.
+    assert.deepEqual(body.tools ?? [], []);
+    assert.equal(body.tool_choice ?? "none", "none");
+    for (const key of [
+      "tool_config",
+      "toolConfig",
+      "functions",
+      "function_call",
+      "server_tools",
+      "builtin_tools",
+      "system_tools",
+      "mcp_servers",
+      "allowed_tools",
+      "tool_resources",
+    ])
+      assert.equal(body[key], undefined);
+    const started = events.find((e) => e.payload.type === "started");
+    assert.ok(started?.payload.type === "started");
+    assert.equal(started.payload.observedToolPolicy, "none");
+    assert.equal(started.providerIdentity.profileId, r.profileId);
+    assert.ok(events.some((e) => e.payload.type === "completed"));
+  });
+  test(`API ${cell[0]} reports no enforced no-tool boundary when the request admits automatic tool choice`, async () => {
+    const base = request(cell);
+    const r = { ...base, controls: { ...base.controls, toolChoice: "auto" as const } };
+    const fake = peer(frames(r.profileId, r.transportId));
+    const events = await collect(
+      cell[3]({ credentials, schemaRegistry, http: fake.http }),
+      r,
+    );
+    const started = events.find((e) => e.payload.type === "started");
+    assert.ok(started?.payload.type === "started");
+    assert.equal(started.payload.observedToolPolicy, undefined);
+  });
+  for (const kind of ["tool", "unknown"] as const) {
+    const table = kind === "tool" ? toolActivity : unknownActivity;
+    const wire = table[cell[1]] ?? table.default!;
+    const expected = kind === "tool" ? "UnsupportedCapability" : "MalformedEvent";
+    test(`API ${cell[0]} rejects ${kind} activity in its streaming decoder`, async () => {
+      const r = request(cell);
+      const fake = peer([openingFrame(cell), wire.stream]);
+      const result = await Effect.runPromise(
+        Effect.either(
+          Effect.scoped(
+            Effect.flatMap(
+              cell[3]({ credentials, schemaRegistry, http: fake.http }).start(r),
+              Stream.runCollect,
+            ),
+          ),
+        ),
+      );
+      assert.equal(result._tag, "Left");
+      if (result._tag === "Left") assert.equal(result.left._tag, expected);
+      assert.equal(fake.calls.length, 1);
+    });
+    test(`API ${cell[0]} rejects ${kind} activity in its complete-response decoder`, async () => {
+      const r = request(cell);
+      const fake = peer([withModel(wire.full, r.profileId)], true);
+      const result = await Effect.runPromise(
+        Effect.either(
+          Effect.scoped(
+            Effect.flatMap(
+              cell[3]({ credentials, schemaRegistry, http: fake.http }).start(r),
+              Stream.runCollect,
+            ),
+          ),
+        ),
+      );
+      assert.equal(result._tag, "Left");
+      if (result._tag === "Left") assert.equal(result.left._tag, expected);
+    });
+  }
+}
+/** Valid output text placed next to the nested content under test. */
+const nestedText = '{"answer":"ok"}';
+/** Pick a dialect entry without defaulting a dialect that declares no boundary. */
+const pick = <T>(table: Record<string, T | undefined>, id: string) =>
+  Object.hasOwn(table, id) ? table[id] : table.default;
+/**
+ * Tool and unknown content nested inside a recognized output item, alongside
+ * valid output text. Anthropic content blocks are leaves in a full response,
+ * so that dialect has no nested full-response boundary.
+ */
+const nestedFull: Record<
+  string,
+  { readonly tool: unknown; readonly unknown: unknown } | undefined
+> = {
+  "anthropic-messages": undefined,
+  "google-interactions": {
+    tool: {
+      id: "r1",
+      status: "completed",
+      steps: [
+        {
+          type: "model_output",
+          content: [
+            { type: "text", text: nestedText },
+            { type: "function_call", name: "f" },
+          ],
+        },
+      ],
+    },
+    unknown: {
+      id: "r1",
+      status: "completed",
+      steps: [
+        {
+          type: "model_output",
+          content: [
+            { type: "text", text: nestedText },
+            { type: "future_action_part" },
+          ],
+        },
+      ],
+    },
+  },
+  default: {
+    tool: {
+      id: "r1",
+      status: "completed",
+      output: [
+        {
+          type: "message",
+          content: [
+            { type: "output_text", text: nestedText },
+            { type: "mcp_call", name: "remote" },
+          ],
+        },
+      ],
+    },
+    unknown: {
+      id: "r1",
+      status: "completed",
+      output: [
+        {
+          type: "message",
+          content: [
+            { type: "output_text", text: nestedText },
+            { type: "future_action_part" },
+          ],
+        },
+      ],
+    },
+  },
+};
+/** The same nested boundary on each dialect's streaming content-part path. */
+const nestedStream: Record<
+  string,
+  { readonly tool: unknown[]; readonly unknown: unknown[] } | undefined
+> = {
+  "anthropic-messages": {
+    tool: [
+      {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "text", text: "" },
+      },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text: nestedText },
+      },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "input_json_delta", partial_json: "{}" },
+      },
+    ],
+    unknown: [
+      {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "text", text: "" },
+      },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text: nestedText },
+      },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "future_action_delta" },
+      },
+    ],
+  },
+  "google-interactions": {
+    tool: [
+      { event_type: "step.start", index: 0, step: { type: "model_output" } },
+      {
+        event_type: "step.delta",
+        index: 0,
+        delta: { type: "text", text: nestedText },
+      },
+      {
+        event_type: "step.delta",
+        index: 0,
+        delta: { type: "function_call", name: "f" },
+      },
+    ],
+    unknown: [
+      { event_type: "step.start", index: 0, step: { type: "model_output" } },
+      {
+        event_type: "step.delta",
+        index: 0,
+        delta: { type: "text", text: nestedText },
+      },
+      {
+        event_type: "step.delta",
+        index: 0,
+        delta: { type: "future_action_part" },
+      },
+    ],
+  },
+  default: {
+    tool: [
+      {
+        type: "response.output_item.added",
+        item: { id: "m1", type: "message" },
+      },
+      { type: "response.output_text.delta", delta: nestedText },
+      {
+        type: "response.content_part.added",
+        item_id: "m1",
+        part: { type: "mcp_call", name: "remote" },
+      },
+    ],
+    unknown: [
+      {
+        type: "response.output_item.added",
+        item: { id: "m1", type: "message" },
+      },
+      { type: "response.output_text.delta", delta: nestedText },
+      {
+        type: "response.content_part.added",
+        item_id: "m1",
+        part: { type: "future_action_part" },
+      },
+    ],
+  },
+};
+/** Start one dialect over the given peer frames and return its failure, if any. */
+const failureOf = (
+  wire: unknown[],
+  cell: (typeof cells)[number],
+  json = false,
+) => {
+  const r = request(cell);
+  const fake = peer(json ? [withModel(wire[0], r.profileId)] : wire, json);
+  return Effect.runPromise(
+    Effect.either(
+      Effect.scoped(
+        Effect.flatMap(
+          cell[3]({ credentials, schemaRegistry, http: fake.http }).start(r),
+          Stream.runCollect,
+        ),
+      ),
+    ),
+  );
+};
+for (const cell of cells) {
+  for (const kind of ["tool", "unknown"] as const) {
+    const expected =
+      kind === "tool" ? "UnsupportedCapability" : "MalformedEvent";
+    const full = pick(nestedFull, cell[1]);
+    const stream = pick(nestedStream, cell[1]);
+    if (full)
+      test(`API ${cell[0]} rejects nested ${kind} content beside valid output text in its complete-response decoder`, async () => {
+        const result = await failureOf([full[kind]], cell, true);
+        assert.equal(result._tag, "Left");
+        if (result._tag === "Left") assert.equal(result.left._tag, expected);
+      });
+    if (stream)
+      test(`API ${cell[0]} rejects nested ${kind} content beside valid output text in its streaming decoder`, async () => {
+        const result = await failureOf(
+          [openingFrame(cell), ...stream[kind]],
+          cell,
+        );
+        assert.equal(result._tag, "Left");
+        if (result._tag === "Left") assert.equal(result.left._tag, expected);
+      });
+  }
+}
+test("nested unknown content never decodes as completed no-tool output", () => {
+  const responses = initialState();
+  const openai = responseComplete(responses, {
+    id: "r",
+    model: "gpt-5.6-sol",
+    status: "completed",
+    output: [
+      {
+        type: "message",
+        content: [
+          { type: "output_text", text: '{"ok":true}' },
+          { type: "future_action_part" },
+        ],
+      },
+    ],
+  });
+  assert.equal(openai.terminal, undefined);
+  assert.equal(openai.failure?._tag, "MalformedEvent");
+  assert.notEqual(responses.status, "completed");
+  const interaction = initialState();
+  const google = googleInteractionsDialect.complete(interaction, {
+    id: "r",
+    model: "gemini-3.8-flash",
+    status: "completed",
+    steps: [
+      {
+        type: "model_output",
+        content: [
+          { type: "text", text: '{"ok":true}' },
+          { type: "future_action_part" },
+        ],
+      },
+    ],
+  });
+  assert.equal(google.terminal, undefined);
+  assert.equal(google.failure?._tag, "MalformedEvent");
+  assert.notEqual(interaction.status, "completed");
+});
+test("unknown nested content in a reasoning item or a done output item fails closed", async () => {
+  const summary = await failureOf(
+    [
+      {
+        id: "r1",
+        status: "completed",
+        output: [
+          { type: "reasoning", summary: [{ type: "future_action_part" }] },
+          {
+            type: "message",
+            content: [{ type: "output_text", text: nestedText }],
+          },
+        ],
+      },
+    ],
+    cells[4]!,
+    true,
+  );
+  assert.equal(summary._tag, "Left");
+  if (summary._tag === "Left") assert.equal(summary.left._tag, "MalformedEvent");
+  const done = await failureOf(
+    [
+      openingFrame(cells[4]!),
+      { type: "response.output_text.delta", delta: nestedText },
+      {
+        type: "response.output_item.done",
+        item: {
+          id: "m1",
+          type: "message",
+          content: [
+            { type: "output_text", text: nestedText },
+            { type: "future_action_part" },
+          ],
+        },
+      },
+    ],
+    cells[4]!,
+  );
+  assert.equal(done._tag, "Left");
+  if (done._tag === "Left") assert.equal(done.left._tag, "MalformedEvent");
+});
+test("recognized inert nested content still completes a no-tool response", () => {
+  const responses = initialState();
+  const openai = responseComplete(responses, {
+    id: "r1",
+    model: "gpt-5.6-sol",
+    status: "completed",
+    output: [
+      {
+        type: "reasoning",
+        summary: [{ type: "summary_text", text: "s" }],
+        content: [{ type: "reasoning_text", text: "r" }],
+      },
+      {
+        type: "message",
+        content: [{ type: "output_text", text: nestedText }],
+      },
+    ],
+  });
+  assert.equal(openai.terminal, true);
+  assert.equal(openai.failure, undefined);
+  assert.equal(responses.status, "completed");
+  assert.equal(responses.text, nestedText);
+  const interaction = initialState();
+  const google = googleInteractionsDialect.complete(interaction, {
+    id: "r1",
+    model: "gemini-3.8-flash",
+    status: "completed",
+    steps: [
+      {
+        type: "thought",
+        content: [{ type: "thought_signature", signature: "s" }],
+      },
+      { type: "model_output", content: [{ type: "text", text: nestedText }] },
+    ],
+  });
+  assert.equal(google.terminal, true);
+  assert.equal(google.failure, undefined);
+  assert.equal(interaction.status, "completed");
+  assert.equal(interaction.text, nestedText);
+});
+test("a refusal part beside output text stays terminal without completed text", () => {
+  const state = initialState();
+  const delta = responseComplete(state, {
+    id: "r1",
+    model: "gpt-5.6-sol",
+    status: "completed",
+    output: [
+      {
+        type: "message",
+        content: [
+          { type: "output_text", text: nestedText },
+          { type: "refusal", refusal: "no" },
+        ],
+      },
+    ],
+  });
+  assert.equal(delta.terminal, true);
+  assert.equal(state.status, "refused");
+  assert.equal(state.text, "");
+});
+/**
+ * Inert nested variants and non-text lifecycle frames each dialect can emit,
+ * spliced in while the dialect's output content boundary is still open.
+ */
+const inertExtras: Record<
+  string,
+  { readonly at: number; readonly frames: readonly unknown[] } | undefined
+> = {
+  "anthropic-messages": {
+    at: 7,
+    frames: [
+      { type: "ping" },
+      {
+        type: "content_block_delta",
+        index: 1,
+        delta: { type: "citations_delta", citation: { type: "char_location" } },
+      },
+    ],
+  },
+  "google-interactions": {
+    at: 6,
+    frames: [
+      { event_type: "interaction.in_progress", event_id: "x1" },
+      {
+        event_type: "step.delta",
+        event_id: "x2",
+        index: 1,
+        delta: { type: "thought", thought: "" },
+      },
+    ],
+  },
+  default: {
+    at: 3,
+    frames: [
+      { type: "response.in_progress", response: { id: "r1" } },
+      {
+        type: "response.content_part.added",
+        item_id: "m1",
+        part: { type: "output_text", text: "" },
+      },
+      { type: "response.output_text.done", text: '{"answer":"λ"}' },
+    ],
+  },
+};
+for (const cell of cells) {
+  test(`API ${cell[0]} still completes with inert nested content and non-text lifecycle frames`, async () => {
+    const r = request(cell);
+    const all = frames(r.profileId, r.transportId);
+    const extras = pick(inertExtras, cell[1])!;
+    const fake = peer([
+      ...all.slice(0, extras.at),
+      ...extras.frames,
+      ...all.slice(extras.at),
+    ]);
+    const events = await collect(
+      cell[3]({ credentials, schemaRegistry, http: fake.http }),
+      r,
+    );
+    const done = events.find((e) => e.payload.type === "completed");
+    assert.ok(done?.payload.type === "completed");
+    assert.equal(
+      JSON.stringify(done.payload.result.json),
+      JSON.stringify({ answer: "λ" }),
+    );
+  });
+}
+test("API replay grants no fresh no-tool request evidence", async () => {
+  const r = request(cells[5]);
+  const all = frames(r.profileId, r.transportId);
+  const first = peer(all);
+  const events = await collect(
+    createGoogleInteractionsTransport({
+      credentials,
+      schemaRegistry,
+      http: first.http,
+    }),
+    r,
+  );
+  const checkpoint = events.find(
+    (e) => e.cursor === "c5" && e.payload.type === "checkpoint",
+  );
+  assert.ok(checkpoint?.payload.type === "checkpoint");
+  const next = peer(all.slice(6));
+  const replayed = Array.from(
+    await Effect.runPromise(
+      Effect.scoped(
+        createGoogleInteractionsTransport({
+          credentials,
+          schemaRegistry,
+          http: next.http,
+        })
+          .resume(
+            { ...r, continuation: checkpoint.payload.checkpoint },
+            checkpoint.providerIdentity,
+            "c5",
+          )
+          .pipe(Effect.flatMap(Stream.runCollect)),
+      ),
+    ),
+  );
+  const started = replayed.find((e) => e.payload.type === "started");
+  assert.ok(started?.payload.type === "started");
+  assert.equal(started.payload.observedToolPolicy, undefined);
+});
 test("different observed exact model fails without output or fallback", async () => {
   const r = request();
   const fake = peer(frames("wrong-model", r.transportId));

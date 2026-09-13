@@ -106,13 +106,17 @@ When simplification is measured, the Foreman measurement tool SHALL use the spec
 
 ### Requirement: R-M6-011 Measured net simplification
 
-The Foreman migrated workflow cohort SHALL reduce orchestration glue lines by at least 40 percent and required instruction tokens by at least 50 percent.
+The Foreman migrated workflow cohort SHALL reduce required instruction tokens by at least 50 percent and report production-code counts under the unchanged frozen measurement contract.
 
 #### Scenario: T-M6-011 Measured net simplification
 
 - WHEN the following fixture is prepared: The frozen implementation cohort, all new replacement glue, and the complete mandatory quickstart instruction corpus.
 - AND the test performs: Run the simplification measurement against the candidate and compare its acceptance fields.
-- THEN Net glue reduction is at least 0.40 and instruction reduction at least 0.50. Moving code or instructions outside old paths does not remove them from counts.
+- THEN Instruction reduction is at least 0.50. The report retains raw production counts and the original production-target result. Moving code or instructions outside old paths does not remove them from counts.
+
+The [2026-09-13 scope amendment](../../../../../docs/releases/return-of-the-foredi/scope-amendment-2026-09-13.md) defers only the 40 percent production-code target to a separate cleanup release.
+The original measurement inputs and failed production results remain unchanged.
+The instruction target and all other release requirements remain required.
 
 ### Requirement: R-M6-012 Verification receipt reuse
 

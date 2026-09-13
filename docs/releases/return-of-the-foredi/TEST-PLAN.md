@@ -2,7 +2,7 @@
 
 Status: M1–M6 have executed implementation tests recorded in their coverage and acceptance reports. M7 tests remain planned.
 
-This plan contains 147 test scenarios for 145 requirements. Each entry states a concrete fixture, action, expected result, and target file.
+This plan contains 148 test scenarios for 146 requirements. Each entry states a concrete fixture, action, expected result, and target file.
 
 Run the milestone commands in each OpenSpec `tasks.md` after its implementation exists. Unit and contract fixtures run without provider accounts. Live qualification uses the exact profile and transport combinations stated in M3. Record unsupported or inaccessible combinations as such. Do not substitute a different model to claim a pass.
 
@@ -603,6 +603,15 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 - Action: lowerProviderSchema then decodeProviderOutput and validateFinal.
 - Expected: Canonical schema order is stable across JSON key order. Invalid keys/types/bounds fail with field paths. Unsupported required schema structure performs zero dispatch.
 
+### T-M3-029
+
+- Requirements: R-M3-029.
+- Level: integration.
+- Target: `packages/providers/src/transports/api-transports.test.ts`.
+- Fixture: Each admitted API dialect with its exact controls, an admitted none tool policy, injected fixture credentials and protocol peers that produce complete, refused, incomplete, mismatched-identity, tool and unrecognized-output exchanges.
+- Action: Start each dialect, inspect the serialized request body and started event, and run the live qualification assessment over the observed events in packages/orchestration/src/pel-provider-live.test.ts.
+- Expected: The started event reports observedToolPolicy none only after an empty or omitted serialized tool surface and an exact established response identity. Automatic tool choice, cursor replay, refusal, incomplete output, identity mismatch, tool activity and an unknown outcome produce no no-tool evidence. Both the streaming and complete-response decoders reject function, tool and server-tool activity and fail closed on unrecognized action-bearing output. Request-side enforcement never substitutes for the separate native empty-catalog observation.
+
 ## M4: Execute and recover Pel programs
 
 [OpenSpec](../../../openspec/changes/foredi-04-durable-execution/specs/foredi-04-durable-execution/spec.md) · [Implementation tasks](../../../openspec/changes/foredi-04-durable-execution/tasks.md)
@@ -1063,7 +1072,7 @@ Run the milestone commands in each OpenSpec `tasks.md` after its implementation 
 - Target: `packages/orchestration/src/pel-simplification.test.ts`.
 - Fixture: The frozen implementation cohort, all new replacement glue, and the complete mandatory quickstart instruction corpus.
 - Action: Run the simplification measurement against the candidate and compare its acceptance fields.
-- Expected: Net glue reduction is at least 0.40 and instruction reduction at least 0.50. Moving code or instructions outside old paths does not remove them from counts.
+- Expected: Instruction reduction is at least 0.50. The report retains raw production counts and the original production-target result. Moving code or instructions outside old paths does not remove them from counts.
 
 ### T-M6-012
 
