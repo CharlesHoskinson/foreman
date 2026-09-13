@@ -18,9 +18,10 @@ Preserve historical measurements while moving production reduction into a separa
 
 ## Tasks
 
-- [ ] Repair the Linux prerequisite failure in `.github/workflows/gates-linux.yml`.
+- [x] Repair the Linux prerequisite failure in `.github/workflows/gates-linux.yml`.
   Validate `.github/apparmor/foreman-bwrap` with `apparmor_parser --skip-kernel-load --skip-read-cache`.
   Run the existing native-boundary tests and observe the GitHub namespace probe.
+  Hosted run `34772006971` passed the secured Node runtime and Bubblewrap prerequisites.
 - [x] Amend the M6 specification, catalogs, roadmap, and release status to record the authorized code-reduction deferral.
   Preserve the frozen baseline and failed historical results.
   Validate the affected OpenSpecs and catalog consistency.
@@ -46,6 +47,19 @@ GitHub main run `34769434833` failed before workspace tests with `bwrap: setting
 The local WSL kernel has AppArmor disabled, so local tests cannot establish the hosted-runner result.
 The runner must pass its existing unprivileged namespace probe after loading the profile.
 
+Recovery candidate `caae6c2d2c2b8d6b3dc6b8c8109bb1353292306d` passed that probe in run `34772006971`.
+The run also passed the root Node workspace, architecture, Council, and existing formal checks.
+Its shared gate failed: Bats reported 520 passes, 237 failures, and 19 skips; Markdown and spelling checks also failed.
+The documentation repair subsequently passed the complete local documentation gate.
+The diagnostic review attributes 232 Bats failures to deleted controllers, one to CI registry drift, and four to WSL Setup.
+The registry data and WSL readiness fixture repairs pass all five independent cases locally.
+The combined affected-family check reports 25 passes and one failure because `lane-run.sh` is still absent.
+The [controller restoration proposal](legacy-restoration-proposal.md) includes exact historical file hashes and a narrowly scoped policy exception. It remains unapplied.
+
+The archive built from `caae6c2` passed 19 isolated installation checks.
+Its fresh required-instruction count was 8,125 against the frozen 16,502 baseline: a 50.76 percent reduction.
+These results bind to that candidate, not to subsequent repairs. Final packaging and acceptance remain open.
+
 Ubuntu describes per-application user namespace profiles in its [AppArmor guidance](https://discourse.ubuntu.com/t/understanding-apparmor-user-namespace-restriction/58007).
 The added profile applies only to `/usr/bin/bwrap` on the disposable runner.
 
@@ -56,5 +70,6 @@ The local coding agents stopped before implementing the API correction.
 Opus owns completion of the partial documentation amendment and the adapter fix.
 Grok initially reported signed out. A later check confirmed an active grok.com session and the exact `grok-4.6` selection.
 The first cold review reached its turn limit without a verdict. The full retry timed out. Grok completed the nested-output review with no blocking findings.
-A separate bounded review covers the remaining request-evidence, qualification, and CI changes.
+A separate bounded review completed the remaining request-evidence, qualification, and CI changes with no blocking findings.
+Both completed reviews bind to the source in `caae6c2`; they do not approve subsequent repairs or the restoration proposal.
 The fresh Opus canary confirmed `claude-opus-5` through the provider's model-usage record.
