@@ -1,0 +1,420 @@
+{
+  "schema": "foreman.pel-k-workflow-bindings.v1",
+  "status": "unbound",
+  "program": "pel-k-release-program",
+  "agenda": "agenda.pel",
+  "settingsPatch": "settings.patch.json",
+  "inputAlias": "artifact:approved-spec",
+  "gate": "candidate-full",
+  "reviewPolicy": "independent-review",
+  "stages": [
+    {
+      "package": "pel-k-release-program",
+      "track": "K1",
+      "workflow": "00-program.pel",
+      "prerequisites": [],
+      "requirements": [
+        "KGP-001",
+        "KGP-002",
+        "KGP-003",
+        "KGP-004",
+        "KGP-005",
+        "KGP-006"
+      ],
+      "inheritedM7Requirements": [],
+      "inputPacket": {
+        "package": "pel-k-release-program",
+        "unit": "select-an-admitted-requirement-or-task",
+        "specPaths": [
+          "openspec/changes/pel-k-release-program/proposal.md",
+          "openspec/changes/pel-k-release-program/design.md",
+          "openspec/changes/pel-k-release-program/tasks.md",
+          "openspec/changes/pel-k-release-program/specs/pel-k-release-program/spec.md"
+        ],
+        "sourceCommit": null,
+        "sourceSha256": null,
+        "prerequisiteReceipts": [],
+        "allowedPaths": [],
+        "acceptanceArgv": [],
+        "expectedArtifacts": []
+      }
+    },
+    {
+      "package": "pel-k-foundation",
+      "track": "K1",
+      "workflow": "01-foundation.pel",
+      "prerequisites": [],
+      "requirements": [
+        "K01-001",
+        "K01-002",
+        "K01-003",
+        "K01-004",
+        "K01-005"
+      ],
+      "inheritedM7Requirements": [
+        "R-M7-001"
+      ],
+      "inputPacket": {
+        "package": "pel-k-foundation",
+        "unit": "select-an-admitted-requirement-or-task",
+        "specPaths": [
+          "openspec/changes/pel-k-foundation/proposal.md",
+          "openspec/changes/pel-k-foundation/design.md",
+          "openspec/changes/pel-k-foundation/tasks.md",
+          "openspec/changes/pel-k-foundation/specs/pel-k-foundation/spec.md",
+          "openspec/changes/pel-k-foundation/specs/runtime/spec.md"
+        ],
+        "sourceCommit": null,
+        "sourceSha256": null,
+        "prerequisiteReceipts": [],
+        "allowedPaths": [],
+        "acceptanceArgv": [],
+        "expectedArtifacts": []
+      }
+    },
+    {
+      "package": "pel-k-syntax-values",
+      "track": "K1",
+      "workflow": "02-syntax-values.pel",
+      "prerequisites": [
+        "pel-k-foundation"
+      ],
+      "requirements": [
+        "K02-001",
+        "K02-002",
+        "K02-003",
+        "K02-004"
+      ],
+      "inheritedM7Requirements": [
+        "R-M7-002",
+        "R-M7-003",
+        "R-M7-004"
+      ],
+      "inputPacket": {
+        "package": "pel-k-syntax-values",
+        "unit": "select-an-admitted-requirement-or-task",
+        "specPaths": [
+          "openspec/changes/pel-k-syntax-values/proposal.md",
+          "openspec/changes/pel-k-syntax-values/design.md",
+          "openspec/changes/pel-k-syntax-values/tasks.md",
+          "openspec/changes/pel-k-syntax-values/specs/pel-k-syntax-values/spec.md"
+        ],
+        "sourceCommit": null,
+        "sourceSha256": null,
+        "prerequisiteReceipts": [],
+        "allowedPaths": [],
+        "acceptanceArgv": [],
+        "expectedArtifacts": []
+      }
+    },
+    {
+      "package": "pel-k-host",
+      "track": "K1",
+      "workflow": "05-host.pel",
+      "prerequisites": [
+        "pel-k-syntax-values"
+      ],
+      "requirements": [
+        "K05-001",
+        "K05-002",
+        "K05-003",
+        "K05-004"
+      ],
+      "inheritedM7Requirements": [
+        "R-M7-010",
+        "R-M7-011",
+        "R-M7-012"
+      ],
+      "inputPacket": {
+        "package": "pel-k-host",
+        "unit": "select-an-admitted-requirement-or-task",
+        "specPaths": [
+          "openspec/changes/pel-k-host/proposal.md",
+          "openspec/changes/pel-k-host/design.md",
+          "openspec/changes/pel-k-host/tasks.md",
+          "openspec/changes/pel-k-host/specs/pel-k-host/spec.md"
+        ],
+        "sourceCommit": null,
+        "sourceSha256": null,
+        "prerequisiteReceipts": [],
+        "allowedPaths": [],
+        "acceptanceArgv": [],
+        "expectedArtifacts": []
+      }
+    },
+    {
+      "package": "pel-k-evaluation",
+      "track": "K1",
+      "workflow": "03-evaluation.pel",
+      "prerequisites": [
+        "pel-k-syntax-values",
+        "pel-k-host"
+      ],
+      "requirements": [
+        "K03-001",
+        "K03-002",
+        "K03-003",
+        "K03-004"
+      ],
+      "inheritedM7Requirements": [
+        "R-M7-005",
+        "R-M7-006"
+      ],
+      "inputPacket": {
+        "package": "pel-k-evaluation",
+        "unit": "select-an-admitted-requirement-or-task",
+        "specPaths": [
+          "openspec/changes/pel-k-evaluation/proposal.md",
+          "openspec/changes/pel-k-evaluation/design.md",
+          "openspec/changes/pel-k-evaluation/tasks.md",
+          "openspec/changes/pel-k-evaluation/specs/pel-k-evaluation/spec.md"
+        ],
+        "sourceCommit": null,
+        "sourceSha256": null,
+        "prerequisiteReceipts": [],
+        "allowedPaths": [],
+        "acceptanceArgv": [],
+        "expectedArtifacts": []
+      }
+    },
+    {
+      "package": "pel-k-scheduling",
+      "track": "K1",
+      "workflow": "04-scheduling.pel",
+      "prerequisites": [
+        "pel-k-evaluation"
+      ],
+      "requirements": [
+        "K04-001",
+        "K04-002",
+        "K04-003",
+        "K04-004"
+      ],
+      "inheritedM7Requirements": [
+        "R-M7-007",
+        "R-M7-008",
+        "R-M7-009"
+      ],
+      "inputPacket": {
+        "package": "pel-k-scheduling",
+        "unit": "select-an-admitted-requirement-or-task",
+        "specPaths": [
+          "openspec/changes/pel-k-scheduling/proposal.md",
+          "openspec/changes/pel-k-scheduling/design.md",
+          "openspec/changes/pel-k-scheduling/tasks.md",
+          "openspec/changes/pel-k-scheduling/specs/pel-k-scheduling/spec.md"
+        ],
+        "sourceCommit": null,
+        "sourceSha256": null,
+        "prerequisiteReceipts": [],
+        "allowedPaths": [],
+        "acceptanceArgv": [],
+        "expectedArtifacts": []
+      }
+    },
+    {
+      "package": "pel-k-continuations",
+      "track": "K1",
+      "workflow": "06-continuations.pel",
+      "prerequisites": [
+        "pel-k-scheduling",
+        "pel-k-host"
+      ],
+      "requirements": [
+        "K06-001",
+        "K06-002",
+        "K06-003",
+        "K06-004"
+      ],
+      "inheritedM7Requirements": [
+        "R-M7-013",
+        "R-M7-014",
+        "R-M7-015"
+      ],
+      "inputPacket": {
+        "package": "pel-k-continuations",
+        "unit": "select-an-admitted-requirement-or-task",
+        "specPaths": [
+          "openspec/changes/pel-k-continuations/proposal.md",
+          "openspec/changes/pel-k-continuations/design.md",
+          "openspec/changes/pel-k-continuations/tasks.md",
+          "openspec/changes/pel-k-continuations/specs/pel-k-continuations/spec.md"
+        ],
+        "sourceCommit": null,
+        "sourceSha256": null,
+        "prerequisiteReceipts": [],
+        "allowedPaths": [],
+        "acceptanceArgv": [],
+        "expectedArtifacts": []
+      }
+    },
+    {
+      "package": "pel-k-conformance",
+      "track": "K1",
+      "workflow": "07-conformance.pel",
+      "prerequisites": [
+        "pel-k-continuations"
+      ],
+      "requirements": [
+        "K07-001",
+        "K07-002",
+        "K07-003",
+        "K07-004"
+      ],
+      "inheritedM7Requirements": [
+        "R-M7-017",
+        "R-M7-016",
+        "R-M7-018"
+      ],
+      "inputPacket": {
+        "package": "pel-k-conformance",
+        "unit": "select-an-admitted-requirement-or-task",
+        "specPaths": [
+          "openspec/changes/pel-k-conformance/proposal.md",
+          "openspec/changes/pel-k-conformance/design.md",
+          "openspec/changes/pel-k-conformance/tasks.md",
+          "openspec/changes/pel-k-conformance/specs/pel-k-conformance/spec.md"
+        ],
+        "sourceCommit": null,
+        "sourceSha256": null,
+        "prerequisiteReceipts": [],
+        "allowedPaths": [],
+        "acceptanceArgv": [],
+        "expectedArtifacts": []
+      }
+    },
+    {
+      "package": "pel-k-proofs",
+      "track": "K1",
+      "workflow": "08-proofs.pel",
+      "prerequisites": [
+        "pel-k-continuations"
+      ],
+      "requirements": [
+        "K08-001",
+        "K08-002",
+        "K08-003",
+        "K08-004"
+      ],
+      "inheritedM7Requirements": [
+        "R-M7-019"
+      ],
+      "inputPacket": {
+        "package": "pel-k-proofs",
+        "unit": "select-an-admitted-requirement-or-task",
+        "specPaths": [
+          "openspec/changes/pel-k-proofs/proposal.md",
+          "openspec/changes/pel-k-proofs/design.md",
+          "openspec/changes/pel-k-proofs/tasks.md",
+          "openspec/changes/pel-k-proofs/specs/pel-k-proofs/spec.md"
+        ],
+        "sourceCommit": null,
+        "sourceSha256": null,
+        "prerequisiteReceipts": [],
+        "allowedPaths": [],
+        "acceptanceArgv": [],
+        "expectedArtifacts": []
+      }
+    },
+    {
+      "package": "pel-k-runtime-correspondence",
+      "track": "K1",
+      "workflow": "09-runtime-correspondence.pel",
+      "prerequisites": [
+        "pel-k-conformance",
+        "pel-k-proofs"
+      ],
+      "requirements": [
+        "K09-001",
+        "K09-002",
+        "K09-003",
+        "K09-004"
+      ],
+      "inheritedM7Requirements": [],
+      "inputPacket": {
+        "package": "pel-k-runtime-correspondence",
+        "unit": "select-an-admitted-requirement-or-task",
+        "specPaths": [
+          "openspec/changes/pel-k-runtime-correspondence/proposal.md",
+          "openspec/changes/pel-k-runtime-correspondence/design.md",
+          "openspec/changes/pel-k-runtime-correspondence/tasks.md",
+          "openspec/changes/pel-k-runtime-correspondence/specs/pel-k-runtime-correspondence/spec.md"
+        ],
+        "sourceCommit": null,
+        "sourceSha256": null,
+        "prerequisiteReceipts": [],
+        "allowedPaths": [],
+        "acceptanceArgv": [],
+        "expectedArtifacts": []
+      }
+    },
+    {
+      "package": "pel-k-release",
+      "track": "K1",
+      "workflow": "10-release.pel",
+      "prerequisites": [
+        "pel-k-runtime-correspondence"
+      ],
+      "requirements": [
+        "K10-001",
+        "K10-002",
+        "K10-003",
+        "K10-004",
+        "K10-005"
+      ],
+      "inheritedM7Requirements": [
+        "R-M7-020"
+      ],
+      "inputPacket": {
+        "package": "pel-k-release",
+        "unit": "select-an-admitted-requirement-or-task",
+        "specPaths": [
+          "openspec/changes/pel-k-release/proposal.md",
+          "openspec/changes/pel-k-release/design.md",
+          "openspec/changes/pel-k-release/tasks.md",
+          "openspec/changes/pel-k-release/specs/pel-k-release/spec.md"
+        ],
+        "sourceCommit": null,
+        "sourceSha256": null,
+        "prerequisiteReceipts": [],
+        "allowedPaths": [],
+        "acceptanceArgv": [],
+        "expectedArtifacts": []
+      }
+    },
+    {
+      "package": "pel-k-certified-correspondence",
+      "track": "K2",
+      "workflow": "11-certified-correspondence.pel",
+      "prerequisites": [
+        "pel-k-runtime-correspondence"
+      ],
+      "requirements": [
+        "K11-001",
+        "K11-002",
+        "K11-003",
+        "K11-004"
+      ],
+      "inheritedM7Requirements": [],
+      "inputPacket": {
+        "package": "pel-k-certified-correspondence",
+        "unit": "select-an-admitted-requirement-or-task",
+        "specPaths": [
+          "openspec/changes/pel-k-certified-correspondence/proposal.md",
+          "openspec/changes/pel-k-certified-correspondence/design.md",
+          "openspec/changes/pel-k-certified-correspondence/tasks.md",
+          "openspec/changes/pel-k-certified-correspondence/specs/pel-k-certified-correspondence/spec.md"
+        ],
+        "sourceCommit": null,
+        "sourceSha256": null,
+        "prerequisiteReceipts": [],
+        "allowedPaths": [],
+        "acceptanceArgv": [],
+        "expectedArtifacts": []
+      }
+    }
+  ],
+  "automaticCorrections": 0,
+  "correctionWorkflow": "correction.pel",
+  "correctionInputPolicy": "freshly-admitted-immutable-packet-with-resolved-spec-candidate-and-failure-content"
+}

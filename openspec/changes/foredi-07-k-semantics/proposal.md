@@ -33,3 +33,8 @@ The existing evaluator, journal, ledger, native boundaries and publication autho
 | F-M7-06 | Differential corpus, mutation controls and honest proof status |
 
 See [design.md](design.md), [tasks.md](tasks.md), and [catalog.json](catalog.json).
+
+## Full K release program
+
+The [full K release program](../pel-k-release-program/proposal.md) decomposes this sprint into implementation packages and adds release gates.
+M7 retains its twenty requirements and unchecked acceptance tasks. The program maps each requirement to its implementation owners.

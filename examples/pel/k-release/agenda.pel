@@ -1,0 +1,112 @@
+; The complete K agenda is ordinary Pel data. Preview it without dispatch.
+; Package numbers identify owners. Dependency order places K05 before K03.
+; The host must admit each run and record promotion between candidate bases.
+
+[:program "pel-k-release-program"
+ :status "proposed-unbound"
+ :correction-workflow "correction.pel"
+ :k1 [
+    [:package "pel-k-release-program"
+     :workflow "00-program.pel"
+     :tasks "openspec/changes/pel-k-release-program/tasks.md"
+     :depends-on []
+     :requirements ["KGP-001" "KGP-002" "KGP-003" "KGP-004" "KGP-005" "KGP-006"]
+     :inherited []
+     :gate "candidate-full"
+     :handoff "reviewed-candidate-awaiting-authorized-promotion"]
+    [:package "pel-k-foundation"
+     :workflow "01-foundation.pel"
+     :tasks "openspec/changes/pel-k-foundation/tasks.md"
+     :depends-on []
+     :requirements ["K01-001" "K01-002" "K01-003" "K01-004" "K01-005"]
+     :inherited ["R-M7-001"]
+     :gate "candidate-full"
+     :handoff "reviewed-candidate-awaiting-authorized-promotion"]
+    [:package "pel-k-syntax-values"
+     :workflow "02-syntax-values.pel"
+     :tasks "openspec/changes/pel-k-syntax-values/tasks.md"
+     :depends-on ["pel-k-foundation"]
+     :requirements ["K02-001" "K02-002" "K02-003" "K02-004"]
+     :inherited ["R-M7-002" "R-M7-003" "R-M7-004"]
+     :gate "candidate-full"
+     :handoff "reviewed-candidate-awaiting-authorized-promotion"]
+    [:package "pel-k-host"
+     :workflow "05-host.pel"
+     :tasks "openspec/changes/pel-k-host/tasks.md"
+     :depends-on ["pel-k-syntax-values"]
+     :requirements ["K05-001" "K05-002" "K05-003" "K05-004"]
+     :inherited ["R-M7-010" "R-M7-011" "R-M7-012"]
+     :gate "candidate-full"
+     :handoff "reviewed-candidate-awaiting-authorized-promotion"]
+    [:package "pel-k-evaluation"
+     :workflow "03-evaluation.pel"
+     :tasks "openspec/changes/pel-k-evaluation/tasks.md"
+     :depends-on ["pel-k-syntax-values" "pel-k-host"]
+     :requirements ["K03-001" "K03-002" "K03-003" "K03-004"]
+     :inherited ["R-M7-005" "R-M7-006"]
+     :gate "candidate-full"
+     :handoff "reviewed-candidate-awaiting-authorized-promotion"]
+    [:package "pel-k-scheduling"
+     :workflow "04-scheduling.pel"
+     :tasks "openspec/changes/pel-k-scheduling/tasks.md"
+     :depends-on ["pel-k-evaluation"]
+     :requirements ["K04-001" "K04-002" "K04-003" "K04-004"]
+     :inherited ["R-M7-007" "R-M7-008" "R-M7-009"]
+     :gate "candidate-full"
+     :handoff "reviewed-candidate-awaiting-authorized-promotion"]
+    [:package "pel-k-continuations"
+     :workflow "06-continuations.pel"
+     :tasks "openspec/changes/pel-k-continuations/tasks.md"
+     :depends-on ["pel-k-scheduling" "pel-k-host"]
+     :requirements ["K06-001" "K06-002" "K06-003" "K06-004"]
+     :inherited ["R-M7-013" "R-M7-014" "R-M7-015"]
+     :gate "candidate-full"
+     :handoff "reviewed-candidate-awaiting-authorized-promotion"]
+    [:package "pel-k-conformance"
+     :workflow "07-conformance.pel"
+     :tasks "openspec/changes/pel-k-conformance/tasks.md"
+     :depends-on ["pel-k-continuations"]
+     :requirements ["K07-001" "K07-002" "K07-003" "K07-004"]
+     :inherited ["R-M7-017" "R-M7-016" "R-M7-018"]
+     :gate "candidate-full"
+     :handoff "reviewed-candidate-awaiting-authorized-promotion"]
+    [:package "pel-k-proofs"
+     :workflow "08-proofs.pel"
+     :tasks "openspec/changes/pel-k-proofs/tasks.md"
+     :depends-on ["pel-k-continuations"]
+     :requirements ["K08-001" "K08-002" "K08-003" "K08-004"]
+     :inherited ["R-M7-019"]
+     :gate "candidate-full"
+     :handoff "reviewed-candidate-awaiting-authorized-promotion"]
+    [:package "pel-k-runtime-correspondence"
+     :workflow "09-runtime-correspondence.pel"
+     :tasks "openspec/changes/pel-k-runtime-correspondence/tasks.md"
+     :depends-on ["pel-k-conformance" "pel-k-proofs"]
+     :requirements ["K09-001" "K09-002" "K09-003" "K09-004"]
+     :inherited []
+     :gate "candidate-full"
+     :handoff "reviewed-candidate-awaiting-authorized-promotion"]
+    [:package "pel-k-release"
+     :workflow "10-release.pel"
+     :tasks "openspec/changes/pel-k-release/tasks.md"
+     :depends-on ["pel-k-runtime-correspondence"]
+     :requirements ["K10-001" "K10-002" "K10-003" "K10-004" "K10-005"]
+     :inherited ["R-M7-020"]
+     :gate "candidate-full"
+     :handoff "reviewed-candidate-awaiting-authorized-promotion"]
+ ]
+ :k2 [
+    [:package "pel-k-certified-correspondence"
+     :workflow "11-certified-correspondence.pel"
+     :tasks "openspec/changes/pel-k-certified-correspondence/tasks.md"
+     :depends-on ["pel-k-runtime-correspondence"]
+     :requirements ["K11-001" "K11-002" "K11-003" "K11-004"]
+     :inherited []
+     :gate "candidate-full"
+     :handoff "reviewed-candidate-awaiting-authorized-promotion"]
+ ]
+ :required-k1-claims ["K-P01" "K-P02" "K-P03" "K-P04" "K-P05" "K-P06" "K-P07" "K-P08" "K-P09" "K-P10"]
+ :host-boundaries ["scope-adoption" "immutable-input-binding"
+   "candidate-promotion" "fresh-base-admission"
+   "release-authority" "tag-and-asset-publication" "embedded-image-verification"]
+ :cleanup "separate-release"]
