@@ -25,3 +25,6 @@
 skills/superpowers/skills/subagent-driven-development/scripts/review-package text eol=lf
 skills/superpowers/skills/subagent-driven-development/scripts/sdd-workspace text eol=lf
 skills/superpowers/skills/subagent-driven-development/scripts/task-brief text eol=lf
+
+# Preserve exact bytes and source formatting in hashed M3 research captures.
+docs/research/pel-release/sources/m3/** -text -whitespace

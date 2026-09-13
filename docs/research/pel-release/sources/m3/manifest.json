@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "method": "Scrapling",
+  "version": "0.4.15",
+  "archivedAt": "2026-09-13T07:49:15.437Z",
+  "sources": [
+    {
+      "file": "claude-sdk-typescript.md",
+      "url": "https://code.claude.com/docs/en/agent-sdk/typescript",
+      "sha256": "3bad5391f01b2e9b771d3935e6116580ae837d64650556d0c71dd38d4bc7aec8",
+      "byteLength": 112209,
+      "captureFileModifiedAt": "2026-09-13T06:50:27.872Z"
+    },
+    {
+      "file": "claude-cli-current.md",
+      "url": "https://code.claude.com/docs/en/cli-reference",
+      "sha256": "3aabdd7321ef2858dd0d16b7175675fa219b97ad33865528dc39ca92d90f9b70",
+      "byteLength": 7280,
+      "captureFileModifiedAt": "2026-09-13T07:06:46.604Z"
+    },
+    {
+      "file": "claude-managed-mcp-current.md",
+      "url": "https://code.claude.com/docs/en/managed-mcp",
+      "sha256": "bfecf7629c5a7bb7773ade37e7d02df9ab368bb274ac599794d9cd14ab024b4e",
+      "byteLength": 31035,
+      "captureFileModifiedAt": "2026-09-13T07:11:37.488Z"
+    },
+    {
+      "file": "claude-structured-formatter-current.md",
+      "url": "https://platform.claude.com/cookbook/claude-agent-sdk-scheduled-repository-reviewer-scheduled-repository-reviewer",
+      "sha256": "90f08dceaf7e3ed4a7899607c6ead9a30dc59662c71a64221a352d393b4a328e",
+      "byteLength": 53291,
+      "captureFileModifiedAt": "2026-09-13T07:18:10.192Z"
+    },
+    {
+      "file": "grok-acp-current.md",
+      "url": "https://docs.x.ai/build/cli/headless-scripting",
+      "sha256": "8f1dbe1eceeeb6bfb807a1b7fd82dfe65a3c47e95eab38cb400244f7810d5882",
+      "byteLength": 8073,
+      "captureFileModifiedAt": "2026-09-13T06:49:16.724Z"
+    },
+    {
+      "file": "grok-settings-reference.md",
+      "url": "https://docs.x.ai/build/settings/reference",
+      "sha256": "fe7d8920111d439357419c3a45cfc585c10c741daef69dc693a531441a8c3d9c",
+      "byteLength": 23952,
+      "captureFileModifiedAt": "2026-09-13T07:23:30.320Z"
+    },
+    {
+      "file": "grok-permissions.md",
+      "url": "https://docs.x.ai/build/features/permissions",
+      "sha256": "576ec102839f8c5cc676934388092e73376e2e2a3424b8d461889f0a4eae6805",
+      "byteLength": 5376,
+      "captureFileModifiedAt": "2026-09-13T06:49:24.852Z"
+    },
+    {
+      "file": "acp-session.md",
+      "url": "https://agentclientprotocol.com/protocol/v1/session-setup",
+      "sha256": "8f2279156ce2fb33afcca2ebdf95934ec09a1ae8b55b76d7680c7fed8353cc58",
+      "byteLength": 11355,
+      "captureFileModifiedAt": "2026-09-13T06:49:24.448Z"
+    },
+    {
+      "file": "acp-config.md",
+      "url": "https://agentclientprotocol.com/protocol/v1/session-config-options",
+      "sha256": "38597a4793487c9716656ff3a1d30318c9f89929d34441d872e31bbc5f4317f8",
+      "byteLength": 8388,
+      "captureFileModifiedAt": "2026-09-13T06:49:42.908Z"
+    },
+    {
+      "file": "acp-tools.md",
+      "url": "https://agentclientprotocol.com/protocol/v1/tool-calls",
+      "sha256": "f6d0b588b6073f1b423f40ac88ea956411a4ae0e557cb8a7cbdbd72106baf139",
+      "byteLength": 6751,
+      "captureFileModifiedAt": "2026-09-13T06:49:43.396Z"
+    },
+    {
+      "file": "acp-prompt.md",
+      "url": "https://agentclientprotocol.com/protocol/v1/prompt-turn",
+      "sha256": "4cc84c30684cdafe51bd40cc5f6075b4c254542249e363820948a7fe43dc2abd",
+      "byteLength": 7298,
+      "captureFileModifiedAt": "2026-09-13T06:49:43.932Z"
+    },
+    {
+      "file": "google-streaming.md",
+      "url": "https://ai.google.dev/gemini-api/docs/streaming",
+      "sha256": "bee2fda854057fab6533a311f5b9b5a18b7d10bd4ab94be7b2378376c5f9d9c2",
+      "byteLength": 55014,
+      "captureFileModifiedAt": "2026-09-13T06:36:38.545Z"
+    },
+    {
+      "file": "xai-responses.md",
+      "url": "https://docs.x.ai/developers/rest-api-reference/inference/responses",
+      "sha256": "7498bc2de8bab633623d9b7f5845028ef6b33d75068782a047b550486f65dd83",
+      "byteLength": 20379,
+      "captureFileModifiedAt": "2026-09-13T06:38:28.673Z"
+    },
+    {
+      "file": "gemini-policy.md",
+      "url": "https://geminicli.com/docs/core/policy-engine/",
+      "sha256": "49115cf556e513783c687fb49af174cf6e6990fbdac380c16e47bbba36ce7a9d",
+      "byteLength": 113,
+      "captureFileModifiedAt": "2026-09-13T06:50:41.932Z",
+      "contentKind": "redirect-page"
+    },
+    {
+      "file": "gemini-config.md",
+      "url": "https://geminicli.com/docs/reference/configuration/",
+      "sha256": "b802ffb0735b80f95f16d184970d3775917f1b8814f212ca6c7af0aacf2fc21c",
+      "byteLength": 112691,
+      "captureFileModifiedAt": "2026-09-13T06:51:07.936Z"
+    },
+    {
+      "file": "gemini-policy-current.md",
+      "url": "https://geminicli.com/docs/reference/policy-engine/",
+      "sha256": "9c00471d8bd1834fc6ca89438f6b4f6b8f4c0ceceec82ba9c3853f0ccb7c6a54",
+      "byteLength": 32234,
+      "captureFileModifiedAt": "2026-09-13T07:48:47.359Z"
+    },
+    {
+      "file": "codex-app-server-current.md",
+      "url": "https://developers.openai.com/codex/app-server",
+      "resolvedUrl": "https://learn.chatgpt.com/docs/app-server",
+      "sha256": "cfd4ee46927f09c3b2a988bfef2a07d20af10be72d041faa5fb7b02dce6aaf2e",
+      "byteLength": 129505,
+      "captureFileModifiedAt": "2026-09-13T07:48:57.503Z"
+    },
+    {
+      "file": "grok-sandbox.md",
+      "url": "https://docs.x.ai/build/features/sandbox",
+      "sha256": "e371023715e806214ca14b81df52f0823887b0189959f3cf71e21a10a57c9686",
+      "byteLength": 5344,
+      "captureFileModifiedAt": "2026-09-13T07:23:30.736Z"
+    }
+  ]
+}

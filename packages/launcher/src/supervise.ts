@@ -19,6 +19,7 @@ import {
   ProcessGroupTerminator,
   WindowsTreeTerminator,
   type SpawnedChild,
+  type SpawnError,
 } from "./services.js";
 
 export type LaunchEventType =
@@ -38,6 +39,13 @@ export type LaunchEvent = {
 
 export type SuperviseOptions = {
   readonly cmd: readonly string[];
+  readonly cwd?: string;
+  readonly env?: Readonly<Record<string, string>>;
+  readonly envMode?: "inherit" | "replace";
+  /** Initial input is closed after writing unless interactiveStdin is true. */
+  readonly stdin?: Uint8Array;
+  readonly interactiveStdin?: boolean;
+  readonly onSpawned?: (child: SpawnedChild) => Effect.Effect<void, SpawnError>;
   readonly timeoutSecs?: number;
   readonly graceSecs: number;
   readonly heartbeatFile?: string;
@@ -128,6 +136,10 @@ export function supervise(
         .spawn({
           file,
           args,
+          ...(opts.cwd === undefined ? {} : { cwd: opts.cwd }),
+          ...(opts.env === undefined ? {} : { env: opts.env }),
+          ...(opts.envMode === undefined ? {} : { envMode: opts.envMode }),
+          stdinMode: opts.stdin !== undefined || opts.interactiveStdin ? "pipe" : "ignore",
           detachedProcessGroup,
           windowsHide: opts.platform === "win32",
         })
@@ -289,6 +301,15 @@ export function supervise(
           yield* Ref.set(timersClearedRef, true);
         }).pipe(Effect.ignore),
       );
+
+      yield* Effect.gen(function* () {
+        if (opts.stdin !== undefined) {
+          if (!child.stdin) return yield* Effect.fail({ _tag: "SpawnError" as const, message: "child stdin unavailable" });
+          yield* child.stdin.write(opts.stdin);
+          if (!opts.interactiveStdin) yield* child.stdin.end();
+        }
+        if (opts.onSpawned) yield* opts.onSpawned(child);
+      }).pipe(Effect.mapError(e => ({ _tag: "SuperviseError" as const, message: e.message })));
 
       const exitCode = yield* child.wait().pipe(
         Effect.mapError((e) => ({

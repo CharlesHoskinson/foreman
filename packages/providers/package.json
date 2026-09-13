@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@foreman/core": "0.4.0",
+    "@foreman/launcher": "0.4.0",
     "@foreman/pel": "0.4.0",
     "effect": "3.22.1"
   },

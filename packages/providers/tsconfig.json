@@ -3,5 +3,5 @@
   "compilerOptions": { "composite": true, "rootDir": "src", "outDir": "dist" },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts"],
-  "references": [{ "path": "../core" }, { "path": "../pel" }]
+  "references": [{ "path": "../core" }, { "path": "../pel" }, { "path": "../launcher" }]
 }

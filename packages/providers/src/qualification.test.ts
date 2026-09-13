@@ -1,0 +1,365 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { Effect, Stream } from "effect";
+import { canonicalize, sha256Hex } from "@foreman/core";
+import { runQualification, qualificationBounds } from "./qualification.js";
+import { PROVIDER_PROFILES } from "./profiles.js";
+import type {
+  ProviderRequestV1,
+  ProviderTransport,
+  ProviderIdentityV1,
+} from "./contract.js";
+const p = PROVIDER_PROFILES.find((p) => p.id === "gpt-6-astra")!;
+const identity: ProviderIdentityV1 = {
+  kind: "api",
+  provider: "openai",
+  profileId: p.id,
+  transportId: "openai-responses",
+  credentialProfileRef: "fake",
+  endpointRevision: "v1",
+  responseId: "r",
+};
+const request: ProviderRequestV1 = {
+  schemaVersion: 1,
+  effectId: "qualify",
+  profileId: p.id,
+  transportId: "openai-responses",
+  trustedInstructions: "Return a harmless boolean.",
+  artifacts: [],
+  toolPolicy: { mode: "none" },
+  outputSchema: { id: "schema:pel-boolean-v1", content: { type: "boolean" } },
+  controls: p.defaults,
+  credentialProfileRef: "fake",
+  profileHash: p.profileHash,
+  sourceManifestHash: p.sourceManifestHash,
+  transportVersion: "1",
+  limits: {
+    deadline: 999999,
+    maxInputTokens: 50000,
+    maxOutputTokens: 50000,
+    maxToolCalls: 20,
+    maxCostUsd: 20,
+    maxOutputBytes: 1024,
+    spendReservationRef: "reservation",
+  },
+};
+test("T-M3-017 bounded injected qualification retains fixture provenance and never invents optional evidence", async () => {
+  let calls = 0;
+  let observed: ProviderRequestV1 | undefined;
+  const transport: ProviderTransport = {
+    id: "openai-responses",
+    version: "1",
+    probe: () =>
+      Effect.fail({
+        _tag: "ProbeUnknown",
+        retryClass: "never",
+        message: "unused",
+      }),
+    start: (r) =>
+      Effect.sync(() => {
+        calls++;
+        observed = r;
+        return Stream.make({
+          schemaVersion: 1 as const,
+          effectId: r.effectId,
+          providerIdentity: identity,
+          sourceEventId: "done",
+          payload: {
+            type: "completed" as const,
+            result: {
+              value: { tag: "boolean" as const, value: true },
+              json: true,
+              schemaId: r.outputSchema.id,
+              schemaSha256: sha256Hex(canonicalize(r.outputSchema.content)),
+              byteLength: 4,
+            },
+          },
+        });
+      }),
+    sendToolResult: () => Effect.void,
+    cancel: () =>
+      Effect.succeed({
+        requested: true,
+        acknowledged: false,
+        localCleanup: "not-required",
+        remoteOutcome: "unsupported",
+      }),
+    observe: () =>
+      Effect.succeed({
+        status: "unsupported",
+        providerIdentity: identity,
+        reason: "unsupported",
+      }),
+    resume: () =>
+      Effect.fail({
+        _tag: "ResumeUnavailable",
+        retryClass: "never",
+        message: "unused",
+      }),
+  };
+  const result = await Effect.runPromise(
+    runQualification(
+      {
+        request,
+        requiredCapabilities: ["generation"],
+        binding: {
+          kind: "qualification-fixture",
+          fixtureManifestHash: "manifest",
+          endpointIdentity: "fake://endpoint",
+          evidenceRef: "fixture:report",
+          expiresAt: 1000000,
+        },
+      },
+      { transport, now: () => 100 },
+    ),
+  );
+  assert.equal(calls, 1);
+  assert.equal(result.outcome, "success");
+  assert.equal(result.evidence[0]?.state, "fixture-tested");
+  assert.equal(result.evidence[0]?.fixtureManifestHash, "manifest");
+  assert.equal(result.evidence.length, 1);
+  assert.equal(observed?.limits.maxToolCalls, 2);
+  assert.equal(observed?.limits.maxCostUsd, 5);
+  assert(
+    (observed?.limits.maxInputTokens ?? 0) +
+      (observed?.limits.maxOutputTokens ?? 0) <=
+      30000,
+  );
+  assert.equal(observed?.limits.deadline, 180100);
+  const unsupported = await Effect.runPromise(
+    runQualification(
+      {
+        request,
+        requiredCapabilities: ["permissionBoundary"],
+        binding: {
+          kind: "qualification-fixture",
+          fixtureManifestHash: "manifest",
+          endpointIdentity: "fake://endpoint",
+          evidenceRef: "fixture:report",
+          expiresAt: 1000000,
+        },
+      },
+      { transport, now: () => 100 },
+    ),
+  );
+  assert.equal(unsupported.outcome, "failed");
+  assert.equal(unsupported.evidence.length, 0);
+});
+test("qualification bounds reject invalid values and smaller host limits win", () => {
+  assert.equal(
+    qualificationBounds({ ...request.limits, maxCostUsd: -1 }, 100).ok,
+    false,
+  );
+  const r = qualificationBounds(
+    {
+      ...request.limits,
+      maxInputTokens: 10,
+      maxOutputTokens: 20,
+      maxToolCalls: 0,
+      maxCostUsd: 0.01,
+      deadline: 200,
+    },
+    100,
+  );
+  assert(r.ok);
+  assert.equal(r.value.maxCostUsd, 0.01);
+  assert.equal(r.value.maxToolCalls, 0);
+  assert.equal(r.value.deadline, 200);
+});
+test("qualification rejects a forged completed result and keeps uncertain remote cleanup needs-action", async () => {
+  const bad: ProviderTransport = {
+    id: "openai-responses",
+    version: "1",
+    probe: () =>
+      Effect.fail({
+        _tag: "ProbeUnknown",
+        retryClass: "never",
+        message: "unused",
+      }),
+    start: () =>
+      Effect.succeed(
+        Stream.make<[import("./contract.js").ProviderEventV1]>({
+          schemaVersion: 1,
+          effectId: request.effectId,
+          providerIdentity: identity,
+          payload: {
+            type: "completed",
+            result: {
+              value: { tag: "string", value: "wrong" },
+              json: "wrong",
+              schemaId: request.outputSchema.id,
+              schemaSha256: "wrong",
+              byteLength: 5,
+            },
+          },
+        }),
+      ),
+    sendToolResult: () => Effect.void,
+    cancel: () =>
+      Effect.succeed({
+        requested: true,
+        acknowledged: false,
+        localCleanup: "not-required",
+        remoteOutcome: "unsupported",
+      }),
+    observe: () =>
+      Effect.succeed({
+        status: "unsupported",
+        providerIdentity: identity,
+        reason: "unsupported",
+      }),
+    resume: () =>
+      Effect.fail({
+        _tag: "ResumeUnavailable",
+        retryClass: "never",
+        message: "unused",
+      }),
+  };
+  const result = await Effect.runPromise(
+    runQualification(
+      {
+        request,
+        requiredCapabilities: ["generation"],
+        binding: {
+          kind: "qualification-fixture",
+          fixtureManifestHash: "manifest",
+          endpointIdentity: "fake://endpoint",
+          evidenceRef: "fixture:report",
+          expiresAt: 1000000,
+        },
+      },
+      { transport: bad, now: () => 100 },
+    ),
+  );
+  assert.equal(result.evidence.length, 0);
+  assert.equal(result.failure?._tag, "OutputInvalid");
+  assert.equal(result.outcome, "needs-action");
+});
+test("qualification bounds terminal usage and preserves full identity before scoped cleanup", async () => {
+  for (const scenario of ["usage", "identity"] as const) {
+    let closed = false;
+    let cancelledWhileOpen = false;
+    const resultEvent: import("./contract.js").ProviderEventV1 = {
+      schemaVersion: 1,
+      effectId: request.effectId,
+      providerIdentity:
+        scenario === "identity"
+          ? { ...identity, responseId: "different-response" }
+          : identity,
+      payload: {
+        type: "completed",
+        result: {
+          value: { tag: "boolean", value: true },
+          json: { value: true },
+          schemaId: request.outputSchema.id,
+          schemaSha256: sha256Hex(canonicalize(request.outputSchema.content)),
+          byteLength: 14,
+        },
+        usage: { providerCounters: {}, inputTokens: 1000000, costUsd: "100" },
+      },
+    };
+    const transport: ProviderTransport = {
+      id: "openai-responses",
+      version: "1",
+      probe: () =>
+        Effect.fail({
+          _tag: "ProbeUnknown",
+          retryClass: "never",
+          message: "unused",
+        }),
+      start: () =>
+        Effect.gen(function* () {
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => {
+              closed = true;
+            }),
+          );
+          return Stream.make<import("./contract.js").ProviderEventV1[]>(
+            {
+              schemaVersion: 1,
+              effectId: request.effectId,
+              providerIdentity: identity,
+              payload: { type: "started" },
+            },
+            resultEvent,
+          );
+        }),
+      sendToolResult: () => Effect.void,
+      cancel: () =>
+        Effect.sync(() => {
+          cancelledWhileOpen = !closed;
+          return {
+            requested: true,
+            acknowledged: false,
+            localCleanup: "pending",
+            remoteOutcome: "unknown",
+          } as const;
+        }),
+      observe: () =>
+        Effect.succeed({
+          status: "unsupported",
+          providerIdentity: identity,
+          reason: "unsupported",
+        }),
+      resume: () =>
+        Effect.fail({
+          _tag: "ResumeUnavailable",
+          retryClass: "never",
+          message: "unused",
+        }),
+    };
+    const report = await Effect.runPromise(
+      runQualification(
+        {
+          request,
+          requiredCapabilities: ["generation"],
+          binding: {
+            kind: "qualification-fixture",
+            fixtureManifestHash: "manifest",
+            endpointIdentity: "fake://endpoint",
+            evidenceRef: "fixture:report",
+            expiresAt: 1000000,
+          },
+        },
+        { transport, now: () => 100 },
+      ),
+    );
+    assert.equal(report.evidence.length, 0);
+    assert.equal(
+      report.failure?._tag,
+      scenario === "usage" ? "OutputIncomplete" : "ModelMismatch",
+    );
+    if (scenario === "usage") assert.equal(report.usage?.inputTokens, 1000000);
+    assert(cancelledWhileOpen);
+    assert(closed);
+  }
+});
+test("qualification distinguishes installed CLI, ACP protocol, and transport implementation versions", async () => {
+  const { createTransportCellFixture } =
+    await import("./fixtures/transport-test-fixture.js");
+  const fixture = await createTransportCellFixture("grok-4.6", "grok-acp");
+  try {
+    const report = await Effect.runPromise(
+      runQualification(
+        {
+          request: fixture.request,
+          requiredCapabilities: ["generation"],
+          binding: {
+            kind: "qualification-fixture",
+            fixtureManifestHash: "manifest",
+            endpointIdentity: "fake://grok",
+            evidenceRef: "fixture:versions",
+            expiresAt: Date.now() + 60000,
+          },
+        },
+        { transport: fixture.transport, now: Date.now },
+      ),
+    );
+    assert.equal(report.outcome, "success");
+    assert.equal(report.protocolVersion, "1");
+    assert.equal(report.installedVersion, "1.0.30");
+    assert.equal(report.transportVersion, "1");
+  } finally {
+    await fixture.dispose();
+  }
+});

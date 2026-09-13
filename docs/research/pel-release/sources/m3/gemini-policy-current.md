@@ -1,0 +1,1065 @@
+ [Skip to content](#_top)
+
+Unpaid tier and Google One users: Gemini CLI was replaced by Antigravity
+CLI on June 18th, 2026. To learn more, see our [blog post](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli).
+
+[![Gemini CLI Icon](/_astro/icon.Bo4M5sF3.png) Gemini CLI](/) 
+
+* [Home](/)
+* [Plans](/plans/)
+* Extensions 
+  + [Browse extensions](/extensions/)
+  + [About Extensions](/extensions/about)
+* [Docs](/docs/)
+* [Reference](/docs/reference/commands)
+* [Resources](/docs/resources/quota-and-pricing)
+* [Changelog](/docs/changelogs/)
+
+Cancel
+
+[Feedback](https://github.com/google-gemini/gemini-cli/issues/new?template=website_issue.yml&url=https%3A%2F%2Fgeminicli.com%2Fdocs%2Freference%2Fpolicy-engine%2F)  [GitHub GitHub](https://github.com/google-gemini/gemini-cli)
+
+Select theme DarkLightAuto
+
+* [Home](/)
+* [Plans](/plans/)
+* Extensions  
+  + [Browse extensions](/extensions/)
+  + [About Extensions](/extensions/about)
+* Docs  
+  + Get started  
+    - [Overview](/docs/)
+    - [Quickstart](/docs/get-started/)
+    - [Installation](/docs/get-started/installation/)
+    - [Authentication](/docs/get-started/authentication/)
+    - [CLI cheatsheet](/docs/cli/cli-reference/)
+    - [Gemini 3 on Gemini CLI](/docs/get-started/gemini-3/)
+  + Use Gemini CLI  
+    - [File management](/docs/cli/tutorials/file-management/)
+    - [Get started with Agent Skills](/docs/cli/tutorials/skills-getting-started/)
+    - [Manage context and memory](/docs/cli/tutorials/memory-management/)
+    - [Execute shell commands](/docs/cli/tutorials/shell-commands/)
+    - [Manage sessions and history](/docs/cli/tutorials/session-management/)
+    - [Plan tasks with todos](/docs/cli/tutorials/task-planning/)
+    - [Use Plan Mode with model steering 🔬](/docs/cli/tutorials/plan-mode-steering/)
+    - [Web search and fetch](/docs/cli/tutorials/web-tools/)
+    - [Set up an MCP server](/docs/cli/tutorials/mcp-setup/)
+    - [Automate tasks](/docs/cli/tutorials/automation/)
+  + Features  
+    - Extensions  
+      * [Overview](/docs/extensions/)
+      * [User guide: Install and manage](/docs/extensions/#manage-extensions)
+      * [Developer guide: Build extensions](/docs/extensions/writing-extensions/)
+      * [Developer guide: Best practices](/docs/extensions/best-practices/)
+      * [Developer guide: Releasing](/docs/extensions/releasing/)
+      * [Developer guide: Reference](/docs/extensions/reference/)
+    - Agent Skills  
+      * [Overview](/docs/cli/skills/)
+      * [Get started with Agent Skills](/docs/cli/tutorials/skills-getting-started/)
+      * [Creating Agent Skills](/docs/cli/creating-skills/)
+      * [Using Agent Skills](/docs/cli/using-agent-skills/)
+      * [Developer guide: Best practices](/docs/cli/skills-best-practices/)
+    - [Auto Memory 🔬](/docs/cli/auto-memory/)
+    - [Checkpointing](/docs/cli/checkpointing/)
+    - [Headless mode](/docs/cli/headless/)
+    - [Git worktrees 🔬](/docs/cli/git-worktrees/)
+    - Hooks  
+      * [Overview](/docs/hooks/)
+      * [Reference](/docs/hooks/reference/)
+    - IDE integration  
+      * [Overview](/docs/ide-integration/)
+      * [Developer guide: ACP mode](/docs/cli/acp-mode/)
+    - MCP servers  
+      * [Overview](/docs/tools/mcp-server/)
+      * [Resource tools](/docs/tools/mcp-resources/)
+    - [Model routing](/docs/cli/model-routing/)
+    - [Model selection](/docs/cli/model/)
+    - [Model steering 🔬](/docs/cli/model-steering/)
+    - [Notifications 🔬](/docs/cli/notifications/)
+    - [Plan mode](/docs/cli/plan-mode/)
+    - [Subagents](/docs/core/subagents/)
+    - [Remote subagents](/docs/core/remote-agents/)
+    - [Rewind](/docs/cli/rewind/)
+    - [Sandboxing](/docs/cli/sandbox/)
+    - [Settings](/docs/cli/settings/)
+    - [Telemetry](/docs/cli/telemetry/)
+    - [Token caching](/docs/cli/token-caching/)
+  + Configuration  
+    - [Custom commands](/docs/cli/custom-commands/)
+    - [Enterprise configuration](/docs/cli/enterprise/)
+    - [Ignore files (.geminiignore)](/docs/cli/gemini-ignore/)
+    - [Model configuration](/docs/cli/generation-settings/)
+    - [Project context (GEMINI.md)](/docs/cli/gemini-md/)
+    - [Settings](/docs/cli/settings/)
+    - [System prompt override](/docs/cli/system-prompt/)
+    - [Themes](/docs/cli/themes/)
+    - [Trusted folders](/docs/cli/trusted-folders/)
+  + Development  
+    - [Behavioral evaluations](/docs/behavioral-evals/)
+    - [Contribution guide](/docs/contributing/)
+    - [Integration testing](/docs/integration-tests/)
+    - [Issue and PR automation](/docs/issue-and-pr-automation/)
+    - [Local development](/docs/local-development/)
+    - [NPM package structure](/docs/npm/)
+* Reference  
+  + [Command reference](/docs/reference/commands/)
+  + [Configuration reference](/docs/reference/configuration/)
+  + [Keyboard shortcuts](/docs/reference/keyboard-shortcuts/)
+  + [Memory import processor](/docs/reference/memport/)
+  + [Policy engine](/docs/reference/policy-engine/)
+  + [Tools reference](/docs/reference/tools/)
+* Resources  
+  + [FAQ](/docs/resources/faq/)
+  + [Quota and pricing](/docs/resources/quota-and-pricing/)
+  + [Terms and privacy](/docs/resources/tos-privacy/)
+  + [Troubleshooting](/docs/resources/troubleshooting/)
+  + [Uninstall](/docs/resources/uninstall/)
+* Changelog  
+  + [Release notes](/docs/changelogs/)
+  + [Stable release](/docs/changelogs/latest/)
+  + [Preview release](/docs/changelogs/preview/)
+
+* Get started  
+  + [Overview](/docs/)
+  + [Quickstart](/docs/get-started/)
+  + [Installation](/docs/get-started/installation/)
+  + [Authentication](/docs/get-started/authentication/)
+  + [CLI cheatsheet](/docs/cli/cli-reference/)
+  + [Gemini 3 on Gemini CLI](/docs/get-started/gemini-3/)
+* Use Gemini CLI  
+  + [File management](/docs/cli/tutorials/file-management/)
+  + [Get started with Agent Skills](/docs/cli/tutorials/skills-getting-started/)
+  + [Manage context and memory](/docs/cli/tutorials/memory-management/)
+  + [Execute shell commands](/docs/cli/tutorials/shell-commands/)
+  + [Manage sessions and history](/docs/cli/tutorials/session-management/)
+  + [Plan tasks with todos](/docs/cli/tutorials/task-planning/)
+  + [Use Plan Mode with model steering 🔬](/docs/cli/tutorials/plan-mode-steering/)
+  + [Web search and fetch](/docs/cli/tutorials/web-tools/)
+  + [Set up an MCP server](/docs/cli/tutorials/mcp-setup/)
+  + [Automate tasks](/docs/cli/tutorials/automation/)
+* Features  
+  + Extensions  
+    - [Overview](/docs/extensions/)
+    - [User guide: Install and manage](/docs/extensions/#manage-extensions)
+    - [Developer guide: Build extensions](/docs/extensions/writing-extensions/)
+    - [Developer guide: Best practices](/docs/extensions/best-practices/)
+    - [Developer guide: Releasing](/docs/extensions/releasing/)
+    - [Developer guide: Reference](/docs/extensions/reference/)
+  + Agent Skills  
+    - [Overview](/docs/cli/skills/)
+    - [Get started with Agent Skills](/docs/cli/tutorials/skills-getting-started/)
+    - [Creating Agent Skills](/docs/cli/creating-skills/)
+    - [Using Agent Skills](/docs/cli/using-agent-skills/)
+    - [Developer guide: Best practices](/docs/cli/skills-best-practices/)
+  + [Auto Memory 🔬](/docs/cli/auto-memory/)
+  + [Checkpointing](/docs/cli/checkpointing/)
+  + [Headless mode](/docs/cli/headless/)
+  + [Git worktrees 🔬](/docs/cli/git-worktrees/)
+  + Hooks  
+    - [Overview](/docs/hooks/)
+    - [Reference](/docs/hooks/reference/)
+  + IDE integration  
+    - [Overview](/docs/ide-integration/)
+    - [Developer guide: ACP mode](/docs/cli/acp-mode/)
+  + MCP servers  
+    - [Overview](/docs/tools/mcp-server/)
+    - [Resource tools](/docs/tools/mcp-resources/)
+  + [Model routing](/docs/cli/model-routing/)
+  + [Model selection](/docs/cli/model/)
+  + [Model steering 🔬](/docs/cli/model-steering/)
+  + [Notifications 🔬](/docs/cli/notifications/)
+  + [Plan mode](/docs/cli/plan-mode/)
+  + [Subagents](/docs/core/subagents/)
+  + [Remote subagents](/docs/core/remote-agents/)
+  + [Rewind](/docs/cli/rewind/)
+  + [Sandboxing](/docs/cli/sandbox/)
+  + [Settings](/docs/cli/settings/)
+  + [Telemetry](/docs/cli/telemetry/)
+  + [Token caching](/docs/cli/token-caching/)
+* Configuration  
+  + [Custom commands](/docs/cli/custom-commands/)
+  + [Enterprise configuration](/docs/cli/enterprise/)
+  + [Ignore files (.geminiignore)](/docs/cli/gemini-ignore/)
+  + [Model configuration](/docs/cli/generation-settings/)
+  + [Project context (GEMINI.md)](/docs/cli/gemini-md/)
+  + [Settings](/docs/cli/settings/)
+  + [System prompt override](/docs/cli/system-prompt/)
+  + [Themes](/docs/cli/themes/)
+  + [Trusted folders](/docs/cli/trusted-folders/)
+* Development  
+  + [Behavioral evaluations](/docs/behavioral-evals/)
+  + [Contribution guide](/docs/contributing/)
+  + [Integration testing](/docs/integration-tests/)
+  + [Issue and PR automation](/docs/issue-and-pr-automation/)
+  + [Local development](/docs/local-development/)
+  + [NPM package structure](/docs/npm/)
+
+[GitHub](https://github.com/google-gemini/gemini-cli)
+
+ Select theme DarkLightAuto
+
+* Reference  
+  + [Command reference](/docs/reference/commands/)
+  + [Configuration reference](/docs/reference/configuration/)
+  + [Keyboard shortcuts](/docs/reference/keyboard-shortcuts/)
+  + [Memory import processor](/docs/reference/memport/)
+  + [Policy engine](/docs/reference/policy-engine/)
+  + [Tools reference](/docs/reference/tools/)
+
+[GitHub](https://github.com/google-gemini/gemini-cli)
+
+ Select theme DarkLightAuto
+
+* Resources  
+  + [FAQ](/docs/resources/faq/)
+  + [Quota and pricing](/docs/resources/quota-and-pricing/)
+  + [Terms and privacy](/docs/resources/tos-privacy/)
+  + [Troubleshooting](/docs/resources/troubleshooting/)
+  + [Uninstall](/docs/resources/uninstall/)
+
+[GitHub](https://github.com/google-gemini/gemini-cli)
+
+ Select theme DarkLightAuto
+
+* Releases  
+  + [Release notes](/docs/changelogs/)
+  + [Stable release](/docs/changelogs/latest/)
+  + [Preview release](/docs/changelogs/preview/)
+
+[GitHub](https://github.com/google-gemini/gemini-cli)
+
+ Select theme DarkLightAuto
+
+On this page
+
+* [Introduction](#_top)
+* [Quick start](#quick-start)
+* [Core concepts](#core-concepts) 
+  + [Conditions](#conditions)
+  + [Decisions](#decisions)
+  + [Priority system and tiers](#priority-system-and-tiers)
+  + [Approval modes](#approval-modes)
+* [Rule matching](#rule-matching)
+* [Configuration](#configuration) 
+  + [Policy locations](#policy-locations)
+  + [TOML rule schema](#toml-rule-schema)
+  + [Using arrays (lists)](#using-arrays-lists)
+  + [Special syntax for run\_shell\_command](#special-syntax-for-run_shell_command)
+  + [Special syntax for MCP tools](#special-syntax-for-mcp-tools)
+  + [Special syntax for subagents](#special-syntax-for-subagents)
+* [Default policies](#default-policies)
+
+On this page
+------------
+
+* [Introduction](#_top)
+* [Quick start](#quick-start)
+* [Core concepts](#core-concepts) 
+  + [Conditions](#conditions)
+  + [Decisions](#decisions)
+  + [Priority system and tiers](#priority-system-and-tiers)
+  + [Approval modes](#approval-modes)
+* [Rule matching](#rule-matching)
+* [Configuration](#configuration) 
+  + [Policy locations](#policy-locations)
+  + [TOML rule schema](#toml-rule-schema)
+  + [Using arrays (lists)](#using-arrays-lists)
+  + [Special syntax for run\_shell\_command](#special-syntax-for-run_shell_command)
+  + [Special syntax for MCP tools](#special-syntax-for-mcp-tools)
+  + [Special syntax for subagents](#special-syntax-for-subagents)
+* [Default policies](#default-policies)
+
+Policy engine
+=============
+
+Copy as Markdown
+
+Gemini CLI includes a powerful policy engine that provides fine-grained control
+over tool execution. It allows users and administrators to define rules that
+determine whether a tool call should be allowed, denied, or require user
+confirmation.
+
+Quick start
+-----------
+
+[Section titled “Quick start”](#quick-start)
+
+To create your first policy:
+
+1. **Create the policy directory** if it doesn’t exist:
+
+   **macOS/Linux**
+
+   Terminal window
+
+   ```
+   mkdir -p ~/.gemini/policies
+   ```
+
+   **Windows (PowerShell)**
+
+   Terminal window
+
+   ```
+   New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.gemini\policies"
+   ```
+2. **Create a new policy file** (for example,
+   `~/.gemini/policies/my-rules.toml`). You can use any filename ending in
+   `.toml`; all such files in this directory will be loaded and combined:
+
+   ```
+   [[rule]]
+
+
+
+   toolName = "run_shell_command"
+
+
+
+   commandPrefix = "rm -rf"
+
+
+
+   decision = "deny"
+
+
+
+   priority = 100
+   ```
+3. **Run a command** that triggers the policy (for example, ask Gemini CLI to
+   `rm -rf /`). The tool will now be blocked automatically.
+
+Core concepts
+-------------
+
+[Section titled “Core concepts”](#core-concepts)
+
+The policy engine operates on a set of rules. Each rule is a combination of
+conditions and a resulting decision. When a large language model wants to
+execute a tool, the policy engine evaluates all rules to find the
+highest-priority rule that matches the tool call.
+
+A rule consists of the following main components:
+
+* **Conditions**: Criteria that a tool call must meet for the rule to apply.
+  This can include the tool’s name, the arguments provided to it, or the current
+  approval mode.
+* **Decision**: The action to take if the rule matches (`allow`, `deny`, or
+  `ask_user`).
+* **Priority**: A number that determines the rule’s precedence. Higher numbers
+  win.
+
+For example, this rule will ask for user confirmation before executing any `git`
+command.
+
+```
+[[rule]]
+
+
+
+toolName = "run_shell_command"
+
+
+
+commandPrefix = "git"
+
+
+
+decision = "ask_user"
+
+
+
+priority = 100
+```
+
+### Conditions
+
+[Section titled “Conditions”](#conditions)
+
+Conditions are the criteria that a tool call must meet for a rule to apply. The
+primary conditions are the tool’s name and its arguments.
+
+#### Tool Name
+
+[Section titled “Tool Name”](#tool-name)
+
+The `toolName` in the rule must match the name of the tool being called. For a
+complete list of built-in tool names, see the
+[Tools reference](/docs/reference/tools#available-tools).
+
+* **Wildcards**: You can use wildcards to match multiple tools.
+  + `*`: Matches **any tool** (built-in or MCP).
+  + `mcp_server_*`: Matches any tool from a specific MCP server.
+  + `mcp_*_toolName`: Matches a specific tool name across **all** MCP servers.
+  + `mcp_*`: Matches **any tool from any MCP server**.
+
+> **Recommendation:** While FQN wildcards are supported, the recommended
+> approach for MCP tools is to use the `mcpName` field in your TOML rules. See
+> [Special syntax for MCP tools](#special-syntax-for-mcp-tools).
+
+#### Arguments pattern
+
+[Section titled “Arguments pattern”](#arguments-pattern)
+
+If `argsPattern` is specified, the tool’s arguments are converted to a stable
+JSON string, which is then tested against the provided regular expression. If
+the arguments don’t match the pattern, the rule does not apply. For a list of
+argument keys available for each tool, see the **Parameters** in the
+[Tools reference](/docs/reference/tools#available-tools).
+
+#### Execution environment
+
+[Section titled “Execution environment”](#execution-environment)
+
+If `interactive` is specified, the rule will only apply if the CLI’s execution
+environment matches the specified boolean value:
+
+* `true`: The rule applies only in interactive mode.
+* `false`: The rule applies only in non-interactive (headless) mode.
+
+If omitted, the rule applies to both interactive and non-interactive
+environments.
+
+### Decisions
+
+[Section titled “Decisions”](#decisions)
+
+There are three possible decisions a rule can enforce:
+
+* `allow`: The tool call is executed automatically without user interaction.
+* `deny`: The tool call is blocked and is not executed. For global rules (those
+  without an `argsPattern`), tools that are denied are **completely excluded
+  from the model’s memory**. This means the model will not even see the tool as
+  an option, which is more secure and saves context window space.
+* `ask_user`: The user is prompted to approve or deny the tool call. (In
+  non-interactive mode, this is treated as `deny`.)
+
+The `deny` decision is the recommended way to exclude tools. The
+legacy `tools.exclude` setting in `settings.json` is deprecated in favor of
+policy rules with a `deny` decision.
+
+### Priority system and tiers
+
+[Section titled “Priority system and tiers”](#priority-system-and-tiers)
+
+The **Workspace** tier (project-level policies) is currently
+non-functional. Defining policies in a workspace’s `.gemini/policies`
+directory will not have any effect. See
+[issue #18186](https://github.com/google-gemini/gemini-cli/issues/18186). Use
+User or Admin policies instead.
+
+The policy engine uses a sophisticated priority system to resolve conflicts when
+multiple rules match a single tool call. The core principle is simple: **the
+rule with the highest priority wins**.
+
+To provide a clear hierarchy, policies are organized into three tiers. Each tier
+has a designated number that forms the base of the final priority calculation.
+
+| Tier | Base | Description |
+| --- | --- | --- |
+| Default | 1 | Built-in policies that ship with Gemini CLI. |
+| Extension | 2 | Policies defined in extensions. |
+| Workspace | 3 | **(Currently disabled)** Policies defined in the current workspace’s configuration directory. |
+| User | 4 | Custom policies defined by the user. |
+| Admin | 5 | Policies managed by an administrator (for example, in an enterprise environment). |
+
+Within a TOML policy file, you assign a priority value from **0 to 999**. The
+engine transforms this into a final priority using the following formula:
+
+`final_priority = tier_base + (toml_priority / 1000)`
+
+This system guarantees that:
+
+* Admin policies always override User, Workspace, and Default policies (defined
+  in policy TOML files).
+* User policies override Workspace and Default policies.
+* Workspace policies override Default policies.
+* You can still order rules within a single tier with fine-grained control.
+
+For example:
+
+* A `priority: 50` rule in a Default policy TOML becomes `1.050`.
+* A `priority: 10` rule in a Workspace policy TOML becomes `2.010`.
+* A `priority: 100` rule in a User policy TOML becomes `3.100`.
+* A `priority: 20` rule in an Admin policy TOML becomes `4.020`.
+
+### Approval modes
+
+[Section titled “Approval modes”](#approval-modes)
+
+Approval modes allow the policy engine to apply different sets of rules based on
+the CLI’s operational mode. A rule in a TOML policy file can be associated with
+one or more modes (for example, `yolo`, `autoEdit`, `plan`). The rule will only
+be active if the CLI is running in one of its specified modes. If a rule has no
+modes specified, it is always active.
+
+* `default`: The standard interactive mode where most write tools require
+  confirmation.
+* `autoEdit`: Optimized for automated code editing; some write tools may be
+  auto-approved.
+* `plan`: A strict, read-only mode for research and design. See
+  [Customizing Plan Mode Policies](/docs/cli/plan-mode#customizing-policies).
+* `yolo`: A mode where all tools are auto-approved (use with extreme caution).
+
+To maintain the integrity of Plan Mode as a safe research environment,
+persistent tool approvals are context-aware. When you select **“Allow for all
+future sessions”**, the policy engine explicitly includes the current mode and
+all more permissive modes in the hierarchy (`plan` < `default` < `autoEdit` <
+`yolo`).
+
+* **Approvals in `plan` mode**: These represent an intentional choice to trust a
+  tool globally. The resulting rule explicitly includes all modes (`plan`,
+  `default`, `autoEdit`, and `yolo`).
+* **Approvals in other modes**: These only apply to the current mode and those
+  more permissive. For example:
+  + An approval granted in **`default`** mode applies to `default`, `autoEdit`,
+    and `yolo`.
+  + An approval granted in **`autoEdit`** mode applies to `autoEdit` and `yolo`.
+  + An approval granted in **`yolo`** mode applies only to `yolo`. This ensures
+    that trust flows correctly to more permissive environments while maintaining
+    the safety of more restricted modes like `plan`.
+
+Rule matching
+-------------
+
+[Section titled “Rule matching”](#rule-matching)
+
+When a tool call is made, the engine checks it against all active rules,
+starting from the highest priority. The first rule that matches determines the
+outcome.
+
+A rule matches a tool call if all of its conditions are met:
+
+1. **Tool name**: The `toolName` in the TOML rule must match the name of the
+   tool being called.
+   * **Wildcards**: You can use wildcards like `*`, `mcp_server_*`, or
+     `mcp_*_toolName` to match multiple tools. See [Tool Name](#tool-name) for
+     details.
+2. **Arguments pattern**: If `argsPattern` is specified, the tool’s arguments
+   are converted to a stable JSON string, which is then tested against the
+   provided regular expression. If the arguments don’t match the pattern, the
+   rule does not apply.
+
+Configuration
+-------------
+
+[Section titled “Configuration”](#configuration)
+
+Policies are defined in `.toml` files. The CLI loads these files from Default,
+User, and (if configured) Admin directories.
+
+### Policy locations
+
+[Section titled “Policy locations”](#policy-locations)
+
+| Tier | Type | Location |
+| --- | --- | --- |
+| **User** | Custom | `~/.gemini/policies/*.toml` |
+| **Workspace** | Custom | **(Disabled)** `$WORKSPACE_ROOT/.gemini/policies/*.toml` |
+| **Admin** | System | *See below (OS specific)* |
+
+#### System-wide policies (Admin)
+
+[Section titled “System-wide policies (Admin)”](#system-wide-policies-admin)
+
+Administrators can enforce system-wide policies (Tier 4) that override all user
+and default settings. These policies can be loaded from standard system
+locations or supplemental paths.
+
+##### Standard Locations
+
+[Section titled “Standard Locations”](#standard-locations)
+
+These are the default paths the CLI searches for admin policies:
+
+| OS | Policy Directory Path |
+| --- | --- |
+| **Linux** | `/etc/gemini-cli/policies` |
+| **macOS** | `/Library/Application Support/GeminiCli/policies` |
+| **Windows** | `C:\ProgramData\gemini-cli\policies` |
+
+##### Supplemental Admin Policies
+
+[Section titled “Supplemental Admin Policies”](#supplemental-admin-policies)
+
+Administrators can also specify supplemental policy paths using:
+
+* The `--admin-policy` command-line flag.
+* The `adminPolicyPaths` setting in a system settings file.
+
+These supplemental policies are assigned the same **Admin** tier (Base 4) as
+policies in standard locations.
+
+**Security Guard**: Supplemental admin policies are **ignored** if any `.toml`
+policy files are found in the standard system location. This prevents flag-based
+overrides when a central system policy has already been established.
+
+#### Security Requirements
+
+[Section titled “Security Requirements”](#security-requirements)
+
+To prevent privilege escalation, the CLI enforces strict security checks on the
+**standard system policy directory**. If checks fail, the policies in that
+directory are **ignored**.
+
+* **Linux / macOS:** Must be owned by `root` (UID 0) and NOT writable by group
+  or others (for example, `chmod 755`).
+* **Windows:** Must be in `C:\ProgramData`. Standard users (`Users`, `Everyone`)
+  must NOT have `Write`, `Modify`, or `Full Control` permissions. If you see a
+  security warning, use the folder properties to remove write permissions for
+  non-admin groups. You may need to “Disable inheritance” in Advanced Security
+  Settings.
+
+Supplemental admin policies (provided via `--admin-policy` or
+`adminPolicyPaths` settings) are **NOT** subject to these strict ownership
+checks, as they are explicitly provided by the user or administrator in their
+current execution context.
+
+### TOML rule schema
+
+[Section titled “TOML rule schema”](#toml-rule-schema)
+
+This section describes the fields available in a TOML policy rule.
+
+For valid built-in `toolName` values and their argument structures (used by
+`argsPattern`), see the
+[Tools reference](/docs/reference/tools#available-tools).
+
+```
+[[rule]]
+
+
+
+# A unique name for the tool, or an array of names.
+
+
+
+toolName = "run_shell_command"
+
+
+
+# (Optional) The name of a subagent. If provided, the rule only applies to tool
+
+
+
+# calls made by this specific subagent.
+
+
+
+subagent = "codebase_investigator"
+
+
+
+# (Optional) The name of an MCP server. Can be combined with toolName
+
+
+
+# to form a composite FQN internally like "mcp_mcpName_toolName".
+
+
+
+mcpName = "my-custom-server"
+
+
+
+# (Optional) Metadata hints provided by the tool. A rule matches if all
+
+
+
+# key-value pairs provided here are present in the tool's annotations.
+
+
+
+toolAnnotations = { readOnlyHint = true }
+
+
+
+# (Optional) A regex to match against the tool's arguments.
+
+
+
+argsPattern = '"command":"(git|npm)'
+
+
+
+# (Optional) A string or array of strings that a shell command must start with.
+
+
+
+# This is syntactic sugar for `toolName = "run_shell_command"` and an
+
+
+
+# `argsPattern`.
+
+
+
+commandPrefix = "git"
+
+
+
+# (Optional) A regex to match against the entire shell command.
+
+
+
+# This is also syntactic sugar for `toolName = "run_shell_command"`.
+
+
+
+# Note: This pattern is tested against the JSON representation of the arguments
+
+
+
+# (e.g., `{"command":"<your_command>"}`). Because it prepends `"command":"`,
+
+
+
+# it effectively matches from the start of the command.
+
+
+
+# Anchors like `^` or `$` apply to the full JSON string,
+
+
+
+# so `^` should usually be avoided here.
+
+
+
+# You cannot use commandPrefix and commandRegex in the same rule.
+
+
+
+commandRegex = "git (commit|push)"
+
+
+
+# The decision to take. Must be "allow", "deny", or "ask_user".
+
+
+
+decision = "ask_user"
+
+
+
+# The priority of the rule, from 0 to 999.
+
+
+
+priority = 10
+
+
+
+# (Optional) A custom message to display when a tool call is denied by this
+
+
+
+# rule. This message is returned to the model and user,
+
+
+
+# useful for explaining *why* it was denied.
+
+
+
+denyMessage = "Deletion is permanent"
+
+
+
+# (Optional) An array of approval modes where this rule is active.
+
+
+
+# If omitted or empty, the rule applies to all modes.
+
+
+
+modes = ["default", "autoEdit", "yolo"]
+
+
+
+# (Optional) A boolean to restrict the rule to interactive (true) or
+
+
+
+# non-interactive (false) environments.
+
+
+
+# If omitted, the rule applies to both.
+
+
+
+interactive = true
+
+
+
+# (Optional) If true, lets shell commands use redirection operators
+
+
+
+# (>, >>, <, <<, <<<). By default, the policy engine asks for confirmation
+
+
+
+# when redirection is detected, even if a rule matches the command.
+
+
+
+# This permission is granular; it only applies to the specific rule it's
+
+
+
+# defined in. In chained commands (e.g., cmd1 > file && cmd2), each
+
+
+
+# individual command rule must permit redirection if it's used.
+
+
+
+allowRedirection = true
+```
+
+### Using arrays (lists)
+
+[Section titled “Using arrays (lists)”](#using-arrays-lists)
+
+To apply the same rule to multiple tools or command prefixes, you can provide an
+array of strings for the `toolName` and `commandPrefix` fields.
+
+**Example:**
+
+This single rule will apply to both the `write_file` and `replace` tools.
+
+```
+[[rule]]
+
+
+
+toolName = ["write_file", "replace"]
+
+
+
+decision = "ask_user"
+
+
+
+priority = 10
+```
+
+### Special syntax for `run_shell_command`
+
+[Section titled “Special syntax for run\_shell\_command”](#special-syntax-for-run_shell_command)
+
+To simplify writing policies for `run_shell_command`, you can use
+`commandPrefix` or `commandRegex` instead of the more complex `argsPattern`.
+These are policy-rule shorthands, not arguments of the `run_shell_command` tool
+itself. For the tool’s invocation arguments, see [Shell tool](/docs/tools/shell)
+and [Tools reference](/docs/reference/tools#available-tools).
+
+* `commandPrefix`: Matches if the `command` argument starts with the given
+  string.
+* `commandRegex`: Matches if the `command` argument matches the given regular
+  expression.
+
+**Example:**
+
+This rule will ask for user confirmation before executing any `git` command.
+
+```
+[[rule]]
+
+
+
+toolName = "run_shell_command"
+
+
+
+commandPrefix = "git"
+
+
+
+decision = "ask_user"
+
+
+
+priority = 100
+```
+
+### Special syntax for MCP tools
+
+[Section titled “Special syntax for MCP tools”](#special-syntax-for-mcp-tools)
+
+You can create rules that target tools from Model Context Protocol (MCP) servers
+using the `mcpName` field. **This is the recommended approach** for defining MCP
+policies, as it is much more robust than manually writing Fully Qualified Names
+(FQNs) or string wildcards.
+
+Do not use underscores (`_`) in your MCP server names (for example, use
+`my-server` rather than `my_server`). The policy parser splits Fully Qualified
+Names (`mcp_server_tool`) on the *first* underscore following the `mcp_`
+prefix. If your server name contains an underscore, the parser will
+misinterpret the server identity, which can cause wildcard rules and security
+policies to fail silently.
+
+**1. Targeting a specific tool on a server**
+
+Combine `mcpName` and `toolName` to target a single operation. When using
+`mcpName`, the `toolName` field should strictly be the simple name of the tool
+(for example, `search`), **not** the Fully Qualified Name (for example,
+`mcp_server_search`).
+
+```
+# Allows the `search` tool on the `my-jira-server` MCP
+
+
+
+[[rule]]
+
+
+
+mcpName = "my-jira-server"
+
+
+
+toolName = "search"
+
+
+
+decision = "allow"
+
+
+
+priority = 200
+```
+
+**2. Targeting all tools on a specific server**
+
+Specify only the `mcpName` to apply a rule to every tool provided by that
+server.
+
+**Note:** This applies to all decision types (`allow`, `deny`, `ask_user`).
+
+```
+# Denies all tools from the `untrusted-server` MCP
+
+
+
+[[rule]]
+
+
+
+mcpName = "untrusted-server"
+
+
+
+decision = "deny"
+
+
+
+priority = 500
+
+
+
+denyMessage = "This server is not trusted by the admin."
+```
+
+**3. Targeting all MCP servers**
+
+Use `mcpName = "*"` to create a rule that applies to **all** tools from **any**
+registered MCP server. This is useful for setting category-wide defaults.
+
+```
+# Ask user for any tool call from any MCP server
+
+
+
+[[rule]]
+
+
+
+toolName = "*"
+
+
+
+mcpName = "*"
+
+
+
+decision = "ask_user"
+
+
+
+priority = 10
+```
+
+### Special syntax for subagents
+
+[Section titled “Special syntax for subagents”](#special-syntax-for-subagents)
+
+You can secure and govern subagents using standard policy rules by treating the
+subagent’s name as the `toolName`.
+
+When the main agent invokes a subagent (e.g., using the unified `invoke_agent`
+tool), the Policy Engine automatically treats the target `agent_name` as a
+virtual tool alias for rule matching.
+
+**Example:**
+
+This rule denies access to the `codebase_investigator` subagent.
+
+```
+[[rule]]
+
+
+
+toolName = "codebase_investigator"
+
+
+
+decision = "deny"
+
+
+
+priority = 500
+
+
+
+deny_message = "Deep codebase analysis is restricted for this session."
+```
+
+* **Backward Compatibility**: Any rules written targeting historical 1:1
+  subagent tool names will continue to match transparently.
+* **Context differentiation**: To create rules based on **who** is calling a
+  tool, use the `subagent` field instead. See
+  [TOML rule schema](#toml-rule-schema).
+
+Default policies
+----------------
+
+[Section titled “Default policies”](#default-policies)
+
+Gemini CLI ships with a set of default policies to provide a safe out-of-the-box
+experience.
+
+* **Read-only tools** (like `read_file`, `glob`) are generally **allowed**.
+* **Agent delegation** defaults to **`ask_user`** to ensure remote agents can
+  prompt for confirmation, but local sub-agent actions are executed silently and
+  checked individually.
+* **Write tools** (like `write_file`, `run_shell_command`) default to
+  **`ask_user`**.
+* In **`yolo`** mode, a high-priority rule allows all tools.
+* In **`autoEdit`** mode, rules allow certain write operations to happen without
+  prompting.
+
+Last updated: Apr 30, 2026
+
+This website uses [cookies](https://policies.google.com/technologies/cookies) from Google to deliver and enhance the quality of its services and to analyze
+traffic.
+
+I understand.
+
+![Google logo](/assets/Google.svg)![Google logo](/assets/Google-dark.svg)![For Developers logo](/assets/fordevelopers.svg)![For Developers logo](/assets/fordevelopers-dark.svg)
+
+[Terms](/terms) | [Privacy](https://policies.google.com/privacy)

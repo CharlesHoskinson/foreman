@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "release": "Return of the ForeDi",
+  "milestone": "M3",
+  "archivedAt": "2026-09-13T07:53:58.099Z",
+  "scope": "Bounded live qualification and pre-dispatch availability records; earlier failed attempts retained as diagnostic history",
+  "artifacts": [
+    {
+      "path": "claude-fable-5-1-anthropic-messages.exit.json",
+      "sha256": "ca8bd8c39a4efb47bc36cb7afbc0fc7c998f3c8017c728c29751879c57aaf7b5",
+      "bytes": 27
+    },
+    {
+      "path": "claude-fable-5-1-anthropic-messages.report.json",
+      "sha256": "dde812205591685b0cefc89c0332d077be79efc80350a3d25d5b77faa4c79b60",
+      "bytes": 162
+    },
+    {
+      "path": "claude-fable-5-1.controls.json",
+      "sha256": "f42806199b4fc350f287e6e8c89a60f13312f3c92de3cf0921f53ea131df616d",
+      "bytes": 142
+    },
+    {
+      "path": "claude-fable-5-1.report-v2.json",
+      "sha256": "47de1273a937eb548a5860d0065dfdd28c7e935a97cb3cfd9da057fc25b77c38",
+      "bytes": 1529
+    },
+    {
+      "path": "claude-fable-5-1.report.json",
+      "sha256": "9413341bafabe255f064ebc6b9584b8b4e8526cc77248f25b4655a03f6477ff6",
+      "bytes": 1516
+    },
+    {
+      "path": "claude-opus-5-anthropic-messages.exit.json",
+      "sha256": "ca8bd8c39a4efb47bc36cb7afbc0fc7c998f3c8017c728c29751879c57aaf7b5",
+      "bytes": 27
+    },
+    {
+      "path": "claude-opus-5-anthropic-messages.report.json",
+      "sha256": "dde812205591685b0cefc89c0332d077be79efc80350a3d25d5b77faa4c79b60",
+      "bytes": 162
+    },
+    {
+      "path": "claude-opus-5.binding-final.json",
+      "sha256": "f0f79a5ca32eeb4f13ac3a96f0c455da7c5a48a22d15bf9175a67224892ced4e",
+      "bytes": 177
+    },
+    {
+      "path": "claude-opus-5.controls.json",
+      "sha256": "f42806199b4fc350f287e6e8c89a60f13312f3c92de3cf0921f53ea131df616d",
+      "bytes": 142
+    },
+    {
+      "path": "claude-opus-5.limits-final.json",
+      "sha256": "500bde790bc02391ca61806dfb413cc7701d2cf0eb91948733016e5bd0d6fef1",
+      "bytes": 192
+    },
+    {
+      "path": "claude-opus-5.report-final.json",
+      "sha256": "1622ba7c051f2eb080b7191b2eae22aa17abc82f2e31baa30ad7f7655f26fcce",
+      "bytes": 5130
+    },
+    {
+      "path": "claude-opus-5.report-v2.json",
+      "sha256": "e6f9b0e1329c72be0c169b1f317ca097e08d0af686a83a88579c739d946b5afb",
+      "bytes": 1527
+    },
+    {
+      "path": "claude-opus-5.report.json",
+      "sha256": "dcd5dafaa981528f5db286fb3bf4cdcab9376ac110565d2e25d4cf32031ed430",
+      "bytes": 1542
+    },
+    {
+      "path": "gemini-3.8-flash-google-interactions.exit.json",
+      "sha256": "ca8bd8c39a4efb47bc36cb7afbc0fc7c998f3c8017c728c29751879c57aaf7b5",
+      "bytes": 27
+    },
+    {
+      "path": "gemini-3.8-flash-google-interactions.report.json",
+      "sha256": "dde812205591685b0cefc89c0332d077be79efc80350a3d25d5b77faa4c79b60",
+      "bytes": 162
+    },
+    {
+      "path": "gemini-3.8-flash.controls.json",
+      "sha256": "0de4e67a0ee1f3e84f285f7d030e33a753da881962e60ddec115bcd2ec0eea76",
+      "bytes": 150
+    },
+    {
+      "path": "gemini-3.8-flash.report-v2.json",
+      "sha256": "d455319ceafe152e373348c5ba5825b4128786b67fb21eb1c43a9aaae0a4bab8",
+      "bytes": 1116
+    },
+    {
+      "path": "gpt-5.6-sol-codex-app-server.exit.json",
+      "sha256": "ca8bd8c39a4efb47bc36cb7afbc0fc7c998f3c8017c728c29751879c57aaf7b5",
+      "bytes": 27
+    },
+    {
+      "path": "gpt-5.6-sol-codex-app-server.report.json",
+      "sha256": "7de8aa6f4c46f58889c0537403ef11be484863bea76eee2c3c1b734dead3e553",
+      "bytes": 156
+    },
+    {
+      "path": "gpt-5.6-sol-openai-responses.exit.json",
+      "sha256": "ca8bd8c39a4efb47bc36cb7afbc0fc7c998f3c8017c728c29751879c57aaf7b5",
+      "bytes": 27
+    },
+    {
+      "path": "gpt-5.6-sol-openai-responses.report.json",
+      "sha256": "dde812205591685b0cefc89c0332d077be79efc80350a3d25d5b77faa4c79b60",
+      "bytes": 162
+    },
+    {
+      "path": "gpt-6-astra-codex-app-server.exit.json",
+      "sha256": "ca8bd8c39a4efb47bc36cb7afbc0fc7c998f3c8017c728c29751879c57aaf7b5",
+      "bytes": 27
+    },
+    {
+      "path": "gpt-6-astra-codex-app-server.report.json",
+      "sha256": "7de8aa6f4c46f58889c0537403ef11be484863bea76eee2c3c1b734dead3e553",
+      "bytes": 156
+    },
+    {
+      "path": "gpt-6-astra-openai-responses.exit.json",
+      "sha256": "ca8bd8c39a4efb47bc36cb7afbc0fc7c998f3c8017c728c29751879c57aaf7b5",
+      "bytes": 27
+    },
+    {
+      "path": "gpt-6-astra-openai-responses.report.json",
+      "sha256": "dde812205591685b0cefc89c0332d077be79efc80350a3d25d5b77faa4c79b60",
+      "bytes": 162
+    },
+    {
+      "path": "grok-4.6-xai-responses.exit.json",
+      "sha256": "ca8bd8c39a4efb47bc36cb7afbc0fc7c998f3c8017c728c29751879c57aaf7b5",
+      "bytes": 27
+    },
+    {
+      "path": "grok-4.6-xai-responses.report.json",
+      "sha256": "dde812205591685b0cefc89c0332d077be79efc80350a3d25d5b77faa4c79b60",
+      "bytes": 162
+    },
+    {
+      "path": "grok-4.6.controls.json",
+      "sha256": "0de4e67a0ee1f3e84f285f7d030e33a753da881962e60ddec115bcd2ec0eea76",
+      "bytes": 150
+    },
+    {
+      "path": "grok-4.6.report.json",
+      "sha256": "94e9b35ef48802a45535a76ee3d84a37d088b69dd6f3e1721f6e13231ffb3006",
+      "bytes": 1836
+    },
+    {
+      "path": "provider-evidence.json",
+      "sha256": "2bb4ac731ccae6cecc37097e33bf660cd5f5e1c6a55c83de359a13b40ebbf195",
+      "bytes": 2917
+    },
+    {
+      "path": "opus-authoring.report.json",
+      "sha256": "6623e57c28cf6fa36f8a27345dfba6ca415a9a2c6159d63499561e1ff45a60a9",
+      "bytes": 4035
+    },
+    {
+      "path": "opus-authoring.snapshot.json",
+      "sha256": "4b72ba64dabbd76f57f27ed4b4f4e0790d51abdc043f574efc95b3631e2de763",
+      "bytes": 61954
+    }
+  ]
+}

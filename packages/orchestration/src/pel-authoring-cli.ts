@@ -19,6 +19,7 @@ import {
   type AuthoringGenerateInput,
 } from "./pel-authoring-contract.js";
 import { makePelDraftSession } from "./pel-draft-session.js";
+import { runProviderCli } from "./pel-provider-cli.js";
 
 const SOURCE_LIMIT = 1024 * 1024;
 const JSON_LIMIT = 16 * 1024 * 1024;
@@ -173,6 +174,7 @@ export function renderAuthoringDiagnostic(
 export function makeForemanCli(services: AuthoringServices): ForemanCli {
   return {
     run: (argv) => {
+      if (argv[0] === 'providers') return runProviderCli(argv, services);
       let source: Uint8Array = new Uint8Array();
       let file = "<input>";
       const json = argv.includes("--json");

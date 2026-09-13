@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import { basename } from "node:path";
 import { Effect } from "effect";
 import { makeForemanCli } from "./pel-authoring-cli.js";
+import { defaultLiveProviderContext, makeLiveProviderCliServices } from './pel-provider-live.js';
+import { makeLiveAuthoringGenerate } from './pel-provider-generation-live.js';
 import {
   authoringFailure,
   type AuthoringInputPort,
@@ -109,10 +111,13 @@ export function runPelAuthoringMain(
             }),
         };
       }
+      const providerContext = defaultLiveProviderContext();
       const result = yield* makeForemanCli({
         input: nodeAuthoringInput,
         output: nodeAuthoringOutput,
         context: { defaultSnapshotPath: defaultAuthoringSnapshotPath() },
+        providers: makeLiveProviderCliServices(providerContext),
+        generate: makeLiveAuthoringGenerate(providerContext),
         ...overrides,
         ...(terminal ? { terminal } : {}),
       }).run(argv);

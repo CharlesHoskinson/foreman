@@ -25,7 +25,7 @@ export interface AuthoringFailure {
   readonly diagnostics?: readonly AuthoringDiagnostic[];
 }
 export interface CliResult {
-  readonly exitCode: 0 | 1 | 2 | 4;
+  readonly exitCode: 0 | 1 | 2 | 3 | 4;
 }
 export interface AuthoringInputPort {
   read(
@@ -54,6 +54,7 @@ export interface AuthoringTerminalPort {
   setCompleter?(complete: (prefix: string) => readonly string[]): void;
 }
 export interface AuthoringServices {
+  readonly providers?: import('./pel-provider-cli.js').ProviderCliServices;
   readonly input: AuthoringInputPort;
   readonly output: AuthoringOutputPort;
   readonly context: AuthoringContextPort;

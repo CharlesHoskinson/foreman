@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "assetRoot": "REPLACE_WITH_ABSOLUTE_COPIED_ASSET_ROOT",
+  "assetManifestSha256": "REPLACE_WITH_COPIED_ASSET_MANIFEST_SHA256",
+  "fixtures": {
+    "responses": [],
+    "providers": {
+      "now": 1700000000000,
+      "endpointIdentity": "fake://foreman/providers/qualification-v1",
+      "cells": [
+        {
+          "profileId": "grok-4.6",
+          "transportId": "xai-responses",
+          "credentialProfileRef": "fixture:account",
+          "scenario": "completed"
+        },
+        {
+          "profileId": "grok-4.6",
+          "transportId": "grok-acp",
+          "credentialProfileRef": "fixture:account",
+          "scenario": "completed"
+        },
+        {
+          "profileId": "claude-opus-5",
+          "transportId": "anthropic-messages",
+          "credentialProfileRef": "fixture:account",
+          "scenario": "completed"
+        },
+        {
+          "profileId": "claude-opus-5",
+          "transportId": "claude-code",
+          "credentialProfileRef": "fixture:account",
+          "scenario": "completed"
+        },
+        {
+          "profileId": "claude-fable-5-1",
+          "transportId": "anthropic-messages",
+          "credentialProfileRef": "fixture:account",
+          "scenario": "completed"
+        },
+        {
+          "profileId": "claude-fable-5-1",
+          "transportId": "claude-code",
+          "credentialProfileRef": "fixture:account",
+          "scenario": "completed"
+        },
+        {
+          "profileId": "gpt-6-astra",
+          "transportId": "openai-responses",
+          "credentialProfileRef": "fixture:account",
+          "scenario": "completed"
+        },
+        {
+          "profileId": "gpt-6-astra",
+          "transportId": "codex-app-server",
+          "credentialProfileRef": "fixture:account",
+          "scenario": "completed"
+        },
+        {
+          "profileId": "gpt-5.6-sol",
+          "transportId": "openai-responses",
+          "credentialProfileRef": "fixture:account",
+          "scenario": "completed"
+        },
+        {
+          "profileId": "gpt-5.6-sol",
+          "transportId": "codex-app-server",
+          "credentialProfileRef": "fixture:account",
+          "scenario": "completed"
+        },
+        {
+          "profileId": "gemini-3.8-flash",
+          "transportId": "google-interactions",
+          "credentialProfileRef": "fixture:account",
+          "scenario": "completed"
+        },
+        {
+          "profileId": "gemini-3.8-flash",
+          "transportId": "gemini-cli",
+          "credentialProfileRef": "fixture:account",
+          "scenario": "completed"
+        }
+      ]
+    }
+  }
+}

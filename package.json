@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "typecheck": "tsc -b --pretty false && tsc -p tsconfig.all.json --pretty false",
-    "test": "tsx scripts/run-tests.ts \"packages/core/src/**/*.test.ts\" \"packages/event-log/src/**/*.test.ts\" \"packages/policy/src/**/*.test.ts\" \"packages/orchestration/src/**/*.test.ts\" \"packages/graph-store/src/**/*.test.ts\" \"packages/session-store/src/**/*.test.ts\" \"packages/memory/src/**/*.test.ts\" \"packages/launcher/src/**/*.test.ts\" \"scripts/**/*.test.ts\" \"packages/pel/test/**/*.test.ts\"",
+    "test": "tsx scripts/run-tests.ts \"packages/core/src/**/*.test.ts\" \"packages/event-log/src/**/*.test.ts\" \"packages/policy/src/**/*.test.ts\" \"packages/orchestration/src/**/*.test.ts\" \"packages/graph-store/src/**/*.test.ts\" \"packages/session-store/src/**/*.test.ts\" \"packages/memory/src/**/*.test.ts\" \"packages/launcher/src/**/*.test.ts\" \"scripts/**/*.test.ts\" \"packages/pel/test/**/*.test.ts\" \"packages/providers/src/**/*.test.ts\"",
     "build": "npm run build --workspace @foreman/pel && npm run build --workspace @foreman/providers && tsx scripts/build-runtime.ts",
     "build:appliance-lock": "tsx scripts/appliance-lock.ts --write",
     "verify:appliance-lock": "tsx scripts/appliance-lock.ts --check",
@@ -27,7 +27,9 @@
     "test:pel-fixture-build": "tsx scripts/build-pel-test-fixture.ts",
     "pretest": "npm run build --workspace @foreman/pel && npm run build --workspace @foreman/providers && npm run test:pel-fixture-build",
     "pretest:pel-authoring": "npm run build --workspace @foreman/pel && npm run build --workspace @foreman/providers && npm run test:pel-fixture-build",
-    "test:pel-authoring": "tsx scripts/run-tests.ts \"packages/pel/test/analysis.test.ts\" \"packages/pel/test/preview.test.ts\" \"packages/pel/test/binding.test.ts\" \"packages/orchestration/src/pel-authoring-cli.test.ts\" \"packages/orchestration/src/pel-generation.test.ts\" \"packages/orchestration/src/pel-draft-session.test.ts\" \"packages/orchestration/src/pel-cli-fixture.test.ts\""
+    "test:pel-authoring": "tsx scripts/run-tests.ts \"packages/pel/test/analysis.test.ts\" \"packages/pel/test/preview.test.ts\" \"packages/pel/test/binding.test.ts\" \"packages/orchestration/src/pel-authoring-cli.test.ts\" \"packages/orchestration/src/pel-generation.test.ts\" \"packages/orchestration/src/pel-draft-session.test.ts\" \"packages/orchestration/src/pel-cli-fixture.test.ts\"",
+    "pretest:providers": "npm run build --workspace @foreman/pel && npm run build --workspace @foreman/providers && npm run test:pel-fixture-build",
+    "test:providers": "tsx scripts/run-tests.ts \"packages/providers/src/**/*.test.ts\" \"packages/orchestration/src/pel-provider-cli.test.ts\" \"packages/orchestration/src/pel-provider-qualification.test.ts\" \"packages/orchestration/src/pel-provider-list.test.ts\" \"packages/orchestration/src/pel-provider-live.test.ts\" \"packages/orchestration/src/pel-provider-generation-live.test.ts\" \"packages/orchestration/src/pel-provider-list-live.test.ts\" \"packages/orchestration/src/pel-provider-readiness-live.test.ts\""
   },
   "devDependencies": {
     "@types/node": "26.1.2",

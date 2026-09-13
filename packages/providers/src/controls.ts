@@ -81,7 +81,7 @@ export function decodeProviderControls(value: unknown): DecodeResult {
   if (
     "budgetTokens" in value.thinking &&
     (!Number.isSafeInteger(value.thinking.budgetTokens) ||
-      Number(value.thinking.budgetTokens) < 0)
+      Number(value.thinking.budgetTokens) <= 0)
   )
     return fail("thinking.budgetTokens");
   if (!record(value.sampling)) return fail("sampling");
