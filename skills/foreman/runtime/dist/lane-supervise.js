@@ -3779,7 +3779,7 @@ var init_RunExecution = __esm({
         this.currentLevelExecutionTrees.push(currentTree);
         return currentTree;
       }
-      fail(value4, id5, failure10) {
+      fail(value4, id5, failure11) {
         if (this.verbosity >= VerbosityLevel.Verbose) {
           const currentTree = this.appendExecutionTree(ExecutionStatus.Failure, value4);
           this.currentLevelExecutionTrees = currentTree.children;
@@ -3789,7 +3789,7 @@ var init_RunExecution = __esm({
         else
           this.pathToFailure += `:${id5}`;
         this.value = value4;
-        this.failure = failure10;
+        this.failure = failure11;
       }
       skip(value4) {
         if (this.verbosity >= VerbosityLevel.VeryVerbose) {
@@ -10778,7 +10778,7 @@ var init_cause2 = __esm({
     });
     keepDefectsAndElectFailures = (self) => match5(self, {
       onEmpty: none2(),
-      onFail: (failure10) => some2(die(failure10)),
+      onFail: (failure11) => some2(die(failure11)),
       onDie: (defect) => some2(die(defect)),
       onInterrupt: () => none2(),
       onSequential: mergeWith(sequential),
@@ -21598,8 +21598,8 @@ var init_circular = __esm({
         return zipRight2(this.await, self);
       };
     };
-    unsafeMakeLatch = (open5) => new Latch(open5 ?? false);
-    makeLatch = (open5) => sync(() => unsafeMakeLatch(open5));
+    unsafeMakeLatch = (open6) => new Latch(open6 ?? false);
+    makeLatch = (open6) => sync(() => unsafeMakeLatch(open6));
     awaitAllChildren = (self) => ensuringChildren(self, fiberAwaitAll);
     cached2 = /* @__PURE__ */ dual(2, (self, timeToLive) => map11(cachedInvalidateWithTTL(self, timeToLive), (tuple4) => tuple4[0]));
     cachedInvalidateWithTTL = /* @__PURE__ */ dual(2, (self, timeToLive) => {
@@ -37897,8 +37897,8 @@ var init_sha256 = __esm({
 });
 
 // packages/core/src/canonical-json.ts
-function parseFail(failure10) {
-  return { [PARSE_FAIL]: true, failure: failure10 };
+function parseFail(failure11) {
+  return { [PARSE_FAIL]: true, failure: failure11 };
 }
 function isParseFail(v2) {
   return typeof v2 === "object" && v2 !== null && v2[PARSE_FAIL] === true;
@@ -42642,62 +42642,62 @@ function jsonSnapshot(value4, code, ancestors = /* @__PURE__ */ new Set(), depth
 function record22(value4, keys33, code, message) {
   if (value4 === null || typeof value4 !== "object" || Array.isArray(value4))
     invalid(code, message);
-  const object11 = value4;
-  const actual = Object.keys(object11);
-  if (actual.length !== keys33.length || keys33.some((key) => !Object.hasOwn(object11, key)))
+  const object12 = value4;
+  const actual = Object.keys(object12);
+  if (actual.length !== keys33.length || keys33.some((key) => !Object.hasOwn(object12, key)))
     invalid(code, message);
-  return object11;
+  return object12;
 }
 function counters(value4) {
-  const object11 = record22(
+  const object12 = record22(
     value4,
     counterKeys,
     "PEL_CONTINUATION_MISMATCH",
     "Replay counters must have the exact counter fields"
   );
   for (const key of counterKeys)
-    if (!safeNatural(object11[key]))
+    if (!safeNatural(object12[key]))
       invalid(
         "PEL_CONTINUATION_MISMATCH",
         "Replay counters must be nonnegative safe integers"
       );
-  return object11;
+  return object12;
 }
 function validateLimits(limits22) {
   try {
-    const object11 = record22(
+    const object12 = record22(
       jsonSnapshot(limits22, "PEL_LIMIT"),
       limitKeys,
       "PEL_LIMIT",
       "Limits must have the exact finite bound fields"
     );
     for (const key of limitKeys)
-      if (!safeNatural(object11[key]))
+      if (!safeNatural(object12[key]))
         invalid("PEL_LIMIT", "Limits must be nonnegative safe integers", key);
-    return { ok: true, value: object11 };
+    return { ok: true, value: object12 };
   } catch (error) {
     return errorResult(error, "PEL_LIMIT");
   }
 }
 function validateRunOptions(options2) {
   try {
-    const object11 = record22(
+    const object12 = record22(
       jsonSnapshot(options2, "PEL_REGISTRY"),
       optionKeys,
       "PEL_REGISTRY",
       "Execution options must have the exact option fields"
     );
-    if (object11.dependencyMode !== "ordered" && object11.dependencyMode !== "automatic")
+    if (object12.dependencyMode !== "ordered" && object12.dependencyMode !== "automatic")
       invalid("PEL_REGISTRY", "Unknown dependency mode");
-    if (object11.nlConditionProfile === null) {
-      if (object11.nlConditionProfileDigest !== null)
+    if (object12.nlConditionProfile === null) {
+      if (object12.nlConditionProfileDigest !== null)
         invalid(
           "PEL_REGISTRY",
           "An absent predicate selection requires an absent digest"
         );
     } else {
       const selection2 = record22(
-        object11.nlConditionProfile,
+        object12.nlConditionProfile,
         selectionKeys,
         "PEL_REGISTRY",
         "Predicate selection must have the exact selection fields"
@@ -42717,13 +42717,13 @@ function validateRunOptions(options2) {
           "PEL_REGISTRY",
           "Predicate selection must use the Boolean result schema"
         );
-      if (!validDigest(object11.nlConditionProfileDigest) || sha256Hex2(canonicalize2(selection2)) !== object11.nlConditionProfileDigest)
+      if (!validDigest(object12.nlConditionProfileDigest) || sha256Hex2(canonicalize2(selection2)) !== object12.nlConditionProfileDigest)
         invalid(
           "PEL_REGISTRY",
           "Predicate selection digest does not match the canonical selection"
         );
     }
-    const replay = object11.replay;
+    const replay = object12.replay;
     if (replay === null || typeof replay !== "object" || Array.isArray(replay))
       invalid(
         "PEL_CONTINUATION_MISMATCH",
@@ -42758,7 +42758,7 @@ function validateRunOptions(options2) {
             "Committed counters cannot be below recorded counters"
           );
     } else invalid("PEL_CONTINUATION_MISMATCH", "Unknown replay mode");
-    return { ok: true, value: object11 };
+    return { ok: true, value: object12 };
   } catch (error) {
     return errorResult(error, "PEL_REGISTRY");
   }
@@ -47933,11 +47933,11 @@ var require_lib = __commonJS({
     var {
       defineProperty
     } = Object;
-    var toUnenumerable = (object11, key) => {
-      if (object11) {
-        defineProperty(object11, key, {
+    var toUnenumerable = (object12, key) => {
+      if (object12) {
+        defineProperty(object12, key, {
           enumerable: false,
-          value: object11[key]
+          value: object12[key]
         });
       }
     };
@@ -51887,20 +51887,20 @@ var require_lib = __commonJS({
       UnterminatedJsxContent: "Unterminated JSX contents.",
       UnwrappedAdjacentJSXElements: "Adjacent JSX elements must be wrapped in an enclosing tag. Did you want a JSX fragment <>...</>?"
     });
-    function isFragment(object11) {
-      return object11 ? object11.type === "JSXOpeningFragment" || object11.type === "JSXClosingFragment" : false;
+    function isFragment(object12) {
+      return object12 ? object12.type === "JSXOpeningFragment" || object12.type === "JSXClosingFragment" : false;
     }
-    function getQualifiedJSXName(object11) {
-      if (object11.type === "JSXIdentifier") {
-        return object11.name;
+    function getQualifiedJSXName(object12) {
+      if (object12.type === "JSXIdentifier") {
+        return object12.name;
       }
-      if (object11.type === "JSXNamespacedName") {
-        return object11.namespace.name + ":" + object11.name.name;
+      if (object12.type === "JSXNamespacedName") {
+        return object12.namespace.name + ":" + object12.name.name;
       }
-      if (object11.type === "JSXMemberExpression") {
-        return getQualifiedJSXName(object11.object) + "." + getQualifiedJSXName(object11.property);
+      if (object12.type === "JSXMemberExpression") {
+        return getQualifiedJSXName(object12.object) + "." + getQualifiedJSXName(object12.property);
       }
-      throw new Error("Node had unexpected type: " + object11.type);
+      throw new Error("Node had unexpected type: " + object12.type);
     }
     var jsx = (superClass) => class JSXParserMixin extends superClass {
       jsxReadToken() {
@@ -69368,17 +69368,17 @@ function selfScriptArgvPrefix() {
 function buildSelfScriptArgvPrefix(execArgv, script) {
   return script ? [...execArgv, script] : [...execArgv];
 }
-function runMain(argv = process.argv, io6 = defaultIo, layer = LiveLauncherLayer) {
+function runMain(argv = process.argv, io7 = defaultIo, layer = LiveLauncherLayer) {
   const raw = stripNodeArgv(argv);
   const parsed = parseArgs(raw);
   if (parsed._tag === "Version") {
-    io6.writeStdout(formatVersionLine() + "\n");
+    io7.writeStdout(formatVersionLine() + "\n");
     return Promise.resolve(0);
   }
   if (parsed._tag === "UsageError") {
-    io6.writeStderr(`foreman-launch: ${parsed.message}
+    io7.writeStderr(`foreman-launch: ${parsed.message}
 `);
-    io6.writeStderr(usage22() + "\n");
+    io7.writeStderr(usage22() + "\n");
     return Promise.resolve(EXIT_LAUNCHER_ERROR);
   }
   const args22 = parsed.value;
@@ -69673,14 +69673,32 @@ function createCodexAppServerTransport(options2) {
       if (!schema.ok)
         return yield* Effect_exports2.fail(schema.error);
       const material = yield* options2.credentials.resolve(request22.credentialProfileRef);
-      if (!material.nativeProfileDirectory && !["OPENAI_API_KEY", "CODEX_HOME"].some((name22) => material.environment?.[name22] !== void 0 && Redacted_exports2.value(material.environment[name22]).trim().length > 0))
+      if (!material.chatgpt && !material.nativeProfileDirectory && !["OPENAI_API_KEY", "CODEX_HOME"].some((name22) => material.environment?.[name22] !== void 0 && Redacted_exports2.value(material.environment[name22]).trim().length > 0))
         return yield* Effect_exports2.fail({ _tag: "AuthenticationRequired", retryClass: "never", message: "The selected account has no admitted native credential material" });
       const inheritedEnvironment = { ...host.value.environment };
       delete inheritedEnvironment.OPENAI_API_KEY;
       delete inheritedEnvironment.CODEX_HOME;
-      const environment22 = { ...inheritedEnvironment, ...Object.fromEntries(Object.entries(material.environment ?? {}).map(([name22, value32]) => [name22, Redacted_exports2.value(value32)])), ...material.nativeProfileDirectory ? { CODEX_HOME: material.nativeProfileDirectory } : {} };
+      const environment22 = material.chatgpt ? inheritedEnvironment : { ...inheritedEnvironment, ...Object.fromEntries(Object.entries(material.environment ?? {}).map(([name22, value32]) => [name22, Redacted_exports2.value(value32)])), ...material.nativeProfileDirectory ? { CODEX_HOME: material.nativeProfileDirectory } : {} };
       const peer = yield* (host.value.process ?? options2.process ?? createNativeProcessPort(now)).open({ cmd: [options2.executable ?? "codex", "app-server", "--stdio"], cwd: host.value.cwd, environment: environment22, deadline: request22.limits.deadline, maxOutputBytes: request22.limits.maxOutputBytes });
       let phase = "initialize";
+      let accountId;
+      let refreshCount = 0;
+      const authenticationFailure = () => ({ _tag: "AuthenticationRequired", retryClass: "never", message: "The selected native ChatGPT account could not authenticate within its bound" });
+      const tokens = (refresh, previousAccountId) => Effect_exports2.gen(function* () {
+        const deadline = Math.min(request22.limits.deadline, now() + 9e3);
+        if (!material.chatgpt || deadline <= now() || refresh && (previousAccountId !== accountId || ++refreshCount > 2))
+          return yield* Effect_exports2.fail(authenticationFailure());
+        const result4 = yield* material.chatgpt.tokens({ refresh, ...previousAccountId === void 0 ? {} : { previousAccountId }, deadline }).pipe(
+          Effect_exports2.scoped,
+          Effect_exports2.timeoutFail({ duration: Math.max(1, deadline - now()), onTimeout: authenticationFailure }),
+          Effect_exports2.mapError(authenticationFailure)
+        );
+        if (!result4.chatgptAccountId || result4.chatgptAccountId.length > 512 || !Redacted_exports2.value(result4.accessToken).trim() || Redacted_exports2.value(result4.accessToken).length > 32768 || accountId !== void 0 && result4.chatgptAccountId !== accountId)
+          return yield* Effect_exports2.fail(authenticationFailure());
+        accountId = result4.chatgptAccountId;
+        return { accessToken: Redacted_exports2.value(result4.accessToken), chatgptAccountId: accountId, ...result4.chatgptPlanType ? { chatgptPlanType: result4.chatgptPlanType } : {} };
+      });
+      const startThread = () => peer.send({ id: 1, method: "thread/start", params: { model: request22.profileId, modelProvider: "openai", allowProviderModelFallback: false, cwd: host.value.cwd, runtimeWorkspaceRoots: [host.value.cwd], approvalPolicy: "untrusted", approvalsReviewer: "user", sandbox: "workspace-write", developerInstructions: request22.trustedInstructions, serviceName: "foreman", dynamicTools: [], config: { "features.multi_agent": false, "web_search": "disabled", "mcp_servers": {}, "apps._default.enabled": false } } });
       let state;
       let finalText = "";
       let finalBytes = 0;
@@ -69700,14 +69718,43 @@ function createCodexAppServerTransport(options2) {
       }));
       yield* peer.send({ id: 0, method: "initialize", params: { clientInfo: { name: "foreman", title: "Foreman", version: "0.4.0" }, capabilities: { experimentalApi: true } } });
       const events = peer.events.pipe(Stream_exports2.mapEffect((message) => Effect_exports2.gen(function* () {
-        if (message.error)
-          return yield* Effect_exports2.fail(fail212(state ? "OutcomeUnknown" : "ModelUnavailable", "Native protocol rejected the request"));
+        if (material.chatgpt && message.method === "account/login/completed" && (object22(message.params).success !== true || object22(message.params).loginId !== null))
+          return yield* Effect_exports2.fail(authenticationFailure());
+        if (material.chatgpt && message.method === "account/chatgptAuthTokens/refresh") {
+          const params2 = object22(message.params);
+          if (!accountId || phase === "initialize" || typeof message.id !== "number" && typeof message.id !== "string" || params2.reason !== "unauthorized" || params2.previousAccountId !== accountId)
+            return yield* Effect_exports2.fail(authenticationFailure());
+          yield* peer.send({ id: message.id, result: yield* tokens(true, accountId) });
+          return [];
+        }
+        if (material.chatgpt && message.method === "account/updated" && object22(message.params).authMode !== "chatgptAuthTokens")
+          return yield* Effect_exports2.fail(authenticationFailure());
+        if (phase === "authenticate" && message.error)
+          return yield* Effect_exports2.fail(authenticationFailure());
+        if (message.error) {
+          const detail = String(object22(message.error).message ?? "").toLowerCase();
+          const category = ["sandbox", "permission", "model", "thread", "schema", "argument", "authentication", "invalid"].find((word) => detail.includes(word)) ?? "other";
+          const code = object22(message.error).code;
+          return yield* Effect_exports2.fail(fail212(state ? "OutcomeUnknown" : "ModelUnavailable", `Native protocol rejected ${phase} (${typeof code === "number" && Number.isSafeInteger(code) ? code : "unknown"}, ${category})`));
+        }
         const result4 = object22(message.result);
         const params = object22(message.params);
         if (phase === "initialize" && message.id === 0) {
-          phase = "thread";
           yield* peer.send({ method: "initialized", params: {} });
-          yield* peer.send({ id: 1, method: "thread/start", params: { model: request22.profileId, modelProvider: "openai", allowProviderModelFallback: false, cwd: host.value.cwd, runtimeWorkspaceRoots: [host.value.cwd], approvalPolicy: "untrusted", approvalsReviewer: "user", sandbox: "workspaceWrite", developerInstructions: request22.trustedInstructions, serviceName: "foreman", environments: [], dynamicTools: [], config: { "features.multi_agent": false, "web_search": "disabled", "mcp_servers": {}, "apps._default.enabled": false } } });
+          if (material.chatgpt) {
+            phase = "authenticate";
+            yield* peer.send({ id: 3, method: "account/login/start", params: { type: "chatgptAuthTokens", ...yield* tokens(false) } });
+          } else {
+            phase = "thread";
+            yield* startThread();
+          }
+          return [];
+        }
+        if (phase === "authenticate" && message.id === 3) {
+          if (result4.type !== "chatgptAuthTokens")
+            return yield* Effect_exports2.fail(authenticationFailure());
+          phase = "thread";
+          yield* startThread();
           return [];
         }
         if (phase === "thread" && message.id === 1) {
@@ -69720,7 +69767,7 @@ function createCodexAppServerTransport(options2) {
             return yield* Effect_exports2.fail(fail212("MalformedEvent", "Native handshake omitted thread or session identity"));
           state = { identity: { kind: "native", provider: "openai", model: request22.profileId, profileId: request22.profileId, transportId: id42, credentialProfileRef: request22.credentialProfileRef, protocolVersion: version, threadId, sessionId }, request: request22, connection: peer, permissions: /* @__PURE__ */ new Map(), cancelled: false, cancelAcknowledged: false, closed: false };
           phase = "turn";
-          yield* peer.send({ id: 2, method: "turn/start", params: { threadId, model: request22.profileId, effort: request22.controls.effort, approvalPolicy: "untrusted", approvalsReviewer: "user", sandboxPolicy: { type: "workspaceWrite", writableRoots: [host.value.cwd], networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true, readOnlyAccess: { type: "restricted", includePlatformDefaults: true, readableRoots: [host.value.cwd] } }, input: [{ type: "text", text: JSON.stringify({ artifacts: request22.artifacts }) }], outputSchema: schema.value.jsonSchema } });
+          yield* peer.send({ id: 2, method: "turn/start", params: { threadId, model: request22.profileId, effort: request22.controls.effort, approvalPolicy: "untrusted", approvalsReviewer: "user", sandboxPolicy: { type: "workspaceWrite", writableRoots: [host.value.cwd], networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true }, input: [{ type: "text", text: JSON.stringify({ artifacts: request22.artifacts }) }], outputSchema: schema.value.jsonSchema } });
           return [];
         }
         if (phase === "turn" && message.id === 2) {
@@ -84775,8 +84822,8 @@ ${this.stack.split("\n").slice(1).join("\n")}` : this.toString();
         return zipRight13(this.await, self);
       };
     };
-    unsafeMakeLatch3 = (open5) => new Latch2(open5 ?? false);
-    makeLatch3 = (open5) => sync13(() => unsafeMakeLatch3(open5));
+    unsafeMakeLatch3 = (open6) => new Latch2(open6 ?? false);
+    makeLatch3 = (open6) => sync13(() => unsafeMakeLatch3(open6));
     awaitAllChildren3 = (self) => ensuringChildren3(self, fiberAwaitAll2);
     cached22 = /* @__PURE__ */ dual2(2, (self, timeToLive) => map92(cachedInvalidateWithTTL3(self, timeToLive), (tuple22) => tuple22[0]));
     cachedInvalidateWithTTL3 = /* @__PURE__ */ dual2(2, (self, timeToLive) => {
@@ -100897,8 +100944,8 @@ var init_supervisor2 = __esm({
 });
 
 // packages/orchestration/src/pel-provider-tools.ts
-function providerFailureToHostFailure(failure10) {
-  return { code: failure10._tag === "OutcomeUnknown" ? "unknown-external-outcome" : "provider-failure", message: "The provider reported a structured failure.", cause: { providerFailure: failure10 } };
+function providerFailureToHostFailure(failure11) {
+  return { code: failure11._tag === "OutcomeUnknown" ? "unknown-external-outcome" : "provider-failure", message: "The provider reported a structured failure.", cause: { providerFailure: failure11 } };
 }
 function cancellationExternalOutcome(observation) {
   if (observation.localCleanup !== "complete" && observation.localCleanup !== "not-required") return "unknown";
@@ -101162,8 +101209,8 @@ function projectPelProviderUsage(binding) {
       if (record11.data.providerIdentity || value4.requestRef) {
         if (!effects.has(record11.data.effectId)) effects.set(record11.data.effectId, void 0);
       }
-      const failure10 = value4.providerFailure;
-      const usage4 = value4.usage ?? failure10?.usage;
+      const failure11 = value4.providerFailure;
+      const usage4 = value4.usage ?? failure11?.usage;
       if (usage4) {
         const valid = yield* Effect_exports.try({ try: () => normalizeUsage(usage4), catch: () => pelFailure("journal-corrupt", "Stored usage dimensions are invalid.") });
         if (!valid.ok) return yield* Effect_exports.fail(pelFailure("journal-corrupt", "Stored usage dimensions are invalid."));
@@ -101386,8 +101433,8 @@ function makePelResearchContextService(options2) {
     let previous3 = [], snapshotDigest = null;
     const warnings = [];
     if (options2.snapshotPath) {
-      const { dirname: dirname19, basename: basename8 } = yield* Effect_exports.promise(() => import("node:path"));
-      const data3 = yield* reader.read(dirname19(options2.snapshotPath), basename8(options2.snapshotPath), RESEARCH_BOUNDS.snapshotBytes);
+      const { dirname: dirname20, basename: basename8 } = yield* Effect_exports.promise(() => import("node:path"));
+      const data3 = yield* reader.read(dirname20(options2.snapshotPath), basename8(options2.snapshotPath), RESEARCH_BOUNDS.snapshotBytes);
       if (data3) {
         let parsed;
         try {
@@ -101400,7 +101447,7 @@ function makePelResearchContextService(options2) {
         snapshotDigest = sha256Hex(data3);
         if (parsed.bundleDigest !== loaded.digest) warnings.push("The captured bundle changed after the derived snapshot.");
       }
-      const marker = yield* reader.read(dirname19(options2.snapshotPath), basename8(options2.snapshotPath) + ".incomplete", 4096);
+      const marker = yield* reader.read(dirname20(options2.snapshotPath), basename8(options2.snapshotPath) + ".incomplete", 4096);
       if (marker) {
         let value4;
         try {
@@ -102498,9 +102545,9 @@ function decodeRetrySelectors(value4) {
   }
   return { ok: true, value: selected };
 }
-function retryCategory(failure10) {
-  if (failure10.code !== "provider-failure" || !failure10.cause || typeof failure10.cause !== "object" || Array.isArray(failure10.cause)) return null;
-  const cause4 = failure10.cause;
+function retryCategory(failure11) {
+  if (failure11.code !== "provider-failure" || !failure11.cause || typeof failure11.cause !== "object" || Array.isArray(failure11.cause)) return null;
+  const cause4 = failure11.cause;
   const provider3 = cause4.providerFailure;
   if (!provider3 || typeof provider3 !== "object") return null;
   switch (provider3._tag) {
@@ -103964,17 +104011,17 @@ function selfScriptArgvPrefix2() {
 function buildSelfScriptArgvPrefix2(execArgv, script) {
   return script ? [...execArgv, script] : [...execArgv];
 }
-function runMain2(argv = process.argv, io6 = defaultIo2, layer = LiveLauncherLayer2) {
+function runMain2(argv = process.argv, io7 = defaultIo2, layer = LiveLauncherLayer2) {
   const raw = stripNodeArgv2(argv);
   const parsed = parseArgs2(raw);
   if (parsed._tag === "Version") {
-    io6.writeStdout(formatVersionLine2() + "\n");
+    io7.writeStdout(formatVersionLine2() + "\n");
     return Promise.resolve(0);
   }
   if (parsed._tag === "UsageError") {
-    io6.writeStderr(`foreman-launch: ${parsed.message}
+    io7.writeStderr(`foreman-launch: ${parsed.message}
 `);
-    io6.writeStderr(usage3() + "\n");
+    io7.writeStderr(usage3() + "\n");
     return Promise.resolve(EXIT_LAUNCHER_ERROR2);
   }
   const args6 = parsed.value;
@@ -107006,44 +107053,352 @@ var init_pel_provider_readiness_live = __esm({
   }
 });
 
+// packages/orchestration/src/pel-native-boundary.ts
+import { lstat as lstat2, realpath as realpath2, stat as stat2, unlink } from "node:fs/promises";
+import { randomBytes as randomBytes7 } from "node:crypto";
+import { dirname as dirname13, isAbsolute as isAbsolute16, join as join20, resolve as resolve5, sep as sep4, basename as basename7 } from "node:path";
+function noToolArguments(request3, cmd) {
+  if (request3.toolPolicy.mode !== "none") return true;
+  const tools = cmd.flatMap((arg, index) => arg === "--tools" ? [index] : []);
+  if (tools.length !== 1 || cmd[tools[0] + 1] !== "") return false;
+  return request3.transportId === "claude-code" && cmd.includes("--restricted") && cmd.includes("--safe-mode") && cmd.includes("--strict-mcp-config") && cmd[cmd.indexOf("--mcp-config") + 1] === '{"mcpServers":{}}' && cmd[cmd.indexOf("--setting-sources") + 1] === "";
+}
+function makePelNativeBoundary(options2) {
+  return (request3, context11) => Effect_exports.gen(function* () {
+    const coding = request3.toolPolicy.mode === "native-coding";
+    if (process.platform !== "linux" || !process.geteuid || !(coding ? supportedCoding : supportedNone).includes(request3.transportId) || options2.transportVersionByTransport[request3.transportId] !== request3.transportVersion || !options2.identityRevisionByTransport[request3.transportId] || !Number.isFinite(request3.limits.deadline) || request3.limits.deadline <= Date.now()) return yield* Effect_exports.fail(denied3());
+    if (coding && (request3.toolPolicy.mode !== "native-coding" || request3.toolPolicy.workspaceGrantId !== context11.workspace.grantId || request3.toolPolicy.hostPermissionPortRef !== options2.hostPermissionPortRef || !request3.toolPolicy.permissionGrantIds.length || request3.toolPolicy.permissionGrantIds.some((id5) => !options2.permissionGrantIds.includes(id5)) || !context11.workspace.writablePaths.length)) return yield* Effect_exports.fail(denied3());
+    const admitted = yield* attempt5(async () => {
+      const bwrap = await realpath2(options2.bwrapPath), binary = await lstat2(bwrap);
+      if (!binary.isFile() || binary.uid !== 0 || (binary.mode & 18) !== 0 || (binary.mode & 73) === 0) throw denied3();
+      const selected = options2.executableByTransport[request3.transportId];
+      if (!selected || !isAbsolute16(selected)) throw denied3();
+      const executable = await realpath2(selected), entry = await stat2(executable);
+      if (!entry.isFile() || (entry.mode & 18) !== 0 || (entry.mode & 73) === 0) throw denied3();
+      const root = context11.workspace.canonicalRoot, info = await stat2(root);
+      if (await realpath2(root) !== root || `${info.dev}:${info.ino}` !== context11.workspace.directoryIdentity) throw denied3();
+      const runtimeRoots = [...new Set(await Promise.all(["/usr", ...options2.readOnlyRuntimeRoots].map(async (path3) => {
+        const actual = await realpath2(path3), info2 = await stat2(actual);
+        if (!isAbsolute16(path3) || actual !== path3 || !info2.isDirectory() || path3 === "/" || within(path3, context11.binding.stateRoot) || within(path3, context11.binding.repository.gitCommonDir) || (info2.mode & 18) !== 0) throw denied3();
+        return actual;
+      })))];
+      if (!runtimeRoots.some((path3) => within(path3, executable))) throw denied3();
+      const writeRoots = [];
+      if (coding) for (const path3 of context11.workspace.writablePaths) {
+        if (path3.includes("\0") || path3.split(/[\\/]/).includes("..")) throw denied3();
+        const full = resolve5(root, path3), actual = await realpath2(full), entry2 = await lstat2(full);
+        if (actual !== full || !within(root, full) || !entry2.isDirectory() || within(join20(root, ".git"), full)) throw denied3();
+        writeRoots.push(full);
+      }
+      const gitPaths = [join20(root, ".git"), context11.binding.repository.gitCommonDir];
+      for (const path3 of gitPaths) {
+        const info2 = await lstat2(path3);
+        if (info2.isSymbolicLink()) throw denied3();
+      }
+      const identities = await Promise.all([.../* @__PURE__ */ new Set([bwrap, executable, root, ...runtimeRoots, ...writeRoots, ...gitPaths])].map(async (path3) => {
+        const info2 = await lstat2(path3);
+        return { path: path3, dev: info2.dev, ino: info2.ino, mode: info2.mode, uid: info2.uid, file: info2.isFile(), size: info2.size, mtime: info2.mtimeMs, ctime: info2.ctimeMs };
+      }));
+      return { bwrap, executable, root, runtimeRoots, writeRoots: [...new Set(writeRoots)].sort(), gitPaths: [...new Set(gitPaths)], identities };
+    });
+    const flags = ["--unshare-user", "--unshare-pid", "--unshare-ipc", "--unshare-uts", "--die-with-parent", "--new-session", "--proc", "/proc", "--dev", "/dev", "--dir", "/tmp", "--tmpfs", "/tmp/foreman-native-home", "--tmpfs", "/tmp/foreman-native-tmp"];
+    for (const path3 of admitted.runtimeRoots) flags.push("--ro-bind", path3, path3);
+    for (const [alias, target] of [["/bin", "usr/bin"], ["/sbin", "usr/sbin"], ["/lib", "usr/lib"], ["/lib64", "usr/lib64"]]) flags.push("--symlink", target, alias);
+    for (const path3 of ["/etc/ssl/certs", "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf"]) {
+      const actual = yield* attempt5(() => realpath2(path3));
+      flags.push("--ro-bind", actual, path3);
+    }
+    flags.push("--ro-bind", admitted.root, admitted.root);
+    for (const path3 of admitted.writeRoots) flags.push("--bind", path3, path3);
+    for (const path3 of admitted.gitPaths) flags.push("--ro-bind", path3, path3);
+    flags.push("--remount-ro", "/", "--chdir", admitted.root, "--");
+    const runtimeDirectories = yield* attempt5(async () => Promise.all((options2.runtimeExecutablePaths ?? []).map(async (path3) => {
+      const canonical3 = await realpath2(path3), entry = await lstat2(canonical3);
+      if (!entry.isFile() || canonical3 !== path3 || !admitted.runtimeRoots.some((root) => within(root, path3))) throw denied3();
+      return dirname13(path3);
+    })));
+    const environment3 = { PATH: [dirname13(admitted.executable), ...runtimeDirectories, "/usr/bin", "/bin"].join(":"), LANG: "C.UTF-8", HOME: "/tmp/foreman-native-home", TMPDIR: "/tmp/foreman-native-tmp" };
+    yield* Effect_exports.gen(function* () {
+      const proc = yield* ProcessExec;
+      const result4 = yield* proc.runCaptured({ command: admitted.bwrap, args: [...flags, "/usr/bin/true"], env: environment3, maxOutputBytes: 16384, timeoutMs: Math.min(3e3, request3.limits.deadline - Date.now()) });
+      if (result4.exitCode !== 0) return yield* Effect_exports.fail(denied3());
+    }).pipe(Effect_exports.provide(liveProcessExec), Effect_exports.mapError(denied3));
+    if (options2.probeWriteBoundary) {
+      if (!coding || admitted.writeRoots.length !== 1) return yield* Effect_exports.fail(denied3());
+      const probe = `.foreman-qualification-${randomBytes7(16).toString("hex")}`;
+      const attempts = [{ path: join20(admitted.root, probe), allowed: false }, { path: join20(context11.binding.repository.gitCommonDir, probe), allowed: false }, { path: join20(admitted.writeRoots[0], probe), allowed: true }];
+      yield* Effect_exports.gen(function* () {
+        const proc = yield* ProcessExec;
+        for (const attempt8 of attempts) {
+          const result4 = yield* proc.runCaptured({ command: admitted.bwrap, args: [...flags, "/usr/bin/touch", "--", attempt8.path], env: environment3, maxOutputBytes: 4096, timeoutMs: Math.min(3e3, request3.limits.deadline - Date.now()) });
+          if (result4.exitCode === 0 !== attempt8.allowed) return yield* Effect_exports.fail(denied3());
+        }
+      }).pipe(Effect_exports.provide(liveProcessExec), Effect_exports.mapError(denied3), Effect_exports.ensuring(Effect_exports.promise(async () => {
+        for (const attempt8 of attempts) await unlink(attempt8.path).catch((error) => {
+          if (error.code !== "ENOENT") throw error;
+        });
+      })));
+    }
+    const native = createNativeProcessPort();
+    const nativePort = { open: (launch4) => Effect_exports.gen(function* () {
+      if (launch4.cwd !== admitted.root || !launch4.cmd.length || ![admitted.executable, options2.executableByTransport[request3.transportId], basename7(options2.executableByTransport[request3.transportId]), { "grok-acp": "grok", "codex-app-server": "codex", "claude-code": "claude" }[request3.transportId]].includes(launch4.cmd[0]) || launch4.deadline > request3.limits.deadline || launch4.maxOutputBytes > Math.min(64 * 1024 * 1024, request3.limits.maxOutputBytes + 1024 * 1024) || !noToolArguments(request3, launch4.cmd)) return yield* Effect_exports.fail(denied3());
+      yield* attempt5(async () => {
+        for (const prior of admitted.identities) {
+          const current3 = await lstat2(prior.path);
+          if (await realpath2(prior.path) !== prior.path || current3.isSymbolicLink() || current3.dev !== prior.dev || current3.ino !== prior.ino || current3.mode !== prior.mode || current3.uid !== prior.uid || prior.file && (current3.size !== prior.size || current3.mtimeMs !== prior.mtime || current3.ctimeMs !== prior.ctime)) throw denied3();
+        }
+      });
+      const selectedEnvironment = { ...environment3 };
+      for (const key of options2.environmentKeys) if (secretKeys[request3.transportId]?.includes(key) && launch4.environment[key] !== void 0) selectedEnvironment[key] = launch4.environment[key];
+      for (const key of ["GROK_HOME", "CODEX_HOME", "CLAUDE_CONFIG_DIR"]) if (launch4.environment[key] && launch4.environment[key] !== environment3.HOME) return yield* Effect_exports.fail(denied3());
+      return yield* native.open({ ...launch4, cmd: [admitted.bwrap, ...flags, admitted.executable, ...launch4.cmd.slice(1)], environment: selectedEnvironment });
+    }) };
+    const boundary2 = { host: { cwd: admitted.root, environment: environment3, process: nativePort, workspaceGrantId: context11.workspace.grantId, permissionGrantIds: options2.permissionGrantIds, hostPermissionPortRef: options2.hostPermissionPortRef, permissions: options2.permissions, toolPolicyNoneEnforced: !coding, workspaceBoundaryEnforced: true, permissionBoundaryEnforced: coding }, identityRevision: options2.identityRevisionByTransport[request3.transportId] };
+    return boundary2;
+  });
+}
+var denied3, within, supportedCoding, supportedNone, secretKeys, attempt5;
+var init_pel_native_boundary = __esm({
+  "packages/orchestration/src/pel-native-boundary.ts"() {
+    "use strict";
+    init_esm();
+    init_providers();
+    init_queue_services();
+    denied3 = () => ({ _tag: "UnsupportedCapability", retryClass: "never", message: "The native execution boundary is unavailable or differs from its admitted filesystem, process, or permission scope." });
+    within = (root, path3) => path3 === root || path3.startsWith(root + sep4);
+    supportedCoding = ["grok-acp", "codex-app-server"];
+    supportedNone = ["claude-code"];
+    secretKeys = { "grok-acp": ["XAI_API_KEY"], "codex-app-server": ["OPENAI_API_KEY"], "claude-code": ["ANTHROPIC_API_KEY"] };
+    attempt5 = (f2) => Effect_exports.tryPromise({ try: f2, catch: denied3 });
+  }
+});
+
+// packages/orchestration/src/pel-native-live.ts
+import { constants as constants8 } from "node:fs";
+import { realpath as realpath3, lstat as lstat3, open as open3, mkdtemp, rm } from "node:fs/promises";
+import { dirname as dirname14, join as join21, resolve as resolve6, isAbsolute as isAbsolute17, sep as sep5 } from "node:path";
+import { tmpdir } from "node:os";
+async function prefix(path3, size16) {
+  const fd = await open3(path3, constants8.O_RDONLY | constants8.O_NOFOLLOW);
+  try {
+    const info = await fd.stat();
+    if (!info.isFile() || info.size < size16 || (info.mode & 18) !== 0) throw fail25();
+    const bytes2 = Buffer.alloc(size16);
+    const read = await fd.read(bytes2, 0, size16, 0);
+    if (read.bytesRead !== size16) throw fail25();
+    return bytes2;
+  } finally {
+    await fd.close();
+  }
+}
+function makeLivePelNativeServices(live, ports) {
+  const which = (name3) => ports ? ports.which(name3) : Effect_exports.flatMap(PathLookup, (p2) => p2.which(name3)).pipe(Effect_exports.provide(livePathLookup));
+  const captured = (request3) => ports ? ports.runCaptured(request3) : Effect_exports.flatMap(ProcessExec, (p2) => p2.runCaptured(request3)).pipe(Effect_exports.provide(liveProcessExec));
+  const installed = (transportId) => Effect_exports.scoped(Effect_exports.gen(function* () {
+    const name3 = names4[transportId];
+    if (process.platform !== "linux" || !name3) return yield* Effect_exports.fail(fail25());
+    const selected = yield* which(name3), selectedNode = yield* which("node"), selectedBwrap = yield* which("bwrap");
+    if (!selected || !selectedNode || !selectedBwrap) return yield* Effect_exports.fail(fail25());
+    const facts2 = yield* io3(async () => {
+      if (![selected, selectedNode, selectedBwrap].every(isAbsolute17)) throw fail25();
+      const executable = await realpath3(selected), nodeExecutable = await realpath3(selectedNode), bwrapPath = await realpath3(selectedBwrap);
+      for (const path3 of [executable, nodeExecutable, bwrapPath]) {
+        const info = await lstat3(path3);
+        if (!info.isFile() || (info.mode & 73) === 0 || (info.mode & 18) !== 0) throw fail25();
+      }
+      if ((await lstat3(bwrapPath)).uid !== 0) throw fail25();
+      const header = await prefix(executable, 4);
+      let packageRoot;
+      if (header.equals(Buffer.from([127, 69, 76, 70]))) packageRoot = dirname14(executable);
+      else if (transportId === "codex-app-server" && executable.endsWith("/bin/codex.js")) {
+        packageRoot = dirname14(dirname14(executable));
+        const path3 = join21(packageRoot, "package.json"), info = await lstat3(path3);
+        if (info.size > 65536 || !info.isFile() || info.isSymbolicLink()) throw fail25();
+        const packageJson = JSON.parse((await prefix(path3, info.size)).toString("utf8"));
+        if (packageJson.name !== "@openai/codex") throw fail25();
+      } else throw fail25();
+      const nodeRoot = dirname14(dirname14(nodeExecutable)), readOnlyRuntimeRoots = [.../* @__PURE__ */ new Set([packageRoot, nodeRoot])];
+      for (const path3 of readOnlyRuntimeRoots) {
+        const info = await lstat3(path3);
+        if (await realpath3(path3) !== path3 || !info.isDirectory() || path3 === "/" || path3 === resolve6(live.userHome) || within2(path3, resolve6(live.stateRoot)) || (info.mode & 18) !== 0) throw fail25();
+      }
+      return { executable, nodeExecutable, bwrapPath, readOnlyRuntimeRoots };
+    });
+    const directory2 = yield* Effect_exports.acquireRelease(io3(() => mkdtemp(join21(tmpdir(), "foreman-native-version-"))), (path3) => Effect_exports.promise(() => rm(path3, { recursive: true, force: true })).pipe(Effect_exports.orDie));
+    const result4 = yield* captured({ command: facts2.executable, args: ["--version"], cwd: directory2, env: { PATH: [dirname14(facts2.nodeExecutable), "/usr/bin", "/bin"].join(":"), HOME: directory2, TMPDIR: directory2, LANG: "C.UTF-8" }, maxOutputBytes: 4096, timeoutMs: 1e4 }).pipe(Effect_exports.mapError(fail25));
+    const text11 = result4.stdout.trim(), version = /\b(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)\b/u.exec(text11)?.[1];
+    if (result4.exitCode !== 0 || !version || Buffer.byteLength(text11) > 4096) return yield* Effect_exports.fail(fail25());
+    return { ...facts2, version: transportId === "codex-app-server" ? `${version}/v2` : version, identityRevision: transportId === "grok-acp" ? "1" : transportId === "codex-app-server" ? "v2" : version };
+  }));
+  const nativePolicy = (context11) => Effect_exports.gen(function* () {
+    if (context11.binding.stateRoot !== live.stateRoot || !context11.binding.authoritySha256 || !context11.workspace.grantId || !context11.workspace.writablePaths.length) return yield* Effect_exports.fail(hostFailure(fail25()));
+    const digest5 = sha256Hex(canonicalize({ authority: context11.binding.authoritySha256, workspaceGrantId: context11.workspace.grantId, workspaceIdentity: context11.workspace.directoryIdentity, writablePaths: context11.workspace.writablePaths }));
+    return { permissionGrantIds: [`pel-native-workspace-${digest5}`], hostPermissionPortRef: `pel-native-host-${digest5}` };
+  });
+  const transportVersion = (transportId, _context) => ["xai-responses", "anthropic-messages", "openai-responses", "google-interactions"].includes(transportId) ? Effect_exports.succeed("1") : installed(transportId).pipe(Effect_exports.map((x) => x.version), Effect_exports.mapError(hostFailure));
+  const permissions = { authorize: () => Effect_exports.fail(unsupported("Native permission decisions require the original request-scoped durable host port.")), submit: () => Effect_exports.fail(unsupported("Native permission submission requires its original durable tool result.")) };
+  const boundary2 = (request3, context11) => Effect_exports.gen(function* () {
+    const modes = pelNativeSupportedModes[request3.transportId] ?? [];
+    if (!modes.includes(request3.toolPolicy.mode)) return yield* Effect_exports.fail(unsupported("This installed native adapter does not support an enforced boundary for the requested tool policy."));
+    const installation = yield* installed(request3.transportId), policy = yield* nativePolicy(context11).pipe(Effect_exports.mapError(fail25));
+    if (installation.version !== request3.transportVersion) return yield* Effect_exports.fail(unsupported("The installed native version differs from the original admitted request. Refresh its qualification before a new run."));
+    return yield* makePelNativeBoundary({ bwrapPath: installation.bwrapPath, executableByTransport: { [request3.transportId]: installation.executable }, readOnlyRuntimeRoots: installation.readOnlyRuntimeRoots, runtimeExecutablePaths: [installation.nodeExecutable], environmentKeys: ["XAI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"], permissionGrantIds: policy.permissionGrantIds, hostPermissionPortRef: policy.hostPermissionPortRef, permissions, identityRevisionByTransport: { [request3.transportId]: installation.identityRevision }, transportVersionByTransport: { [request3.transportId]: installation.version } })(request3, context11);
+  });
+  return { installed, transportVersion, nativePolicy, boundary: boundary2, supportedModes: pelNativeSupportedModes };
+}
+var pelNativeSupportedModes, names4, unsupported, hostFailure, fail25, io3, within2;
+var init_pel_native_live = __esm({
+  "packages/orchestration/src/pel-native-live.ts"() {
+    "use strict";
+    init_esm();
+    init_src();
+    init_queue_services();
+    init_pel_native_boundary();
+    pelNativeSupportedModes = { "grok-acp": ["native-coding"], "codex-app-server": ["native-coding"], "claude-code": ["none"], "gemini-cli": [] };
+    names4 = { "grok-acp": "grok", "codex-app-server": "codex", "claude-code": "claude" };
+    unsupported = (message) => ({ _tag: "UnsupportedCapability", retryClass: "never", message });
+    hostFailure = (failure11) => ({ code: "capability-denied", message: failure11.message, cause: { providerFailure: { _tag: failure11._tag, retryClass: failure11.retryClass } } });
+    fail25 = () => unsupported("Install a supported native executable and Linux bubblewrap boundary, then refresh the exact provider preflight and qualification evidence. The current installation cannot enforce this request.");
+    io3 = (run6) => Effect_exports.tryPromise({ try: run6, catch: fail25 });
+    within2 = (root, path3) => path3 === root || path3.startsWith(root + sep5);
+  }
+});
+
+// packages/orchestration/src/pel-codex-auth.ts
+import { constants as constants9 } from "node:fs";
+import { lstat as lstat4, realpath as realpath4, open as open4, mkdtemp as mkdtemp2, rm as rm2 } from "node:fs/promises";
+import { dirname as dirname15, isAbsolute as isAbsolute18, join as join23 } from "node:path";
+import { tmpdir as tmpdir2 } from "node:os";
+function refreshManagedAccount(profile, live, deadline, ports) {
+  return Effect_exports.scoped(Effect_exports.gen(function* () {
+    const installed = ports?.installed ?? (yield* makeLivePelNativeServices(live).installed("codex-app-server"));
+    const cwd = yield* Effect_exports.acquireRelease(io4(() => mkdtemp2(join23(tmpdir2(), "foreman-auth-host-"))), (path3) => Effect_exports.promise(() => rm2(path3, { recursive: true, force: true })));
+    const peer = yield* (ports?.process ?? createNativeProcessPort()).open({
+      cmd: [installed.executable, "app-server", "--stdio"],
+      cwd,
+      environment: { PATH: [dirname15(installed.nodeExecutable), "/usr/bin", "/bin"].join(":"), HOME: live.userHome, CODEX_HOME: profile, LANG: "C.UTF-8" },
+      deadline,
+      maxOutputBytes: 65536
+    });
+    yield* Effect_exports.addFinalizer(() => peer.close());
+    yield* peer.send({ id: 0, method: "initialize", params: { clientInfo: { name: "foreman-auth", version: "1" }, capabilities: { experimentalApi: true } } });
+    let initialized = false;
+    const completed = yield* peer.events.pipe(Stream_exports.mapEffect((frame) => Effect_exports.gen(function* () {
+      if (frame.error) return yield* Effect_exports.fail(failure6());
+      if (!initialized && frame.id === 0) {
+        initialized = true;
+        yield* peer.send({ method: "initialized", params: {} });
+        yield* peer.send({ id: 1, method: "account/read", params: { refreshToken: true } });
+        return false;
+      }
+      if (initialized && frame.id === 1) {
+        if (object7(object7(frame.result).account).type !== "chatgpt") return yield* Effect_exports.fail(failure6());
+        return true;
+      }
+      return false;
+    })), Stream_exports.filter(Boolean), Stream_exports.take(1), Stream_exports.runCount);
+    if (completed !== 1) return yield* Effect_exports.fail(failure6());
+  })).pipe(Effect_exports.timeoutFail({ duration: Math.max(1, deadline - Date.now()), onTimeout: failure6 }), Effect_exports.mapError(failure6));
+}
+function makeCodexChatGptCredential(profile, live, ports) {
+  return Effect_exports.gen(function* () {
+    const identity8 = yield* io4(async () => {
+      if (!isAbsolute18(profile) || await realpath4(profile) !== profile) throw failure6();
+      const info = await lstat4(profile);
+      if (!info.isDirectory() || (info.mode & 18) !== 0 || info.uid !== process.geteuid?.()) throw failure6();
+      return { dev: info.dev, ino: info.ino };
+    });
+    const read = () => io4(async () => {
+      const before2 = await lstat4(profile);
+      if (await realpath4(profile) !== profile || !before2.isDirectory() || before2.dev !== identity8.dev || before2.ino !== identity8.ino || (before2.mode & 18) !== 0 || before2.uid !== process.geteuid?.()) throw failure6();
+      const file2 = await open4(join23(profile, "auth.json"), constants9.O_RDONLY | constants9.O_NOFOLLOW | constants9.O_NONBLOCK);
+      try {
+        const stat6 = await file2.stat();
+        if (!stat6.isFile() || stat6.size > 65536 || stat6.nlink !== 1 || stat6.uid !== process.geteuid?.() || (stat6.mode & 63) !== 0) throw failure6();
+        const bytes2 = Buffer.alloc(65537);
+        const { bytesRead } = await file2.read(bytes2, 0, bytes2.length, 0);
+        if (bytesRead > 65536 || bytesRead !== stat6.size) throw failure6();
+        const decoded = parseJsonRejectDuplicateKeys(new TextDecoder("utf-8", { fatal: true }).decode(bytes2.subarray(0, bytesRead)));
+        if (isCoreFailure(decoded)) throw failure6();
+        const value4 = object7(decoded), tokens = object7(value4.tokens);
+        if (value4.auth_mode !== "chatgpt" || typeof tokens.access_token !== "string" || !tokens.access_token.trim() || tokens.access_token.length > 32768 || typeof tokens.account_id !== "string" || !tokens.account_id || tokens.account_id.length > 512) throw failure6();
+        const after4 = await lstat4(profile);
+        if (after4.dev !== identity8.dev || after4.ino !== identity8.ino || after4.isSymbolicLink()) throw failure6();
+        return { accessToken: Redacted_exports.make(tokens.access_token), chatgptAccountId: tokens.account_id };
+      } finally {
+        await file2.close();
+      }
+    });
+    const initial = yield* read();
+    return { chatgpt: { tokens: (input) => Effect_exports.gen(function* () {
+      if (!Number.isFinite(input.deadline) || input.deadline <= Date.now() || input.previousAccountId !== void 0 && input.previousAccountId !== initial.chatgptAccountId) return yield* Effect_exports.fail(failure6());
+      const current3 = yield* read();
+      if (current3.chatgptAccountId !== initial.chatgptAccountId) return yield* Effect_exports.fail(failure6());
+      if (!input.refresh) return current3;
+      return yield* refreshLock.withPermits(1)(Effect_exports.gen(function* () {
+        const before2 = yield* read();
+        if (before2.chatgptAccountId !== initial.chatgptAccountId) return yield* Effect_exports.fail(failure6());
+        yield* refreshManagedAccount(profile, live, input.deadline, ports);
+        const refreshed = yield* read();
+        if (refreshed.chatgptAccountId !== initial.chatgptAccountId) return yield* Effect_exports.fail(failure6());
+        return refreshed;
+      })).pipe(Effect_exports.timeoutFail({ duration: Math.max(1, input.deadline - Date.now()), onTimeout: failure6 }));
+    }) } };
+  });
+}
+var failure6, io4, object7, refreshLock;
+var init_pel_codex_auth = __esm({
+  "packages/orchestration/src/pel-codex-auth.ts"() {
+    "use strict";
+    init_esm();
+    init_src();
+    init_providers();
+    init_pel_native_live();
+    failure6 = () => ({ _tag: "AuthenticationRequired", retryClass: "never", message: "The selected native ChatGPT login is unavailable, changed, or could not refresh. Use the selected Codex account to sign in." });
+    io4 = (run6) => Effect_exports.tryPromise({ try: run6, catch: failure6 });
+    object7 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4) ? value4 : {};
+    refreshLock = Effect_exports.unsafeMakeSemaphore(1);
+  }
+});
+
 // packages/orchestration/src/pel-provider-live.ts
-import { mkdtemp, rm, writeFile, readdir, lstat as lstat2 } from "node:fs/promises";
-import { join as join20, isAbsolute as isAbsolute16 } from "node:path";
+import { mkdtemp as mkdtemp3, rm as rm3, writeFile, readdir, lstat as lstat5 } from "node:fs/promises";
+import { join as join24, isAbsolute as isAbsolute19 } from "node:path";
 function makeLiveProviderCredentials(context11, transportId) {
   return { resolve: (ref3) => Effect_exports.gen(function* () {
     const selected = environmentKeys[transportId];
     if (ref3 === `env:${selected.key}`) {
       const value4 = context11.environment[selected.key];
       if (!value4)
-        return yield* Effect_exports.fail(failure6("AuthenticationRequired", "The selected credential environment entry is unavailable"));
+        return yield* Effect_exports.fail(failure7("AuthenticationRequired", "The selected credential environment entry is unavailable"));
       return { headers: { [selected.header]: Redacted_exports.make(selected.bearer ? `Bearer ${value4}` : value4) }, environment: { [selected.key]: Redacted_exports.make(value4) } };
     }
     const profile = /^profile:(grok|codex):([A-Za-z0-9][A-Za-z0-9._-]{0,63})$/.exec(ref3);
     if (profile) {
       const vendor = profile[1];
       if (vendor === "grok" && transportId !== "grok-acp" || vendor === "codex" && transportId !== "codex-app-server")
-        return yield* Effect_exports.fail(failure6("AuthenticationRequired", "Credential profile does not match the selected native transport"));
+        return yield* Effect_exports.fail(failure7("AuthenticationRequired", "Credential profile does not match the selected native transport"));
       const resolved = yield* resolveProfile2({ stateRoot: context11.stateRoot, worktreeRoot: context11.worktreeRoot, profileId: profile[2], vendor }).pipe(Effect_exports.provide(liveCredentialProfile));
       if (resolved._tag !== "Ready")
-        return yield* Effect_exports.fail(failure6("AuthenticationRequired", "The selected credential profile is not ready"));
-      return { nativeProfileDirectory: resolved.configRoot };
+        return yield* Effect_exports.fail(failure7("AuthenticationRequired", "The selected credential profile is not ready"));
+      return vendor === "codex" ? yield* makeCodexChatGptCredential(resolved.configRoot, context11) : { nativeProfileDirectory: resolved.configRoot };
     }
     const native = /^native:(claude|gemini|grok|codex):default$/.exec(ref3);
     if (native) {
       const vendor = native[1];
       const expected = { claude: "claude-code", gemini: "gemini-cli", grok: "grok-acp", codex: "codex-app-server" };
       if (expected[vendor] !== transportId)
-        return yield* Effect_exports.fail(failure6("AuthenticationRequired", "Native account reference does not match the selected transport"));
-      const directory2 = join20(context11.userHome, `.${vendor}`);
-      const stat6 = yield* Effect_exports.tryPromise({ try: () => lstat2(directory2), catch: () => failure6("AuthenticationRequired", "The explicitly selected native credential directory is unavailable") });
+        return yield* Effect_exports.fail(failure7("AuthenticationRequired", "Native account reference does not match the selected transport"));
+      const directory2 = join24(context11.userHome, `.${vendor}`);
+      const stat6 = yield* Effect_exports.tryPromise({ try: () => lstat5(directory2), catch: () => failure7("AuthenticationRequired", "The explicitly selected native credential directory is unavailable") });
       if (!stat6.isDirectory() || stat6.isSymbolicLink())
-        return yield* Effect_exports.fail(failure6("AuthenticationRequired", "Native credential directory must be a real directory"));
-      return { nativeProfileDirectory: directory2 };
+        return yield* Effect_exports.fail(failure7("AuthenticationRequired", "Native credential directory must be a real directory"));
+      return vendor === "codex" ? yield* makeCodexChatGptCredential(directory2, context11) : { nativeProfileDirectory: directory2 };
     }
-    return yield* Effect_exports.fail(failure6("AuthenticationRequired", "Credential reference is unavailable for this transport"));
+    return yield* Effect_exports.fail(failure7("AuthenticationRequired", "Credential reference is unavailable for this transport"));
   }) };
 }
-var failure6, environmentKeys;
+var failure7, environmentKeys;
 var init_pel_provider_live = __esm({
   "packages/orchestration/src/pel-provider-live.ts"() {
     "use strict";
@@ -107054,7 +107409,8 @@ var init_pel_provider_live = __esm({
     init_credential_profile();
     init_pel_provider_list_live();
     init_pel_provider_readiness_live();
-    failure6 = (tag, message) => ({ _tag: tag, retryClass: "never", message });
+    init_pel_codex_auth();
+    failure7 = (tag, message) => ({ _tag: tag, retryClass: "never", message });
     environmentKeys = {
       "xai-responses": { key: "XAI_API_KEY", header: "Authorization", bearer: true },
       "anthropic-messages": { key: "ANTHROPIC_API_KEY", header: "x-api-key", bearer: false },
@@ -107069,31 +107425,31 @@ var init_pel_provider_live = __esm({
 });
 
 // packages/orchestration/src/pel-resource-scope.ts
-import { realpath as realpath2, stat as stat2 } from "node:fs/promises";
-import { dirname as dirname13, isAbsolute as isAbsolute17, join as join21, relative as relative3, resolve as resolve5, sep as sep4 } from "node:path";
+import { realpath as realpath5, stat as stat3 } from "node:fs/promises";
+import { dirname as dirname16, isAbsolute as isAbsolute20, join as join25, relative as relative3, resolve as resolve7, sep as sep6 } from "node:path";
 async function canonical2(path3) {
   try {
-    return await realpath2(path3);
+    return await realpath5(path3);
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
-    const parent = dirname13(path3);
+    const parent = dirname16(path3);
     if (parent === path3) throw error;
-    return join21(await canonical2(parent), relative3(parent, path3));
+    return join25(await canonical2(parent), relative3(parent, path3));
   }
 }
 function canonicalWorkspacePath(path3, context11) {
   return Effect_exports.tryPromise({ try: async () => {
-    if (path3.includes("\0") || path3.split(/[\\/]/u).includes("..")) throw denied3();
+    if (path3.includes("\0") || path3.split(/[\\/]/u).includes("..")) throw denied4();
     const root = context11.workspace.canonicalRoot;
-    const info = await stat2(root);
-    if (await realpath2(root) !== root || `${info.dev}:${info.ino}` !== context11.workspace.directoryIdentity) throw denied3();
-    const result4 = await canonical2(isAbsolute17(path3) ? path3 : resolve5(root, path3));
-    if (!contains5(root, result4)) throw denied3();
+    const info = await stat3(root);
+    if (await realpath5(root) !== root || `${info.dev}:${info.ino}` !== context11.workspace.directoryIdentity) throw denied4();
+    const result4 = await canonical2(isAbsolute20(path3) ? path3 : resolve7(root, path3));
+    if (!contains5(root, result4)) throw denied4();
     return result4;
-  }, catch: denied3 });
+  }, catch: denied4 });
 }
 function overlaps(a, b2) {
-  return a === b2 || isAbsolute17(a) && isAbsolute17(b2) && (contains5(a, b2) || contains5(b2, a));
+  return a === b2 || isAbsolute20(a) && isAbsolute20(b2) && (contains5(a, b2) || contains5(b2, a));
 }
 function conflicts(a, b2) {
   const ar2 = a.reads, aw = [...a.writes, ...a.unknownScope ? [a.unknownScope] : []];
@@ -107110,26 +107466,26 @@ function makePelResourceScope(options2 = {}) {
       if (name3.startsWith("workspace:")) {
         const suffix = name3.slice(10);
         if (suffix === context11.workspace.grantId || suffix === context11.workspace.worktreeId) return canonicalWorkspacePath(".", context11);
-        return Effect_exports.fail(denied3());
+        return Effect_exports.fail(denied4());
       }
-      if (isAbsolute17(name3) || name3.startsWith("./")) return canonicalWorkspacePath(name3, context11);
+      if (isAbsolute20(name3) || name3.startsWith("./")) return canonicalWorkspacePath(name3, context11);
       if (name3.startsWith("artifact:") || name3 === "host:output") return Effect_exports.succeed(name3);
-      return Effect_exports.fail(denied3());
+      return Effect_exports.fail(denied4());
     };
     const acquire = (resources, context11) => Effect_exports.gen(function* () {
       const validate5 = Effect_exports.gen(function* () {
         for (const name3 of [...resources.reads, ...resources.writes, ...resources.unknownScope ? [resources.unknownScope] : []]) {
-          if (!isAbsolute17(name3)) {
-            if (!name3.startsWith("artifact:") && name3 !== "host:output" && !admittedPublication(name3, context11)) return yield* Effect_exports.fail(denied3());
+          if (!isAbsolute20(name3)) {
+            if (!name3.startsWith("artifact:") && name3 !== "host:output" && !admittedPublication(name3, context11)) return yield* Effect_exports.fail(denied4());
             continue;
           }
-          if (yield* canonicalWorkspacePath(name3, context11).pipe(Effect_exports.map((c) => c !== name3))) return yield* Effect_exports.fail(denied3());
+          if (yield* canonicalWorkspacePath(name3, context11).pipe(Effect_exports.map((c) => c !== name3))) return yield* Effect_exports.fail(denied4());
         }
-        for (const name3 of resources.writes.filter(isAbsolute17)) {
+        for (const name3 of resources.writes.filter(isAbsolute20)) {
           const allowed = yield* Effect_exports.forEach(context11.workspace.writablePaths, (p2) => canonicalWorkspacePath(p2, context11));
-          if (!allowed.some((p2) => contains5(p2, name3))) return yield* Effect_exports.fail(denied3());
+          if (!allowed.some((p2) => contains5(p2, name3))) return yield* Effect_exports.fail(denied4());
         }
-        if (resources.unknownScope && resources.unknownScope !== context11.workspace.canonicalRoot) return yield* Effect_exports.fail(denied3());
+        if (resources.unknownScope && resources.unknownScope !== context11.workspace.canonicalRoot) return yield* Effect_exports.fail(denied4());
       });
       yield* validate5;
       const id5 = {};
@@ -107144,9 +107500,9 @@ function makePelResourceScope(options2 = {}) {
       resolve: (descriptor5, request3, context11) => Effect_exports.gen(function* () {
         if (request3.registryId === "fm/research") {
           const argument = request3.boundArguments.bundle, id5 = argument?.tag === "string" ? argument.value : null, ref3 = id5 ? context11.project.researchBundles?.[id5] : void 0, policy = context11.checked.snapshot.policy;
-          if (!id5 || !ref3 || !options2.readResearchIndex || !policy.allowedCapabilities.includes("research.read") || !policy.resourceEnvelope.reads.includes(id5)) return yield* Effect_exports.fail(denied3());
+          if (!id5 || !ref3 || !options2.readResearchIndex || !policy.allowedCapabilities.includes("research.read") || !policy.resourceEnvelope.reads.includes(id5)) return yield* Effect_exports.fail(denied4());
           const index = decodePelResearchIndexExpansion(id5, ref3, yield* options2.readResearchIndex(context11, ref3, 1048576));
-          if (!index || index.bundle.includesExternalVault && !policy.allowedCapabilities.includes("vault.read")) return yield* Effect_exports.fail(denied3());
+          if (!index || index.bundle.includesExternalVault && !policy.allowedCapabilities.includes("vault.read")) return yield* Effect_exports.fail(denied4());
           return index.resources;
         }
         const reads = new Set(descriptor5.resources.reads);
@@ -107162,7 +107518,7 @@ function makePelResourceScope(options2 = {}) {
       acquire,
       acquireConcurrency: (context11) => Effect_exports.gen(function* () {
         const limit2 = context11.binding.limits.maxConcurrentEffects;
-        if (!Number.isSafeInteger(limit2) || limit2 < 1) return yield* Effect_exports.fail(denied3());
+        if (!Number.isSafeInteger(limit2) || limit2 < 1) return yield* Effect_exports.fail(denied4());
         let semaphore = permits.get(limit2);
         if (!semaphore) {
           semaphore = yield* Effect_exports.makeSemaphore(limit2);
@@ -107172,16 +107528,16 @@ function makePelResourceScope(options2 = {}) {
         yield* Effect_exports.acquireRelease(sem.take(1), () => sem.release(1));
       }),
       allocateContenders: (context11, count4) => Effect_exports.gen(function* () {
-        if (!Number.isSafeInteger(count4) || count4 < 1 || count4 > context11.project.workspaces.maxRaceContenders || count4 > context11.project.workspaces.maxWorktrees) return yield* Effect_exports.fail(denied3());
+        if (!Number.isSafeInteger(count4) || count4 < 1 || count4 > context11.project.workspaces.maxRaceContenders || count4 > context11.project.workspaces.maxWorktrees) return yield* Effect_exports.fail(denied4());
         const grants = context11.project.workspaces.grants.filter((g2) => g2.immutableBase === context11.workspace.immutableBase && g2.repository.identitySha256 === context11.workspace.repository.identitySha256).slice(0, count4);
-        if (grants.length !== count4 || new Set(grants.map((g2) => g2.canonicalRoot)).size !== count4 || new Set(grants.map((g2) => g2.directoryIdentity)).size !== count4) return yield* Effect_exports.fail(denied3());
+        if (grants.length !== count4 || new Set(grants.map((g2) => g2.canonicalRoot)).size !== count4 || new Set(grants.map((g2) => g2.directoryIdentity)).size !== count4) return yield* Effect_exports.fail(denied4());
         for (const grant of grants) yield* canonicalWorkspacePath(".", { ...context11, workspace: grant });
         return grants;
       })
     };
   });
 }
-var pelPublicationResource, admittedPublication, denied3, contains5;
+var pelPublicationResource, admittedPublication, denied4, contains5;
 var init_pel_resource_scope = __esm({
   "packages/orchestration/src/pel-resource-scope.ts"() {
     "use strict";
@@ -107190,224 +107546,13 @@ var init_pel_resource_scope = __esm({
     init_pel_research_host();
     pelPublicationResource = (destination) => `publication:${sha256Hex(canonicalize({ repositoryIdentitySha256: destination.repositoryIdentitySha256, remoteIdentity: destination.remoteIdentity, ref: destination.ref }))}`;
     admittedPublication = (name3, context11) => name3.startsWith("publication:") && Object.values(context11.project.destinations ?? {}).some((destination) => destination.operation === "publish" && pelPublicationResource(destination) === name3);
-    denied3 = () => ({ code: "resource-denied", message: "Resource is outside the admitted canonical workspace or its identity changed." });
-    contains5 = (root, path3) => path3 === root || path3.startsWith(root + sep4);
-  }
-});
-
-// packages/orchestration/src/pel-native-boundary.ts
-import { lstat as lstat5, realpath as realpath5, stat as stat5, unlink } from "node:fs/promises";
-import { randomBytes as randomBytes7 } from "node:crypto";
-import { dirname as dirname16, isAbsolute as isAbsolute25, join as join27, resolve as resolve9, sep as sep7, basename as basename7 } from "node:path";
-function noToolArguments(request3, cmd) {
-  if (request3.toolPolicy.mode !== "none") return true;
-  const tools = cmd.flatMap((arg, index) => arg === "--tools" ? [index] : []);
-  if (tools.length !== 1 || cmd[tools[0] + 1] !== "") return false;
-  return request3.transportId === "claude-code" && cmd.includes("--restricted") && cmd.includes("--safe-mode") && cmd.includes("--strict-mcp-config") && cmd[cmd.indexOf("--mcp-config") + 1] === '{"mcpServers":{}}' && cmd[cmd.indexOf("--setting-sources") + 1] === "";
-}
-function makePelNativeBoundary(options2) {
-  return (request3, context11) => Effect_exports.gen(function* () {
-    const coding = request3.toolPolicy.mode === "native-coding";
-    if (process.platform !== "linux" || !process.geteuid || !(coding ? supportedCoding : supportedNone).includes(request3.transportId) || options2.transportVersionByTransport[request3.transportId] !== request3.transportVersion || !options2.identityRevisionByTransport[request3.transportId] || !Number.isFinite(request3.limits.deadline) || request3.limits.deadline <= Date.now()) return yield* Effect_exports.fail(denied4());
-    if (coding && (request3.toolPolicy.mode !== "native-coding" || request3.toolPolicy.workspaceGrantId !== context11.workspace.grantId || request3.toolPolicy.hostPermissionPortRef !== options2.hostPermissionPortRef || !request3.toolPolicy.permissionGrantIds.length || request3.toolPolicy.permissionGrantIds.some((id5) => !options2.permissionGrantIds.includes(id5)) || !context11.workspace.writablePaths.length)) return yield* Effect_exports.fail(denied4());
-    const admitted = yield* attempt7(async () => {
-      const bwrap = await realpath5(options2.bwrapPath), binary = await lstat5(bwrap);
-      if (!binary.isFile() || binary.uid !== 0 || (binary.mode & 18) !== 0 || (binary.mode & 73) === 0) throw denied4();
-      const selected = options2.executableByTransport[request3.transportId];
-      if (!selected || !isAbsolute25(selected)) throw denied4();
-      const executable = await realpath5(selected), entry = await stat5(executable);
-      if (!entry.isFile() || (entry.mode & 18) !== 0 || (entry.mode & 73) === 0) throw denied4();
-      const root = context11.workspace.canonicalRoot, info = await stat5(root);
-      if (await realpath5(root) !== root || `${info.dev}:${info.ino}` !== context11.workspace.directoryIdentity) throw denied4();
-      const runtimeRoots = [...new Set(await Promise.all(["/usr", ...options2.readOnlyRuntimeRoots].map(async (path3) => {
-        const actual = await realpath5(path3), info2 = await stat5(actual);
-        if (!isAbsolute25(path3) || actual !== path3 || !info2.isDirectory() || path3 === "/" || within2(path3, context11.binding.stateRoot) || within2(path3, context11.binding.repository.gitCommonDir) || (info2.mode & 18) !== 0) throw denied4();
-        return actual;
-      })))];
-      if (!runtimeRoots.some((path3) => within2(path3, executable))) throw denied4();
-      const writeRoots = [];
-      if (coding) for (const path3 of context11.workspace.writablePaths) {
-        if (path3.includes("\0") || path3.split(/[\\/]/).includes("..")) throw denied4();
-        const full = resolve9(root, path3), actual = await realpath5(full), entry2 = await lstat5(full);
-        if (actual !== full || !within2(root, full) || !entry2.isDirectory() || within2(join27(root, ".git"), full)) throw denied4();
-        writeRoots.push(full);
-      }
-      const gitPaths = [join27(root, ".git"), context11.binding.repository.gitCommonDir];
-      for (const path3 of gitPaths) {
-        const info2 = await lstat5(path3);
-        if (info2.isSymbolicLink()) throw denied4();
-      }
-      const identities = await Promise.all([.../* @__PURE__ */ new Set([bwrap, executable, root, ...runtimeRoots, ...writeRoots, ...gitPaths])].map(async (path3) => {
-        const info2 = await lstat5(path3);
-        return { path: path3, dev: info2.dev, ino: info2.ino, mode: info2.mode, uid: info2.uid, file: info2.isFile(), size: info2.size, mtime: info2.mtimeMs, ctime: info2.ctimeMs };
-      }));
-      return { bwrap, executable, root, runtimeRoots, writeRoots: [...new Set(writeRoots)].sort(), gitPaths: [...new Set(gitPaths)], identities };
-    });
-    const flags = ["--unshare-user", "--unshare-pid", "--unshare-ipc", "--unshare-uts", "--die-with-parent", "--new-session", "--proc", "/proc", "--dev", "/dev", "--dir", "/tmp", "--tmpfs", "/tmp/foreman-native-home", "--tmpfs", "/tmp/foreman-native-tmp"];
-    for (const path3 of admitted.runtimeRoots) flags.push("--ro-bind", path3, path3);
-    for (const [alias, target] of [["/bin", "usr/bin"], ["/sbin", "usr/sbin"], ["/lib", "usr/lib"], ["/lib64", "usr/lib64"]]) flags.push("--symlink", target, alias);
-    for (const path3 of ["/etc/ssl/certs", "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf"]) {
-      const actual = yield* attempt7(() => realpath5(path3));
-      flags.push("--ro-bind", actual, path3);
-    }
-    flags.push("--ro-bind", admitted.root, admitted.root);
-    for (const path3 of admitted.writeRoots) flags.push("--bind", path3, path3);
-    for (const path3 of admitted.gitPaths) flags.push("--ro-bind", path3, path3);
-    flags.push("--remount-ro", "/", "--chdir", admitted.root, "--");
-    const runtimeDirectories = yield* attempt7(async () => Promise.all((options2.runtimeExecutablePaths ?? []).map(async (path3) => {
-      const canonical3 = await realpath5(path3), entry = await lstat5(canonical3);
-      if (!entry.isFile() || canonical3 !== path3 || !admitted.runtimeRoots.some((root) => within2(root, path3))) throw denied4();
-      return dirname16(path3);
-    })));
-    const environment3 = { PATH: [dirname16(admitted.executable), ...runtimeDirectories, "/usr/bin", "/bin"].join(":"), LANG: "C.UTF-8", HOME: "/tmp/foreman-native-home", TMPDIR: "/tmp/foreman-native-tmp" };
-    yield* Effect_exports.gen(function* () {
-      const proc = yield* ProcessExec;
-      const result4 = yield* proc.runCaptured({ command: admitted.bwrap, args: [...flags, "/usr/bin/true"], env: environment3, maxOutputBytes: 16384, timeoutMs: Math.min(3e3, request3.limits.deadline - Date.now()) });
-      if (result4.exitCode !== 0) return yield* Effect_exports.fail(denied4());
-    }).pipe(Effect_exports.provide(liveProcessExec), Effect_exports.mapError(denied4));
-    if (options2.probeWriteBoundary) {
-      if (!coding || admitted.writeRoots.length !== 1) return yield* Effect_exports.fail(denied4());
-      const probe = `.foreman-qualification-${randomBytes7(16).toString("hex")}`;
-      const attempts = [{ path: join27(admitted.root, probe), allowed: false }, { path: join27(context11.binding.repository.gitCommonDir, probe), allowed: false }, { path: join27(admitted.writeRoots[0], probe), allowed: true }];
-      yield* Effect_exports.gen(function* () {
-        const proc = yield* ProcessExec;
-        for (const attempt8 of attempts) {
-          const result4 = yield* proc.runCaptured({ command: admitted.bwrap, args: [...flags, "/usr/bin/touch", "--", attempt8.path], env: environment3, maxOutputBytes: 4096, timeoutMs: Math.min(3e3, request3.limits.deadline - Date.now()) });
-          if (result4.exitCode === 0 !== attempt8.allowed) return yield* Effect_exports.fail(denied4());
-        }
-      }).pipe(Effect_exports.provide(liveProcessExec), Effect_exports.mapError(denied4), Effect_exports.ensuring(Effect_exports.promise(async () => {
-        for (const attempt8 of attempts) await unlink(attempt8.path).catch((error) => {
-          if (error.code !== "ENOENT") throw error;
-        });
-      })));
-    }
-    const native = createNativeProcessPort();
-    const nativePort = { open: (launch4) => Effect_exports.gen(function* () {
-      if (launch4.cwd !== admitted.root || !launch4.cmd.length || ![admitted.executable, options2.executableByTransport[request3.transportId], basename7(options2.executableByTransport[request3.transportId]), { "grok-acp": "grok", "codex-app-server": "codex", "claude-code": "claude" }[request3.transportId]].includes(launch4.cmd[0]) || launch4.deadline > request3.limits.deadline || launch4.maxOutputBytes > Math.min(64 * 1024 * 1024, request3.limits.maxOutputBytes + 1024 * 1024) || !noToolArguments(request3, launch4.cmd)) return yield* Effect_exports.fail(denied4());
-      yield* attempt7(async () => {
-        for (const prior of admitted.identities) {
-          const current3 = await lstat5(prior.path);
-          if (await realpath5(prior.path) !== prior.path || current3.isSymbolicLink() || current3.dev !== prior.dev || current3.ino !== prior.ino || current3.mode !== prior.mode || current3.uid !== prior.uid || prior.file && (current3.size !== prior.size || current3.mtimeMs !== prior.mtime || current3.ctimeMs !== prior.ctime)) throw denied4();
-        }
-      });
-      const selectedEnvironment = { ...environment3 };
-      for (const key of options2.environmentKeys) if (secretKeys[request3.transportId]?.includes(key) && launch4.environment[key] !== void 0) selectedEnvironment[key] = launch4.environment[key];
-      for (const key of ["GROK_HOME", "CODEX_HOME", "CLAUDE_CONFIG_DIR"]) if (launch4.environment[key] && launch4.environment[key] !== environment3.HOME) return yield* Effect_exports.fail(denied4());
-      return yield* native.open({ ...launch4, cmd: [admitted.bwrap, ...flags, admitted.executable, ...launch4.cmd.slice(1)], environment: selectedEnvironment });
-    }) };
-    const boundary2 = { host: { cwd: admitted.root, environment: environment3, process: nativePort, workspaceGrantId: context11.workspace.grantId, permissionGrantIds: options2.permissionGrantIds, hostPermissionPortRef: options2.hostPermissionPortRef, permissions: options2.permissions, toolPolicyNoneEnforced: !coding, workspaceBoundaryEnforced: true, permissionBoundaryEnforced: coding }, identityRevision: options2.identityRevisionByTransport[request3.transportId] };
-    return boundary2;
-  });
-}
-var denied4, within2, supportedCoding, supportedNone, secretKeys, attempt7;
-var init_pel_native_boundary = __esm({
-  "packages/orchestration/src/pel-native-boundary.ts"() {
-    "use strict";
-    init_esm();
-    init_providers();
-    init_queue_services();
-    denied4 = () => ({ _tag: "UnsupportedCapability", retryClass: "never", message: "The native execution boundary is unavailable or differs from its admitted filesystem, process, or permission scope." });
-    within2 = (root, path3) => path3 === root || path3.startsWith(root + sep7);
-    supportedCoding = ["grok-acp", "codex-app-server"];
-    supportedNone = ["claude-code"];
-    secretKeys = { "grok-acp": ["XAI_API_KEY"], "codex-app-server": ["OPENAI_API_KEY"], "claude-code": ["ANTHROPIC_API_KEY"] };
-    attempt7 = (f2) => Effect_exports.tryPromise({ try: f2, catch: denied4 });
-  }
-});
-
-// packages/orchestration/src/pel-native-live.ts
-import { constants as constants10 } from "node:fs";
-import { realpath as realpath6, lstat as lstat6, open as open4, mkdtemp as mkdtemp3, rm as rm3 } from "node:fs/promises";
-import { dirname as dirname17, join as join28, resolve as resolve10, isAbsolute as isAbsolute26, sep as sep8 } from "node:path";
-import { tmpdir as tmpdir2 } from "node:os";
-async function prefix(path3, size16) {
-  const fd = await open4(path3, constants10.O_RDONLY | constants10.O_NOFOLLOW);
-  try {
-    const info = await fd.stat();
-    if (!info.isFile() || info.size < size16 || (info.mode & 18) !== 0) throw fail28();
-    const bytes2 = Buffer.alloc(size16);
-    const read = await fd.read(bytes2, 0, size16, 0);
-    if (read.bytesRead !== size16) throw fail28();
-    return bytes2;
-  } finally {
-    await fd.close();
-  }
-}
-function makeLivePelNativeServices(live, ports) {
-  const which = (name3) => ports ? ports.which(name3) : Effect_exports.flatMap(PathLookup, (p2) => p2.which(name3)).pipe(Effect_exports.provide(livePathLookup));
-  const captured = (request3) => ports ? ports.runCaptured(request3) : Effect_exports.flatMap(ProcessExec, (p2) => p2.runCaptured(request3)).pipe(Effect_exports.provide(liveProcessExec));
-  const installed = (transportId) => Effect_exports.scoped(Effect_exports.gen(function* () {
-    const name3 = names4[transportId];
-    if (process.platform !== "linux" || !name3) return yield* Effect_exports.fail(fail28());
-    const selected = yield* which(name3), selectedNode = yield* which("node"), selectedBwrap = yield* which("bwrap");
-    if (!selected || !selectedNode || !selectedBwrap) return yield* Effect_exports.fail(fail28());
-    const facts2 = yield* io4(async () => {
-      if (![selected, selectedNode, selectedBwrap].every(isAbsolute26)) throw fail28();
-      const executable = await realpath6(selected), nodeExecutable = await realpath6(selectedNode), bwrapPath = await realpath6(selectedBwrap);
-      for (const path3 of [executable, nodeExecutable, bwrapPath]) {
-        const info = await lstat6(path3);
-        if (!info.isFile() || (info.mode & 73) === 0 || (info.mode & 18) !== 0) throw fail28();
-      }
-      if ((await lstat6(bwrapPath)).uid !== 0) throw fail28();
-      const header = await prefix(executable, 4);
-      let packageRoot;
-      if (header.equals(Buffer.from([127, 69, 76, 70]))) packageRoot = dirname17(executable);
-      else if (transportId === "codex-app-server" && executable.endsWith("/bin/codex.js")) {
-        packageRoot = dirname17(dirname17(executable));
-        const path3 = join28(packageRoot, "package.json"), info = await lstat6(path3);
-        if (info.size > 65536 || !info.isFile() || info.isSymbolicLink()) throw fail28();
-        const packageJson = JSON.parse((await prefix(path3, info.size)).toString("utf8"));
-        if (packageJson.name !== "@openai/codex") throw fail28();
-      } else throw fail28();
-      const nodeRoot = dirname17(dirname17(nodeExecutable)), readOnlyRuntimeRoots = [.../* @__PURE__ */ new Set([packageRoot, nodeRoot])];
-      for (const path3 of readOnlyRuntimeRoots) {
-        const info = await lstat6(path3);
-        if (await realpath6(path3) !== path3 || !info.isDirectory() || path3 === "/" || path3 === resolve10(live.userHome) || within3(path3, resolve10(live.stateRoot)) || (info.mode & 18) !== 0) throw fail28();
-      }
-      return { executable, nodeExecutable, bwrapPath, readOnlyRuntimeRoots };
-    });
-    const directory2 = yield* Effect_exports.acquireRelease(io4(() => mkdtemp3(join28(tmpdir2(), "foreman-native-version-"))), (path3) => Effect_exports.promise(() => rm3(path3, { recursive: true, force: true })).pipe(Effect_exports.orDie));
-    const result4 = yield* captured({ command: facts2.executable, args: ["--version"], cwd: directory2, env: { PATH: [dirname17(facts2.nodeExecutable), "/usr/bin", "/bin"].join(":"), HOME: directory2, TMPDIR: directory2, LANG: "C.UTF-8" }, maxOutputBytes: 4096, timeoutMs: 1e4 }).pipe(Effect_exports.mapError(fail28));
-    const text11 = result4.stdout.trim(), version = /\b(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)\b/u.exec(text11)?.[1];
-    if (result4.exitCode !== 0 || !version || Buffer.byteLength(text11) > 4096) return yield* Effect_exports.fail(fail28());
-    return { ...facts2, version: transportId === "codex-app-server" ? `${version}/v2` : version, identityRevision: transportId === "grok-acp" ? "1" : transportId === "codex-app-server" ? "v2" : version };
-  }));
-  const nativePolicy = (context11) => Effect_exports.gen(function* () {
-    if (context11.binding.stateRoot !== live.stateRoot || !context11.binding.authoritySha256 || !context11.workspace.grantId || !context11.workspace.writablePaths.length) return yield* Effect_exports.fail(hostFailure(fail28()));
-    const digest5 = sha256Hex(canonicalize({ authority: context11.binding.authoritySha256, workspaceGrantId: context11.workspace.grantId, workspaceIdentity: context11.workspace.directoryIdentity, writablePaths: context11.workspace.writablePaths }));
-    return { permissionGrantIds: [`pel-native-workspace-${digest5}`], hostPermissionPortRef: `pel-native-host-${digest5}` };
-  });
-  const transportVersion = (transportId, _context) => ["xai-responses", "anthropic-messages", "openai-responses", "google-interactions"].includes(transportId) ? Effect_exports.succeed("1") : installed(transportId).pipe(Effect_exports.map((x) => x.version), Effect_exports.mapError(hostFailure));
-  const permissions = { authorize: () => Effect_exports.fail(unsupported("Native permission decisions require the original request-scoped durable host port.")), submit: () => Effect_exports.fail(unsupported("Native permission submission requires its original durable tool result.")) };
-  const boundary2 = (request3, context11) => Effect_exports.gen(function* () {
-    const modes = pelNativeSupportedModes[request3.transportId] ?? [];
-    if (!modes.includes(request3.toolPolicy.mode)) return yield* Effect_exports.fail(unsupported("This installed native adapter does not support an enforced boundary for the requested tool policy."));
-    const installation = yield* installed(request3.transportId), policy = yield* nativePolicy(context11).pipe(Effect_exports.mapError(fail28));
-    if (installation.version !== request3.transportVersion) return yield* Effect_exports.fail(unsupported("The installed native version differs from the original admitted request. Refresh its qualification before a new run."));
-    return yield* makePelNativeBoundary({ bwrapPath: installation.bwrapPath, executableByTransport: { [request3.transportId]: installation.executable }, readOnlyRuntimeRoots: installation.readOnlyRuntimeRoots, runtimeExecutablePaths: [installation.nodeExecutable], environmentKeys: ["XAI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"], permissionGrantIds: policy.permissionGrantIds, hostPermissionPortRef: policy.hostPermissionPortRef, permissions, identityRevisionByTransport: { [request3.transportId]: installation.identityRevision }, transportVersionByTransport: { [request3.transportId]: installation.version } })(request3, context11);
-  });
-  return { installed, transportVersion, nativePolicy, boundary: boundary2, supportedModes: pelNativeSupportedModes };
-}
-var pelNativeSupportedModes, names4, unsupported, hostFailure, fail28, io4, within3;
-var init_pel_native_live = __esm({
-  "packages/orchestration/src/pel-native-live.ts"() {
-    "use strict";
-    init_esm();
-    init_src();
-    init_queue_services();
-    init_pel_native_boundary();
-    pelNativeSupportedModes = { "grok-acp": ["native-coding"], "codex-app-server": ["native-coding"], "claude-code": ["none"], "gemini-cli": [] };
-    names4 = { "grok-acp": "grok", "codex-app-server": "codex", "claude-code": "claude" };
-    unsupported = (message) => ({ _tag: "UnsupportedCapability", retryClass: "never", message });
-    hostFailure = (failure10) => ({ code: "capability-denied", message: failure10.message, cause: { providerFailure: { _tag: failure10._tag, retryClass: failure10.retryClass } } });
-    fail28 = () => unsupported("Install a supported native executable and Linux bubblewrap boundary, then refresh the exact provider preflight and qualification evidence. The current installation cannot enforce this request.");
-    io4 = (run6) => Effect_exports.tryPromise({ try: run6, catch: fail28 });
-    within3 = (root, path3) => path3 === root || path3.startsWith(root + sep8);
+    denied4 = () => ({ code: "resource-denied", message: "Resource is outside the admitted canonical workspace or its identity changed." });
+    contains5 = (root, path3) => path3 === root || path3.startsWith(root + sep6);
   }
 });
 
 // packages/orchestration/src/pel-native-permissions.ts
-import { isAbsolute as isAbsolute27, relative as relative6, resolve as resolve11, sep as sep9 } from "node:path";
+import { isAbsolute as isAbsolute28, relative as relative6, resolve as resolve11, sep as sep9 } from "node:path";
 function makePelNativePermissionAuthorizer(request3, context11) {
   return (identity8, tool, policy) => Effect_exports.gen(function* () {
     const profile = resolveProfile(request3.profileId);
@@ -107432,7 +107577,7 @@ function makePelNativePermissionAuthorizer(request3, context11) {
     if (!visit(tool.arguments, 0)) return yield* Effect_exports.fail(denied6());
     const root = yield* canonicalWorkspacePath(".", context11).pipe(Effect_exports.mapError(denied6));
     for (const item of found) {
-      const absolute = isAbsolute27(item.path) ? resolve11(item.path) : resolve11(root, item.path), path3 = yield* canonicalWorkspacePath(absolute, context11).pipe(Effect_exports.mapError(denied6));
+      const absolute = isAbsolute28(item.path) ? resolve11(item.path) : resolve11(root, item.path), path3 = yield* canonicalWorkspacePath(absolute, context11).pipe(Effect_exports.mapError(denied6));
       if (!inside2(root, path3) || relative6(root, path3).split(sep9).some((p2) => p2.toLowerCase() === ".git")) return yield* Effect_exports.fail(denied6());
       if (writes(tool.name) && !item.cwd) {
         const allowed = yield* Effect_exports.forEach(context11.workspace.writablePaths, (p2) => canonicalWorkspacePath(p2, context11).pipe(Effect_exports.mapError(denied6)));
@@ -107476,7 +107621,7 @@ init_esm();
 init_esm();
 init_src2();
 import { realpathSync as realpathSync10, statSync as statSync3 } from "node:fs";
-import { isAbsolute as isAbsolute28 } from "node:path";
+import { isAbsolute as isAbsolute29 } from "node:path";
 
 // packages/orchestration/src/pel-registry-transaction.ts
 init_esm();
@@ -107485,9 +107630,9 @@ init_pel_journal();
 import { constants as constants3, closeSync as closeSync5, openSync as openSync5, mkdirSync as mkdirSync4, realpathSync as realpathSync3, lstatSync as lstatSync5, fstatSync as fstatSync5 } from "node:fs";
 import { dirname as dirname3, isAbsolute as isAbsolute2, normalize as normalize4 } from "node:path";
 function withPelRegistryTransaction(foremanHome, operation) {
-  const io6 = (read) => Effect_exports.try({ try: read, catch: () => pelFailure("binding-mismatch", "The original project registry transaction is busy or unavailable; admission was not changed.") });
+  const io7 = (read) => Effect_exports.try({ try: read, catch: () => pelFailure("binding-mismatch", "The original project registry transaction is busy or unavailable; admission was not changed.") });
   return Effect_exports.scoped(Effect_exports.gen(function* () {
-    const fd = yield* Effect_exports.acquireRelease(io6(() => {
+    const fd = yield* Effect_exports.acquireRelease(io7(() => {
       if (!isAbsolute2(foremanHome) || normalize4(foremanHome) !== foremanHome) throw Error("home");
       let ancestor = foremanHome;
       for (; ; ) {
@@ -107503,12 +107648,12 @@ function withPelRegistryTransaction(foremanHome, operation) {
       if (realpathSync3(foremanHome) !== foremanHome) throw Error("home");
       return openSync5(foremanHome, constants3.O_RDONLY | constants3.O_DIRECTORY | constants3.O_NOFOLLOW);
     }), (handle) => Effect_exports.sync(() => closeSync5(handle)));
-    yield* Effect_exports.acquireRelease(io6(() => {
+    yield* Effect_exports.acquireRelease(io7(() => {
       const held = acquireKernelDirectoryLock(fd, ".pel-registry-transaction", "foreman.pel-registry-transaction.v1");
       if (!held) throw Error("busy");
       return held;
     }), (held) => Effect_exports.sync(held.release));
-    yield* io6(() => {
+    yield* io7(() => {
       const opened = fstatSync5(fd), named = lstatSync5(foremanHome);
       if (opened.dev !== named.dev || opened.ino !== named.ino || named.isSymbolicLink()) throw Error("changed");
     });
@@ -110606,7 +110751,7 @@ init_execution_ledger();
 init_execution_contract();
 import { existsSync as existsSync4, lstatSync as lstatSync14 } from "node:fs";
 import { homedir } from "node:os";
-import { join as join29 } from "node:path";
+import { join as join30 } from "node:path";
 
 // packages/orchestration/src/supervisor-live-services.ts
 import {
@@ -111507,7 +111652,7 @@ init_pel_provider_evidence();
 init_pel_resource_scope();
 init_pel_journal();
 init_pel_run_contract();
-var failure7 = (message) => ({ _tag: "CapabilityUnverified", retryClass: "never", message });
+var failure8 = (message) => ({ _tag: "CapabilityUnverified", retryClass: "never", message });
 var asRun = (error) => pelFailure("binding-mismatch", `Execution provider admission failed: ${error._tag}.`);
 var api = (transportId) => ["xai-responses", "anthropic-messages", "openai-responses", "google-interactions"].includes(transportId);
 function makeExecutionProviderTransport(request3, context11, options2) {
@@ -111524,14 +111669,14 @@ function makeExecutionProviderTransport(request3, context11, options2) {
       case "google-interactions":
         return createGoogleInteractionsTransport(shared);
     }
-    if (!options2.nativeBoundary) return yield* Effect_exports.fail(failure7("Native execution needs an admitted enforcing host boundary."));
-    yield* canonicalWorkspacePath(".", context11).pipe(Effect_exports.mapError(() => failure7("The admitted native workspace identity changed.")));
+    if (!options2.nativeBoundary) return yield* Effect_exports.fail(failure8("Native execution needs an admitted enforcing host boundary."));
+    yield* canonicalWorkspacePath(".", context11).pipe(Effect_exports.mapError(() => failure8("The admitted native workspace identity changed.")));
     const boundary2 = yield* options2.nativeBoundary(request3, context11);
-    if (boundary2.host.cwd !== context11.workspace.canonicalRoot) return yield* Effect_exports.fail(failure7("Native process cwd differs from its admitted worktree."));
+    if (boundary2.host.cwd !== context11.workspace.canonicalRoot) return yield* Effect_exports.fail(failure8("Native process cwd differs from its admitted worktree."));
     const host = { ...boundary2.host, permissions: options2.permissions };
     const checked = validateNativeHost(request3, host);
     if (!checked.ok) return yield* Effect_exports.fail(checked.error);
-    if (request3.toolPolicy.mode === "native-coding" && (request3.toolPolicy.workspaceGrantId !== context11.workspace.grantId || !context11.workspace.writablePaths.length)) return yield* Effect_exports.fail(failure7("Native tool policy does not match its writable workspace grant."));
+    if (request3.toolPolicy.mode === "native-coding" && (request3.toolPolicy.workspaceGrantId !== context11.workspace.grantId || !context11.workspace.writablePaths.length)) return yield* Effect_exports.fail(failure8("Native tool policy does not match its writable workspace grant."));
     const native = { credentials, host, schemaRegistry: context11.checked.snapshot.registry.dataSchemas };
     switch (request3.transportId) {
       case "grok-acp":
@@ -111541,7 +111686,7 @@ function makeExecutionProviderTransport(request3, context11, options2) {
       case "codex-app-server":
         return createCodexAppServerTransport({ ...native, version: request3.transportVersion });
       case "gemini-cli":
-        if (!boundary2.geminiConfiguration) return yield* Effect_exports.fail(failure7("Gemini execution needs immutable host-enforced configuration."));
+        if (!boundary2.geminiConfiguration) return yield* Effect_exports.fail(failure8("Gemini execution needs immutable host-enforced configuration."));
         return createGeminiCliTransport({ ...native, protocolVersion: boundary2.identityRevision, configuration: boundary2.geminiConfiguration });
     }
   });
@@ -111574,7 +111719,7 @@ function loadOriginalPelProviderRequest(identity8, context11, options2) {
 }
 function makePelExecutionProviderPort(options2) {
   const permissionsFor = (request3, context11) => makeDurablePelPermissionPort({ context: context11, journal: options2.journal, runtime: options2.runtime(), authorize: request3.toolPolicy.mode === "native-coding" && options2.nativeAuthorize ? options2.nativeAuthorize(request3, context11) : options2.permissions.authorize });
-  const make64 = (request3, context11, boundary2, permissions = permissionsFor(request3, context11)) => makeExecutionProviderTransport(request3, context11, { ...options2, permissions, ...boundary2 ? { nativeBoundary: () => Effect_exports.succeed(boundary2) } : {}, requestForIdentity: (identity8) => loadOriginalPelProviderRequest(identity8, context11, options2).pipe(Effect_exports.mapError(() => failure7("The original provider request is unavailable."))) });
+  const make64 = (request3, context11, boundary2, permissions = permissionsFor(request3, context11)) => makeExecutionProviderTransport(request3, context11, { ...options2, permissions, ...boundary2 ? { nativeBoundary: () => Effect_exports.succeed(boundary2) } : {}, requestForIdentity: (identity8) => loadOriginalPelProviderRequest(identity8, context11, options2).pipe(Effect_exports.mapError(() => failure8("The original provider request is unavailable."))) });
   return {
     permissions: options2.permissions,
     resolve: (request3, context11) => Effect_exports.gen(function* () {
@@ -111617,7 +111762,7 @@ init_pel();
 init_providers();
 init_execution_contract();
 init_pel_run_contract();
-import { isAbsolute as isAbsolute18, normalize as normalize9 } from "node:path";
+import { isAbsolute as isAbsolute21, normalize as normalize9 } from "node:path";
 var bad3 = (fieldPath) => ({ ok: false, error: { code: "invalid-contract", fieldPath } });
 function record7(value4) {
   if (value4 === null || typeof value4 !== "object" || Array.isArray(value4)) return false;
@@ -111626,7 +111771,7 @@ function record7(value4) {
 }
 var exact4 = (v2, required2) => required2.length === Object.keys(v2).length && required2.every((k2) => Object.hasOwn(v2, k2));
 var text8 = (v2) => typeof v2 === "string" && v2.length > 0 && v2.isWellFormed() && Buffer.byteLength(v2) <= 4096 && !/[\u0000-\u001f\u007f]/.test(v2);
-var path2 = (v2) => text8(v2) && isAbsolute18(v2) && normalize9(v2) === v2;
+var path2 = (v2) => text8(v2) && isAbsolute21(v2) && normalize9(v2) === v2;
 var digest3 = (v2) => typeof v2 === "string" && /^[a-f0-9]{64}$/.test(v2);
 var oid = (v2) => typeof v2 === "string" && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(v2);
 var positive = (v2) => Number.isSafeInteger(v2) && v2 > 0;
@@ -112287,7 +112432,7 @@ init_pel_run_contract();
 init_pel_journal();
 var same4 = (a, b2) => pelHash(a) === pelHash(b2);
 var placeholder = { effectId: "operator-decision-pending", sequence: 1, sha256: "0".repeat(64) };
-var fail25 = (message) => pelFailure("binding-mismatch", message);
+var fail26 = (message) => pelFailure("binding-mismatch", message);
 var record8 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4) && (Object.getPrototypeOf(value4) === Object.prototype || Object.getPrototypeOf(value4) === null) && Reflect.ownKeys(value4).every((key) => typeof key === "string" && "value" in Object.getOwnPropertyDescriptor(value4, key));
 function unsigned(decision) {
   const { authorityReceipt: _receipt, ...value4 } = decision;
@@ -112320,22 +112465,22 @@ function consumedRecoveryAuthority(binding, replay, sequence, decision) {
 function validatePelRegisteredDecisionAuthority(receipt2, binding, kind, decision) {
   return Effect_exports.gen(function* () {
     const decoded = decode3(kind, decision);
-    if (!decoded || !same4(decoded.authorityReceipt, receipt2) || decoded.runId !== binding.runId) return yield* Effect_exports.fail(fail25("The authority receipt does not bind this complete decision."));
+    if (!decoded || !same4(decoded.authorityReceipt, receipt2) || decoded.runId !== binding.runId) return yield* Effect_exports.fail(fail26("The authority receipt does not bind this complete decision."));
     const replay = replayPelRun(yield* readPelRecords(binding.runId));
     if (!replay.ok) return yield* Effect_exports.fail(replay.error);
     const found = replay.value.records.find((row) => row.sequence === receipt2.sequence);
-    if (!found || found.type !== "pel.operator-decision.v1" || found.data.kind !== kind || found.binding.checkedDigest !== binding.checkedProgramDigest || found.binding.authoritySha256 !== binding.authoritySha256 || found.binding.runtimeVersion !== binding.runtimeVersion || found.binding.languageProfileId !== binding.languageProfileId || found.binding.languageProfileDigest !== binding.languageProfileDigest || !same4(found.binding.attempt, binding.attempt) || receipt2.effectId !== `operator-decision-${found.data.decisionRef.sha256}` || receipt2.sha256 !== found.data.decisionRef.sha256) return yield* Effect_exports.fail(fail25("The receipt does not reference registered operator authority in this run."));
+    if (!found || found.type !== "pel.operator-decision.v1" || found.data.kind !== kind || found.binding.checkedDigest !== binding.checkedProgramDigest || found.binding.authoritySha256 !== binding.authoritySha256 || found.binding.runtimeVersion !== binding.runtimeVersion || found.binding.languageProfileId !== binding.languageProfileId || found.binding.languageProfileDigest !== binding.languageProfileDigest || !same4(found.binding.attempt, binding.attempt) || receipt2.effectId !== `operator-decision-${found.data.decisionRef.sha256}` || receipt2.sha256 !== found.data.decisionRef.sha256) return yield* Effect_exports.fail(fail26("The receipt does not reference registered operator authority in this run."));
     const blob = decodeBlob(yield* readPelArtifactJson(binding.runId, found.data.decisionRef));
-    if (!blob || pelHash(blob.decision) !== found.data.decisionDigest || !matches(blob, binding, kind, decoded)) return yield* Effect_exports.fail(fail25("The registered authority belongs to different decision bytes or execution bindings."));
-    if (yield* consumedRecoveryAuthority(binding, replay.value, found.sequence, blob.decision)) return yield* Effect_exports.fail(fail25("This no-dispatch decision was consumed by a later dispatch attempt. Supply new recovery evidence."));
+    if (!blob || pelHash(blob.decision) !== found.data.decisionDigest || !matches(blob, binding, kind, decoded)) return yield* Effect_exports.fail(fail26("The registered authority belongs to different decision bytes or execution bindings."));
+    if (yield* consumedRecoveryAuthority(binding, replay.value, found.sequence, blob.decision)) return yield* Effect_exports.fail(fail26("This no-dispatch decision was consumed by a later dispatch attempt. Supply new recovery evidence."));
   });
 }
 function validateRecovery(recovered, decision) {
   return Effect_exports.gen(function* () {
     const binding = recovered.activation.binding, runtime4 = yield* PelRuntime, intent = recovered.replay.intents.get(decision.effectId);
-    if (decision.runId !== binding.runId || decision.checkedDigest !== binding.checkedProgramDigest || !intent || recovered.replay.results.has(decision.effectId) || decision.evidenceRefs.length === 0) return yield* Effect_exports.fail(fail25("The decision does not bind an unresolved effect in this checked program."));
+    if (decision.runId !== binding.runId || decision.checkedDigest !== binding.checkedProgramDigest || !intent || recovered.replay.results.has(decision.effectId) || decision.evidenceRefs.length === 0) return yield* Effect_exports.fail(fail26("The decision does not bind an unresolved effect in this checked program."));
     for (const evidence of decision.evidenceRefs) yield* runtime4.artifacts.get(binding.runId, evidence, PEL_MAX_ARTIFACT_BYTES);
-    if (recovered.activation.kind !== "recovered") return yield* Effect_exports.fail(fail25("The unresolved effect has no pending evaluator continuation."));
+    if (recovered.activation.kind !== "recovered") return yield* Effect_exports.fail(fail26("The unresolved effect has no pending evaluator continuation."));
     const requests = Object.values(recovered.activation.continuation.pending).map((value4) => value4.request);
     for (const child2 of recovered.activation.children) if (child2.phase !== "done" && child2.pending.length > 0) {
       const bytes2 = yield* runtime4.artifacts.get(binding.runId, child2.continuationRef, PEL_MAX_ARTIFACT_BYTES), continuation = decodePelContinuation(bytes2, { sourceDigest: binding.sourceDigest, profileDigest: binding.languageProfileDigest, registryDigest: binding.registryDigest, optionsDigest: child2.optionsDigest });
@@ -112347,30 +112492,30 @@ function validateRecovery(recovered, decision) {
     let receipt2;
     if (decision.decision === "accept-result") {
       const value4 = yield* readPelArtifactJson(binding.runId, decision.resultRef), schema = recovered.context.registry.dataSchemas[intent.expectedResultSchemaId];
-      if (decision.resultRef.byteLength > binding.limits.maxOutputBytes || !schema || !isPelDataValue(value4) || !validateDataSchema(value4, schema)) return yield* Effect_exports.fail(fail25("The accepted result does not satisfy the original effect schema or output bound."));
+      if (decision.resultRef.byteLength > binding.limits.maxOutputBytes || !schema || !isPelDataValue(value4) || !validateDataSchema(value4, schema)) return yield* Effect_exports.fail(fail26("The accepted result does not satisfy the original effect schema or output bound."));
       receipt2 = { requestId: request3.requestId, outcome: { tag: "success", value: value4 } };
     }
     if (decision.decision === "abandon") receipt2 = { requestId: request3.requestId, outcome: { tag: "failure", failure: { code: "reconciliation-abandoned", message: "The authorized recovery decision abandoned this effect." } } };
-    if (receipt2 && !validateHostReceipt(recovered.context.registry, request3, receipt2).ok) return yield* Effect_exports.fail(fail25("Recovery result violates the original host receipt schema."));
+    if (receipt2 && !validateHostReceipt(recovered.context.registry, request3, receipt2).ok) return yield* Effect_exports.fail(fail26("Recovery result violates the original host receipt schema."));
   });
 }
 function validateRevision(recovered, decision, source2) {
-  if (!source2) return Effect_exports.fail(fail25("The revision requires exact immutable source bytes."));
+  if (!source2) return Effect_exports.fail(fail26("The revision requires exact immutable source bytes."));
   return preparePelRunRevision(recovered, source2, decision).pipe(Effect_exports.asVoid);
 }
 function registerPelOperatorDecision(binding, context11, kind, input, revisionSource) {
   return Effect_exports.gen(function* () {
-    if (context11.owner.runId !== binding.runId || !same4(context11.binding, binding) || context11.contract.contractId !== binding.contractId || executionContractSha256(context11.contract) !== binding.contractSha256) return yield* Effect_exports.fail(fail25("Operator decision registration requires the original bound run owner."));
-    if (!record8(input)) return yield* Effect_exports.fail(fail25("The operator decision is not an ordinary closed object."));
-    const inputBytes = yield* Effect_exports.try({ try: () => Buffer.byteLength(canonicalize(input)), catch: () => fail25("The operator decision is not bounded canonical data.") });
-    if (inputBytes > 1048576) return yield* Effect_exports.fail(fail25("The operator decision exceeds its input bound."));
+    if (context11.owner.runId !== binding.runId || !same4(context11.binding, binding) || context11.contract.contractId !== binding.contractId || executionContractSha256(context11.contract) !== binding.contractSha256) return yield* Effect_exports.fail(fail26("Operator decision registration requires the original bound run owner."));
+    if (!record8(input)) return yield* Effect_exports.fail(fail26("The operator decision is not an ordinary closed object."));
+    const inputBytes = yield* Effect_exports.try({ try: () => Buffer.byteLength(canonicalize(input)), catch: () => fail26("The operator decision is not bounded canonical data.") });
+    if (inputBytes > 1048576) return yield* Effect_exports.fail(fail26("The operator decision exceeds its input bound."));
     const supplied = Object.hasOwn(input, "authorityReceipt"), decision = decode3(kind, supplied ? input : { ...input, authorityReceipt: placeholder });
-    if (!decision) return yield* Effect_exports.fail(fail25("The operator decision does not match its closed schema."));
-    const ledger = yield* EndstopLedger, state = yield* ledger.status(binding.contractId).pipe(Effect_exports.mapError(() => fail25("The original registered contract is unavailable.")));
-    if (state.contractSha256 !== binding.contractSha256 || state.contract.authorizationSha256 !== binding.authoritySha256) return yield* Effect_exports.fail(fail25("The operator decision belongs to different registered authority."));
-    if (binding.authority.kind === "v2-child") yield* ledger.familyStatus(binding.authority).pipe(Effect_exports.mapError(() => fail25("The selected registered execution child is unavailable.")));
+    if (!decision) return yield* Effect_exports.fail(fail26("The operator decision does not match its closed schema."));
+    const ledger = yield* EndstopLedger, state = yield* ledger.status(binding.contractId).pipe(Effect_exports.mapError(() => fail26("The original registered contract is unavailable.")));
+    if (state.contractSha256 !== binding.contractSha256 || state.contract.authorizationSha256 !== binding.authoritySha256) return yield* Effect_exports.fail(fail26("The operator decision belongs to different registered authority."));
+    if (binding.authority.kind === "v2-child") yield* ledger.familyStatus(binding.authority).pipe(Effect_exports.mapError(() => fail26("The selected registered execution child is unavailable.")));
     const recovered = yield* loadPelRecovery(binding.runId, context11);
-    if (!same4(recovered.activation.binding, binding)) return yield* Effect_exports.fail(fail25("The operator decision does not use the current durable execution binding."));
+    if (!same4(recovered.activation.binding, binding)) return yield* Effect_exports.fail(fail26("The operator decision does not use the current durable execution binding."));
     const previous3 = yield* readPelRunResult(binding.runId);
     if (previous3 && previous3.programDigest === binding.checkedProgramDigest && (previous3.state === "succeeded" || previous3.state === "cancelled" || previous3.state === "failed" && kind !== "revision" || previous3.state === "needs-action" && previous3.resumeMode === "final-value")) return yield* Effect_exports.fail(pelFailure("terminal-run", "This run result cannot accept the requested operator decision."));
     if (kind === "recovery") yield* validateRecovery(recovered, decision);
@@ -112387,14 +112532,14 @@ function registerPelOperatorDecision(binding, context11, kind, input, revisionSo
       const sameTarget = kind === "revision" || "effectId" in prior.decision && "effectId" in blob.decision && prior.decision.effectId === blob.decision.effectId;
       if (!sameTarget) continue;
       if (yield* consumedRecoveryAuthority(binding, recovered.replay, row.sequence, prior.decision)) {
-        if (same4(prior, blob)) return yield* Effect_exports.fail(fail25("This no-dispatch decision was already consumed. Supply new recovery evidence."));
+        if (same4(prior, blob)) return yield* Effect_exports.fail(fail26("This no-dispatch decision was already consumed. Supply new recovery evidence."));
         if ("evidenceRefs" in prior.decision) for (const evidence of prior.decision.evidenceRefs) consumedEvidence.add(evidence.sha256);
         continue;
       }
-      if (!same4(prior, blob)) return yield* Effect_exports.fail(fail25("A conflicting operator decision is already registered for this target."));
+      if (!same4(prior, blob)) return yield* Effect_exports.fail(fail26("A conflicting operator decision is already registered for this target."));
       return { ...decision, authorityReceipt: { effectId: `operator-decision-${row.data.decisionRef.sha256}`, sequence: row.sequence, sha256: row.data.decisionRef.sha256 } };
     }
-    if (consumedEvidence.size && "evidenceRefs" in blob.decision && !blob.decision.evidenceRefs.some((evidence) => !consumedEvidence.has(evidence.sha256))) return yield* Effect_exports.fail(fail25("A later recovery decision requires new evidence after the consumed dispatch attempt."));
+    if (consumedEvidence.size && "evidenceRefs" in blob.decision && !blob.decision.evidenceRefs.some((evidence) => !consumedEvidence.has(evidence.sha256))) return yield* Effect_exports.fail(fail26("A later recovery decision requires new evidence after the consumed dispatch attempt."));
     const runtime4 = yield* PelRuntime, decisionRef = yield* runtime4.artifacts.put(binding.runId, Buffer.from(canonicalize(blob)), PEL_MAX_ARTIFACT_BYTES, "ordinary"), stored = yield* appendPelRecord(binding, "pel.operator-decision.v1", { decisionRef, decisionDigest: pelHash(blob.decision), kind });
     return { ...decision, authorityReceipt: { effectId: `operator-decision-${decisionRef.sha256}`, sequence: stored.seq, sha256: decisionRef.sha256 } };
   });
@@ -112407,20 +112552,20 @@ init_pel();
 import { execFile as execFile3 } from "node:child_process";
 import { promisify as promisify2 } from "node:util";
 import { createHash as createHash9, randomUUID as randomUUID2 } from "node:crypto";
-import { closeSync as closeSync14, constants as constants8, existsSync as existsSync3, fstatSync as fstatSync11, fsyncSync as fsyncSync10, lstatSync as lstatSync12, mkdirSync as mkdirSync11, openSync as openSync14, readSync as readSync10, realpathSync as realpathSync8, renameSync as renameSync7, statSync as statSync2, unlinkSync as unlinkSync8, writeSync as writeSync6 } from "node:fs";
-import { dirname as dirname14, isAbsolute as isAbsolute19, join as join23, normalize as normalize10, parse as parse2, relative as relative4, sep as sep5 } from "node:path";
+import { closeSync as closeSync14, constants as constants10, existsSync as existsSync3, fstatSync as fstatSync11, fsyncSync as fsyncSync10, lstatSync as lstatSync12, mkdirSync as mkdirSync11, openSync as openSync14, readSync as readSync10, realpathSync as realpathSync8, renameSync as renameSync7, statSync as statSync2, unlinkSync as unlinkSync8, writeSync as writeSync6 } from "node:fs";
+import { dirname as dirname17, isAbsolute as isAbsolute23, join as join26, normalize as normalize10, parse as parse2, relative as relative4, sep as sep7 } from "node:path";
 var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 var MAX_SETTINGS = 1048576;
 var exec = promisify2(execFile3);
-var fail26 = (message) => ({ _tag: "PelRunFailure", code: "binding-mismatch", diagnostic: { code: "binding-mismatch", message, sourceSpan: null, effectId: null, retryable: false, nextAction: "Configure the canonical project with its registered authority and input references", evidenceRefs: [] } });
-var attempt5 = (work, message) => Effect_exports.try({ try: work, catch: () => fail26(message) });
+var fail27 = (message) => ({ _tag: "PelRunFailure", code: "binding-mismatch", diagnostic: { code: "binding-mismatch", message, sourceSpan: null, effectId: null, retryable: false, nextAction: "Configure the canonical project with its registered authority and input references", evidenceRefs: [] } });
+var attempt6 = (work, message) => Effect_exports.try({ try: work, catch: () => fail27(message) });
 var identity6 = (info) => `${info.dev}:${info.ino}`;
 function directory(path3) {
-  if (!isAbsolute19(path3) || normalize10(path3) !== path3 || realpathSync8(path3) !== path3) throw Error("noncanonical directory");
+  if (!isAbsolute23(path3) || normalize10(path3) !== path3 || realpathSync8(path3) !== path3) throw Error("noncanonical directory");
   const root = parse2(path3).root;
   let current3 = root;
-  for (const component of relative4(root, path3).split(sep5).filter(Boolean)) {
-    current3 = join23(current3, component);
+  for (const component of relative4(root, path3).split(sep7).filter(Boolean)) {
+    current3 = join26(current3, component);
     const info = lstatSync12(current3);
     if (info.isSymbolicLink() || !info.isDirectory()) throw Error("unsafe ancestor");
   }
@@ -112431,11 +112576,11 @@ function makeDirectory(path3) {
     directory(path3);
     return;
   }
-  const parent = dirname14(path3);
+  const parent = dirname17(path3);
   directory(parent);
   mkdirSync11(path3, { mode: 448 });
   directory(path3);
-  const descriptor5 = openSync14(parent, constants8.O_RDONLY | constants8.O_DIRECTORY | constants8.O_NOFOLLOW);
+  const descriptor5 = openSync14(parent, constants10.O_RDONLY | constants10.O_DIRECTORY | constants10.O_NOFOLLOW);
   try {
     fsyncSync10(descriptor5);
   } finally {
@@ -112444,9 +112589,9 @@ function makeDirectory(path3) {
 }
 function readBytes(path3, maxBytes, expected) {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > 64 * 1024 * 1024) throw Error("invalid bound");
-  const parent = dirname14(path3), before2 = directory(parent), entry = lstatSync12(path3);
+  const parent = dirname17(path3), before2 = directory(parent), entry = lstatSync12(path3);
   if (!entry.isFile() || entry.isSymbolicLink() || entry.nlink !== 1 || entry.size > maxBytes) throw Error("unsafe input");
-  const fd = openSync14(path3, constants8.O_RDONLY | constants8.O_NOFOLLOW);
+  const fd = openSync14(path3, constants10.O_RDONLY | constants10.O_NOFOLLOW);
   try {
     const opened = fstatSync11(fd);
     if (identity6(opened) !== identity6(entry) || opened.size !== entry.size) throw Error("changed input");
@@ -112486,11 +112631,11 @@ function resolvePelRepository(cwd) {
   return Effect_exports.gen(function* () {
     const environment3 = { ...process.env };
     for (const key of ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"]) delete environment3[key];
-    const git2 = (args6) => Effect_exports.tryPromise({ try: (signal) => exec("git", [...args6], { cwd, env: environment3, encoding: "utf8", timeout: 5e3, maxBuffer: 16384, signal }), catch: () => fail26("The checkout Git identity cannot be resolved") });
+    const git2 = (args6) => Effect_exports.tryPromise({ try: (signal) => exec("git", [...args6], { cwd, env: environment3, encoding: "utf8", timeout: 5e3, maxBuffer: 16384, signal }), catch: () => fail27("The checkout Git identity cannot be resolved") });
     const common2 = (yield* git2(["rev-parse", "--path-format=absolute", "--git-common-dir"])).stdout.trim();
     const worktree = (yield* git2(["rev-parse", "--show-toplevel"])).stdout.trim();
-    return yield* attempt5(() => {
-      if (!isAbsolute19(common2) || !isAbsolute19(worktree)) throw Error("Git returned relative identity");
+    return yield* attempt6(() => {
+      if (!isAbsolute23(common2) || !isAbsolute23(worktree)) throw Error("Git returned relative identity");
       const gitCommonDir = realpathSync8(common2), worktreePath = realpathSync8(worktree), info = directory(gitCommonDir);
       directory(worktreePath);
       return { repository: { gitCommonDir, identitySha256: hashAuthoringContent({ gitCommonDir, directoryIdentity: identity6(info) }) }, worktreePath };
@@ -112498,21 +112643,21 @@ function resolvePelRepository(cwd) {
   });
 }
 function makeLivePelProjectServices(options2) {
-  const registryPath = join23(options2.foremanHome, "projects.json");
+  const registryPath = join26(options2.foremanHome, "projects.json");
   const admission = makePelInstalledAdmission(options2.entryUrl ?? import.meta.url, options2.foremanHome);
-  const readHash = (project4, sha256, max5) => attempt5(() => {
+  const readHash = (project4, sha256, max5) => attempt6(() => {
     if (!UUID3.test(project4.projectId) || !/^([a-f0-9]{64})$/.test(sha256)) throw Error("invalid input hash");
     directory(project4.stateRoot);
-    const bytes2 = readBytes(join23(project4.stateRoot, "project-inputs", project4.projectId, `sha256-${sha256}`), max5);
+    const bytes2 = readBytes(join26(project4.stateRoot, "project-inputs", project4.projectId, `sha256-${sha256}`), max5);
     if (createHash9("sha256").update(bytes2).digest("hex") !== sha256) throw Error("hash mismatch");
     return bytes2;
   }, "The registered input hash is missing, unsafe, changed, or exceeds its bound");
-  const readInput = (project4, ref3, max5) => attempt5(() => {
+  const readInput = (project4, ref3, max5) => attempt6(() => {
     if (!UUID3.test(project4.projectId) || !/^sha256-[a-f0-9]{64}$/.test(ref3.artifactId) || ref3.artifactId !== `sha256-${ref3.sha256}` || !Number.isSafeInteger(ref3.byteLength) || ref3.byteLength < 0) throw Error("invalid input identity");
     directory(project4.stateRoot);
-    return readBytes(join23(project4.stateRoot, "project-inputs", project4.projectId, ref3.artifactId), max5, ref3);
+    return readBytes(join26(project4.stateRoot, "project-inputs", project4.projectId, ref3.artifactId), max5, ref3);
   }, "The registered project input is missing, unsafe, changed, or exceeds its bound");
-  const registered = (context11) => attempt5(() => {
+  const registered = (context11) => attempt6(() => {
     directory(options2.foremanHome);
     directory(context11.repository.gitCommonDir);
     directory(context11.stateRoot);
@@ -112525,7 +112670,7 @@ function makeLivePelProjectServices(options2) {
   }, "The project ID, repository, and state root do not match an active registry record");
   const validateWorktrees = (project4) => Effect_exports.forEach(project4.workspaces.grants, (grant) => Effect_exports.gen(function* () {
     const location = yield* resolvePelRepository(grant.canonicalRoot);
-    if (location.worktreePath !== grant.canonicalRoot || canonicalize(location.repository) !== canonicalize(project4.repository)) return yield* Effect_exports.fail(fail26("A workspace grant is not a worktree of the configured repository"));
+    if (location.worktreePath !== grant.canonicalRoot || canonicalize(location.repository) !== canonicalize(project4.repository)) return yield* Effect_exports.fail(fail27("A workspace grant is not a worktree of the configured repository"));
   }), { discard: true });
   const input = { read: (context11, ref3, max5) => Effect_exports.gen(function* () {
     yield* registered(context11);
@@ -112539,25 +112684,25 @@ function makeLivePelProjectServices(options2) {
     }),
     read: (override) => Effect_exports.gen(function* () {
       const location = yield* resolvePelRepository(options2.cwd);
-      const project4 = yield* attempt5(() => decodeSettings(readBytes(join23(location.repository.gitCommonDir, "foreman", "project.json"), MAX_SETTINGS)), "Project settings are missing, malformed, or unsafe");
-      yield* attempt5(() => validateFilesystem(project4, location.repository), "Project settings no longer match the canonical repository or workspace grants");
+      const project4 = yield* attempt6(() => decodeSettings(readBytes(join26(location.repository.gitCommonDir, "foreman", "project.json"), MAX_SETTINGS)), "Project settings are missing, malformed, or unsafe");
+      yield* attempt6(() => validateFilesystem(project4, location.repository), "Project settings no longer match the canonical repository or workspace grants");
       yield* validateWorktrees(project4);
-      if (override !== void 0 && override !== project4.stateRoot) return yield* Effect_exports.fail(fail26("The requested state root is not the configured registered root"));
+      if (override !== void 0 && override !== project4.stateRoot) return yield* Effect_exports.fail(fail27("The requested state root is not the configured registered root"));
       yield* registered(project4);
       return project4;
     }),
     configure: (bytes2) => Effect_exports.gen(function* () {
-      const project4 = yield* attempt5(() => decodeSettings(bytes2), "Project settings do not match the closed configuration schema");
+      const project4 = yield* attempt6(() => decodeSettings(bytes2), "Project settings do not match the closed configuration schema");
       const location = yield* resolvePelRepository(options2.cwd);
-      yield* attempt5(() => validateFilesystem(project4, location.repository), "Project settings reference foreign or changed repository, state root, or workspaces");
+      yield* attempt6(() => validateFilesystem(project4, location.repository), "Project settings reference foreign or changed repository, state root, or workspaces");
       yield* validateWorktrees(project4);
       yield* options2.validateAuthority(project4, (ref3, max5) => readInput(project4, ref3, max5), (sha256, max5) => readHash(project4, sha256, max5));
-      yield* admission(attempt5(() => {
-        if (!isAbsolute19(options2.foremanHome)) throw Error("home must be absolute");
+      yield* admission(attempt6(() => {
+        if (!isAbsolute23(options2.foremanHome)) throw Error("home must be absolute");
         makeDirectory(options2.foremanHome);
-        const parent = join23(location.repository.gitCommonDir, "foreman");
+        const parent = join26(location.repository.gitCommonDir, "foreman");
         makeDirectory(parent);
-        const target = join23(parent, "project.json");
+        const target = join26(parent, "project.json");
         let before2;
         try {
           before2 = lstatSync12(target);
@@ -112565,8 +112710,8 @@ function makeLivePelProjectServices(options2) {
           if (error.code !== "ENOENT") throw error;
         }
         if (before2 && (!before2.isFile() || before2.isSymbolicLink() || before2.nlink !== 1)) throw Error("unsafe settings target");
-        const temporary = join23(parent, `.project-${randomUUID2()}.tmp`);
-        const fd = openSync14(temporary, constants8.O_WRONLY | constants8.O_CREAT | constants8.O_EXCL | constants8.O_NOFOLLOW, 384);
+        const temporary = join26(parent, `.project-${randomUUID2()}.tmp`);
+        const fd = openSync14(temporary, constants10.O_WRONLY | constants10.O_CREAT | constants10.O_EXCL | constants10.O_NOFOLLOW, 384);
         try {
           const content = Buffer.from(canonicalize(project4));
           let offset = 0;
@@ -112582,7 +112727,7 @@ function makeLivePelProjectServices(options2) {
           directory(parent);
           if (before2 ? identity6(lstatSync12(target)) !== identity6(before2) : existsSync3(target)) throw Error("concurrent settings replacement");
           renameSync7(temporary, target);
-          const parentFd = openSync14(parent, constants8.O_RDONLY | constants8.O_DIRECTORY | constants8.O_NOFOLLOW);
+          const parentFd = openSync14(parent, constants10.O_RDONLY | constants10.O_DIRECTORY | constants10.O_NOFOLLOW);
           try {
             fsyncSync10(parentFd);
           } finally {
@@ -112600,21 +112745,21 @@ function makeLivePelProjectServices(options2) {
 // packages/orchestration/src/pel-registered-root.ts
 init_esm();
 import { lstatSync as lstatSync13, realpathSync as realpathSync9 } from "node:fs";
-import { isAbsolute as isAbsolute20, join as join24, normalize as normalize11 } from "node:path";
+import { isAbsolute as isAbsolute24, join as join27, normalize as normalize11 } from "node:path";
 init_pel_journal();
 function resolvePelRegisteredRoot(cwd, foremanHome, override) {
   return Effect_exports.gen(function* () {
     const location = yield* resolvePelRepository(cwd);
     return yield* Effect_exports.try({ try: () => {
       const home = lstatSync13(foremanHome);
-      if (!isAbsolute20(foremanHome) || normalize11(foremanHome) !== foremanHome || realpathSync9(foremanHome) !== foremanHome || !home.isDirectory() || home.isSymbolicLink()) throw Error("home");
-      const loaded = loadProjectRegistryFileV1(join24(foremanHome, "projects.json"));
+      if (!isAbsolute24(foremanHome) || normalize11(foremanHome) !== foremanHome || realpathSync9(foremanHome) !== foremanHome || !home.isDirectory() || home.isSymbolicLink()) throw Error("home");
+      const loaded = loadProjectRegistryFileV1(join27(foremanHome, "projects.json"));
       if (loaded._tag !== "Valid") throw Error("registry");
       const matches2 = loaded.value.projects.filter((p2) => p2.state === "active" && p2.git_common_dir === location.repository.gitCommonDir && (override === void 0 || p2.store_location === override));
       if (matches2.length !== 1) throw Error("association");
       const registration = matches2[0];
       const stateRoot = registration.store_location, stat6 = lstatSync13(stateRoot);
-      if (!isAbsolute20(stateRoot) || normalize11(stateRoot) !== stateRoot || realpathSync9(stateRoot) !== stateRoot || !stat6.isDirectory() || stat6.isSymbolicLink()) throw Error("state root");
+      if (!isAbsolute24(stateRoot) || normalize11(stateRoot) !== stateRoot || realpathSync9(stateRoot) !== stateRoot || !stat6.isDirectory() || stat6.isSymbolicLink()) throw Error("state root");
       return { projectId: registration.project_id, repository: location.repository, stateRoot, worktreePath: location.worktreePath, registration };
     }, catch: () => pelFailure("binding-mismatch", "The requested state root has no matching active repository registration.") });
   });
@@ -112626,10 +112771,10 @@ init_src();
 init_src3();
 init_execution_ledger();
 init_execution_contract();
-import { isAbsolute as isAbsolute21, normalize as normalize12 } from "node:path";
+import { isAbsolute as isAbsolute25, normalize as normalize12 } from "node:path";
 init_pel_run_contract();
 var MAX = 1048576;
-var fail27 = (message) => ({ _tag: "PelRunFailure", code: "binding-mismatch", diagnostic: { code: "binding-mismatch", message, sourceSpan: null, effectId: null, retryable: false, nextAction: "Reference a typed scope whose bytes match existing registered execution authority.", evidenceRefs: [] } });
+var fail28 = (message) => ({ _tag: "PelRunFailure", code: "binding-mismatch", diagnostic: { code: "binding-mismatch", message, sourceSpan: null, effectId: null, retryable: false, nextAction: "Reference a typed scope whose bytes match existing registered execution authority.", evidenceRefs: [] } });
 var bad4 = (fieldPath) => ({ ok: false, error: { code: "invalid-contract", fieldPath } });
 var record9 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4) && (Object.getPrototypeOf(value4) === Object.prototype || Object.getPrototypeOf(value4) === null) && Reflect.ownKeys(value4).every((key) => typeof key === "string" && "value" in Object.getOwnPropertyDescriptor(value4, key));
 var exact5 = (value4, fields3) => Object.keys(value4).length === fields3.length && fields3.every((key) => Object.hasOwn(value4, key));
@@ -112640,7 +112785,7 @@ var list3 = (value4) => Array.isArray(value4) && value4.length <= 1e3 && Object.
 var strings3 = (value4) => list3(value4) && value4.every(text9) && new Set(value4).size === value4.length;
 var map31 = (value4) => record9(value4) && Object.keys(value4).length <= 1e3 && Object.keys(value4).every(text9);
 var same5 = (a, b2) => canonicalize(a) === canonicalize(b2);
-var relativePath = (path3) => path3 === "." || !isAbsolute21(path3) && normalize12(path3) === path3 && !/[\\*?\u0000-\u001f\u007f]/u.test(path3) && path3.split("/").every((part) => part !== "." && part !== ".." && part.length > 0);
+var relativePath = (path3) => path3 === "." || !isAbsolute25(path3) && normalize12(path3) === path3 && !/[\\*?\u0000-\u001f\u007f]/u.test(path3) && path3.split("/").every((part) => part !== "." && part !== ".." && part.length > 0);
 var sorted = (values3) => [...new Set(values3)].sort((a, b2) => Buffer.compare(Buffer.from(a), Buffer.from(b2)));
 function pelAuthorityFileBytes(value4) {
   return Buffer.from(`${canonicalize(value4)}
@@ -112650,7 +112795,7 @@ function pelV1AllowedPathsSha256(grants) {
   return sha256Hex(pelAuthorityFileBytes({ schema: "foreman.execution-paths.v1", allowedPaths: sorted(grants.flatMap((grant) => grant.writablePaths)) }));
 }
 function decodePelProjectAuthorityV1(value4) {
-  if (!record9(value4) || !exact5(value4, ["schemaVersion", "repository", "stateRoot", "workspaceGrants", "taskActions", "gates", "destinations"]) || value4.schemaVersion !== 1 || !decodePelRepositoryIdentityV1(value4.repository).ok || !text9(value4.stateRoot) || !isAbsolute21(value4.stateRoot) || normalize12(value4.stateRoot) !== value4.stateRoot) return bad4("authority");
+  if (!record9(value4) || !exact5(value4, ["schemaVersion", "repository", "stateRoot", "workspaceGrants", "taskActions", "gates", "destinations"]) || value4.schemaVersion !== 1 || !decodePelRepositoryIdentityV1(value4.repository).ok || !text9(value4.stateRoot) || !isAbsolute25(value4.stateRoot) || normalize12(value4.stateRoot) !== value4.stateRoot) return bad4("authority");
   if (!list3(value4.workspaceGrants) || !value4.workspaceGrants.length) return bad4("authority.workspaceGrants");
   const ids4 = /* @__PURE__ */ new Set(), roots4 = /* @__PURE__ */ new Set();
   for (const raw of value4.workspaceGrants) {
@@ -112676,13 +112821,13 @@ function parseFile(bytes2) {
     const value4 = parseJsonRejectDuplicateKeys(new TextDecoder("utf-8", { fatal: true }).decode(bytes2));
     if (isCoreFailure(value4) || !Buffer.from(bytes2).equals(Buffer.from(pelAuthorityFileBytes(value4)))) throw Error();
     return value4;
-  }, catch: () => fail27("The authority input is not bounded canonical JSON with one final newline.") });
+  }, catch: () => fail28("The authority input is not bounded canonical JSON with one final newline.") });
 }
 function readVerified(locator, read) {
   return Effect_exports.gen(function* () {
-    if (!digest4(locator.sha256) || "byteLength" in locator && !decodePelArtifactRefV1(locator).ok) return yield* Effect_exports.fail(fail27("The authority input reference is invalid."));
+    if (!digest4(locator.sha256) || "byteLength" in locator && !decodePelArtifactRefV1(locator).ok) return yield* Effect_exports.fail(fail28("The authority input reference is invalid."));
     const bytes2 = Uint8Array.from(yield* read(locator, MAX));
-    if (bytes2.length > MAX || sha256Hex(bytes2) !== locator.sha256 || "byteLength" in locator && bytes2.length !== locator.byteLength) return yield* Effect_exports.fail(fail27("The authority input bytes differ from their registered hash or length."));
+    if (bytes2.length > MAX || sha256Hex(bytes2) !== locator.sha256 || "byteLength" in locator && bytes2.length !== locator.byteLength) return yield* Effect_exports.fail(fail28("The authority input bytes differ from their registered hash or length."));
     return { ref: { artifactId: `sha256-${locator.sha256}`, byteLength: bytes2.length, sha256: locator.sha256 }, bytes: bytes2 };
   });
 }
@@ -112691,61 +112836,61 @@ function registeredMatches(binding, family, action) {
 }
 function resolvePelRegisteredCandidate(binding, action) {
   return Effect_exports.gen(function* () {
-    if (binding.kind !== "v2-child") return yield* Effect_exports.fail(fail27("This operation requires registered V2 child authority."));
-    const ledger = yield* EndstopLedger, family = yield* ledger.familyStatus(binding).pipe(Effect_exports.mapError(() => fail27("The registered execution family is unavailable."))), matches2 = registeredMatches(binding, family, action);
-    if (family.root.contract.authorizationSha256 !== binding.authoritySha256 || binding.authorityRef.sha256 !== binding.authoritySha256 || matches2.length !== 1 || !family.family.children[binding.childId] || action === "evaluate" && (family.family.children[binding.childId].contract.limits.kind !== "evaluation" || matches2[0].effectiveAction !== "evaluate" || matches2[0].evaluationManifestSha256 === null)) return yield* Effect_exports.fail(fail27("The requested action has no unique registered child candidate."));
+    if (binding.kind !== "v2-child") return yield* Effect_exports.fail(fail28("This operation requires registered V2 child authority."));
+    const ledger = yield* EndstopLedger, family = yield* ledger.familyStatus(binding).pipe(Effect_exports.mapError(() => fail28("The registered execution family is unavailable."))), matches2 = registeredMatches(binding, family, action);
+    if (family.root.contract.authorizationSha256 !== binding.authoritySha256 || binding.authorityRef.sha256 !== binding.authoritySha256 || matches2.length !== 1 || !family.family.children[binding.childId] || action === "evaluate" && (family.family.children[binding.childId].contract.limits.kind !== "evaluation" || matches2[0].effectiveAction !== "evaluate" || matches2[0].evaluationManifestSha256 === null)) return yield* Effect_exports.fail(fail28("The requested action has no unique registered child candidate."));
     return matches2[0];
   });
 }
 function resolvePelProjectAuthority(project4, readInput) {
   return Effect_exports.gen(function* () {
     const decoded = decodeForemanProjectV1(project4);
-    if (!decoded.ok) return yield* Effect_exports.fail(fail27("The project configuration is invalid."));
+    if (!decoded.ok) return yield* Effect_exports.fail(fail28("The project configuration is invalid."));
     const contractInput = yield* readVerified(project4.executionContractTemplate, readInput), contract = decodeExecutionContractV1(yield* parseFile(contractInput.bytes));
-    if (isExecutionContractFailure(contract)) return yield* Effect_exports.fail(fail27("The execution contract input is invalid."));
-    const ledger = yield* EndstopLedger, state = yield* ledger.status(contract.contractId).pipe(Effect_exports.mapError(() => fail27("The execution contract is not registered.")));
-    if (state.contractSha256 !== executionContractSha256(contract) || !same5(state.contract, contract) || contract.baseCommit !== project4.workspaces.immutableBase) return yield* Effect_exports.fail(fail27("The contract input differs from registered execution authority."));
-    for (const key of Object.keys(contract.limits)) if (project4.limits.execution[key] > contract.limits[key]) return yield* Effect_exports.fail(fail27(`Configured ${key} exceeds registered root limits.`));
-    if (!contract.requiredMilestones.every((milestone) => project4.requiredMilestones.includes(milestone))) return yield* Effect_exports.fail(fail27("Configured milestones omit registered root requirements."));
+    if (isExecutionContractFailure(contract)) return yield* Effect_exports.fail(fail28("The execution contract input is invalid."));
+    const ledger = yield* EndstopLedger, state = yield* ledger.status(contract.contractId).pipe(Effect_exports.mapError(() => fail28("The execution contract is not registered.")));
+    if (state.contractSha256 !== executionContractSha256(contract) || !same5(state.contract, contract) || contract.baseCommit !== project4.workspaces.immutableBase) return yield* Effect_exports.fail(fail28("The contract input differs from registered execution authority."));
+    for (const key of Object.keys(contract.limits)) if (project4.limits.execution[key] > contract.limits[key]) return yield* Effect_exports.fail(fail28(`Configured ${key} exceeds registered root limits.`));
+    if (!contract.requiredMilestones.every((milestone) => project4.requiredMilestones.includes(milestone))) return yield* Effect_exports.fail(fail28("Configured milestones omit registered root requirements."));
     const candidates = project4.authorityRefs.filter((ref3) => ref3.authoritySha256 === contract.authorizationSha256 && ref3.authorityRef.sha256 === contract.authorizationSha256);
-    if (candidates.length !== 1) return yield* Effect_exports.fail(fail27("The project must select exactly one scope bound by the registered root contract."));
+    if (candidates.length !== 1) return yield* Effect_exports.fail(fail28("The project must select exactly one scope bound by the registered root contract."));
     const binding = candidates[0], scopeInput = yield* readVerified(binding.authorityRef, readInput), scopeResult = decodePelProjectAuthorityV1(yield* parseFile(scopeInput.bytes));
-    if (!scopeResult.ok) return yield* Effect_exports.fail(fail27("The registered authorization is opaque or lacks a supported typed project scope."));
+    if (!scopeResult.ok) return yield* Effect_exports.fail(fail28("The registered authorization is opaque or lacks a supported typed project scope."));
     const scope6 = scopeResult.value;
-    if (!same5(scope6.repository, project4.repository) || scope6.stateRoot !== project4.stateRoot || scope6.workspaceGrants.some((grant) => grant.immutableBase !== contract.baseCommit)) return yield* Effect_exports.fail(fail27("The scope belongs to another repository, state root, or immutable base."));
+    if (!same5(scope6.repository, project4.repository) || scope6.stateRoot !== project4.stateRoot || scope6.workspaceGrants.some((grant) => grant.immutableBase !== contract.baseCommit)) return yield* Effect_exports.fail(fail28("The scope belongs to another repository, state root, or immutable base."));
     for (const grant of project4.workspaces.grants) {
       const original = scope6.workspaceGrants.find((item) => item.grantId === grant.grantId);
-      if (!original || !same5({ ...grant, writablePaths: [] }, { ...original, writablePaths: [] }) || !grant.writablePaths.every((path3) => original.writablePaths.includes(path3))) return yield* Effect_exports.fail(fail27("Configured workspace grants expand or change registered scope."));
+      if (!original || !same5({ ...grant, writablePaths: [] }, { ...original, writablePaths: [] }) || !grant.writablePaths.every((path3) => original.writablePaths.includes(path3))) return yield* Effect_exports.fail(fail28("Configured workspace grants expand or change registered scope."));
     }
-    for (const key of ["taskActions", "gates", "destinations"]) for (const [id5, value4] of Object.entries(project4[key])) if (!Object.hasOwn(scope6[key], id5) || !same5(value4, scope6[key][id5])) return yield* Effect_exports.fail(fail27(`Configured ${key} expand or change registered scope.`));
+    for (const key of ["taskActions", "gates", "destinations"]) for (const [id5, value4] of Object.entries(project4[key])) if (!Object.hasOwn(scope6[key], id5) || !same5(value4, scope6[key][id5])) return yield* Effect_exports.fail(fail28(`Configured ${key} expand or change registered scope.`));
     const retainedInputs = [contractInput, scopeInput];
     let family = null, executionDeadline = Date.parse(contract.deadlineAt);
     if (binding.kind === "v1") {
-      if (contract.allowedPathsSha256 !== pelV1AllowedPathsSha256(scope6.workspaceGrants)) return yield* Effect_exports.fail(fail27("The registered V1 path hash has no matching typed canonical path projection."));
+      if (contract.allowedPathsSha256 !== pelV1AllowedPathsSha256(scope6.workspaceGrants)) return yield* Effect_exports.fail(fail28("The registered V1 path hash has no matching typed canonical path projection."));
     } else {
-      if (binding.rootContractId !== contract.contractId || binding.rootContractSha256 !== state.contractSha256) return yield* Effect_exports.fail(fail27("The selected child belongs to another root contract."));
-      family = yield* ledger.familyStatus(binding).pipe(Effect_exports.mapError(() => fail27("The selected execution family is not registered and active.")));
+      if (binding.rootContractId !== contract.contractId || binding.rootContractSha256 !== state.contractSha256) return yield* Effect_exports.fail(fail28("The selected child belongs to another root contract."));
+      family = yield* ledger.familyStatus(binding).pipe(Effect_exports.mapError(() => fail28("The selected execution family is not registered and active.")));
       const selectedChild = family.family.children[binding.childId];
-      if (!selectedChild) return yield* Effect_exports.fail(fail27("The selected child is absent from the registered family."));
+      if (!selectedChild) return yield* Effect_exports.fail(fail28("The selected child is absent from the registered family."));
       const childLimits = selectedChild.contract.limits;
       for (const key of Object.keys(project4.limits.execution)) {
         const bound = key === "noProductChangeMs" ? childLimits.kind === "evaluation" ? childLimits.noProgressMs : childLimits.noProductChangeMs : childLimits[key];
-        if (project4.limits.execution[key] > bound) return yield* Effect_exports.fail(fail27(`Configured ${key} exceeds registered child limits.`));
+        if (project4.limits.execution[key] > bound) return yield* Effect_exports.fail(fail28(`Configured ${key} exceeds registered child limits.`));
       }
-      if (project4.limits.execution.totalActions > family.family.manifest.totalActions || project4.limits.execution.wallTimeMs > family.family.manifest.wallTimeMs || !selectedChild.contract.requiredMilestones.every((milestone) => project4.requiredMilestones.includes(milestone))) return yield* Effect_exports.fail(fail27("Configured bounds or milestones exceed the registered execution family."));
+      if (project4.limits.execution.totalActions > family.family.manifest.totalActions || project4.limits.execution.wallTimeMs > family.family.manifest.wallTimeMs || !selectedChild.contract.requiredMilestones.every((milestone) => project4.requiredMilestones.includes(milestone))) return yield* Effect_exports.fail(fail28("Configured bounds or milestones exceed the registered execution family."));
       executionDeadline = Math.min(executionDeadline, Date.parse(selectedChild.contract.deadlineAt), Date.parse(family.family.manifest.deadlineAt));
       const manifest = family.family.manifest, sourceInput = yield* readVerified({ sha256: manifest.sourceSha256 }, readInput), derived = deriveExecutionContractFamilyV2({ rootContractId: manifest.rootContractId, rootContractSha256: manifest.rootContractSha256, track1Commit: manifest.track1Commit, track1Tree: manifest.track1Tree, sourceBytes: sourceInput.bytes, createdAt: manifest.createdAt });
-      if (derived._tag !== "Valid" || derived.familySha256 !== binding.familySha256 || !same5(derived.manifest, manifest)) return yield* Effect_exports.fail(fail27("The family source does not reproduce its registered manifest."));
+      if (derived._tag !== "Valid" || derived.familySha256 !== binding.familySha256 || !same5(derived.manifest, manifest)) return yield* Effect_exports.fail(fail28("The family source does not reproduce its registered manifest."));
       const child2 = derived.source.children.find((item) => item.childId === binding.childId);
-      if (!child2) return yield* Effect_exports.fail(fail27("The selected child is absent from the family source."));
-      for (const grant of project4.workspaces.grants) for (const path3 of grant.writablePaths) if (!child2.allowedPaths.some((allowed) => allowed.endsWith("/**") && (path3 === allowed.slice(0, -3) || path3.startsWith(allowed.slice(0, -2))))) return yield* Effect_exports.fail(fail27("A recursive workspace grant exceeds the selected child allowed paths."));
+      if (!child2) return yield* Effect_exports.fail(fail28("The selected child is absent from the family source."));
+      for (const grant of project4.workspaces.grants) for (const path3 of grant.writablePaths) if (!child2.allowedPaths.some((allowed) => allowed.endsWith("/**") && (path3 === allowed.slice(0, -3) || path3.startsWith(allowed.slice(0, -2))))) return yield* Effect_exports.fail(fail28("A recursive workspace grant exceeds the selected child allowed paths."));
       const registrations = registeredMatches(binding, family);
-      if (registrations.length !== 1) return yield* Effect_exports.fail(fail27("The selected child bundle has no unique registered action and candidate."));
+      if (registrations.length !== 1) return yield* Effect_exports.fail(fail28("The selected child bundle has no unique registered action and candidate."));
       const registration = registrations[0], bundleInput = yield* readVerified({ sha256: binding.authorityBundleSha256 }, readInput), bundle = decodeReleaseAuthorityFileV1(bundleInput.bytes);
-      if (bundle._tag !== "Valid" || bundle.value.schema !== "foreman.release-evidence-bundle.v1") return yield* Effect_exports.fail(fail27("The registered child authority bundle is invalid."));
+      if (bundle._tag !== "Valid" || bundle.value.schema !== "foreman.release-evidence-bundle.v1") return yield* Effect_exports.fail(fail28("The registered child authority bundle is invalid."));
       const value4 = bundle.value, prior = value4.priorReservation, evaluation = value4.receipts.find((receipt2) => receipt2.schema === "foreman.evaluation-authority.v1");
-      if ((evaluation?.schema === "foreman.evaluation-authority.v1" ? evaluation.manifestSha256 : null) !== registration.evaluationManifestSha256) return yield* Effect_exports.fail(fail27("The evaluation receipt differs from registered child authority."));
-      if (value4.rootContractId !== binding.rootContractId || value4.rootContractSha256 !== binding.rootContractSha256 || value4.familySha256 !== binding.familySha256 || value4.childId !== binding.childId || value4.packageId !== child2.packageId || value4.action !== registration.action || !same5(value4.candidate, registration.candidate) || value4.taskPlanSha256 !== registration.taskPlanSha256 || !same5(value4.receipts.map((receipt2) => receipt2.schema), registration.receiptSchemas) || !same5(value4.receipts.map((receipt2) => sha256Hex(pelAuthorityFileBytes(receipt2))), registration.receiptSha256s) || (prior?.reservationId ?? null) !== registration.priorReservationId || (prior?.originReservationId ?? null) !== registration.originReservationId || (prior?.originalAction ?? value4.action) !== registration.effectiveAction) return yield* Effect_exports.fail(fail27("The child bundle differs from its registered candidate, action, or receipts."));
+      if ((evaluation?.schema === "foreman.evaluation-authority.v1" ? evaluation.manifestSha256 : null) !== registration.evaluationManifestSha256) return yield* Effect_exports.fail(fail28("The evaluation receipt differs from registered child authority."));
+      if (value4.rootContractId !== binding.rootContractId || value4.rootContractSha256 !== binding.rootContractSha256 || value4.familySha256 !== binding.familySha256 || value4.childId !== binding.childId || value4.packageId !== child2.packageId || value4.action !== registration.action || !same5(value4.candidate, registration.candidate) || value4.taskPlanSha256 !== registration.taskPlanSha256 || !same5(value4.receipts.map((receipt2) => receipt2.schema), registration.receiptSchemas) || !same5(value4.receipts.map((receipt2) => sha256Hex(pelAuthorityFileBytes(receipt2))), registration.receiptSha256s) || (prior?.reservationId ?? null) !== registration.priorReservationId || (prior?.originReservationId ?? null) !== registration.originReservationId || (prior?.originalAction ?? value4.action) !== registration.effectiveAction) return yield* Effect_exports.fail(fail28("The child bundle differs from its registered candidate, action, or receipts."));
       retainedInputs.push(sourceInput, bundleInput);
     }
     return { contract: state.contract, executionDeadline, binding, scope: scope6, workspaceGrants: scope6.workspaceGrants, allowedTaskActions: scope6.taskActions, gates: scope6.gates, destinations: scope6.destinations, retainedInputs, family };
@@ -113304,12 +113449,12 @@ var hash9 = (value4) => typeof value4 === "string" && /^[a-f0-9]{64}$/u.test(val
 var oid2 = (value4) => typeof value4 === "string" && /^[a-f0-9]{40}$/u.test(value4);
 var ref2 = (value4) => decodePelArtifactRefV1(value4).ok;
 var natural6 = (value4) => typeof value4 === "number" && Number.isSafeInteger(value4) && value4 >= 0;
-function attempt6(value4) {
+function attempt7(value4) {
   if (!exact6(value4, ["runId", "laneId", "attemptId"]) || typeof value4.runId !== "string" || typeof value4.laneId !== "string" || typeof value4.attemptId !== "number") return false;
   return "runId" in decodeAttemptIdentity(value4.runId, value4.laneId, value4.attemptId);
 }
 function effect6(value4) {
-  return exact6(value4, ["runId", "revisionDigest", "attempt", "requestId", "retryOrdinal", "effectId"], ["priorEffectId"]) && text10(value4.runId) && hash9(value4.revisionDigest) && attempt6(value4.attempt) && value4.attempt.runId === value4.runId && text10(value4.requestId) && natural6(value4.retryOrdinal) && text10(value4.effectId) && (value4.priorEffectId === void 0 || text10(value4.priorEffectId));
+  return exact6(value4, ["runId", "revisionDigest", "attempt", "requestId", "retryOrdinal", "effectId"], ["priorEffectId"]) && text10(value4.runId) && hash9(value4.revisionDigest) && attempt7(value4.attempt) && value4.attempt.runId === value4.runId && text10(value4.requestId) && natural6(value4.retryOrdinal) && text10(value4.effectId) && (value4.priorEffectId === void 0 || text10(value4.priorEffectId));
 }
 function provider2(value4) {
   return record10(value4) && (value4.kind === "api" ? exact6(value4, ["kind", "provider", "profileId", "transportId", "credentialProfileRef", "endpointRevision", "responseId"], ["model"]) : value4.kind === "native" && exact6(value4, ["kind", "provider", "profileId", "transportId", "credentialProfileRef", "protocolVersion", "sessionId"], ["model", "threadId", "turnId"])) && Object.values(value4).every(text10);
@@ -113324,7 +113469,7 @@ function decodeCandidateArtifactV1(value4) {
   return valid ? { ok: true, value: value4 } : bad5("candidateArtifact.content");
 }
 function decodeCandidateRefV1(value4) {
-  if (!exact6(value4, ["schemaVersion", "repository", "workspaceGrantId", "baseCommit", "commit", "tree", "candidateSha256", "treeDigest", "diffDigest", "allowedPathsSha256", "artifactManifestSha256", "manifestRef", "diffRef", "producingAttempt", "producingEffectId"]) || value4.schemaVersion !== 1 || !decodePelRepositoryIdentityV1(value4.repository).ok || !text10(value4.workspaceGrantId) || !oid2(value4.baseCommit) || !oid2(value4.commit) || !oid2(value4.tree) || value4.candidateSha256 !== sha256Hex(value4.commit) || !["treeDigest", "diffDigest", "allowedPathsSha256", "artifactManifestSha256"].every((key) => hash9(value4[key])) || !ref2(value4.manifestRef) || !ref2(value4.diffRef) || value4.manifestRef.sha256 !== value4.artifactManifestSha256 || value4.diffRef.sha256 !== value4.diffDigest || !attempt6(value4.producingAttempt) || !text10(value4.producingEffectId)) return bad5("candidate");
+  if (!exact6(value4, ["schemaVersion", "repository", "workspaceGrantId", "baseCommit", "commit", "tree", "candidateSha256", "treeDigest", "diffDigest", "allowedPathsSha256", "artifactManifestSha256", "manifestRef", "diffRef", "producingAttempt", "producingEffectId"]) || value4.schemaVersion !== 1 || !decodePelRepositoryIdentityV1(value4.repository).ok || !text10(value4.workspaceGrantId) || !oid2(value4.baseCommit) || !oid2(value4.commit) || !oid2(value4.tree) || value4.candidateSha256 !== sha256Hex(value4.commit) || !["treeDigest", "diffDigest", "allowedPathsSha256", "artifactManifestSha256"].every((key) => hash9(value4[key])) || !ref2(value4.manifestRef) || !ref2(value4.diffRef) || value4.manifestRef.sha256 !== value4.artifactManifestSha256 || value4.diffRef.sha256 !== value4.diffDigest || !attempt7(value4.producingAttempt) || !text10(value4.producingEffectId)) return bad5("candidate");
   return { ok: true, value: value4 };
 }
 function common(value4, kind) {
@@ -113729,7 +113874,7 @@ var str = (value4) => ({ tag: "string", value: value4 });
 var refValue = (ref3) => str(`artifact:${ref3.artifactId}`);
 var assoc = (fields3) => ({ tag: "list", items: Object.entries(fields3).map(([key, value4]) => ({ tag: "pair", key, value: value4 })) });
 var put3 = (value4, context11) => Effect_exports.flatMap(PelRuntime, (runtime4) => runtime4.artifacts.put(context11.binding.runId, Buffer.from(canonicalize(value4)), PEL_MAX_ARTIFACT_BYTES, "ordinary"));
-var object7 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
+var object8 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
 var args5 = (request3) => {
   const { id: id5, input, destination } = request3.boundArguments;
   return id5?.tag === "string" && destination?.tag === "string" && input && isPelDataValue(input) ? { id: id5.value, input, destination: destination.value } : null;
@@ -113755,7 +113900,7 @@ var serviceInput = (destinationId, input) => ({ destinationId, candidate: pelRel
 function makePelPublishHandler(ports) {
   const load2 = (prepared, context11) => Effect_exports.gen(function* () {
     const value4 = yield* readPelArtifactJson(context11.binding.runId, prepared.inputs);
-    if (!object7(value4) || Object.keys(value4).sort().join(",") !== "id,input,publication,resolved,schemaVersion" || value4.schemaVersion !== 1 || typeof value4.id !== "string" || !isPelDataValue(value4.input) || !object7(value4.resolved) || !object7(value4.publication) || value4.publication.operationDigest !== prepared.operationDigest) return yield* Effect_exports.fail(invalid3("The retained publication preparation is invalid."));
+    if (!object8(value4) || Object.keys(value4).sort().join(",") !== "id,input,publication,resolved,schemaVersion" || value4.schemaVersion !== 1 || typeof value4.id !== "string" || !isPelDataValue(value4.input) || !object8(value4.resolved) || !object8(value4.publication) || value4.publication.operationDigest !== prepared.operationDigest) return yield* Effect_exports.fail(invalid3("The retained publication preparation is invalid."));
     const stored = value4;
     yield* validateInput(stored.resolved, context11);
     if (pelHash(serviceInput(stored.publication.input.destinationId, stored.resolved)) !== pelHash(stored.publication.input) || pelHash(prepared.candidate) !== pelHash(stored.publication.input.candidate)) return yield* Effect_exports.fail(invalid3("The publication preparation does not bind its original candidate evidence."));
@@ -113766,8 +113911,8 @@ function makePelPublishHandler(ports) {
     if (!replay.ok) return yield* Effect_exports.fail(replay.error);
     for (const row of [...replay.value.records].reverse()) if (row.type === "pel.effect.observed.v1" && row.data.effectId === context11.effect.effectId && row.data.externalOutcome === "confirmed-complete") {
       const value4 = yield* readPelArtifactJson(context11.binding.runId, row.data.observationRef);
-      if (!object7(value4) || value4.stage !== "publication-observed") continue;
-      if (Object.keys(value4).sort().join(",") !== "observation,observedAt,operationDigest,stage" || value4.operationDigest !== operationDigest2 || !Number.isSafeInteger(value4.observedAt) || !object7(value4.observation) || value4.observation.kind !== "published" || value4.observation.operationDigest !== operationDigest2) return yield* Effect_exports.fail(invalid3("The retained publication observation is invalid."));
+      if (!object8(value4) || value4.stage !== "publication-observed") continue;
+      if (Object.keys(value4).sort().join(",") !== "observation,observedAt,operationDigest,stage" || value4.operationDigest !== operationDigest2 || !Number.isSafeInteger(value4.observedAt) || !object8(value4.observation) || value4.observation.kind !== "published" || value4.observation.operationDigest !== operationDigest2) return yield* Effect_exports.fail(invalid3("The retained publication observation is invalid."));
       return { report: value4, reportRef: row.data.observationRef };
     }
     return null;
@@ -113790,7 +113935,7 @@ function makePelPublishHandler(ports) {
     let recorded = false;
     for (const row of replay.value.records) if (row.type === "pel.effect.observed.v1" && row.data.effectId === context11.effect.effectId) {
       const value4 = yield* readPelArtifactJson(context11.binding.runId, row.data.observationRef);
-      if (object7(value4) && value4.stage === "host-evidence" && value4.kind === "publication") {
+      if (object8(value4) && value4.stage === "host-evidence" && value4.kind === "publication") {
         if (pelHash(value4.ref) !== pelHash(ref3)) return yield* Effect_exports.fail(invalid3("A different publication receipt is already recorded."));
         recorded = true;
       }
@@ -113844,27 +113989,27 @@ init_execution_ledger();
 init_queue_services();
 init_pel_run_contract();
 init_pel_effects();
-import { realpath as realpath4, stat as stat4 } from "node:fs/promises";
-import { isAbsolute as isAbsolute24, resolve as resolve8 } from "node:path";
+import { realpath as realpath7, stat as stat5 } from "node:fs/promises";
+import { isAbsolute as isAbsolute27, resolve as resolve10 } from "node:path";
 
 // packages/orchestration/src/pel-candidate-capture.ts
 init_esm();
 init_src();
 init_src3();
 init_queue_services();
-import { constants as constants9 } from "node:fs";
-import { lstat as lstat3, stat as stat3, realpath as realpath3, open as open3, readlink, mkdtemp as mkdtemp2, writeFile as writeFile2, rm as rm2 } from "node:fs/promises";
-import { dirname as dirname15, join as join25, isAbsolute as isAbsolute23, resolve as resolve7, sep as sep6 } from "node:path";
-import { tmpdir } from "node:os";
+import { constants as constants11 } from "node:fs";
+import { lstat as lstat6, stat as stat4, realpath as realpath6, open as open5, readlink, mkdtemp as mkdtemp4, writeFile as writeFile2, rm as rm4 } from "node:fs/promises";
+import { dirname as dirname18, join as join28, isAbsolute as isAbsolute26, resolve as resolve9, sep as sep8 } from "node:path";
+import { tmpdir as tmpdir3 } from "node:os";
 init_pel_run_contract();
 init_pel_resource_scope();
 init_pel_run_contract();
 var MAX_FILES = 4096;
 var MAX_BYTES3 = 64 * 1024 * 1024;
-var failure8 = (code, message, cause4) => ({ code, message, ...cause4 ? { cause: JSON.parse(canonicalize(cause4)) } : {} });
-var within = (root, path3) => path3 === root || path3.startsWith(root + sep6);
+var failure9 = (code, message, cause4) => ({ code, message, ...cause4 ? { cause: JSON.parse(canonicalize(cause4)) } : {} });
+var within3 = (root, path3) => path3 === root || path3.startsWith(root + sep8);
 var identity7 = (s3) => `${s3.dev}:${s3.ino}`;
-var io3 = (run6, code = "candidate-changed") => Effect_exports.tryPromise({ try: run6, catch: () => failure8(code, "Candidate filesystem evidence changed or could not be read safely.") });
+var io5 = (run6, code = "candidate-changed") => Effect_exports.tryPromise({ try: run6, catch: () => failure9(code, "Candidate filesystem evidence changed or could not be read safely.") });
 var oid3 = (text11) => {
   const value4 = text11.trim();
   if (!/^[a-f0-9]{40}$/.test(value4)) throw Error("Invalid Git object identity");
@@ -113874,21 +114019,21 @@ var limit = (context11) => Math.min(MAX_BYTES3, context11.binding.limits.maxOutp
 function git(context11, args6, extra = {}, allowedStatuses = [0]) {
   return Effect_exports.gen(function* () {
     const runtime4 = yield* PelRuntime, now = yield* runtime4.clock.now;
-    if (context11.binding.limits.deadline <= now) return yield* Effect_exports.fail(failure8("timeout", "The original candidate capture deadline expired."));
+    if (context11.binding.limits.deadline <= now) return yield* Effect_exports.fail(failure9("timeout", "The original candidate capture deadline expired."));
     const proc = yield* ProcessExec;
-    const result4 = yield* proc.runCaptured({ command: "git", args: gitArgv(["--literal-pathspecs", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.excludesFile=/dev/null", "-c", "core.sparseCheckout=false", "-c", "core.ignoreStat=false", "-c", "core.fileMode=true", "-c", "commit.gpgSign=false", ...args6]), cwd: context11.workspace.canonicalRoot, env: { ...sanitizedGitEnv(), GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", ...extra }, maxOutputBytes: limit(context11), timeoutMs: Math.min(3e4, context11.binding.limits.deadline - now) }).pipe(Effect_exports.mapError(() => failure8("candidate-changed", "The bounded candidate Git operation did not complete.")));
-    if (!allowedStatuses.includes(result4.exitCode)) return yield* Effect_exports.fail(failure8("candidate-changed", "Git rejected the observed candidate operation."));
+    const result4 = yield* proc.runCaptured({ command: "git", args: gitArgv(["--literal-pathspecs", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.excludesFile=/dev/null", "-c", "core.sparseCheckout=false", "-c", "core.ignoreStat=false", "-c", "core.fileMode=true", "-c", "commit.gpgSign=false", ...args6]), cwd: context11.workspace.canonicalRoot, env: { ...sanitizedGitEnv(), GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", ...extra }, maxOutputBytes: limit(context11), timeoutMs: Math.min(3e4, context11.binding.limits.deadline - now) }).pipe(Effect_exports.mapError(() => failure9("candidate-changed", "The bounded candidate Git operation did not complete.")));
+    if (!allowedStatuses.includes(result4.exitCode)) return yield* Effect_exports.fail(failure9("candidate-changed", "Git rejected the observed candidate operation."));
     return result4;
   });
 }
 function put4(context11, bytes2) {
-  return Effect_exports.flatMap(PelRuntime, (runtime4) => runtime4.artifacts.put(context11.binding.runId, bytes2, limit(context11), "ordinary")).pipe(Effect_exports.mapError(() => failure8("artifact-missing", "Candidate evidence could not be retained.")));
+  return Effect_exports.flatMap(PelRuntime, (runtime4) => runtime4.artifacts.put(context11.binding.runId, bytes2, limit(context11), "ordinary")).pipe(Effect_exports.mapError(() => failure9("artifact-missing", "Candidate evidence could not be retained.")));
 }
 function stableFile(path3, max5) {
-  return io3(async () => {
-    const entry = await lstat3(path3);
+  return io5(async () => {
+    const entry = await lstat6(path3);
     if (!entry.isFile() || entry.nlink !== 1 || entry.size > max5) throw Error("Unsafe file");
-    const fd = await open3(path3, constants9.O_RDONLY | constants9.O_NOFOLLOW);
+    const fd = await open5(path3, constants11.O_RDONLY | constants11.O_NOFOLLOW);
     try {
       const before2 = await fd.stat();
       if (identity7(before2) !== identity7(entry) || before2.size > max5 || before2.size < 0) throw Error("Changed file");
@@ -113899,7 +114044,7 @@ function stableFile(path3, max5) {
         if (!read.bytesRead) throw Error("Short file");
         offset += read.bytesRead;
       }
-      const after4 = await fd.stat(), current3 = await lstat3(path3);
+      const after4 = await fd.stat(), current3 = await lstat6(path3);
       if (identity7(after4) !== identity7(current3) || after4.size !== before2.size || after4.mtimeMs !== before2.mtimeMs || after4.ctimeMs !== before2.ctimeMs) throw Error("Changed file");
       return bytes2;
     } finally {
@@ -113910,36 +114055,36 @@ function stableFile(path3, max5) {
 function inspectPelCandidate(context11) {
   return Effect_exports.scoped(Effect_exports.gen(function* () {
     const root = context11.workspace.canonicalRoot;
-    yield* io3(async () => {
-      if (await realpath3(root) !== root || identity7(await stat3(root)) !== context11.workspace.directoryIdentity) throw Error("Changed workspace");
+    yield* io5(async () => {
+      if (await realpath6(root) !== root || identity7(await stat4(root)) !== context11.workspace.directoryIdentity) throw Error("Changed workspace");
     });
     const common2 = (yield* git(context11, ["rev-parse", "--path-format=absolute", "--git-common-dir"])).stdout.trim(), top = (yield* git(context11, ["rev-parse", "--show-toplevel"])).stdout.trim();
-    yield* io3(async () => {
-      const canonical3 = await realpath3(common2), info = await stat3(canonical3);
+    yield* io5(async () => {
+      const canonical3 = await realpath6(common2), info = await stat4(canonical3);
       if (top !== root || canonical3 !== context11.binding.repository.gitCommonDir || canonical3 !== context11.workspace.repository.gitCommonDir || sha256Hex(canonicalize({ gitCommonDir: canonical3, directoryIdentity: identity7(info) })) !== context11.binding.repository.identitySha256 || canonicalize(context11.binding.repository) !== canonicalize(context11.workspace.repository)) throw Error("Changed repository");
     });
-    const headCommit = yield* git(context11, ["rev-parse", "HEAD"]).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure8("candidate-changed", "Invalid HEAD identity.") })));
-    if (headCommit !== context11.workspace.immutableBase) return yield* Effect_exports.fail(failure8("candidate-changed", "HEAD differs from the admitted immutable base."));
-    const headTree = yield* git(context11, ["rev-parse", `${headCommit}^{tree}`]).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure8("candidate-changed", "Invalid tree identity.") })));
+    const headCommit = yield* git(context11, ["rev-parse", "HEAD"]).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure9("candidate-changed", "Invalid HEAD identity.") })));
+    if (headCommit !== context11.workspace.immutableBase) return yield* Effect_exports.fail(failure9("candidate-changed", "HEAD differs from the admitted immutable base."));
+    const headTree = yield* git(context11, ["rev-parse", `${headCommit}^{tree}`]).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure9("candidate-changed", "Invalid tree identity.") })));
     yield* git(context11, ["cat-file", "-e", `${context11.workspace.immutableBase}^{commit}`]);
     const branch = (yield* git(context11, ["symbolic-ref", "--quiet", "HEAD"], {}, [0, 1])).stdout.trim();
-    const scratch = yield* Effect_exports.acquireRelease(io3(() => mkdtemp2(join25(tmpdir(), "foreman-observation-"))), (path3) => Effect_exports.promise(() => rm2(path3, { recursive: true, force: true })).pipe(Effect_exports.orDie));
-    const environment3 = { GIT_INDEX_FILE: join25(scratch, "index") };
+    const scratch = yield* Effect_exports.acquireRelease(io5(() => mkdtemp4(join28(tmpdir3(), "foreman-observation-"))), (path3) => Effect_exports.promise(() => rm4(path3, { recursive: true, force: true })).pipe(Effect_exports.orDie));
+    const environment3 = { GIT_INDEX_FILE: join28(scratch, "index") };
     yield* git(context11, ["read-tree", headCommit], environment3);
     const tracked = (yield* git(context11, ["diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--name-only", "-z", headCommit, "--"], environment3)).stdout;
     const untracked = (yield* git(context11, ["ls-files", "--others", "--exclude-standard", "-z"], environment3)).stdout;
     const paths2 = [...new Set([...tracked.split("\0"), ...untracked.split("\0")].filter(Boolean))].sort();
-    if (paths2.length > MAX_FILES) return yield* Effect_exports.fail(failure8("task-output-invalid", "Candidate file count exceeds its bound."));
+    if (paths2.length > MAX_FILES) return yield* Effect_exports.fail(failure9("task-output-invalid", "Candidate file count exceeds its bound."));
     const entries2 = [];
     let total = 0;
     for (const path3 of paths2) {
-      if (isAbsolute23(path3) || path3.includes("\uFFFD") || path3.split(/[\\/]/).some((p2) => !p2 || p2 === "." || p2 === ".." || p2 === ".git")) return yield* Effect_exports.fail(failure8("candidate-out-of-scope", "Candidate contains an unsupported or reserved path."));
-      const absolute = join25(root, path3);
-      const info = yield* io3(async () => {
+      if (isAbsolute26(path3) || path3.includes("\uFFFD") || path3.split(/[\\/]/).some((p2) => !p2 || p2 === "." || p2 === ".." || p2 === ".git")) return yield* Effect_exports.fail(failure9("candidate-out-of-scope", "Candidate contains an unsupported or reserved path."));
+      const absolute = join28(root, path3);
+      const info = yield* io5(async () => {
         try {
-          const parent = await realpath3(dirname15(absolute));
-          if (!within(root, parent)) throw Error("Escaping parent");
-          return await lstat3(absolute);
+          const parent = await realpath6(dirname18(absolute));
+          if (!within3(root, parent)) throw Error("Escaping parent");
+          return await lstat6(absolute);
         } catch (error) {
           if (error.code === "ENOENT") return null;
           throw error;
@@ -113949,17 +114094,17 @@ function inspectPelCandidate(context11) {
         entries2.push({ path: path3, mode: "deleted", content: null, unsafeSymlink: false });
         continue;
       }
-      if (!info.isFile() && !info.isSymbolicLink()) return yield* Effect_exports.fail(failure8("candidate-out-of-scope", "Candidate contains an unsupported special file."));
+      if (!info.isFile() && !info.isSymbolicLink()) return yield* Effect_exports.fail(failure9("candidate-out-of-scope", "Candidate contains an unsupported special file."));
       let bytes2, unsafeSymlink = false;
       if (info.isSymbolicLink()) {
-        const target = yield* io3(() => readlink(absolute));
+        const target = yield* io5(() => readlink(absolute));
         bytes2 = Buffer.from(target);
-        unsafeSymlink = isAbsolute23(target) || !within(root, resolve7(dirname15(absolute), target)) || (yield* canonicalWorkspacePath(resolve7(dirname15(absolute), target), context11).pipe(Effect_exports.either))._tag === "Left";
-        const again = yield* io3(() => lstat3(absolute));
-        if (identity7(again) !== identity7(info) || again.mtimeMs !== info.mtimeMs) return yield* Effect_exports.fail(failure8("candidate-changed", "Candidate symlink changed during capture."));
+        unsafeSymlink = isAbsolute26(target) || !within3(root, resolve9(dirname18(absolute), target)) || (yield* canonicalWorkspacePath(resolve9(dirname18(absolute), target), context11).pipe(Effect_exports.either))._tag === "Left";
+        const again = yield* io5(() => lstat6(absolute));
+        if (identity7(again) !== identity7(info) || again.mtimeMs !== info.mtimeMs) return yield* Effect_exports.fail(failure9("candidate-changed", "Candidate symlink changed during capture."));
       } else bytes2 = yield* stableFile(absolute, limit(context11) - total);
       total += bytes2.byteLength;
-      if (total > limit(context11)) return yield* Effect_exports.fail(failure8("task-output-invalid", "Candidate bytes exceed the admitted artifact bound."));
+      if (total > limit(context11)) return yield* Effect_exports.fail(failure9("task-output-invalid", "Candidate bytes exceed the admitted artifact bound."));
       entries2.push({ path: path3, mode: info.isSymbolicLink() ? "120000" : info.mode & 73 ? "100755" : "100644", content: yield* put4(context11, bytes2), unsafeSymlink });
     }
     const data3 = { schemaVersion: 1, repository: context11.binding.repository, workspaceGrantId: context11.workspace.grantId, workspaceIdentity: context11.workspace.directoryIdentity, baseCommit: context11.workspace.immutableBase, headCommit, headTree, branchRef: branch || null, entries: entries2 };
@@ -113970,15 +114115,15 @@ function inspectPelCandidate(context11) {
 function capturePelCandidate(original, context11) {
   return Effect_exports.gen(function* () {
     const current3 = yield* inspectPelCandidate(context11);
-    for (const key of ["repository", "workspaceGrantId", "workspaceIdentity", "baseCommit", "headCommit", "headTree", "branchRef"]) if (canonicalize(original[key]) !== canonicalize(current3[key])) return yield* Effect_exports.fail(failure8("candidate-changed", "The original candidate, branch, or workspace identity changed."));
+    for (const key of ["repository", "workspaceGrantId", "workspaceIdentity", "baseCommit", "headCommit", "headTree", "branchRef"]) if (canonicalize(original[key]) !== canonicalize(current3[key])) return yield* Effect_exports.fail(failure9("candidate-changed", "The original candidate, branch, or workspace identity changed."));
     const old = new Map(original.entries.map((entry) => [entry.path, entry])), now = new Map(current3.entries.map((entry) => [entry.path, entry]));
     const changedPaths = [.../* @__PURE__ */ new Set([...old.keys(), ...now.keys()])].filter((path3) => canonicalize(old.get(path3) ?? null) !== canonicalize(now.get(path3) ?? null)).sort();
     const allowed = context11.workspace.writablePaths.map((p2) => p2 === "." ? "" : p2.replace(/\/$/, ""));
-    if (current3.entries.some((entry) => entry.unsafeSymlink || !allowed.some((path3) => !path3 || entry.path === path3 || entry.path.startsWith(path3 + "/")))) return yield* Effect_exports.fail(failure8("candidate-out-of-scope", "Observed candidate paths escape the admitted writable set.", { manifestRef: current3.manifestRef, changedPaths }));
+    if (current3.entries.some((entry) => entry.unsafeSymlink || !allowed.some((path3) => !path3 || entry.path === path3 || entry.path.startsWith(path3 + "/")))) return yield* Effect_exports.fail(failure9("candidate-out-of-scope", "Observed candidate paths escape the admitted writable set.", { manifestRef: current3.manifestRef, changedPaths }));
     const base = { repository: context11.binding.repository, workspaceGrantId: context11.workspace.grantId, baseCommit: context11.workspace.immutableBase, allowedPathsSha256: pelV1AllowedPathsSha256([context11.workspace]), changedPaths, attempt: context11.effect.attempt, effectId: context11.effect.effectId };
     if (!changedPaths.length) return { status: "no-change", ...base, commit: null, tree: null, treeDigest: null, artifactManifestSha256: sha256Hex(canonicalize([])), observationRef: current3.manifestRef, artifacts: [], manifestRef: current3.manifestRef, diffRef: yield* put4(context11, Buffer.alloc(0)) };
-    const scratch = yield* Effect_exports.acquireRelease(io3(() => mkdtemp2(join25(tmpdir(), "foreman-candidate-"))), (path3) => Effect_exports.promise(() => rm2(path3, { recursive: true, force: true })).pipe(Effect_exports.orDie));
-    const environment3 = { GIT_INDEX_FILE: join25(scratch, "index") };
+    const scratch = yield* Effect_exports.acquireRelease(io5(() => mkdtemp4(join28(tmpdir3(), "foreman-candidate-"))), (path3) => Effect_exports.promise(() => rm4(path3, { recursive: true, force: true })).pipe(Effect_exports.orDie));
+    const environment3 = { GIT_INDEX_FILE: join28(scratch, "index") };
     yield* git(context11, ["read-tree", current3.headCommit], environment3);
     const runtime4 = yield* PelRuntime, artifacts = [];
     for (const [index, entry] of current3.entries.entries()) {
@@ -113987,19 +114132,19 @@ function capturePelCandidate(original, context11) {
         artifacts.push({ path: entry.path, change: "deleted", mode: null, gitBlobOid: null, contentSha256: null, artifact: null });
         continue;
       }
-      const bytes2 = yield* runtime4.artifacts.get(context11.binding.runId, entry.content, limit(context11)).pipe(Effect_exports.mapError(() => failure8("artifact-missing", "Captured candidate bytes are unavailable."))), path3 = join25(scratch, `blob-${index}`);
-      yield* io3(() => writeFile2(path3, bytes2, { mode: 384, flag: "wx" }));
-      const hash10 = yield* git(context11, ["hash-object", "-w", "--no-filters", "--", path3], environment3).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure8("candidate-changed", "Invalid captured blob identity.") })));
+      const bytes2 = yield* runtime4.artifacts.get(context11.binding.runId, entry.content, limit(context11)).pipe(Effect_exports.mapError(() => failure9("artifact-missing", "Captured candidate bytes are unavailable."))), path3 = join28(scratch, `blob-${index}`);
+      yield* io5(() => writeFile2(path3, bytes2, { mode: 384, flag: "wx" }));
+      const hash10 = yield* git(context11, ["hash-object", "-w", "--no-filters", "--", path3], environment3).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure9("candidate-changed", "Invalid captured blob identity.") })));
       yield* git(context11, ["update-index", "--add", "--cacheinfo", entry.mode, hash10, entry.path], environment3);
       artifacts.push({ path: entry.path, change: "present", mode: entry.mode, gitBlobOid: hash10, contentSha256: entry.content.sha256, artifact: entry.content });
     }
-    const tree = yield* git(context11, ["write-tree"], environment3).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure8("candidate-changed", "Invalid candidate tree.") })));
+    const tree = yield* git(context11, ["write-tree"], environment3).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure9("candidate-changed", "Invalid candidate tree.") })));
     const date3 = `@${Math.floor(context11.binding.limits.deadline / 1e3)} +0000`;
-    const commit5 = yield* git(context11, ["commit-tree", tree, "-p", current3.headCommit, "-m", `Foreman candidate ${context11.effect.effectId}`], { ...environment3, GIT_AUTHOR_NAME: "Foreman", GIT_AUTHOR_EMAIL: "foreman@invalid", GIT_COMMITTER_NAME: "Foreman", GIT_COMMITTER_EMAIL: "foreman@invalid", GIT_AUTHOR_DATE: date3, GIT_COMMITTER_DATE: date3 }).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure8("candidate-changed", "Invalid candidate commit.") })));
+    const commit5 = yield* git(context11, ["commit-tree", tree, "-p", current3.headCommit, "-m", `Foreman candidate ${context11.effect.effectId}`], { ...environment3, GIT_AUTHOR_NAME: "Foreman", GIT_AUTHOR_EMAIL: "foreman@invalid", GIT_COMMITTER_NAME: "Foreman", GIT_COMMITTER_EMAIL: "foreman@invalid", GIT_AUTHOR_DATE: date3, GIT_COMMITTER_DATE: date3 }).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure9("candidate-changed", "Invalid candidate commit.") })));
     const diff9 = yield* git(context11, ["diff", "--binary", "--full-index", "--no-ext-diff", "--no-textconv", "--no-renames", current3.baseCommit, commit5, "--"]);
     const diffRef = yield* put4(context11, diff9.stdoutBytes ?? Buffer.from(diff9.stdout));
     const final = yield* inspectPelCandidate(context11);
-    if (final.manifestRef.sha256 !== current3.manifestRef.sha256) return yield* Effect_exports.fail(failure8("candidate-changed", "Worktree evidence changed while the immutable candidate was captured.", { commit: commit5, tree, diffRef, manifestRef: current3.manifestRef }));
+    if (final.manifestRef.sha256 !== current3.manifestRef.sha256) return yield* Effect_exports.fail(failure9("candidate-changed", "Worktree evidence changed while the immutable candidate was captured.", { commit: commit5, tree, diffRef, manifestRef: current3.manifestRef }));
     const treeBytes = yield* git(context11, ["cat-file", "tree", tree]);
     const treeDigest = sha256Hex(treeBytes.stdoutBytes ?? Buffer.from(treeBytes.stdout));
     const data3 = { status: "candidate-ready", ...base, commit: commit5, tree, treeDigest, diffRef, observationRef: current3.manifestRef, artifacts };
@@ -114009,22 +114154,22 @@ function capturePelCandidate(original, context11) {
 }
 function observePelCapturedCandidate(candidate3, context11) {
   return Effect_exports.gen(function* () {
-    if (!decodeCandidateRefV1(candidate3).ok || candidate3.workspaceGrantId !== context11.workspace.grantId || canonicalize(candidate3.repository) !== canonicalize(context11.binding.repository) || candidate3.baseCommit !== context11.workspace.immutableBase) return yield* Effect_exports.fail(failure8("candidate-changed", "The candidate is outside its original workspace."));
-    const runtime4 = yield* PelRuntime, bytes2 = yield* runtime4.artifacts.get(context11.binding.runId, candidate3.manifestRef, MAX_BYTES3).pipe(Effect_exports.mapError(() => failure8("artifact-missing", "The original candidate manifest is unavailable.")));
-    const manifest = yield* Effect_exports.try({ try: () => JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes2)), catch: () => failure8("candidate-changed", "The candidate manifest is invalid.") });
+    if (!decodeCandidateRefV1(candidate3).ok || candidate3.workspaceGrantId !== context11.workspace.grantId || canonicalize(candidate3.repository) !== canonicalize(context11.binding.repository) || candidate3.baseCommit !== context11.workspace.immutableBase) return yield* Effect_exports.fail(failure9("candidate-changed", "The candidate is outside its original workspace."));
+    const runtime4 = yield* PelRuntime, bytes2 = yield* runtime4.artifacts.get(context11.binding.runId, candidate3.manifestRef, MAX_BYTES3).pipe(Effect_exports.mapError(() => failure9("artifact-missing", "The original candidate manifest is unavailable.")));
+    const manifest = yield* Effect_exports.try({ try: () => JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes2)), catch: () => failure9("candidate-changed", "The candidate manifest is invalid.") });
     const observation = decodePelArtifactRefV1(manifest.observationRef);
-    if (!observation.ok || !Object.hasOwn(manifest, "attempt") || manifest.commit !== candidate3.commit || manifest.tree !== candidate3.tree || manifest.treeDigest !== candidate3.treeDigest || manifest.effectId !== candidate3.producingEffectId || canonicalize(manifest.attempt) !== canonicalize(candidate3.producingAttempt) || !Array.isArray(manifest.artifacts) || manifest.artifacts.some((a) => !decodeCandidateArtifactV1(a).ok)) return yield* Effect_exports.fail(failure8("candidate-changed", "The candidate manifest changed its immutable Git or attempt identity."));
-    yield* runtime4.artifacts.get(context11.binding.runId, observation.value, MAX_BYTES3).pipe(Effect_exports.mapError(() => failure8("artifact-missing", "The captured worktree observation is unavailable.")));
+    if (!observation.ok || !Object.hasOwn(manifest, "attempt") || manifest.commit !== candidate3.commit || manifest.tree !== candidate3.tree || manifest.treeDigest !== candidate3.treeDigest || manifest.effectId !== candidate3.producingEffectId || canonicalize(manifest.attempt) !== canonicalize(candidate3.producingAttempt) || !Array.isArray(manifest.artifacts) || manifest.artifacts.some((a) => !decodeCandidateArtifactV1(a).ok)) return yield* Effect_exports.fail(failure9("candidate-changed", "The candidate manifest changed its immutable Git or attempt identity."));
+    yield* runtime4.artifacts.get(context11.binding.runId, observation.value, MAX_BYTES3).pipe(Effect_exports.mapError(() => failure9("artifact-missing", "The captured worktree observation is unavailable.")));
     const current3 = yield* inspectPelCandidate(context11);
-    if (current3.manifestRef.sha256 !== observation.value.sha256) return yield* Effect_exports.fail(failure8("candidate-changed", "The current worktree differs from the captured candidate."));
+    if (current3.manifestRef.sha256 !== observation.value.sha256) return yield* Effect_exports.fail(failure9("candidate-changed", "The current worktree differs from the captured candidate."));
     return observation.value.sha256;
   });
 }
 
 // packages/orchestration/src/pel-publication-service.ts
 init_pel_resource_scope();
-var failure9 = (code, message) => ({ code, message });
-var invalid4 = (message) => failure9("publication-authority-invalid", message);
+var failure10 = (code, message) => ({ code, message });
+var invalid4 = (message) => failure10("publication-authority-invalid", message);
 var same6 = (a, b2) => canonicalize(a) === canonicalize(b2);
 var bytes = (value4) => Buffer.from(`${canonicalize(value4)}
 `);
@@ -114032,9 +114177,9 @@ var operationDigest = (value4) => sha256Hex(canonicalize(value4));
 function makePelPublicationService(options2) {
   const git2 = (args6, context11, observation = false) => Effect_exports.gen(function* () {
     const runtime4 = yield* PelRuntime, remaining = context11.binding.limits.deadline - (yield* runtime4.clock.now);
-    if (!observation && remaining <= 0) return yield* Effect_exports.fail(failure9("capability-denied", "The original publication deadline has expired."));
+    if (!observation && remaining <= 0) return yield* Effect_exports.fail(failure10("capability-denied", "The original publication deadline has expired."));
     const env2 = { ...sanitizedGitEnv(), GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
-    return yield* options2.processExec.runCaptured({ command: "git", args: gitArgv(["-c", "core.hooksPath=/dev/null", "-c", "protocol.allow=never", "-c", "protocol.file.allow=always", "-c", "protocol.https.allow=always", "-c", "protocol.ssh.allow=always", "-c", "core.sshCommand=ssh", ...args6]), cwd: context11.workspace.canonicalRoot, env: env2, maxOutputBytes: Math.min(65536, context11.binding.limits.maxOutputBytes), timeoutMs: observation ? 15e3 : Math.min(15e3, remaining) }).pipe(Effect_exports.mapError(() => failure9("publication-authority-invalid", "The bounded Git operation did not produce a reliable result.")));
+    return yield* options2.processExec.runCaptured({ command: "git", args: gitArgv(["-c", "core.hooksPath=/dev/null", "-c", "protocol.allow=never", "-c", "protocol.file.allow=always", "-c", "protocol.https.allow=always", "-c", "protocol.ssh.allow=always", "-c", "core.sshCommand=ssh", ...args6]), cwd: context11.workspace.canonicalRoot, env: env2, maxOutputBytes: Math.min(65536, context11.binding.limits.maxOutputBytes), timeoutMs: observation ? 15e3 : Math.min(15e3, remaining) }).pipe(Effect_exports.mapError(() => failure10("publication-authority-invalid", "The bounded Git operation did not produce a reliable result.")));
   });
   const checkedGit = (args6, context11) => Effect_exports.gen(function* () {
     const result4 = yield* git2(args6, context11);
@@ -114043,39 +114188,39 @@ function makePelPublicationService(options2) {
   });
   const destination = (input, context11) => Effect_exports.gen(function* () {
     const value4 = context11.project.destinations[input.destinationId];
-    if (!value4 || value4.operation !== "publish") return yield* Effect_exports.fail(failure9("publication-destination-unsupported", "Only a host-admitted external Git ref publication is supported."));
+    if (!value4 || value4.operation !== "publish") return yield* Effect_exports.fail(failure10("publication-destination-unsupported", "Only a host-admitted external Git ref publication is supported."));
     if (value4.repositoryIdentitySha256 !== context11.workspace.repository.identitySha256 || value4.repositoryIdentitySha256 !== context11.project.repository.identitySha256 || !/^refs\/(heads|tags)\/[A-Za-z0-9][A-Za-z0-9._/-]*$/u.test(value4.ref) || value4.ref.includes("..") || value4.ref.includes("//") || value4.ref.endsWith("/") || value4.ref.endsWith(".lock")) return yield* Effect_exports.fail(invalid4("The destination differs from the admitted repository or ref."));
     if (value4.expectedOldObject.kind === "exact" && !isCommitSha40(value4.expectedOldObject.oid)) return yield* Effect_exports.fail(invalid4("The expected remote object is invalid."));
-    if (!isAbsolute24(value4.remoteIdentity)) {
+    if (!isAbsolute27(value4.remoteIdentity)) {
       let url;
       try {
         url = new URL(value4.remoteIdentity);
       } catch {
-        return yield* Effect_exports.fail(failure9("publication-destination-unsupported", "Publication requires an exact canonical path, HTTPS URL, or SSH URL."));
+        return yield* Effect_exports.fail(failure10("publication-destination-unsupported", "Publication requires an exact canonical path, HTTPS URL, or SSH URL."));
       }
-      if (!["https:", "ssh:"].includes(url.protocol) || url.password || url.protocol === "https:" && url.username || url.search || url.hash || url.href !== value4.remoteIdentity) return yield* Effect_exports.fail(failure9("publication-destination-unsupported", "The remote transport identity is unsupported."));
+      if (!["https:", "ssh:"].includes(url.protocol) || url.password || url.protocol === "https:" && url.username || url.search || url.hash || url.href !== value4.remoteIdentity) return yield* Effect_exports.fail(failure10("publication-destination-unsupported", "The remote transport identity is unsupported."));
     }
     return value4;
   });
-  const remoteIdentity = (target) => !isAbsolute24(target.remoteIdentity) ? Effect_exports.succeed(null) : Effect_exports.tryPromise({ try: async () => {
-    const path3 = await realpath4(target.remoteIdentity), info = await stat4(path3);
+  const remoteIdentity = (target) => !isAbsolute27(target.remoteIdentity) ? Effect_exports.succeed(null) : Effect_exports.tryPromise({ try: async () => {
+    const path3 = await realpath7(target.remoteIdentity), info = await stat5(path3);
     if (path3 !== target.remoteIdentity || !info.isDirectory()) throw Error("identity");
     return `${info.dev}:${info.ino}`;
   }, catch: () => invalid4("The canonical remote directory identity changed.") });
   const validateCandidate = (input, target, context11) => Effect_exports.gen(function* () {
     yield* canonicalWorkspacePath(".", context11);
-    if (!isCommitSha40(input.candidate.commit) || !isCommitSha40(input.candidate.tree) || input.candidate.candidateSha256 !== sha256Hex(input.candidate.commit)) return yield* Effect_exports.fail(failure9("candidate-changed", "The candidate identity is invalid."));
-    const common2 = yield* checkedGit(["rev-parse", "--git-common-dir"], context11), commonPath = yield* Effect_exports.tryPromise({ try: () => realpath4(resolve8(context11.workspace.canonicalRoot, common2)), catch: () => invalid4("The repository identity is unavailable.") });
+    if (!isCommitSha40(input.candidate.commit) || !isCommitSha40(input.candidate.tree) || input.candidate.candidateSha256 !== sha256Hex(input.candidate.commit)) return yield* Effect_exports.fail(failure10("candidate-changed", "The candidate identity is invalid."));
+    const common2 = yield* checkedGit(["rev-parse", "--git-common-dir"], context11), commonPath = yield* Effect_exports.tryPromise({ try: () => realpath7(resolve10(context11.workspace.canonicalRoot, common2)), catch: () => invalid4("The repository identity is unavailable.") });
     if (commonPath !== context11.workspace.repository.gitCommonDir) return yield* Effect_exports.fail(invalid4("The candidate belongs to another Git repository."));
     const tree = yield* checkedGit(["rev-parse", "--verify", `${input.candidate.commit}^{tree}`], context11);
-    if (tree !== input.candidate.tree) return yield* Effect_exports.fail(failure9("candidate-changed", "The immutable candidate tree changed."));
+    if (tree !== input.candidate.tree) return yield* Effect_exports.fail(failure10("candidate-changed", "The immutable candidate tree changed."));
     if (options2.resolveCapturedCandidate) {
       const candidate3 = yield* options2.resolveCapturedCandidate(input, context11), ref3 = input.evidenceRefs[0];
-      if (!ref3 || !decodeCandidateRefV1(candidate3).ok || !same6({ commit: candidate3.commit, tree: candidate3.tree, candidateSha256: candidate3.candidateSha256 }, input.candidate) || !same6(yield* readPelArtifactJson(context11.binding.runId, ref3), candidate3)) return yield* Effect_exports.fail(failure9("candidate-changed", "The captured candidate differs from its original publication evidence."));
+      if (!ref3 || !decodeCandidateRefV1(candidate3).ok || !same6({ commit: candidate3.commit, tree: candidate3.tree, candidateSha256: candidate3.candidateSha256 }, input.candidate) || !same6(yield* readPelArtifactJson(context11.binding.runId, ref3), candidate3)) return yield* Effect_exports.fail(failure10("candidate-changed", "The captured candidate differs from its original publication evidence."));
       yield* observePelCapturedCandidate(candidate3, context11).pipe(Effect_exports.provideService(ProcessExec, options2.processExec));
     } else {
       const head9 = yield* checkedGit(["rev-parse", "--verify", "HEAD"], context11), dirty = yield* checkedGit(["status", "--porcelain=v1", "--untracked-files=all"], context11);
-      if (head9 !== input.candidate.commit || dirty !== "") return yield* Effect_exports.fail(failure9("candidate-changed", "The candidate worktree or commit changed after evidence capture."));
+      if (head9 !== input.candidate.commit || dirty !== "") return yield* Effect_exports.fail(failure10("candidate-changed", "The candidate worktree or commit changed after evidence capture."));
     }
     yield* checkedGit(["check-ref-format", target.ref], context11);
     const rewrites = yield* git2(["config", "--get-regexp", "^url\\..*\\.(insteadof|pushinsteadof)$"], context11);
@@ -114180,9 +114325,9 @@ init_src();
 init_pel();
 init_pel_run_contract();
 init_pel_journal();
-import { lstat as lstat4 } from "node:fs/promises";
-import { join as join26 } from "node:path";
-var object8 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
+import { lstat as lstat7 } from "node:fs/promises";
+import { join as join29 } from "node:path";
+var object9 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
 var pelArtifactString = (ref3) => `artifact:${ref3.artifactId}`;
 function pelHostField(value4, key) {
   if (value4.tag !== "list" || value4.items.some((item) => item.tag !== "pair")) return void 0;
@@ -114193,7 +114338,7 @@ function resolvePelRunArtifact(reference3, context11) {
   return Effect_exports.gen(function* () {
     if (!/^artifact:sha256-[a-f0-9]{64}$/u.test(reference3)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The result does not contain a run-owned artifact reference."));
     const artifactId = reference3.slice("artifact:".length), sha256 = artifactId.slice("sha256-".length);
-    const info = yield* Effect_exports.tryPromise({ try: () => lstat4(join26(context11.binding.stateRoot, "runs", context11.binding.runId, "artifacts", artifactId)), catch: () => pelFailure("binding-mismatch", "The referenced run artifact is absent.") });
+    const info = yield* Effect_exports.tryPromise({ try: () => lstat7(join29(context11.binding.stateRoot, "runs", context11.binding.runId, "artifacts", artifactId)), catch: () => pelFailure("binding-mismatch", "The referenced run artifact is absent.") });
     if (!info.isFile() || info.isSymbolicLink() || info.size > PEL_MAX_ARTIFACT_BYTES) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The run artifact exceeds its supported type or bound."));
     const ref3 = { artifactId, sha256, byteLength: info.size }, runtime4 = yield* PelRuntime;
     yield* runtime4.artifacts.get(context11.binding.runId, ref3, PEL_MAX_ARTIFACT_BYTES);
@@ -114208,7 +114353,7 @@ function readPelHostEvidenceRecords(context11) {
     for (const record11 of replay.value.records) {
       if (record11.type !== "pel.effect.observed.v1") continue;
       const value4 = yield* readPelArtifactJson(context11.binding.runId, record11.data.observationRef);
-      if (!object8(value4) || value4.stage !== "host-evidence") continue;
+      if (!object9(value4) || value4.stage !== "host-evidence") continue;
       if (Object.keys(value4).sort().join(",") !== "kind,ref,stage" || !["implementation", "verification", "review", "publication"].includes(String(value4.kind)) || !decodePelArtifactRefV1(value4.ref).ok || record11.data.externalOutcome !== "confirmed-complete" || record11.data.providerIdentity !== null)
         return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The host evidence provenance record is invalid."));
       entries2.push({ kind: value4.kind, ref: value4.ref, effectId: record11.data.effectId, sequence: record11.sequence });
@@ -114229,7 +114374,7 @@ function loadPelHostEvidence(ref3, kind, context11) {
       for (const record11 of replay.records) {
         if (record11.type !== "pel.effect.observed.v1" || record11.sequence <= entry.sequence) continue;
         const value4 = yield* readPelArtifactJson(context11.binding.runId, record11.data.observationRef);
-        if (object8(value4) && value4.stage === "review-in-progress" && pelHash(value4.candidateRef) === pelHash(decoded.value.candidateRef))
+        if (object9(value4) && value4.stage === "review-in-progress" && pelHash(value4.candidateRef) === pelHash(decoded.value.candidateRef))
           return yield* Effect_exports.fail(pelFailure("binding-mismatch", "A later review invalidated the previous review receipt."));
       }
     }
@@ -114242,7 +114387,7 @@ function projectPelHostReceiptEvidence(binding, currentCandidateSha256) {
     const newestReview = /* @__PURE__ */ new Map();
     for (const record11 of replay.records) if (record11.type === "pel.effect.observed.v1") {
       const value4 = yield* readPelArtifactJson(binding.runId, record11.data.observationRef);
-      if (object8(value4) && value4.stage === "review-in-progress" && decodePelArtifactRefV1(value4.candidateRef).ok) newestReview.set(pelHash(value4.candidateRef), record11.data.effectId);
+      if (object9(value4) && value4.stage === "review-in-progress" && decodePelArtifactRefV1(value4.candidateRef).ok) newestReview.set(pelHash(value4.candidateRef), record11.data.effectId);
     }
     const receiptRefs = [], receiptCandidates = {};
     for (const entry of entries2) {
@@ -114294,7 +114439,7 @@ function resolvePelCandidateInput(input, context11) {
     const implementation = yield* loadPelHostEvidence(implementationEntry.ref, "implementation", context11);
     if (implementation.kind !== "implementation" || pelHash(implementation.candidateRef) !== pelHash(candidateRef)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Implementation evidence names a different candidate."));
     const manifest = yield* readPelArtifactJson(context11.binding.runId, candidate3.manifestRef);
-    if (!object8(manifest) || !decodePelArtifactRefV1(manifest.observationRef).ok) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The captured candidate manifest has no host observation."));
+    if (!object9(manifest) || !decodePelArtifactRefV1(manifest.observationRef).ok) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The captured candidate manifest has no host observation."));
     return { candidate: candidate3, candidateRef, task: task3, implementation, implementationRef: implementationEntry.ref, manifest, observationRef: manifest.observationRef };
   });
 }
@@ -114389,7 +114534,7 @@ function pelTaskRaceBudget(context11) {
 init_pel_resource_scope();
 var PEL_VERIFICATION_POLICY_V1 = { schema: "foreman.pel-verification-policy.v1", version: 1, maxAgeMs: 864e5 };
 var PEL_REVIEW_POLICY_V1 = { schema: "foreman.pel-review-policy.v1", version: 1, id: "independent-review", differentObservedVendor: true, maxVerificationAgeMs: 864e5 };
-var object9 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
+var object10 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
 function makeForemanHostRegistry(handlers, registry = createDefaultAuthoringSnapshotV1().registry) {
   for (const id5 of ["fm/task", "fm/verify", "fm/review", "fm/publish"]) if (!handlers.has(id5)) throw Error(`Missing canonical host handler: ${id5}`);
   if (registry.digest !== createDefaultAuthoringSnapshotV1().registry.digest) throw Error("The host library differs from the canonical descriptor registry.");
@@ -114419,7 +114564,7 @@ function makePelHostLibraryServices(options2) {
     const environment3 = {};
     for (const ref3 of refs) {
       const descriptor5 = context11.checked.snapshot.artifactDescriptors.find((value4) => value4.id === ref3);
-      if (!descriptor5 || !object9(descriptor5.content)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The gate environment reference is absent from the bound snapshot."));
+      if (!descriptor5 || !object10(descriptor5.content)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The gate environment reference is absent from the bound snapshot."));
       for (const [key, value4] of Object.entries(descriptor5.content)) {
         if (typeof value4 !== "string" || Object.hasOwn(environment3, key)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Gate environment bindings overlap or contain non-string values."));
         environment3[key] = value4;
@@ -114687,7 +114832,7 @@ init_pel_provider_tools();
 init_queue_services();
 var denied5 = (message) => ({ code: "capability-denied", message });
 var invalid5 = (message) => ({ code: "task-output-invalid", message });
-var object10 = (v2) => v2 !== null && typeof v2 === "object" && !Array.isArray(v2);
+var object11 = (v2) => v2 !== null && typeof v2 === "object" && !Array.isArray(v2);
 var str2 = (value4) => ({ tag: "string", value: value4 });
 var artifact2 = (ref3) => str2(`artifact:${ref3.artifactId}`);
 var list6 = (items) => ({ tag: "list", items });
@@ -114700,13 +114845,13 @@ var put5 = (value4, context11) => Effect_exports.flatMap(PelRuntime, (runtime4) 
 function load(prepared, context11) {
   return Effect_exports.gen(function* () {
     const data3 = yield* readPelArtifactJson(context11.binding.runId, prepared.inputs);
-    if (!object10(data3) || Object.keys(data3).sort().join(",") !== "before,id,requestRef" || typeof data3.id !== "string" || !object10(data3.before) || !decodePelArtifactRefV1(data3.requestRef).ok || pelHash(data3) !== prepared.operationDigest) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The original task preparation changed."));
+    if (!object11(data3) || Object.keys(data3).sort().join(",") !== "before,id,requestRef" || typeof data3.id !== "string" || !object11(data3.before) || !decodePelArtifactRefV1(data3.requestRef).ok || pelHash(data3) !== prepared.operationDigest) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The original task preparation changed."));
     const before2 = data3.before;
     if (!decodePelArtifactRefV1(before2.manifestRef).ok || before2.schemaVersion !== 1 || before2.workspaceGrantId !== context11.workspace.grantId || pelHash(before2.repository) !== pelHash(context11.binding.repository) || before2.workspaceIdentity !== context11.workspace.directoryIdentity || before2.baseCommit !== context11.workspace.immutableBase || !Array.isArray(before2.entries)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The original task observation changed."));
     const { manifestRef, ...facts2 } = before2, storedBefore = yield* readPelArtifactJson(context11.binding.runId, manifestRef);
     if (pelHash(storedBefore) !== pelHash(facts2)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The retained task observation differs from its preparation."));
     const provider3 = yield* readPelArtifactJson(context11.binding.runId, data3.requestRef);
-    if (!object10(provider3) || provider3.schemaVersion !== 1 || provider3.effectId !== context11.effect.effectId || !object10(provider3.toolPolicy) || provider3.toolPolicy.mode !== "native-coding" || provider3.toolPolicy.workspaceGrantId !== context11.workspace.grantId || !object10(provider3.outputSchema) || provider3.outputSchema.id !== "schema:candidate-v1" || pelHash(provider3.outputSchema.content) !== pelHash(context11.checked.snapshot.registry.dataSchemas["schema:candidate-v1"]) || !object10(provider3.limits) || provider3.limits.deadline !== context11.binding.limits.deadline) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The original native task request changed."));
+    if (!object11(provider3) || provider3.schemaVersion !== 1 || provider3.effectId !== context11.effect.effectId || !object11(provider3.toolPolicy) || provider3.toolPolicy.mode !== "native-coding" || provider3.toolPolicy.workspaceGrantId !== context11.workspace.grantId || !object11(provider3.outputSchema) || provider3.outputSchema.id !== "schema:candidate-v1" || pelHash(provider3.outputSchema.content) !== pelHash(context11.checked.snapshot.registry.dataSchemas["schema:candidate-v1"]) || !object11(provider3.limits) || provider3.limits.deadline !== context11.binding.limits.deadline) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The original native task request changed."));
     return { data: data3, request: provider3 };
   });
 }
@@ -114723,7 +114868,7 @@ function makePelTaskHandler(ports) {
     for (const record11 of [...replay.value.records].reverse()) {
       if (record11.type !== "pel.effect.observed.v1" || record11.data.effectId !== context11.effect.effectId) continue;
       const saved = yield* readPelArtifactJson(context11.binding.runId, record11.data.observationRef);
-      if (!object10(saved) || saved.stage !== "task-completed") continue;
+      if (!object11(saved) || saved.stage !== "task-completed") continue;
       if (Object.keys(saved).sort().join(",") !== "inputs,receiptRef,result,stage" || pelHash(saved.inputs) !== pelHash(prepared.inputs) || !decodePelArtifactRefV1(saved.receiptRef).ok || !isPelDataValue(saved.result) || !validateDataSchema(saved.result, context11.checked.snapshot.registry.dataSchemas["schema:task-result-v1"])) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Retained task completion changed."));
       const receiptRef = saved.receiptRef, decoded = decodeImplementationReceiptV1(yield* readPelArtifactJson(context11.binding.runId, receiptRef));
       if (!decoded.ok || pelHash(decoded.value.effect) !== pelHash(context11.effect) || pelHash(decoded.value.reservation) !== pelHash(token) || pelHash(decoded.value.beforeManifestRef) !== pelHash(original.data.before.manifestRef) || !observedIdentity(original.request, decoded.value.providerIdentity)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Retained implementation receipt changed its authority or provider."));
@@ -114735,7 +114880,7 @@ function makePelTaskHandler(ports) {
         if (!value4.ok || value4.value.producingEffectId !== context11.effect.effectId || pelHash(value4.value.producingAttempt) !== pelHash(context11.effect.attempt) || value4.value.workspaceGrantId !== context11.workspace.grantId || pelHash(value4.value.repository) !== pelHash(context11.binding.repository)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Retained candidate changed its original attempt."));
         candidate3 = value4.value;
         const manifest = yield* readPelArtifactJson(context11.binding.runId, candidate3.manifestRef);
-        if (!object10(manifest) || !Array.isArray(manifest.artifacts) || manifest.artifacts.some((a) => !decodeCandidateArtifactV1(a).ok) || pelHash(manifest.observationRef) !== pelHash(receipt2.afterManifestRef)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Retained candidate artifacts changed."));
+        if (!object11(manifest) || !Array.isArray(manifest.artifacts) || manifest.artifacts.some((a) => !decodeCandidateArtifactV1(a).ok) || pelHash(manifest.observationRef) !== pelHash(receipt2.afterManifestRef)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Retained candidate artifacts changed."));
         artifacts = manifest.artifacts;
         const runtime4 = yield* PelRuntime;
         for (const entry of artifacts) if (entry.artifact) yield* runtime4.artifacts.get(context11.binding.runId, entry.artifact, PEL_MAX_ARTIFACT_BYTES);
@@ -114806,7 +114951,7 @@ function makePelTaskHandler(ports) {
       if (!replay.ok) return yield* Effect_exports.fail(replay.error);
       for (const row of [...replay.value.records].reverse()) if (row.type === "pel.effect.observed.v1" && row.data.effectId === context11.effect.effectId && row.data.providerIdentity) {
         const data3 = yield* readPelArtifactJson(context11.binding.runId, row.data.observationRef);
-        if (object10(data3) && data3.type === "completed") return yield* complete6(prepared, token, { value: outcome.outcome.value, identity: row.data.providerIdentity }, context11);
+        if (object11(data3) && data3.type === "completed") return yield* complete6(prepared, token, { value: outcome.outcome.value, identity: row.data.providerIdentity }, context11);
       }
       return yield* Effect_exports.fail(pelFailure("journal-corrupt", "A successful task lacks durable observed provider identity."));
     }),
@@ -114948,7 +115093,7 @@ function makeLivePelLifecycleBackend(options2) {
         if ("byteLength" in locator) ref3 = locator;
         else {
           if (!/^[a-f0-9]{64}$/.test(locator.sha256)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Invalid authority input hash."));
-          const byteLength = yield* Effect_exports.try({ try: () => lstatSync14(join29(root.stateRoot, "runs", runId2, "artifacts", `sha256-${locator.sha256}`)).size, catch: () => pelFailure("binding-mismatch", "The original authority input is missing.") });
+          const byteLength = yield* Effect_exports.try({ try: () => lstatSync14(join30(root.stateRoot, "runs", runId2, "artifacts", `sha256-${locator.sha256}`)).size, catch: () => pelFailure("binding-mismatch", "The original authority input is missing.") });
           ref3 = { artifactId: `sha256-${locator.sha256}`, sha256: locator.sha256, byteLength };
         }
         return yield* artifacts.get(runId2, ref3, max5);
@@ -115066,7 +115211,7 @@ function makeLivePelLifecycleBackend(options2) {
     configured: () => Effect_exports.gen(function* () {
       const location = yield* Effect_exports.either(resolvePelRepository(options2.cwd));
       if (location._tag === "Left") return null;
-      if (!existsSync4(join29(location.right.repository.gitCommonDir, "foreman", "project.json"))) return null;
+      if (!existsSync4(join30(location.right.repository.gitCommonDir, "foreman", "project.json"))) return null;
       return yield* loadProject();
     }),
     preflight: (checked, loaded) => preflight(checked, loaded)
@@ -115100,7 +115245,7 @@ function makeLivePelLifecycleBackend(options2) {
 function makeLivePelSupervisorRecovery(stateRoot, options2) {
   return Layer_exports.succeed(PelSupervisorRecovery, { recover: (runId2, owner) => Effect_exports.gen(function* () {
     const cwd = yield* Effect_exports.try({ try: () => {
-      const registry = loadProjectRegistryFileV1(join29(options2.foremanHome, "projects.json"));
+      const registry = loadProjectRegistryFileV1(join30(options2.foremanHome, "projects.json"));
       if (registry._tag !== "Valid") throw Error("registry");
       const matches2 = registry.value.projects.filter((p2) => p2.state === "active" && p2.store_location === stateRoot);
       if (matches2.length !== 1 || !matches2[0].worktree_paths.length) throw Error("association");
@@ -115114,7 +115259,7 @@ function makeLivePelSupervisorRecovery(stateRoot, options2) {
   }) });
 }
 function defaultPelLifecycleOptions(output) {
-  return { cwd: process.cwd(), foremanHome: process.env.FOREMAN_HOME ?? join29(homedir(), ".foreman"), userHome: homedir(), environment: process.env, output };
+  return { cwd: process.cwd(), foremanHome: process.env.FOREMAN_HOME ?? join30(homedir(), ".foreman"), userHome: homedir(), environment: process.env, output };
 }
 
 // packages/orchestration/src/supervisor-cli.ts
@@ -115191,7 +115336,7 @@ function parseSupervisorArgv(argv) {
 }
 function resolveStateRoot(path3) {
   if (typeof path3 !== "string" || path3.length === 0) return null;
-  if (!isAbsolute28(path3) || path3.includes("\0")) return null;
+  if (!isAbsolute29(path3) || path3.includes("\0")) return null;
   try {
     const st2 = statSync3(path3);
     if (!st2.isDirectory()) return null;
@@ -115207,16 +115352,16 @@ function resumeMaxAttemptsFromEnv(env2) {
   if (!Number.isSafeInteger(n) || n < 1 || n > 100) return 2;
   return n;
 }
-function runSupervisorCli(argv, io6, cliEnv = {}) {
+function runSupervisorCli(argv, io7, cliEnv = {}) {
   return Effect_exports.gen(function* () {
     const parsed = parseSupervisorArgv(argv);
     if (parsed._tag === "Invalid") {
-      io6.writeStderr(USAGE + "\n");
+      io7.writeStderr(USAGE + "\n");
       return EXIT_CONFIG;
     }
     const stateRoot = resolveStateRoot(parsed.stateRoot);
     if (stateRoot === null) {
-      io6.writeStderr(MSG_INVALID_ARGUMENTS + "\n");
+      io7.writeStderr(MSG_INVALID_ARGUMENTS + "\n");
       return EXIT_CONFIG;
     }
     const env2 = cliEnv.env ?? process.env;
@@ -115235,8 +115380,8 @@ function runSupervisorCli(argv, io6, cliEnv = {}) {
           env: env2,
           pelRecovery: (canonicalRoot) => {
             const options2 = defaultPelLifecycleOptions({
-              stdout: (text11) => Effect_exports.sync(() => io6.writeStdout(text11)),
-              stderr: (text11) => Effect_exports.sync(() => io6.writeStderr(text11))
+              stdout: (text11) => Effect_exports.sync(() => io7.writeStdout(text11)),
+              stderr: (text11) => Effect_exports.sync(() => io7.writeStderr(text11))
             });
             return makeLivePelSupervisorRecovery(canonicalRoot, {
               ...options2,
@@ -115249,7 +115394,7 @@ function runSupervisorCli(argv, io6, cliEnv = {}) {
     );
     const exitEither = yield* Effect_exports.either(program);
     if (exitEither._tag === "Left") {
-      io6.writeStderr(MSG_INTERNAL_FAILURE + "\n");
+      io7.writeStderr(MSG_INTERNAL_FAILURE + "\n");
       return EXIT_FAIL;
     }
     const results = exitEither.right;
@@ -115259,14 +115404,14 @@ function runSupervisorCli(argv, io6, cliEnv = {}) {
         overall = EXIT_FAIL;
       }
       for (const line of formatRunResultLines(r)) {
-        io6.writeStderr(line + "\n");
+        io7.writeStderr(line + "\n");
       }
       if (r._tag === "Swept" && overall !== EXIT_FAIL && r.actions.some((a) => a._tag === "LegacyControllerRequired")) overall = 3;
     }
     return overall;
   }).pipe(
     Effect_exports.catchAllDefect(() => {
-      io6.writeStderr(MSG_INTERNAL_FAILURE + "\n");
+      io7.writeStderr(MSG_INTERNAL_FAILURE + "\n");
       return Effect_exports.succeed(EXIT_FAIL);
     })
   );
@@ -115274,7 +115419,7 @@ function runSupervisorCli(argv, io6, cliEnv = {}) {
 
 // packages/orchestration/src/supervisor-main.ts
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname18, join as join30 } from "node:path";
+import { dirname as dirname19, join as join31 } from "node:path";
 function writeFully(stream2, text11) {
   return new Promise((resolve12, reject4) => {
     const onError6 = (err) => {
@@ -115290,7 +115435,7 @@ function writeFully(stream2, text11) {
   });
 }
 var pending7 = [];
-var io5 = {
+var io6 = {
   writeStdout: (text11) => {
     pending7.push(writeFully(process.stdout, text11));
   },
@@ -115303,15 +115448,15 @@ function resolveSkillRoot() {
     return process.env["FOREMAN_SKILL_ROOT"];
   }
   try {
-    const here = dirname18(fileURLToPath2(import.meta.url));
-    return join30(here, "..", "..");
+    const here = dirname19(fileURLToPath2(import.meta.url));
+    return join31(here, "..", "..");
   } catch {
     return process.cwd();
   }
 }
 var skillRoot = resolveSkillRoot();
 Effect_exports.runPromise(
-  runSupervisorCli(process.argv, io5, {
+  runSupervisorCli(process.argv, io6, {
     skillRoot,
     env: process.env
   })

@@ -60,8 +60,8 @@ export function runNativeCodingQualification(selection: ProviderQualificationSel
         const credentials = makeLiveProviderCredentials(live, selection.transportId);
         if (!fixture) {
             const selected = yield* credentials.resolve(selection.credentialProfileRef);
-            if (selected.nativeProfileDirectory || !selected.environment)
-                return yield* Effect.fail(failure('The isolated coding boundary requires the explicitly selected environment credential. Native profile directories are not mounted.'));
+            if (selected.nativeProfileDirectory || (!selected.environment && !(selection.transportId === 'codex-app-server' && selected.chatgpt)))
+                return yield* Effect.fail(failure('The isolated coding boundary requires an explicit environment credential or host-managed ChatGPT login. Native profile directories are not mounted.'));
         }
         const installed = fixture?.installed ?? (yield* makeLivePelNativeServices(live).installed(selection.transportId));
         const workspace = yield* Effect.acquireRelease(io(() => mkdtemp(join(tmpdir(), 'foreman-code-qualification-'))), root => Effect.promise(() => rm(root, { recursive: true, force: true })));
@@ -125,7 +125,7 @@ export function runNativeCodingQualification(selection: ProviderQualificationSel
         if (observed._tag === 'Left' || !observed.right.intact || !observed.right.changed) {
             const invalidated = new Set(['codingTask', 'workspaceBoundary', 'permissionBoundary']);
             const relevant = report.assertions.some(assertion => invalidated.has(assertion.capability));
-            report = { ...report, ...(relevant ? { outcome: 'failed' as const, failure: failure('Post-cleanup coding evidence differs from the exact qualification input and expected output.') } : {}), assertions: report.assertions.map(assertion => invalidated.has(assertion.capability) ? { ...assertion, passed: false, reason: 'The post-cleanup workspace does not retain the exact qualified edit and boundary evidence.' } : assertion), evidence: report.evidence.filter(row => !invalidated.has(row.capability)) };
+            report = { ...report, ...(relevant ? { outcome: 'failed' as const, failure: report.failure ?? failure('Post-cleanup coding evidence differs from the exact qualification input and expected output.') } : {}), assertions: report.assertions.map(assertion => invalidated.has(assertion.capability) ? { ...assertion, passed: false, reason: 'The post-cleanup workspace does not retain the exact qualified edit and boundary evidence.' } : assertion), evidence: report.evidence.filter(row => !invalidated.has(row.capability)) };
         }
         if (observed._tag === 'Right') {
             const ref = yield* artifacts.put(runId, observed.right.bytes, 1024, 'ordinary').pipe(Effect.mapError(() => failure()));

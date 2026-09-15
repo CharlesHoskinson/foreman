@@ -1,12 +1,22 @@
 schema_version = 2
 baseline_commit = "387dcd7521a45e91b2a58b309e20ffcc72902ec0"
-active_inventory_sha256 = "58edce0c6e54c05dcf0d8a1c38d3941b67bdfdf67291e764bc41614da9c4704b"
+active_inventory_sha256 = "af2f213c4838f9f14a2ae91ca21093554f5ccc0c7cb80801b3cc119a3030591a"
 roadmap_sha256 = "5187a6b3ea945de7205d6c5e0fdea6872a924f2d080f7bc4cd46f45661d52530"
 
 [[future_owner]]
 name = "lane-runtime-typescript"
 target_release = "v0.5"
 reason = "Tranche 2 owns round ownership in TypeScript."
+
+[[entry]]
+key = "change:pel-native-chatgpt-login"
+source_kind = "openspec_change"
+source_path = "openspec/changes/pel-native-chatgpt-login"
+disposition = "v050_dependency"
+owner = "v050-release-program"
+target_release = "v0.5"
+reconcile = "required"
+reason = "The user approved native ChatGPT authentication for the ForeDi Codex adapter. This entry records active scope, not release completion."
 
 [[future_owner]]
 name = "build-determinism"

@@ -11,7 +11,7 @@ import {makeLiveProviderCliServices} from './pel-provider-live.js';
 import type {ProviderQualificationSelection} from './pel-provider-cli.js';
 const resolved=resolveProfile('grok-4.6');if(!resolved.ok)throw Error('profile');const profile=resolved.value;
 function selection():ProviderQualificationSelection{return {profileId:'grok-4.6',transportId:'grok-acp',credentialProfileRef:'fixture:account',controls:{...profile.defaults,toolChoice:'auto'},limits:{deadline:Date.now()+30000,maxInputTokens:1000,maxOutputTokens:1000,maxOutputBytes:65536,maxCostUsd:0.1,maxToolCalls:2,spendReservationRef:'fixture:qualification'},binding:{kind:'qualification-fixture',fixtureManifestHash:'a'.repeat(64),endpointIdentity:'fake://native-coding',evidenceRef:'fixture:coding',expiresAt:Date.now()+60000},requiredCapabilities:['generation','structuredOutput','codingTask','tools','permissionBoundary','workspaceBoundary']};}
-for(const scenario of ['exact','ignored-extra','late-write'] as const)test(`native coding qualification uses actual mount probes, durable permission, and exact changed bytes: ${scenario}`,async()=>{
+for(const scenario of ['exact','ignored-extra','late-write','auth-failure'] as const)test(`native coding qualification uses actual mount probes, durable permission, and exact changed bytes: ${scenario}`,async()=>{
  const root=await mkdtemp(join(tmpdir(),'foredi-qualification-test-'));
  try{
   let editedWorkspace='';let durableBeforeAck=false;
@@ -39,9 +39,12 @@ for(const scenario of ['exact','ignored-extra','late-write'] as const)test(`nati
     const forged=yield* host.permissions!.submit(observed,{...result,receiptRef:'unretained'},()=>Effect.sync(()=>{forgedSent=true;})).pipe(Effect.either);
     assert.equal(forged._tag,'Left');assert.equal(forgedSent,false);
    })),cancel:()=>Effect.succeed({requested:true,acknowledged:true,localCleanup:'complete',remoteOutcome:'cancelled'}),observe:()=>Effect.succeed({status:'unsupported',providerIdentity:identity,reason:'unused'}),resume:()=>Effect.fail({_tag:'ResumeUnavailable',retryClass:'never',message:'unused'})};
-   return transport;
+   return scenario === 'auth-failure' ? {...transport, start:()=>Effect.fail({_tag:'AuthenticationRequired' as const,retryClass:'never' as const,message:'Selected account rejected'})} : transport;
   })}));
-  assert.equal(durableBeforeAck,true);assert.equal(report.outcome,scenario==='exact'?'success':'failed',JSON.stringify(report));assert.ok(report.evidence.every(row=>row.state==='fixture-tested'));
+  if(scenario === 'auth-failure') {
+   assert.equal(durableBeforeAck,false);assert.equal(report.failure?._tag,'AuthenticationRequired');assert.equal(report.failure?.message,'Selected account rejected');
+  } else assert.equal(durableBeforeAck,true);
+  assert.equal(report.outcome,scenario==='exact'?'success':'failed',JSON.stringify(report));assert.ok(report.evidence.every(row=>row.state==='fixture-tested'));
   if(scenario==='exact')assert.equal(report.evidence.length,6);
   else assert.equal(report.assertions.find(row=>row.capability==='codingTask')?.passed,false);
   await assert.rejects(readFile(join(editedWorkspace,'src/value.txt')),{code:'ENOENT'});

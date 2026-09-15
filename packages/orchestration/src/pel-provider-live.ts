@@ -10,6 +10,7 @@ import { resolveProfile as resolveCredentialProfile, liveCredentialProfile } fro
 import type { ProviderCliServices, ProviderQualificationSelection } from './pel-provider-cli.js';
 import { makeLiveProviderList } from './pel-provider-list-live.js';
 import { withLiveProviderReadiness } from './pel-provider-readiness-live.js';
+import { makeCodexChatGptCredential } from './pel-codex-auth.js';
 export interface LiveProviderContext {
     readonly stateRoot: string;
     readonly worktreeRoot: string;
@@ -49,7 +50,7 @@ export function makeLiveProviderCredentials(context: LiveProviderContext, transp
                 const resolved = yield* resolveCredentialProfile({ stateRoot: context.stateRoot, worktreeRoot: context.worktreeRoot, profileId: profile[2]!, vendor }).pipe(Effect.provide(liveCredentialProfile));
                 if (resolved._tag !== 'Ready')
                     return yield* Effect.fail(failure('AuthenticationRequired', 'The selected credential profile is not ready'));
-                return { nativeProfileDirectory: resolved.configRoot };
+                return vendor === 'codex' ? yield* makeCodexChatGptCredential(resolved.configRoot, context) : { nativeProfileDirectory: resolved.configRoot };
             }
             const native = /^native:(claude|gemini|grok|codex):default$/.exec(ref);
             if (native) {
@@ -63,7 +64,7 @@ export function makeLiveProviderCredentials(context: LiveProviderContext, transp
                 const stat = yield* Effect.tryPromise({ try: () => lstat(directory), catch: () => failure('AuthenticationRequired', 'The explicitly selected native credential directory is unavailable') });
                 if (!stat.isDirectory() || stat.isSymbolicLink())
                     return yield* Effect.fail(failure('AuthenticationRequired', 'Native credential directory must be a real directory'));
-                return { nativeProfileDirectory: directory };
+                return vendor === 'codex' ? yield* makeCodexChatGptCredential(directory, context) : { nativeProfileDirectory: directory };
             }
             return yield* Effect.fail(failure('AuthenticationRequired', 'Credential reference is unavailable for this transport'));
         }) };

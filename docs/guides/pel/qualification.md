@@ -14,7 +14,19 @@ The `binding.json` object contains `kind: "qualification"`, `evidenceRef`, `expi
 
 ## Native coding
 
-The enforcing host currently supports Grok ACP and Codex app-server coding qualification. Select `grok-4.6`, `gpt-6-astra`, or `gpt-5.6-sol` with its exact native transport. Provide the selected `XAI_API_KEY` or `OPENAI_API_KEY` environment credential. The isolated host does not mount a native account's configuration directory.
+The enforcing host currently supports Grok ACP and Codex app-server coding qualification. Select `grok-4.6`, `gpt-6-astra`, or `gpt-5.6-sol` with its exact native transport.
+
+Codex can use an existing ChatGPT login without an API key:
+
+```text
+foreman providers qualify --profile gpt-6-astra --transport codex-app-server --credential-profile native:codex:default --limits limits.json --binding binding.json --json
+```
+
+The host reads the selected account's private `auth.json`. Keyring-only storage is not supported by this route. Named accounts use `profile:codex:ID` with an existing registered profile. The host sends only access tokens and the account identifier through private app-server messages. Codex manages refresh on the host. The worker receives no host profile mount or refresh token. Account changes and bounded refresh failures stop authentication.
+
+The `env:OPENAI_API_KEY` route remains available. Grok ACP still requires its selected `env:XAI_API_KEY` credential. This Codex change does not add Grok native-login support.
+
+The filesystem boundary hides host credentials and restricts writes to admitted paths. Provider tools can read the runtime files visible inside that boundary. These include read-only runtime mounts and the temporary worker home. The boundary does not promise workspace-only reads.
 
 Qualification creates a disposable Git repository with one source-file write grant. Actual namespace probes check denied repository-root and Git writes, and allowed source writes. The provider must change the exact file bytes. The original Git HEAD and index must remain unchanged. Extra files, including ignored files, invalidate the coding observation.
 

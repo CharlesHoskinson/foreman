@@ -83,6 +83,18 @@ export interface CredentialMaterialV1 {
   readonly headers?: Readonly<Record<string, Redacted.Redacted<string>>>;
   readonly environment?: Readonly<Record<string, Redacted.Redacted<string>>>;
   readonly nativeProfileDirectory?: string;
+  /** Host-only capability. Never serialize it or expose its source to a worker. */
+  readonly chatgpt?: {
+    readonly tokens: (input: {
+      readonly refresh: boolean;
+      readonly previousAccountId?: string;
+      readonly deadline: number;
+    }) => Effect.Effect<{
+      readonly accessToken: Redacted.Redacted<string>;
+      readonly chatgptAccountId: string;
+      readonly chatgptPlanType?: string;
+    }, ProviderFailure, Scope.Scope>;
+  };
 }
 export class CredentialPort extends Context.Tag(
   "@foreman/providers/CredentialPort",

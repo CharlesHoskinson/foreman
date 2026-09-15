@@ -70,14 +70,31 @@ export function createCodexAppServerTransport(options: CodexAppServerOptions): P
             if (!schema.ok)
                 return yield* Effect.fail(schema.error);
             const material = yield* options.credentials.resolve(request.credentialProfileRef);
-            if (!material.nativeProfileDirectory && !['OPENAI_API_KEY', 'CODEX_HOME'].some(name => material.environment?.[name] !== undefined && Redacted.value(material.environment[name]!).trim().length > 0))
+            if (!material.chatgpt && !material.nativeProfileDirectory && !['OPENAI_API_KEY', 'CODEX_HOME'].some(name => material.environment?.[name] !== undefined && Redacted.value(material.environment[name]!).trim().length > 0))
                 return yield* Effect.fail({ _tag: 'AuthenticationRequired' as const, retryClass: 'never' as const, message: 'The selected account has no admitted native credential material' });
             const inheritedEnvironment = { ...host.value.environment };
             delete inheritedEnvironment.OPENAI_API_KEY;
             delete inheritedEnvironment.CODEX_HOME;
-            const environment = { ...inheritedEnvironment, ...Object.fromEntries(Object.entries(material.environment ?? {}).map(([name, value]) => [name, Redacted.value(value)])), ...(material.nativeProfileDirectory ? { CODEX_HOME: material.nativeProfileDirectory } : {}) };
+            const environment = material.chatgpt ? inheritedEnvironment : { ...inheritedEnvironment, ...Object.fromEntries(Object.entries(material.environment ?? {}).map(([name, value]) => [name, Redacted.value(value)])), ...(material.nativeProfileDirectory ? { CODEX_HOME: material.nativeProfileDirectory } : {}) };
             const peer = yield* (host.value.process ?? options.process ?? createNativeProcessPort(now)).open({ cmd: [options.executable ?? 'codex', 'app-server', '--stdio'], cwd: host.value.cwd, environment, deadline: request.limits.deadline, maxOutputBytes: request.limits.maxOutputBytes });
-            let phase: 'initialize' | 'thread' | 'turn' | 'running' = 'initialize';
+            let phase: 'initialize' | 'authenticate' | 'thread' | 'turn' | 'running' = 'initialize';
+            let accountId: string | undefined;
+            let refreshCount = 0;
+            const authenticationFailure = (): ProviderFailure => ({ _tag: 'AuthenticationRequired', retryClass: 'never', message: 'The selected native ChatGPT account could not authenticate within its bound' });
+            const tokens = (refresh: boolean, previousAccountId?: string) => Effect.gen(function* () {
+                const deadline = Math.min(request.limits.deadline, now() + 9000);
+                if (!material.chatgpt || deadline <= now() || (refresh && (previousAccountId !== accountId || ++refreshCount > 2)))
+                    return yield* Effect.fail(authenticationFailure());
+                const result = yield* material.chatgpt.tokens({ refresh, ...(previousAccountId === undefined ? {} : { previousAccountId }), deadline }).pipe(
+                    Effect.scoped,
+                    Effect.timeoutFail({ duration: Math.max(1, deadline - now()), onTimeout: authenticationFailure }),
+                    Effect.mapError(authenticationFailure));
+                if (!result.chatgptAccountId || result.chatgptAccountId.length > 512 || !Redacted.value(result.accessToken).trim() || Redacted.value(result.accessToken).length > 32768 || (accountId !== undefined && result.chatgptAccountId !== accountId))
+                    return yield* Effect.fail(authenticationFailure());
+                accountId = result.chatgptAccountId;
+                return { accessToken: Redacted.value(result.accessToken), chatgptAccountId: accountId, ...(result.chatgptPlanType ? { chatgptPlanType: result.chatgptPlanType } : {}) };
+            });
+            const startThread = () => peer.send({ id: 1, method: 'thread/start', params: { model: request.profileId, modelProvider: 'openai', allowProviderModelFallback: false, cwd: host.value.cwd, runtimeWorkspaceRoots: [host.value.cwd], approvalPolicy: 'untrusted', approvalsReviewer: 'user', sandbox: 'workspace-write', developerInstructions: request.trustedInstructions, serviceName: 'foreman', dynamicTools: [], config: { 'features.multi_agent': false, 'web_search': 'disabled', 'mcp_servers': {}, 'apps._default.enabled': false } } });
             let state: Active | undefined;
             let finalText = '';
             let finalBytes = 0;
@@ -94,14 +111,44 @@ export function createCodexAppServerTransport(options: CodexAppServerOptions): P
             } yield* peer.close(); }));
             yield* peer.send({ id: 0, method: 'initialize', params: { clientInfo: { name: 'foreman', title: 'Foreman', version: '0.4.0' }, capabilities: { experimentalApi: true } } });
             const events = peer.events.pipe(Stream.mapEffect(message => Effect.gen(function* () {
-                if (message.error)
-                    return yield* Effect.fail(fail(state ? 'OutcomeUnknown' : 'ModelUnavailable', 'Native protocol rejected the request'));
+                if (material.chatgpt && message.method === 'account/login/completed' && (object(message.params).success !== true || object(message.params).loginId !== null))
+                    return yield* Effect.fail(authenticationFailure());
+                if (material.chatgpt && message.method === 'account/chatgptAuthTokens/refresh') {
+                    const params = object(message.params);
+                    if (!accountId || phase === 'initialize' || (typeof message.id !== 'number' && typeof message.id !== 'string') || params.reason !== 'unauthorized' || params.previousAccountId !== accountId)
+                        return yield* Effect.fail(authenticationFailure());
+                    yield* peer.send({ id: message.id, result: yield* tokens(true, accountId) });
+                    return [] as ProviderEventV1[];
+                }
+                if (material.chatgpt && message.method === 'account/updated' && object(message.params).authMode !== 'chatgptAuthTokens')
+                    return yield* Effect.fail(authenticationFailure());
+                if (phase === 'authenticate' && message.error)
+                    return yield* Effect.fail(authenticationFailure());
+                if (message.error) {
+                    // Classify locally. Never retain the provider's arbitrary error text.
+                    const detail = String(object(message.error).message ?? '').toLowerCase();
+                    const category = ['sandbox', 'permission', 'model', 'thread', 'schema', 'argument', 'authentication', 'invalid'].find(word => detail.includes(word)) ?? 'other';
+                    const code = object(message.error).code;
+                    return yield* Effect.fail(fail(state ? 'OutcomeUnknown' : 'ModelUnavailable', `Native protocol rejected ${phase} (${typeof code === 'number' && Number.isSafeInteger(code) ? code : 'unknown'}, ${category})`));
+                }
                 const result = object(message.result);
                 const params = object(message.params);
                 if (phase === 'initialize' && message.id === 0) {
-                    phase = 'thread';
                     yield* peer.send({ method: 'initialized', params: {} });
-                    yield* peer.send({ id: 1, method: 'thread/start', params: { model: request.profileId, modelProvider: 'openai', allowProviderModelFallback: false, cwd: host.value.cwd, runtimeWorkspaceRoots: [host.value.cwd], approvalPolicy: 'untrusted', approvalsReviewer: 'user', sandbox: 'workspaceWrite', developerInstructions: request.trustedInstructions, serviceName: 'foreman', environments: [], dynamicTools: [], config: { 'features.multi_agent': false, 'web_search': 'disabled', 'mcp_servers': {}, 'apps._default.enabled': false } } });
+                    if (material.chatgpt) {
+                        phase = 'authenticate';
+                        yield* peer.send({ id: 3, method: 'account/login/start', params: { type: 'chatgptAuthTokens', ...yield* tokens(false) } });
+                    } else {
+                        phase = 'thread';
+                        yield* startThread();
+                    }
+                    return [] as ProviderEventV1[];
+                }
+                if (phase === 'authenticate' && message.id === 3) {
+                    if (result.type !== 'chatgptAuthTokens')
+                        return yield* Effect.fail(authenticationFailure());
+                    phase = 'thread';
+                    yield* startThread();
                     return [] as ProviderEventV1[];
                 }
                 if (phase === 'thread' && message.id === 1) {
@@ -114,7 +161,7 @@ export function createCodexAppServerTransport(options: CodexAppServerOptions): P
                         return yield* Effect.fail(fail('MalformedEvent', 'Native handshake omitted thread or session identity'));
                     state = { identity: { kind: 'native', provider: 'openai', model: request.profileId, profileId: request.profileId, transportId: id, credentialProfileRef: request.credentialProfileRef, protocolVersion: version, threadId, sessionId }, request, connection: peer, permissions: new Map(), cancelled: false, cancelAcknowledged: false, closed: false };
                     phase = 'turn';
-                    yield* peer.send({ id: 2, method: 'turn/start', params: { threadId, model: request.profileId, effort: request.controls.effort, approvalPolicy: 'untrusted', approvalsReviewer: 'user', sandboxPolicy: { type: 'workspaceWrite', writableRoots: [host.value.cwd], networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true, readOnlyAccess: { type: 'restricted', includePlatformDefaults: true, readableRoots: [host.value.cwd] } }, input: [{ type: 'text', text: JSON.stringify({ artifacts: request.artifacts }) }], outputSchema: schema.value.jsonSchema } });
+                    yield* peer.send({ id: 2, method: 'turn/start', params: { threadId, model: request.profileId, effort: request.controls.effort, approvalPolicy: 'untrusted', approvalsReviewer: 'user', sandboxPolicy: { type: 'workspaceWrite', writableRoots: [host.value.cwd], networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true }, input: [{ type: 'text', text: JSON.stringify({ artifacts: request.artifacts }) }], outputSchema: schema.value.jsonSchema } });
                     return [] as ProviderEventV1[];
                 }
                 if (phase === 'turn' && message.id === 2) {
