@@ -25,8 +25,8 @@ Managed refresh passed fixture tests. This live run did not establish a real exp
 
 The focused broker, transport, native-boundary, and native-qualification tests passed: 43 tests, zero failures.
 Strict type checking, runtime verification, register-document verification, and strict OpenSpec validation passed.
-The full suite before the final environment-field correction reported 3,326 passes, five failures, and 19 skips.
-The final environment-field correction passed the focused tests and live qualification.
+The final candidate's full suite reported 3,326 passes, five failures, and 19 skips.
+The complete output is `/tmp/pel-native-login-final-full-tests.log`.
 
 The failed suite entries belong to the release-coverage tests.
 Two OpenSpec dependency tests received an absent `requires` field.
@@ -42,4 +42,12 @@ The reviewer found no new blocking issue in the final changes.
 This review is not cross-vendor Pel approval.
 
 Grok native login, keyring-only Codex credentials, and the Moriarty roadmap audit remain outside this completed authentication implementation.
-Installation completion belongs to the local deployment receipt, not this pre-install candidate record.
+## Installed candidate
+
+The installer selected build `1cd39b22993219d48b94790622eea44b50393f2d2ff02c6587c3b44750028d84` from candidate `e867ed3f55f567172de89ff335cb6ab86477256a`.
+The archive SHA-256 is `8560b45d58386152f14658abfcad127e40eec5486d7bf76fb80cbeec2c780208`.
+The installed runtime hash matches the qualified runtime hash.
+Installed version, provider-list, and example checks passed.
+The previous build remains available for rollback.
+The local receipt is `/root/.local/share/foreman/native-chatgpt-installation-2026-09-15.json`.
+No commit was pushed and no release was published.

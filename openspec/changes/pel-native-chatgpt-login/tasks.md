@@ -7,7 +7,8 @@
 - [x] 5. Run focused tests, strict type checks, and the broader verification suite.
 - [x] 6. Verify the live Astra login through the compiled runtime.
 - [x] 7. Obtain independent review and resolve findings.
-- [ ] 8. Package and install the verified candidate, preserving the previous build.
+- [x] 8. Package and install the verified candidate, preserving the previous build.
 
 See `verification.md` for measured results and remaining upstream failures.
 Review was independent source review, not cross-vendor Pel approval.
+The deployment receipt is `/root/.local/share/foreman/native-chatgpt-installation-2026-09-15.json`.
