@@ -4,6 +4,7 @@ import { Deferred, Effect, Stream } from "effect";
 import { canonicalize, sha256Hex } from "@foreman/core";
 import { runQualification, qualificationBounds } from "./qualification.js";
 import { PROVIDER_PROFILES } from "./profiles.js";
+import { createGrokAcpTransport } from "./transports/grok-acp.js";
 import type {
   ProviderRequestV1,
   ProviderTransport,
@@ -359,7 +360,7 @@ test("qualification bounds terminal usage and preserves full identity before sco
     assert(closed);
   }
 });
-test("qualification distinguishes installed CLI, ACP protocol, and transport implementation versions", async () => {
+test("internal protocol qualification fixture distinguishes installed CLI, ACP protocol, and transport implementation versions", async () => {
   const { createTransportCellFixture } =
     await import("./fixtures/transport-test-fixture.js");
   const fixture = await createTransportCellFixture("grok-4.6", "grok-acp");
@@ -387,4 +388,45 @@ test("qualification distinguishes installed CLI, ACP protocol, and transport imp
   } finally {
     await fixture.dispose();
   }
+});
+test("public Grok qualification fails unsupported hard budgets before credential or process acquisition", async () => {
+  const grok = PROVIDER_PROFILES.find(profile => profile.id === "grok-4.6")!;
+  let resolutions = 0;
+  let launches = 0;
+  const transport = createGrokAcpTransport({
+    credentials: {
+      resolve: () => Effect.sync(() => { resolutions++; return {}; }),
+    },
+    process: {
+      open: () => Effect.suspend(() => {
+        launches++;
+        return Effect.die("Public Grok qualification must not acquire a process");
+      }),
+    },
+    now: () => 100,
+  });
+  const report = await Effect.runPromise(runQualification({
+    request: {
+      ...request,
+      profileId: grok.id,
+      transportId: "grok-acp",
+      controls: { ...grok.defaults, toolChoice: "none" },
+      profileHash: grok.profileHash,
+      sourceManifestHash: grok.sourceManifestHash,
+    },
+    requiredCapabilities: ["generation"],
+    binding: {
+      kind: "qualification-fixture",
+      fixtureManifestHash: "manifest",
+      endpointIdentity: "fake://grok-public-admission",
+      evidenceRef: "fixture:grok-budget-denial",
+      expiresAt: 1000000,
+    },
+  }, { transport, now: () => 100 }));
+  assert.equal(report.outcome, "failed");
+  assert.equal(report.failure?._tag, "UnsupportedCapability");
+  assert.equal(report.failure?.fieldPath, "limits.hardBudgetEnforcement");
+  assert.equal(report.evidence.length, 0);
+  assert.equal(resolutions, 0);
+  assert.equal(launches, 0);
 });

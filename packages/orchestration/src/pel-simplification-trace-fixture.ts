@@ -1,9 +1,9 @@
-/** Unshipped measurement fixture. Existing owner and native serializer; no provider subprocess. */
+/** Internal protocol measurement only. No provider subprocess or public readiness claim. */
 import {Effect,Queue,Stream,Redacted}from'effect';
 import {canonicalize,sha256Hex}from'@foreman/core';
 import {createAuthoringSnapshotV1}from'@foreman/pel';
 import {listProviderCells,type ProviderRequestV1,type ProviderFailure}from'@foreman/providers';
-import {createGrokAcpTransport}from'../../providers/src/transports/grok-acp.js';
+import {createGrokAcpProtocol as createGrokAcpTransport}from'../../providers/src/transports/grok-acp-protocol.js';
 import type {NativeProcessPort}from'../../providers/src/transports/native-process.js';
 import {createDefaultAuthoringSnapshotV1}from'./pel-host-descriptors.js';
 import {makePelDeliveryFixtureServices,pelDeliveryFixtureSettingsV1}from'./pel-cli-delivery-fixture.js';
