@@ -14,7 +14,7 @@ function fixture(model = 'gpt-6-astra', extra: Record<string, unknown>[] = [], c
     let opened = 0;
     const launches: NativeLaunchV1[] = [];
     const process: NativeProcessPort = { open: launch => Effect.gen(function* () { opened++; launches.push(launch); const q = yield* Queue.unbounded<Record<string, unknown>>(); return { events: Stream.fromQueue(q), close: () => Effect.void, send: m => Effect.gen(function* () { sent.push(m); if (m.method === 'account/login/start') {
-                for(const frame of loginFrames ?? [{ id: m.id, result: { type: 'chatgptAuthTokens' } }]) yield* Queue.offer(q, frame);
+                for(const frame of loginFrames ?? [{ id: m.id, result: { type: 'chatgptAuthTokens' } }, { method: 'account/login/completed', params: { loginId: null, success: true, error: null } }]) yield* Queue.offer(q, frame);
             } if (m.method === 'initialize')
                 yield* Queue.offer(q, { id: m.id, result: { userAgent: 'codex/test' } }); if (m.method === 'thread/start')
                 yield* Queue.offer(q, { id: m.id, result: { model, modelProvider: 'openai', thread: { id: 'thread', sessionId: 'session' } } }); if (m.method === 'turn/start') {
@@ -63,7 +63,7 @@ for (const reply of [{ id: 3, result: { type: 'apiKey' } }, { id: 3, error: { me
 });
 test('Codex handles refresh before thread identity exists', async () => {
     const login = nativeLogin();
-    const f = fixture('gpt-6-astra', [], login.material, [{ id: 72, method: 'account/chatgptAuthTokens/refresh', params: { reason: 'unauthorized', previousAccountId: 'selected-account' } }, { id: 3, result: { type: 'chatgptAuthTokens' } }]);
+    const f = fixture('gpt-6-astra', [], login.material, [{ id: 72, method: 'account/chatgptAuthTokens/refresh', params: { reason: 'unauthorized', previousAccountId: 'selected-account' } }, { id: 3, result: { type: 'chatgptAuthTokens' } }, { method: 'account/login/completed', params: { loginId: null, success: true, error: null } }]);
     const result = await Effect.runPromise(Effect.scoped(Effect.gen(function* () { return yield* Stream.runCollect(yield* f.transport.start(request())); })).pipe(Effect.either));
     assert.equal(result._tag, 'Right');
     assert.equal(login.calls.filter(c => c.refresh).length, 1);
@@ -75,6 +75,33 @@ test('Codex rejects a failed external login completion without starting inferenc
     assert.equal(result._tag, 'Left');
     assert.equal(f.sent.some(m => m.method === 'turn/start'), false);
     assert.doesNotMatch(JSON.stringify(result), /private-error-fixture/);
+});
+for (const completion of [
+    { loginId: null, success: false, error: 'private-error-fixture' },
+    { loginId: 'foreign-login', success: true, error: null },
+    { loginId: null, success: true, error: 'private-error-fixture' },
+    { loginId: null, success: true },
+]) test('Codex waits for successful external login completion before thread or inference', async () => {
+    const f = fixture('gpt-6-astra', [], nativeLogin().material, [
+        { id: 3, result: { type: 'chatgptAuthTokens' } },
+        { id: 1, result: { model: 'gpt-6-astra', modelProvider: 'openai', thread: { id: 'thread', sessionId: 'session' } } },
+        { method: 'account/login/completed', params: completion },
+    ]);
+    const result = await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+        return yield* Stream.runCollect(yield* f.transport.start(request()));
+    })).pipe(Effect.either));
+    assert.equal(result._tag, 'Left');
+    assert.equal(f.sent.some(m => m.method === 'thread/start' || m.method === 'turn/start'), false);
+    assert.doesNotMatch(JSON.stringify(result), /private-error-fixture/);
+});
+test('Codex missing external login completion expires without inference', async () => {
+    const f = fixture('gpt-6-astra', [], nativeLogin().material, [{ id: 3, result: { type: 'chatgptAuthTokens' } }]);
+    const result = await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+        return yield* Stream.runCollect(yield* f.transport.start({ ...request(), limits: { ...request().limits, deadline: Date.now() + 50 } }));
+    })).pipe(Effect.either, Effect.timeout('2 seconds')));
+    assert.equal(result._tag, 'Left');
+    if (result._tag === 'Left') assert.equal(result.left._tag, 'AuthenticationRequired');
+    assert.equal(f.sent.some(m => m.method === 'thread/start' || m.method === 'turn/start'), false);
 });
 test('Codex bounds a hanging host credential callback and sanitizes its failures', async () => {
     const f = fixture('gpt-6-astra', [], { chatgpt: { tokens: () => Effect.never } });

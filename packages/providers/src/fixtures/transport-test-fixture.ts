@@ -25,7 +25,7 @@ import { createXaiResponsesTransport } from "../transports/xai-responses.js";
 import { createAnthropicMessagesTransport } from "../transports/anthropic-messages.js";
 import { createOpenaiResponsesTransport } from "../transports/openai-responses.js";
 import { createGoogleInteractionsTransport } from "../transports/google-interactions.js";
-import { createGrokAcpTransport } from "../transports/grok-acp.js";
+import { createGrokAcpProtocol } from "../transports/grok-acp-protocol.js";
 import { createClaudeCodeTransport } from "../transports/claude-code.js";
 import { createCodexAppServerTransport } from "../transports/codex-app-server.js";
 import {
@@ -33,7 +33,11 @@ import {
   geminiConfigurationFiles,
   type GeminiConfigurationV1,
 } from "../transports/gemini-cli.js";
-/** Test-only local peers. This module is never exported from the provider product entry. */
+/**
+ * Test-only local peers, never exported from the provider product entry.
+ * Grok fixtures exercise internal protocol behavior without public admission.
+ * Their results do not establish native budget enforcement or public readiness.
+ */
 export type FixtureOutcome =
   "completed" | "malformed-output" | "stream-loss" | "tool-without-permission";
 export interface CellFixtureOptions {
@@ -264,7 +268,14 @@ export async function createTransportCellFixture(
             yield* put({
               jsonrpc: "2.0",
               id,
-              result: { stopReason: "end_turn" },
+              result: {
+                stopReason: "end_turn",
+                _meta: {
+                  sessionId: SHARED_REMOTE_ID,
+                  modelId: model,
+                  structuredOutput: JSON.parse(output),
+                },
+              },
             });
           });
         const send = (frame: Readonly<Record<string, unknown>>) =>
@@ -481,7 +492,7 @@ export async function createTransportCellFixture(
           : transportId === "google-interactions"
             ? createGoogleInteractionsTransport(apiOptions)
             : transportId === "grok-acp"
-              ? createGrokAcpTransport({
+              ? createGrokAcpProtocol({
                   credentials,
                   process,
                   host,

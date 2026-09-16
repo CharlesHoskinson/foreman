@@ -80,6 +80,10 @@ export class ProviderGenerationPort extends Context.Tag(
 >() {}
 
 export interface CredentialMaterialV1 {
+  /** Host-only access-token snapshot. Never serialize this capability. */
+  readonly grokLogin?: {
+    readonly snapshot: (input: { readonly deadline: number }) => Effect.Effect<Redacted.Redacted<string>, ProviderFailure>;
+  };
   readonly headers?: Readonly<Record<string, Redacted.Redacted<string>>>;
   readonly environment?: Readonly<Record<string, Redacted.Redacted<string>>>;
   readonly nativeProfileDirectory?: string;

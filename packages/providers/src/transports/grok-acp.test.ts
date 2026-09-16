@@ -3,6 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Effect, Queue, Redacted, Stream } from "effect";
 import { createGrokAcpTransport } from "./grok-acp.js";
+// Protocol fixtures exercise internal mechanics. Only the public factory admits work.
+import { createGrokAcpProtocol } from "./grok-acp-protocol.js";
 import { validateNativeHost, type NativeHostPort } from "./native-host.js";
 import type { NativeProcessPort, NativeLaunchV1 } from "./native-process.js";
 import type {
@@ -50,10 +52,41 @@ const host: NativeHostPort = {
   workspaceBoundaryEnforced: false,
   permissionBoundaryEnforced: false,
 };
+for (const maxCostUsd of [0, 1]) {
+  test(`Grok ACP rejects unsupported hard budgets before credential or process acquisition (maxCostUsd=${maxCostUsd})`, async () => {
+    const f = fixture();
+    const result = await Effect.runPromise(
+      Effect.either(
+        Effect.scoped(
+          createGrokAcpTransport({
+            credentials: f.credentials,
+            process: f.process,
+            host,
+            installedVersion: "1.0.30",
+            now: () => 100,
+          }).start({ ...request, limits: { ...request.limits, maxCostUsd } }),
+        ),
+      ),
+    );
+    assert.equal(result._tag, "Left");
+    if (result._tag === "Left") {
+      assert.equal(result.left._tag, "UnsupportedCapability");
+      assert.equal(result.left.fieldPath, "limits.hardBudgetEnforcement");
+      assert.match(result.left.message, /maxInputTokens.*maxOutputTokens.*maxCostUsd/);
+    }
+    assert.equal(f.resolutions, 0);
+    assert.equal(f.launches.length, 0);
+    assert.equal(f.sent.length, 0);
+  });
+}
 function fixture(
   model: string | undefined = "grok-4.6",
   stopReason = "end_turn",
   permission = false,
+  earlyUpdates: readonly Readonly<Record<string, unknown>>[] = [],
+  progressDuringPermissionSend = false,
+  permissionCall: Readonly<Record<string, unknown>> = { kind: "read", rawInput: { path: "safe.txt" } },
+  finalReply?: { readonly text: string; readonly meta?: unknown },
 ) {
   const sent: Readonly<Record<string, unknown>>[] = [];
   const launches: NativeLaunchV1[] = [];
@@ -90,14 +123,19 @@ function fixture(
                 sessionId: "session-1",
                 update: {
                   sessionUpdate: "agent_message_chunk",
-                  content: { type: "text", text: '{"value":true}' },
+                  content: { type: "text", text: finalReply?.text ?? '{"value":true}' },
                 },
               },
             });
             yield* Queue.offer(q, {
               jsonrpc: "2.0",
               id,
-              result: { stopReason },
+              result: {
+                stopReason,
+                ...(finalReply
+                  ? finalReply.meta === undefined ? {} : { _meta: finalReply.meta }
+                  : { _meta: { sessionId: "session-1", modelId: "grok-4.6", structuredOutput: { value: true } } }),
+              },
             });
           });
         return {
@@ -122,7 +160,9 @@ function fixture(
                   id: message.id,
                   result: {},
                 });
-              else if (message.method === "session/new")
+              else if (message.method === "session/new") {
+                for (const params of earlyUpdates)
+                  yield* Queue.offer(q, { jsonrpc: "2.0", method: "session/update", params });
                 yield* Queue.offer(q, {
                   jsonrpc: "2.0",
                   id: message.id,
@@ -142,6 +182,7 @@ function fixture(
                       : {}),
                   },
                 });
+              }
               else if (message.method === "session/prompt") {
                 promptId = message.id;
                 if (permission)
@@ -154,8 +195,7 @@ function fixture(
                       toolCall: {
                         toolCallId: "call-1",
                         title: "Read file",
-                        kind: "read",
-                        rawInput: { path: "safe.txt" },
+                        ...permissionCall,
                       },
                       options: [
                         { optionId: "yes", kind: "allow_once" },
@@ -165,7 +205,19 @@ function fixture(
                     },
                   });
                 else if (stopReason !== "wait") yield* done(message.id);
-              } else if (message.id === 99) yield* done(promptId);
+              } else if (message.id === 99) {
+                if (progressDuringPermissionSend) {
+                  yield* Queue.offer(q, {
+                    jsonrpc: "2.0", method: "session/update",
+                    params: { sessionId: "session-1", update: {
+                      sessionUpdate: "tool_call_update", toolCallId: "call-1", status: "in_progress",
+                    } },
+                  });
+                  // Model a peer response arriving before the write callback resolves.
+                  yield* Effect.sleep("10 millis");
+                }
+                yield* done(promptId);
+              }
               else if (message.method === "session/cancel")
                 yield* Queue.offer(q, {
                   jsonrpc: "2.0",
@@ -189,9 +241,119 @@ function fixture(
     },
   };
 }
+test("Grok ACP rejects JSON-shaped progress without structured terminal metadata", async () => {
+  for (const meta of [undefined, null, {}, [], "invalid", { sessionId: "session-1", modelId: "grok-4.6" }]) {
+    const f = fixture("grok-4.6", "end_turn", false, [], false, undefined, {
+      text: '{"value":true}',
+      meta,
+    });
+    const events: ProviderEventV1[] = [];
+    const result = await Effect.runPromise(Effect.either(Effect.scoped(Effect.flatMap(
+      createGrokAcpProtocol({ credentials: f.credentials, process: f.process, host, now: () => 100 }).start(request),
+      stream => Stream.runForEach(stream, event => Effect.sync(() => { events.push(event); })),
+    ))));
+    assert.equal(result._tag, "Left");
+    if (result._tag === "Left") {
+      assert.equal(result.left._tag, "MalformedEvent");
+      assert.equal(result.left.fieldPath, "prompt.structuredOutput");
+    }
+    assert.equal(events.some(event => event.payload.type === "completed"), false);
+  }
+});
+
+test("Grok ACP validates the bound structured result independently of progress text", async () => {
+  const f = fixture("grok-4.6", "end_turn", false, [], false, undefined, {
+    text: "I will edit the file. Done.",
+    meta: { sessionId: "session-1", modelId: "grok-4.6", structuredOutput: { value: true } },
+  });
+  const events = await Effect.runPromise(Effect.scoped(Effect.flatMap(
+    createGrokAcpProtocol({ credentials: f.credentials, process: f.process, host, now: () => 100 }).start(request), Stream.runCollect,
+  )));
+  const final = Array.from(events).at(-1)?.payload;
+  assert.equal(final?.type, "completed");
+  if (final?.type === "completed") assert.equal(canonicalize(final.result.json), '{"value":true}');
+});
+
+test("Grok ACP never falls back from invalid or unbound structured metadata to valid text", async () => {
+  for (const meta of [
+    { sessionId: "other", modelId: "grok-4.6", structuredOutput: { value: true } },
+    { sessionId: "session-1", modelId: "other", structuredOutput: { value: true } },
+    { structuredOutput: { value: true } },
+    { sessionId: "session-1", modelId: "grok-4.6", structuredOutput: { value: "wrong-type" } },
+    { sessionId: "session-1", modelId: "grok-4.6", structuredOutput: undefined },
+    { sessionId: "session-1", modelId: "grok-4.6", structuredOutput: { value: Number.NaN } },
+    { sessionId: "session-1", modelId: "grok-4.6", structuredOutput: { value: Number.POSITIVE_INFINITY } },
+    { sessionId: "session-1", modelId: "grok-4.6", structuredOutputError: "private-provider-error" },
+    { sessionId: "session-1", modelId: "grok-4.6", structuredOutput: { value: true }, structuredOutputError: "private-provider-error" },
+  ]) {
+    const f = fixture("grok-4.6", "end_turn", false, [], false, undefined, { text: '{"value":true}', meta });
+    const result = await Effect.runPromise(Effect.either(Effect.scoped(Effect.flatMap(
+      createGrokAcpProtocol({ credentials: f.credentials, process: f.process, host, now: () => 100 }).start(request), Stream.runCollect,
+    ))));
+    assert.equal(result._tag, "Left");
+    assert.equal(JSON.stringify(result).includes("private-provider-error"), false);
+  }
+});
+
+test("Grok ACP counts UTF-8 progress and structured terminal output against one byte ceiling", async () => {
+  const text = "🧪";
+  const structuredOutput = { value: true };
+  const totalBytes = Buffer.byteLength(text) + Buffer.byteLength(canonicalize(structuredOutput));
+  for (const maxOutputBytes of [totalBytes - 1, totalBytes]) {
+    const f = fixture("grok-4.6", "end_turn", false, [], false, undefined, {
+      text,
+      meta: { sessionId: "session-1", modelId: "grok-4.6", structuredOutput },
+    });
+    const result = await Effect.runPromise(Effect.either(Effect.scoped(Effect.flatMap(
+      createGrokAcpProtocol({ credentials: f.credentials, process: f.process, host, now: () => 100 })
+        .start({ ...request, limits: { ...request.limits, maxOutputBytes } }),
+      Stream.runCollect,
+    ))));
+    assert.equal(result._tag, maxOutputBytes === totalBytes ? "Right" : "Left");
+    if (result._tag === "Left") {
+      assert.equal(result.left._tag, "OutputIncomplete");
+      assert.equal(result.left.fieldPath, "limits.maxOutputBytes");
+    } else {
+      assert.equal(Array.from(result.right).at(-1)?.payload.type, "completed");
+    }
+  }
+});
+
+test("Grok ACP binds command metadata received before the session/new response", async () => {
+  const f = fixture("grok-4.6", "end_turn", false, [
+    { sessionId: "session-1", update: { sessionUpdate: "available_commands_update", availableCommands: [] } },
+    { sessionId: "session-1", update: { sessionUpdate: "available_commands_update", availableCommands: [{ name: "help", description: "Help" }] } },
+  ]);
+  const events = await Effect.runPromise(Effect.scoped(Effect.flatMap(
+    createGrokAcpProtocol({ credentials: f.credentials, process: f.process, host, now: () => 100 }).start(request),
+    Stream.runCollect,
+  )));
+  assert.equal(Array.from(events).at(-1)?.payload.type, "completed");
+  assert.equal(f.sent.filter(m => m.method === "session/prompt").length, 1);
+});
+
+test("Grok ACP rejects unbound, active, malformed, or excessive early updates before prompting", async () => {
+  const metadata = { sessionId: "session-1", update: { sessionUpdate: "available_commands_update", availableCommands: [] } };
+  for (const early of [
+    [{ ...metadata, sessionId: "other-session" }],
+    [{ sessionId: "session-1", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "unbound" } } }],
+    [{ sessionId: "session-1", update: { sessionUpdate: "tool_call", toolCallId: "early", status: "in_progress" } }],
+    [{ sessionId: "session-1", update: { sessionUpdate: "available_commands_update" } }],
+    Array.from({ length: 65 }, () => metadata),
+    [{ ...metadata, update: { ...metadata.update, availableCommands: [{ name: "x".repeat(65536) }] } }],
+  ]) {
+    const f = fixture("grok-4.6", "end_turn", false, early);
+    const result = await Effect.runPromise(Effect.either(Effect.scoped(
+      createGrokAcpProtocol({ credentials: f.credentials, process: f.process, host, now: () => 100 }).start(request),
+    )));
+    assert.equal(result._tag, "Left");
+    assert.equal(f.sent.some(m => m.method === "session/prompt"), false);
+  }
+});
+
 test("T-M3-004/T-M3-005 Grok ACP observes exact model and preserves protocol prompt bytes under scoped credentials", async () => {
   const f = fixture();
-  const transport = createGrokAcpTransport({
+  const transport = createGrokAcpProtocol({
     credentials: f.credentials,
     process: f.process,
     host,
@@ -208,8 +370,13 @@ test("T-M3-004/T-M3-005 Grok ACP observes exact model and preserves protocol pro
   assert(f.launches[0]?.cmd.includes("--no-auto-update"));
   assert(!f.launches[0]?.cmd.includes("--always-approve"));
   const prompt = f.sent.find((m) => m.method === "session/prompt");
+  assert.equal(
+    (f.sent.find((m) => m.method === "session/new")?.params as { _meta?: { systemPromptOverride?: string } })._meta?.systemPromptOverride,
+    request.trustedInstructions,
+  );
   assert.deepEqual(prompt?.params, {
     sessionId: "session-1",
+    _meta: { outputSchema: JSON.parse(f.launches[0]!.cmd[f.launches[0]!.cmd.indexOf("--json-schema") + 1]!) },
     prompt: [
       {
         type: "text",
@@ -229,7 +396,7 @@ test("T-M3-006/T-M3-015 unknown identity, mismatched model and unenforced tool p
     const result = await Effect.runPromise(
       Effect.either(
         Effect.scoped(
-          createGrokAcpTransport({
+          createGrokAcpProtocol({
             credentials: f.credentials,
             process: f.process,
             host,
@@ -245,7 +412,7 @@ test("T-M3-006/T-M3-015 unknown identity, mismatched model and unenforced tool p
   const result = await Effect.runPromise(
     Effect.either(
       Effect.scoped(
-        createGrokAcpTransport({
+        createGrokAcpProtocol({
           credentials: f.credentials,
           process: f.process,
           host: { ...host, toolPolicyNoneEnforced: false },
@@ -283,7 +450,7 @@ test("Grok ACP denies native permission requests for toolPolicy none and preserv
   await Effect.runPromise(
     Effect.scoped(
       Effect.flatMap(
-        createGrokAcpTransport({
+        createGrokAcpProtocol({
           credentials: f.credentials,
           process: f.process,
           host,
@@ -305,7 +472,7 @@ test("Grok ACP denies native permission requests for toolPolicy none and preserv
     const events = await Effect.runPromise(
       Effect.scoped(
         Effect.flatMap(
-          createGrokAcpTransport({
+          createGrokAcpProtocol({
             credentials: f.credentials,
             process: f.process,
             host,
@@ -318,12 +485,67 @@ test("Grok ACP denies native permission requests for toolPolicy none and preserv
     assert.equal(Array.from(events).at(-1)?.payload.type, type);
   }
 });
-test("Grok ACP coding permission uses one host authorization and cannot select persistent approval", async () => {
+test("Grok ACP reports host permission rejection without silently becoming cancellation", async () => {
   const f = fixture("grok-4.6", "end_turn", true);
+  const codingHost: NativeHostPort = { ...host, workspaceGrantId: "workspace", permissionGrantIds: ["grant"],
+    hostPermissionPortRef: "permissions", workspaceBoundaryEnforced: true, permissionBoundaryEnforced: true,
+    permissions: { authorize: () => Effect.fail({ _tag: "UnsupportedCapability", retryClass: "never", message: "private-host-detail" }), submit: (_identity, _result, send) => send() },
+  };
+  const result = await Effect.runPromise(Effect.either(Effect.scoped(Effect.flatMap(
+    createGrokAcpProtocol({ credentials: f.credentials, process: f.process, host: codingHost, now: () => 100 }).start({
+      ...request, controls: profile.defaults, toolPolicy: { mode: "native-coding", workspaceGrantId: "workspace", permissionGrantIds: ["grant"], hostPermissionPortRef: "permissions" },
+    }), Stream.runCollect,
+  ))));
+  assert.equal(result._tag, "Left");
+  if (result._tag === "Left") {
+    assert.match(result.left.message, /reason=authorization, kind=read/);
+    assert.match(result.left.message, /variant=unknown/);
+    assert.equal(JSON.stringify(result.left).includes("private-host-detail"), false);
+  }
+  assert.deepEqual(f.sent.find(m => m.id === 99)?.result, { outcome: { outcome: "selected", optionId: "no" } });
+});
+
+test("Grok ACP diagnoses premature progress without recording tool contents", async () => {
+  const f = fixture("grok-4.6", "end_turn", true);
+  const process: NativeProcessPort = { open: launch => f.process.open(launch).pipe(Effect.map(connection => ({
+    ...connection,
+    events: connection.events.pipe(Stream.flatMap(message => message.method === "session/request_permission"
+      ? Stream.make(message, { jsonrpc: "2.0", method: "session/update", params: {
+          sessionId: "session-1", update: { sessionUpdate: "tool_call_update", toolCallId: "call-1", status: "in_progress", rawInput: "private-argument" },
+        } })
+      : Stream.make(message))),
+  }))) };
+  const codingHost: NativeHostPort = { ...host, workspaceGrantId: "workspace", permissionGrantIds: ["grant"],
+    hostPermissionPortRef: "permissions", workspaceBoundaryEnforced: true, permissionBoundaryEnforced: true,
+    permissions: { authorize: () => Effect.succeed("receipt:grant"), submit: (_identity, _result, send) => send() },
+  };
+  const result = await Effect.runPromise(Effect.either(Effect.scoped(Effect.flatMap(
+    createGrokAcpProtocol({ credentials: f.credentials, process, host: codingHost, now: () => 100 }).start({
+      ...request, controls: profile.defaults, toolPolicy: { mode: "native-coding", workspaceGrantId: "workspace", permissionGrantIds: ["grant"], hostPermissionPortRef: "permissions" },
+    }), Stream.runCollect,
+  ))));
+  assert.equal(result._tag, "Left");
+  if (result._tag === "Left") {
+    assert.equal(result.left.fieldPath, "toolPolicy.permissionBoundary");
+    assert.match(result.left.message, /permission=pending/);
+    assert.match(result.left.message, /status=in_progress/);
+    assert.equal(JSON.stringify(result.left).includes("private-argument"), false);
+  }
+});
+
+for (const permissionCall of [
+  { kind: "read", rawInput: { path: "safe.txt" } },
+  { kind: "other", rawInput: { variant: "ListDir", target_directory: "src" } },
+])
+for (const progressDuringSend of [false, true])
+test(`Grok ACP coding permission uses one durable authorization, progress during send=${progressDuringSend}, display kind=${permissionCall.kind}`, async () => {
+  const f = fixture("grok-4.6", "end_turn", true, [], progressDuringSend, permissionCall);
   let authorizations = 0;
+  let observedTool: import("../contract.js").ToolRequestV1 | undefined;
   const permissions: import("../contract.js").HostPermissionPort = {
-    authorize: () =>
+    authorize: (_identity, tool) =>
       Effect.sync(() => {
+        observedTool = tool;
         authorizations++;
         return "receipt:grant";
       }),
@@ -348,7 +570,7 @@ test("Grok ACP coding permission uses one host authorization and cannot select p
       hostPermissionPortRef: "host:permissions",
     },
   };
-  const transport=createGrokAcpTransport({credentials:f.credentials,process:f.process,host:codingHost,now:()=>100});
+  const transport=createGrokAcpProtocol({credentials:f.credentials,process:f.process,host:codingHost,now:()=>100});
   const events = await Effect.runPromise(Effect.scoped(Effect.gen(function*(){
     const stream=yield* transport.start(coding);
     return yield* Stream.runCollect(stream.pipe(Stream.tap(event=>Effect.gen(function*(){
@@ -361,6 +583,9 @@ test("Grok ACP coding permission uses one host authorization and cannot select p
   })));
   assert.equal(f.sent.filter(message=>message.id===99).length,1,'repeated durable acknowledgement sends once');
   assert.equal(authorizations, 1);
+  assert.equal(observedTool?.name, "read");
+  assert.deepEqual(observedTool?.arguments, permissionCall.rawInput);
+  assert.equal(f.launches[0]?.cmd[f.launches[0]!.cmd.indexOf("--permission-mode") + 1], "default");
   assert.equal(
     Array.from(events).filter((e) => e.payload.type === "tool-request").length,
     1,
@@ -387,7 +612,7 @@ test("Grok ACP coding permission uses one host authorization and cannot select p
 });
 test("Grok ACP completed observation is bound to active session; resume never creates another request", async () => {
   const f = fixture();
-  const transport = createGrokAcpTransport({
+  const transport = createGrokAcpProtocol({
     credentials: f.credentials,
     process: f.process,
     host,
@@ -417,7 +642,7 @@ test("Grok ACP completed observation is bound to active session; resume never cr
 });
 test("Grok ACP cancellation acknowledgement waits for provider terminal stopReason", async () => {
   const f = fixture("grok-4.6", "wait");
-  const transport = createGrokAcpTransport({
+  const transport = createGrokAcpProtocol({
     credentials: f.credentials,
     process: f.process,
     host,
@@ -482,7 +707,7 @@ test("Grok ACP rejects supplied continuation before credentials or process dispa
   const result = await Effect.runPromise(
     Effect.either(
       Effect.scoped(
-        createGrokAcpTransport({
+        createGrokAcpProtocol({
           credentials: f.credentials,
           process: f.process,
           host,
@@ -533,7 +758,7 @@ test("Grok ACP cancellation racing host authorization responds once and grants n
             hostPermissionPortRef: "host:permissions",
           },
         };
-        const transport = createGrokAcpTransport({
+        const transport = createGrokAcpProtocol({
           credentials: f.credentials,
           process: f.process,
           host: codingHost,
@@ -563,6 +788,25 @@ test("Grok ACP cancellation racing host authorization responds once and grants n
   assert.deepEqual(f.sent.find((m) => m.id === 99)?.result, {
     outcome: { outcome: "cancelled" },
   });
+});
+test('Grok ACP sends host login only through the private launch field and selects cached_token', async () => {
+  const f = fixture();
+  const base = f.process;
+  const process: NativeProcessPort = { open: launch => Effect.map(base.open(launch), connection => ({
+    ...connection, events: connection.events.pipe(Stream.map(frame => frame.id === 1 ? {
+      ...frame, result: { protocolVersion: 1, authMethods: [{ id: 'cached_token' }] },
+    } : frame)),
+  })) };
+  const snapshot = Redacted.make('{"fixture":"private-access-token"}');
+  await Effect.runPromise(Effect.scoped(Effect.flatMap(createGrokAcpProtocol({
+    credentials: { resolve: () => Effect.succeed({ grokLogin: { snapshot: ({ deadline }) => {
+      assert.equal(deadline, request.limits.deadline); return Effect.succeed(snapshot);
+    } } }) }, process, host: { ...host, environment: { ...host.environment, HOME: '/worker-home' } }, now: () => 100,
+  }).start(request), Stream.runCollect)));
+  assert.equal(f.launches[0]?.grokAuthJson, snapshot);
+  assert.equal(f.launches[0]?.environment.GROK_HOME, '/worker-home/.grok');
+  assert.ok(!JSON.stringify({ commands: f.launches.map(x => x.cmd), environment: f.launches.map(x => x.environment), sent: f.sent }).includes('private-access-token'));
+  assert.equal((f.sent.find(m => m.method === 'authenticate')?.params as { methodId: string }).methodId, 'cached_token');
 });
 for (const directory of ["/isolated/account/.grok", "/isolated/homes/grok"]) {
   test(`Grok ACP cached authentication binds the exact admitted directory ${directory} to GROK_HOME`, async () => {
@@ -604,7 +848,7 @@ for (const directory of ["/isolated/account/.grok", "/isolated/homes/grok"]) {
     await Effect.runPromise(
       Effect.scoped(
         Effect.flatMap(
-          createGrokAcpTransport({
+          createGrokAcpProtocol({
             credentials,
             process,
             host: {
@@ -643,7 +887,7 @@ test("Grok ACP rejects noncanonical credential directories before launch", async
     const result = await Effect.runPromise(
       Effect.either(
         Effect.scoped(
-          createGrokAcpTransport({
+          createGrokAcpProtocol({
             credentials: {
               resolve: () =>
                 Effect.succeed({ nativeProfileDirectory: directory }),
@@ -665,7 +909,7 @@ test("Grok ACP cannot authenticate cached tokens from ambient directories withou
   const result = await Effect.runPromise(
     Effect.either(
       Effect.scoped(
-        createGrokAcpTransport({
+        createGrokAcpProtocol({
           credentials: {
             resolve: (ref) =>
               Effect.acquireRelease(
@@ -735,7 +979,7 @@ test("Grok ACP rejects a protocol prompt above its channel bound before launchin
   const result = await Effect.runPromise(
     Effect.either(
       Effect.scoped(
-        createGrokAcpTransport({
+        createGrokAcpProtocol({
           credentials: f.credentials,
           process: f.process,
           host,

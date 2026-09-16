@@ -10,6 +10,20 @@ WHEN a caller selects a native Codex account, Foreman SHALL authenticate with th
 - **THEN** the host supplies external access tokens to the isolated app-server.
 - **AND** the worker receives no profile directory or refresh token.
 
+### Requirement: Completed authentication before inference
+
+WHEN external-token login returns successfully, Foreman SHALL wait for its successful completion notification before starting a thread.
+IF completion fails, is malformed, or is absent at the deadline, THEN Foreman SHALL reject authentication without starting inference.
+
+#### Scenario: Failure after token installation
+- **GIVEN** a successful external-token login RPC response
+- **WHEN** the completion notification reports failure
+- **THEN** no thread or inference request starts.
+
+#### Scenario: Missing completion
+- **WHEN** the completion notification is absent at the original deadline
+- **THEN** authentication fails with a sanitized error.
+
 ### Requirement: Account-bound refresh
 
 WHEN the app-server requests token refresh, Foreman SHALL refresh the selected host account within the original deadline.

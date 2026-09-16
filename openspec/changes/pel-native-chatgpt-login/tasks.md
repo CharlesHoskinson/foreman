@@ -12,3 +12,12 @@
 See `verification.md` for measured results and remaining upstream failures.
 Review was independent source review, not cross-vendor Pel approval.
 The deployment receipt is `/root/.local/share/foreman/native-chatgpt-installation-2026-09-15.json`.
+
+## Integration review follow-up
+
+- [x] Reproduce inference before the external-login completion notification.
+- [x] Require successful completion before thread creation.
+- [x] Reject missing completion at the original deadline.
+- [x] Pass the five new regressions and the complete Codex transport test file.
+- [ ] Obtain fresh review of the corrected integration candidate.
+- [ ] Qualify and install the corrected runtime separately from the historical candidate above.

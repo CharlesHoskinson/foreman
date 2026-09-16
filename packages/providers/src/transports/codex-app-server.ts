@@ -78,6 +78,7 @@ export function createCodexAppServerTransport(options: CodexAppServerOptions): P
             const environment = material.chatgpt ? inheritedEnvironment : { ...inheritedEnvironment, ...Object.fromEntries(Object.entries(material.environment ?? {}).map(([name, value]) => [name, Redacted.value(value)])), ...(material.nativeProfileDirectory ? { CODEX_HOME: material.nativeProfileDirectory } : {}) };
             const peer = yield* (host.value.process ?? options.process ?? createNativeProcessPort(now)).open({ cmd: [options.executable ?? 'codex', 'app-server', '--stdio'], cwd: host.value.cwd, environment, deadline: request.limits.deadline, maxOutputBytes: request.limits.maxOutputBytes });
             let phase: 'initialize' | 'authenticate' | 'thread' | 'turn' | 'running' = 'initialize';
+            let loginResponseAccepted = false;
             let accountId: string | undefined;
             let refreshCount = 0;
             const authenticationFailure = (): ProviderFailure => ({ _tag: 'AuthenticationRequired', retryClass: 'never', message: 'The selected native ChatGPT account could not authenticate within its bound' });
@@ -111,8 +112,14 @@ export function createCodexAppServerTransport(options: CodexAppServerOptions): P
             } yield* peer.close(); }));
             yield* peer.send({ id: 0, method: 'initialize', params: { clientInfo: { name: 'foreman', title: 'Foreman', version: '0.4.0' }, capabilities: { experimentalApi: true } } });
             const events = peer.events.pipe(Stream.mapEffect(message => Effect.gen(function* () {
-                if (material.chatgpt && message.method === 'account/login/completed' && (object(message.params).success !== true || object(message.params).loginId !== null))
-                    return yield* Effect.fail(authenticationFailure());
+                if (material.chatgpt && message.method === 'account/login/completed') {
+                    const completion = object(message.params);
+                    if (phase !== 'authenticate' || !loginResponseAccepted || completion.success !== true || completion.loginId !== null || completion.error !== null)
+                        return yield* Effect.fail(authenticationFailure());
+                    phase = 'thread';
+                    yield* startThread();
+                    return [] as ProviderEventV1[];
+                }
                 if (material.chatgpt && message.method === 'account/chatgptAuthTokens/refresh') {
                     const params = object(message.params);
                     if (!accountId || phase === 'initialize' || (typeof message.id !== 'number' && typeof message.id !== 'string') || params.reason !== 'unauthorized' || params.previousAccountId !== accountId)
@@ -145,10 +152,9 @@ export function createCodexAppServerTransport(options: CodexAppServerOptions): P
                     return [] as ProviderEventV1[];
                 }
                 if (phase === 'authenticate' && message.id === 3) {
-                    if (result.type !== 'chatgptAuthTokens')
+                    if (loginResponseAccepted || result.type !== 'chatgptAuthTokens')
                         return yield* Effect.fail(authenticationFailure());
-                    phase = 'thread';
-                    yield* startThread();
+                    loginResponseAccepted = true;
                     return [] as ProviderEventV1[];
                 }
                 if (phase === 'thread' && message.id === 1) {
@@ -265,7 +271,13 @@ export function createCodexAppServerTransport(options: CodexAppServerOptions): P
                 }
                 return [] as ProviderEventV1[];
             })), Stream.flatMap(Stream.fromIterable), Stream.takeUntil(event => event.payload.type === 'completed' || event.payload.type === 'cancelled'), Stream.concat(Stream.fromEffect(Effect.suspend(() => terminal ? Effect.void : Effect.fail(fail('OutcomeUnknown', 'Native event stream ended before a terminal observation')))).pipe(Stream.drain)));
-            return events;
+            return material.chatgpt ? events.pipe(Stream.interruptWhen(
+                Effect.sleep(Math.max(1, request.limits.deadline - now())).pipe(
+                    Effect.flatMap(() => Effect.fail(phase === 'authenticate' || phase === 'initialize'
+                        ? authenticationFailure()
+                        : fail('OutputIncomplete', 'Native execution exceeded its original deadline'))),
+                ),
+            )) : events;
         }),
         sendToolResult: (identity, result) => Effect.suspend(() => {
             const state = lookup(identity);

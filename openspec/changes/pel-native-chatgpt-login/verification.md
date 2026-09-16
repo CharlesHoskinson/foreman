@@ -26,7 +26,9 @@ Managed refresh passed fixture tests. This live run did not establish a real exp
 The focused broker, transport, native-boundary, and native-qualification tests passed: 43 tests, zero failures.
 Strict type checking, runtime verification, register-document verification, and strict OpenSpec validation passed.
 The final candidate's full suite reported 3,326 passes, five failures, and 19 skips.
-The complete output is `/tmp/pel-native-login-final-full-tests.log`.
+The run used the local temporary log `/tmp/pel-native-login-final-full-tests.log`.
+That historical log is not a durable repository artifact.
+Fresh integration checks must establish the current candidate status.
 
 The failed suite entries belong to the release-coverage tests.
 Two OpenSpec dependency tests received an absent `requires` field.
@@ -51,3 +53,16 @@ Installed version, provider-list, and example checks passed.
 The previous build remains available for rollback.
 The local receipt is `/root/.local/share/foreman/native-chatgpt-installation-2026-09-15.json`.
 No commit was pushed and no release was published.
+
+## Integration correction
+
+The integration review found a login-completion ordering defect in the historical candidate.
+The RPC response confirms token installation, not final authentication.
+The corrected adapter waits for successful `account/login/completed` before starting a thread.
+It rejects failed, malformed, foreign, or missing completion within the original deadline.
+Five new regression cases failed before this correction.
+The complete Codex transport file then passed all 23 tests.
+
+The historical live qualification and installation above do not qualify this corrected runtime.
+No new live qualification or installation is claimed here.
+The full integration gate and fresh candidate review remain separate evidence.

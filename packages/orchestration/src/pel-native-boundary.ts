@@ -1,8 +1,9 @@
 /** Linux mount and process isolation for existing native provider adapters. */
-import {lstat,realpath,stat,unlink} from 'node:fs/promises';
+import {lstat,realpath,stat,unlink,mkdtemp,writeFile,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
 import {randomBytes} from 'node:crypto';
 import {dirname,isAbsolute,join,resolve,sep,basename} from 'node:path';
-import {Effect} from 'effect';
+import {Effect,Redacted} from 'effect';
 import type {Scope} from 'effect';
 import {createNativeProcessPort,type NativeProcessPort,type ProviderFailure,type HostPermissionPort,type ProviderRequestV1} from '@foreman/providers';
 import type {PelExecutionNativeBoundaryV1,PelExecutionTransportOptions} from './pel-execution-provider-live.js';
@@ -82,8 +83,31 @@ export function makePelNativeBoundary(options:PelNativeBoundaryOptions):(request
    yield* attempt(async()=>{for(const prior of admitted.identities){const current=await lstat(prior.path);if(await realpath(prior.path)!==prior.path||current.isSymbolicLink()||current.dev!==prior.dev||current.ino!==prior.ino||current.mode!==prior.mode||current.uid!==prior.uid||prior.file&&(current.size!==prior.size||current.mtimeMs!==prior.mtime||current.ctimeMs!==prior.ctime))throw denied();}});
    const selectedEnvironment:Record<string,string>={...environment};
    for(const key of options.environmentKeys)if(secretKeys[request.transportId]?.includes(key)&&launch.environment[key]!==undefined)selectedEnvironment[key]=launch.environment[key]!;
-   for(const key of ['GROK_HOME','CODEX_HOME','CLAUDE_CONFIG_DIR'])if(launch.environment[key]&&launch.environment[key]!==environment.HOME)return yield* Effect.fail(denied());
-   return yield* native.open({...launch,cmd:[admitted.bwrap,...flags,admitted.executable,...launch.cmd.slice(1)],environment:selectedEnvironment});
+   let launchFlags=[...flags];
+   let grokHomeRoot:string|undefined;
+   if(request.transportId==='grok-acp'&&coding){
+    grokHomeRoot=yield* Effect.acquireRelease(attempt(()=>mkdtemp(join(tmpdir(),'foreman-grok-login-'))),path=>Effect.promise(()=>rm(path,{recursive:true,force:true})).pipe(Effect.orDie));
+    const policyPath=join(grokHomeRoot,'config.toml');
+    yield* attempt(()=>writeFile(policyPath,'[permission]\nrules = [{ action = "ask", tool = "any" }]\n[ui]\nremember_tool_approvals = false\n',{mode:0o600,flag:'wx'}));
+    const insertion=launchFlags.indexOf('--remount-ro');
+    launchFlags=[...launchFlags.slice(0,insertion),'--dir',environment.HOME+'/.grok','--ro-bind',policyPath,environment.HOME+'/.grok/config.toml',...launchFlags.slice(insertion)];
+    selectedEnvironment.GROK_HOME=environment.HOME+'/.grok';
+   }
+   if(launch.grokAuthJson!==undefined){
+    if(request.transportId!=='grok-acp'||!coding||!Redacted.isRedacted(launch.grokAuthJson)||launch.environment.GROK_HOME!==environment.HOME+'/.grok')return yield* Effect.fail(denied());
+    const bytes=Redacted.value(launch.grokAuthJson);
+    if(Buffer.byteLength(bytes)>65536||!bytes.length)return yield* Effect.fail(denied());
+    if(!grokHomeRoot)return yield* Effect.fail(denied());
+    const snapshotPath=join(grokHomeRoot,'auth.json');
+    yield* attempt(()=>writeFile(snapshotPath,bytes,{mode:0o600,flag:'wx'}));
+    // Insert before remount and command separator. Only this filtered file crosses the boundary.
+    const insertion=launchFlags.indexOf('--remount-ro');
+    launchFlags=[...launchFlags.slice(0,insertion),'--ro-bind',snapshotPath,environment.HOME+'/.grok/auth.json',...launchFlags.slice(insertion)];
+    selectedEnvironment.GROK_HOME=environment.HOME+'/.grok';
+   }
+   for(const key of ['GROK_HOME','CODEX_HOME','CLAUDE_CONFIG_DIR'])if(launch.environment[key]&&launch.environment[key]!==environment.HOME&&!(key==='GROK_HOME'&&grokHomeRoot!==undefined&&launch.environment[key]===selectedEnvironment.GROK_HOME))return yield* Effect.fail(denied());
+   const {grokAuthJson:consumed,...publicLaunch}=launch;
+   return yield* native.open({...publicLaunch,cmd:[admitted.bwrap,...launchFlags,admitted.executable,...launch.cmd.slice(1)],environment:selectedEnvironment});
   })};
   const boundary:PelExecutionNativeBoundaryV1={host:{cwd:admitted.root,environment,process:nativePort,workspaceGrantId:context.workspace.grantId,permissionGrantIds:options.permissionGrantIds,hostPermissionPortRef:options.hostPermissionPortRef,permissions:options.permissions,toolPolicyNoneEnforced:!coding,workspaceBoundaryEnforced:true,permissionBoundaryEnforced:coding},identityRevision:options.identityRevisionByTransport[request.transportId]!};
   return boundary;

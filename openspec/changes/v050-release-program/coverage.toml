@@ -1,7 +1,17 @@
 schema_version = 2
 baseline_commit = "387dcd7521a45e91b2a58b309e20ffcc72902ec0"
-active_inventory_sha256 = "af2f213c4838f9f14a2ae91ca21093554f5ccc0c7cb80801b3cc119a3030591a"
+active_inventory_sha256 = "f3361240383a921a2760de8fa937b001b4cb96efd9685c5229dd7a5c4f166cfd"
 roadmap_sha256 = "5187a6b3ea945de7205d6c5e0fdea6872a924f2d080f7bc4cd46f45661d52530"
+
+[[entry]]
+key = "change:grok-bounded-work-report"
+source_kind = "openspec_change"
+source_path = "openspec/changes/grok-bounded-work-report"
+disposition = "v050_dependency"
+owner = "v050-release-program"
+target_release = "v0.5"
+reconcile = "required"
+reason = "Preserve native Grok safety repairs and the approved work-report design. Hard-budget qualification and the full controller remain open."
 
 [[future_owner]]
 name = "lane-runtime-typescript"

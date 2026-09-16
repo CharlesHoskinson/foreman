@@ -1,10 +1,12 @@
 import { Effect, Deferred, Fiber, Queue, Stream } from 'effect';
-import type { Scope } from 'effect';
+import type { Scope, Redacted } from 'effect';
 import { isCoreFailure, parseJsonRejectDuplicateKeys } from '@foreman/core';
 import { supervise, ByteSink, LiveLauncherLayer, type SpawnedChild } from '@foreman/launcher';
 import type { ProviderFailure } from '../errors.js';
 /** The host selects an executable and environment after credential and workspace admission. */
 export interface NativeLaunchV1 {
+    /** Consumed only by the enforcing Grok boundary, never by the ordinary launcher. */
+    readonly grokAuthJson?: Redacted.Redacted<string>;
     readonly cmd: readonly string[];
     readonly cwd: string;
     readonly environment: Readonly<Record<string, string>>;
@@ -34,6 +36,8 @@ type Item = {
 };
 export function createNativeProcessPort(now: () => number = Date.now): NativeProcessPort {
     return { open: launch => Effect.gen(function* () {
+            if (launch.grokAuthJson !== undefined)
+                return yield* Effect.fail(failure('PromptChannelUnsupported', 'Private login snapshot requires the enforcing native boundary'));
             if (!Number.isFinite(launch.deadline) || launch.deadline <= now() || !Number.isSafeInteger(launch.maxOutputBytes) || launch.maxOutputBytes < 1 || launch.maxOutputBytes > 64 * 1024 * 1024)
                 return yield* Effect.fail(failure('PromptChannelUnsupported', 'Native process limits are invalid'));
             const ready = yield* Deferred.make<SpawnedChild, ProviderFailure>();
