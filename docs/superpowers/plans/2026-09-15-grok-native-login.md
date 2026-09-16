@@ -203,7 +203,7 @@ and the return to Moriarty remain open. The installed runtime is unchanged.
 Read-only inspection of the pinned Grok source found that both Chat Completions and
 Responses request conversion retain tool definitions alongside the response schema.
 The current xAI structured-output documentation also describes combined tool use:
-https://docs.x.ai/developers/model-capabilities/text/structured-outputs
+<https://docs.x.ai/developers/model-capabilities/text/structured-outputs>
 Neither establishes the exact behavior of this installed native-login execution path.
 Do not report that structured output necessarily disables tools.
 
