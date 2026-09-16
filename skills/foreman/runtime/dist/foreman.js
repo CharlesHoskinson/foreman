@@ -3920,7 +3920,7 @@ var init_RunExecution = __esm({
         this.currentLevelExecutionTrees.push(currentTree);
         return currentTree;
       }
-      fail(value4, id5, failure15) {
+      fail(value4, id5, failure16) {
         if (this.verbosity >= VerbosityLevel.Verbose) {
           const currentTree = this.appendExecutionTree(ExecutionStatus.Failure, value4);
           this.currentLevelExecutionTrees = currentTree.children;
@@ -3930,7 +3930,7 @@ var init_RunExecution = __esm({
         else
           this.pathToFailure += `:${id5}`;
         this.value = value4;
-        this.failure = failure15;
+        this.failure = failure16;
       }
       skip(value4) {
         if (this.verbosity >= VerbosityLevel.VeryVerbose) {
@@ -11147,7 +11147,7 @@ var init_cause2 = __esm({
     });
     keepDefectsAndElectFailures = (self) => match5(self, {
       onEmpty: none2(),
-      onFail: (failure15) => some2(die(failure15)),
+      onFail: (failure16) => some2(die(failure16)),
       onDie: (defect) => some2(die(defect)),
       onInterrupt: () => none2(),
       onSequential: mergeWith(sequential),
@@ -22200,8 +22200,8 @@ var init_circular = __esm({
         return zipRight2(this.await, self);
       };
     };
-    unsafeMakeLatch = (open7) => new Latch(open7 ?? false);
-    makeLatch = (open7) => sync(() => unsafeMakeLatch(open7));
+    unsafeMakeLatch = (open8) => new Latch(open8 ?? false);
+    makeLatch = (open8) => sync(() => unsafeMakeLatch(open8));
     awaitAllChildren = (self) => ensuringChildren(self, fiberAwaitAll);
     cached2 = /* @__PURE__ */ dual(2, (self, timeToLive) => map11(cachedInvalidateWithTTL(self, timeToLive), (tuple4) => tuple4[0]));
     cachedInvalidateWithTTL = /* @__PURE__ */ dual(2, (self, timeToLive) => {
@@ -38458,8 +38458,8 @@ var init_sha256 = __esm({
 });
 
 // packages/core/src/canonical-json.ts
-function parseFail(failure15) {
-  return { [PARSE_FAIL]: true, failure: failure15 };
+function parseFail(failure16) {
+  return { [PARSE_FAIL]: true, failure: failure16 };
 }
 function isParseFail(v2) {
   return typeof v2 === "object" && v2 !== null && v2[PARSE_FAIL] === true;
@@ -41736,62 +41736,62 @@ function jsonSnapshot(value4, code, ancestors = /* @__PURE__ */ new Set(), depth
 function record22(value4, keys33, code, message) {
   if (value4 === null || typeof value4 !== "object" || Array.isArray(value4))
     invalid(code, message);
-  const object17 = value4;
-  const actual = Object.keys(object17);
-  if (actual.length !== keys33.length || keys33.some((key) => !Object.hasOwn(object17, key)))
+  const object18 = value4;
+  const actual = Object.keys(object18);
+  if (actual.length !== keys33.length || keys33.some((key) => !Object.hasOwn(object18, key)))
     invalid(code, message);
-  return object17;
+  return object18;
 }
 function counters(value4) {
-  const object17 = record22(
+  const object18 = record22(
     value4,
     counterKeys,
     "PEL_CONTINUATION_MISMATCH",
     "Replay counters must have the exact counter fields"
   );
   for (const key of counterKeys)
-    if (!safeNatural(object17[key]))
+    if (!safeNatural(object18[key]))
       invalid(
         "PEL_CONTINUATION_MISMATCH",
         "Replay counters must be nonnegative safe integers"
       );
-  return object17;
+  return object18;
 }
 function validateLimits(limits22) {
   try {
-    const object17 = record22(
+    const object18 = record22(
       jsonSnapshot(limits22, "PEL_LIMIT"),
       limitKeys,
       "PEL_LIMIT",
       "Limits must have the exact finite bound fields"
     );
     for (const key of limitKeys)
-      if (!safeNatural(object17[key]))
+      if (!safeNatural(object18[key]))
         invalid("PEL_LIMIT", "Limits must be nonnegative safe integers", key);
-    return { ok: true, value: object17 };
+    return { ok: true, value: object18 };
   } catch (error) {
     return errorResult(error, "PEL_LIMIT");
   }
 }
 function validateRunOptions(options2) {
   try {
-    const object17 = record22(
+    const object18 = record22(
       jsonSnapshot(options2, "PEL_REGISTRY"),
       optionKeys,
       "PEL_REGISTRY",
       "Execution options must have the exact option fields"
     );
-    if (object17.dependencyMode !== "ordered" && object17.dependencyMode !== "automatic")
+    if (object18.dependencyMode !== "ordered" && object18.dependencyMode !== "automatic")
       invalid("PEL_REGISTRY", "Unknown dependency mode");
-    if (object17.nlConditionProfile === null) {
-      if (object17.nlConditionProfileDigest !== null)
+    if (object18.nlConditionProfile === null) {
+      if (object18.nlConditionProfileDigest !== null)
         invalid(
           "PEL_REGISTRY",
           "An absent predicate selection requires an absent digest"
         );
     } else {
       const selection2 = record22(
-        object17.nlConditionProfile,
+        object18.nlConditionProfile,
         selectionKeys,
         "PEL_REGISTRY",
         "Predicate selection must have the exact selection fields"
@@ -41811,13 +41811,13 @@ function validateRunOptions(options2) {
           "PEL_REGISTRY",
           "Predicate selection must use the Boolean result schema"
         );
-      if (!validDigest(object17.nlConditionProfileDigest) || sha256Hex2(canonicalize2(selection2)) !== object17.nlConditionProfileDigest)
+      if (!validDigest(object18.nlConditionProfileDigest) || sha256Hex2(canonicalize2(selection2)) !== object18.nlConditionProfileDigest)
         invalid(
           "PEL_REGISTRY",
           "Predicate selection digest does not match the canonical selection"
         );
     }
-    const replay = object17.replay;
+    const replay = object18.replay;
     if (replay === null || typeof replay !== "object" || Array.isArray(replay))
       invalid(
         "PEL_CONTINUATION_MISMATCH",
@@ -41852,7 +41852,7 @@ function validateRunOptions(options2) {
             "Committed counters cannot be below recorded counters"
           );
     } else invalid("PEL_CONTINUATION_MISMATCH", "Unknown replay mode");
-    return { ok: true, value: object17 };
+    return { ok: true, value: object18 };
   } catch (error) {
     return errorResult(error, "PEL_REGISTRY");
   }
@@ -47048,13 +47048,13 @@ function diagnostic2(code, span322, message, extra = {}) {
   };
 }
 function sha256Hex3(data22) {
-  const hash42 = createHash32("sha256");
+  const hash52 = createHash32("sha256");
   if (typeof data22 === "string") {
-    hash42.update(data22, "utf8");
+    hash52.update(data22, "utf8");
   } else {
-    hash42.update(data22);
+    hash52.update(data22);
   }
-  return hash42.digest("hex");
+  return hash52.digest("hex");
 }
 function canonicalize3(value32) {
   if (value32 === null) return "null";
@@ -47672,16 +47672,16 @@ function isCoreFailure3(v2) {
   return typeof v2 === "object" && v2 !== null && v2[CORE_FAILURE_BRAND22] === true;
 }
 function sha256Hex22(data3) {
-  const hash42 = createHash42("sha256");
+  const hash52 = createHash42("sha256");
   if (typeof data3 === "string") {
-    hash42.update(data3, "utf8");
+    hash52.update(data3, "utf8");
   } else {
-    hash42.update(data3);
+    hash52.update(data3);
   }
-  return hash42.digest("hex");
+  return hash52.digest("hex");
 }
-function parseFail3(failure42) {
-  return { [PARSE_FAIL22]: true, failure: failure42 };
+function parseFail3(failure52) {
+  return { [PARSE_FAIL22]: true, failure: failure52 };
 }
 function isParseFail3(v2) {
   return typeof v2 === "object" && v2 !== null && v2[PARSE_FAIL22] === true;
@@ -47995,7 +47995,7 @@ function runQualification(input, ports) {
       if (!controls.ok) return yield* Effect_exports2.fail(controls.error);
       const events = [];
       let identity42;
-      let failure42;
+      let failure52;
       let textBytes = 0;
       let toolCalls = 0;
       let terminalSeen = false;
@@ -48093,8 +48093,8 @@ function runQualification(input, ports) {
         }),
         Effect_exports2.either
       );
-      if (observed._tag === "Left") failure42 = observed.left;
-      if (failure42 && identity42)
+      if (observed._tag === "Left") failure52 = observed.left;
+      if (failure52 && identity42)
         cancellation = yield* ports.transport.cancel(identity42).pipe(
           Effect_exports2.catchAll(
             () => Effect_exports2.succeed({
@@ -48121,7 +48121,7 @@ function runQualification(input, ports) {
       const evidence = [];
       for (const capability of [...new Set(input.requiredCapabilities)]) {
         const builtin = ["generation", "structuredOutput"].includes(capability) && terminal?.payload.type === "completed";
-        const assertion = !failure42 && identity42 && ports.assess ? yield* ports.assess(capability, events, identity42).pipe(
+        const assertion = !failure52 && identity42 && ports.assess ? yield* ports.assess(capability, events, identity42).pipe(
           Effect_exports2.timeoutFail({
             duration: Math.max(1, request22.limits.deadline - ports.now()),
             onTimeout: () => ({
@@ -48137,7 +48137,7 @@ function runQualification(input, ports) {
             })
           )
         ) : {
-          passed: !failure42 && builtin,
+          passed: !failure52 && builtin,
           reason: builtin ? "Observed a schema-valid terminal completion" : "No bounded observation established this capability"
         };
         assertions.push({
@@ -48169,12 +48169,12 @@ function runQualification(input, ports) {
       const confirmedCancellation = cancellation?.requested && cancellation.acknowledged && ["complete", "not-required"].includes(cancellation.localCleanup) && cancellation.remoteOutcome === "cancelled";
       const uncertain = cancellation?.requested && ["pending", "unknown", "unsupported"].includes(
         cancellation.remoteOutcome
-      ) || (failure42 ? [
+      ) || (failure52 ? [
         "OutcomeUnknown",
         "TransportDisconnected",
         "AuthenticationRequired"
-      ].includes(failure42._tag) : !terminal);
-      const outcome = confirmedCancellation ? "cancelled" : uncertain ? "needs-action" : failure42 || terminal?.payload.type === "refused" || assertions.some((a) => !a.passed) ? "failed" : "success";
+      ].includes(failure52._tag) : !terminal);
+      const outcome = confirmedCancellation ? "cancelled" : uncertain ? "needs-action" : failure52 || terminal?.payload.type === "refused" || assertions.some((a) => !a.passed) ? "failed" : "success";
       return {
         schemaVersion: 1,
         profileId: request22.profileId,
@@ -48198,7 +48198,7 @@ function runQualification(input, ports) {
         assertions,
         evidence,
         eventTypes: events.map((e) => e.payload.type),
-        ...failure42 ? { failure: failure42 } : {},
+        ...failure52 ? { failure: failure52 } : {},
         ...cancellation ? { cancellation } : {},
         ...observedUsage ? { usage: observedUsage } : {}
       };
@@ -48292,8 +48292,8 @@ function lowerProviderSchema(output, subset = providerSchemaSubset("openai-respo
     };
     if (subset.enforceOpenAIComplexity) checkOpenAIComplexity(output.content);
     const root = lower(output.content, "outputSchema.content");
-    const object42 = output.content.type === "association" || output.content.type === "pair";
-    return { jsonSchema: object42 ? root : { type: "object", properties: { value: root }, required: ["value"], additionalProperties: false }, originalSchemaSha256: digest6, wireCodec: object42 ? "pel-object-v1" : "pel-value-envelope-v1" };
+    const object52 = output.content.type === "association" || output.content.type === "pair";
+    return { jsonSchema: object52 ? root : { type: "object", properties: { value: root }, required: ["value"], additionalProperties: false }, originalSchemaSha256: digest6, wireCodec: object52 ? "pel-object-v1" : "pel-value-envelope-v1" };
   });
 }
 function decodeProviderOutput(raw, output, maxBytes = 8 * 1024 * 1024) {
@@ -48311,7 +48311,7 @@ function decodeProviderOutput(raw, output, maxBytes = 8 * 1024 * 1024) {
         return bad7(path4);
       return v2;
     };
-    const decode22 = (v2, s3, path4) => {
+    const decode32 = (v2, s3, path4) => {
       let result4;
       switch (s3.type) {
         case "data":
@@ -48344,31 +48344,31 @@ function decodeProviderOutput(raw, output, maxBytes = 8 * 1024 * 1024) {
         case "list":
           if (!Array.isArray(v2) || v2.length < s3.minItems || v2.length > s3.maxItems)
             return bad7(path4);
-          result4 = { tag: "list", items: v2.map((item, i) => decode22(item, s3.items, `${path4}[${i}]`)) };
+          result4 = { tag: "list", items: v2.map((item, i) => decode32(item, s3.items, `${path4}[${i}]`)) };
           break;
         case "pair": {
-          const object42 = record42(v2, path4);
-          if (!Object.hasOwn(object42, s3.key))
+          const object52 = record42(v2, path4);
+          if (!Object.hasOwn(object52, s3.key))
             return bad7(`${path4}.${s3.key}`);
-          for (const key of Object.keys(object42))
+          for (const key of Object.keys(object52))
             if (key !== s3.key)
               return bad7(`${path4}.${key}`);
-          result4 = { tag: "pair", key: s3.key, value: decode22(object42[s3.key], s3.value, `${path4}.${s3.key}`) };
+          result4 = { tag: "pair", key: s3.key, value: decode32(object52[s3.key], s3.value, `${path4}.${s3.key}`) };
           break;
         }
         case "association": {
-          const object42 = record42(v2, path4);
-          for (const key of Object.keys(object42))
+          const object52 = record42(v2, path4);
+          for (const key of Object.keys(object52))
             if (!s3.fields.some((f2) => f2.key === key))
               return bad7(`${path4}.${key}`);
           const items = [];
           for (const field of s3.fields) {
-            if (!Object.hasOwn(object42, field.key)) {
+            if (!Object.hasOwn(object52, field.key)) {
               if (field.required)
                 return bad7(`${path4}.${field.key}`);
               continue;
             }
-            items.push({ tag: "pair", key: field.key, value: decode22(object42[field.key], field.schema, `${path4}.${field.key}`) });
+            items.push({ tag: "pair", key: field.key, value: decode32(object52[field.key], field.schema, `${path4}.${field.key}`) });
           }
           result4 = { tag: "list", items };
           break;
@@ -48376,7 +48376,7 @@ function decodeProviderOutput(raw, output, maxBytes = 8 * 1024 * 1024) {
         case "union":
           for (const variant of s3.variants) {
             try {
-              return decode22(v2, variant, path4);
+              return decode32(v2, variant, path4);
             } catch {
             }
           }
@@ -48396,7 +48396,7 @@ function decodeProviderOutput(raw, output, maxBytes = 8 * 1024 * 1024) {
           return bad7(`$.${key}`);
       value32 = envelope.value;
     }
-    return decode22(value32, output.content, "$");
+    return decode32(value32, output.content, "$");
   });
 }
 function decodeProviderResult(raw, output, maxBytes) {
@@ -50520,17 +50520,17 @@ function selfScriptArgvPrefix() {
 function buildSelfScriptArgvPrefix(execArgv, script) {
   return script ? [...execArgv, script] : [...execArgv];
 }
-function runMain(argv = process.argv, io7 = defaultIo, layer = LiveLauncherLayer) {
+function runMain(argv = process.argv, io8 = defaultIo, layer = LiveLauncherLayer) {
   const raw = stripNodeArgv(argv);
   const parsed = parseArgs(raw);
   if (parsed._tag === "Version") {
-    io7.writeStdout(formatVersionLine() + "\n");
+    io8.writeStdout(formatVersionLine() + "\n");
     return Promise.resolve(0);
   }
   if (parsed._tag === "UsageError") {
-    io7.writeStderr(`foreman-launch: ${parsed.message}
+    io8.writeStderr(`foreman-launch: ${parsed.message}
 `);
-    io7.writeStderr(usage22() + "\n");
+    io8.writeStderr(usage22() + "\n");
     return Promise.resolve(EXIT_LAUNCHER_ERROR);
   }
   const args22 = parsed.value;
@@ -50648,6 +50648,8 @@ function runMain(argv = process.argv, io7 = defaultIo, layer = LiveLauncherLayer
 }
 function createNativeProcessPort(now = Date.now) {
   return { open: (launch32) => Effect_exports2.gen(function* () {
+    if (launch32.grokAuthJson !== void 0)
+      return yield* Effect_exports2.fail(failure22("PromptChannelUnsupported", "Private login snapshot requires the enforcing native boundary"));
     if (!Number.isFinite(launch32.deadline) || launch32.deadline <= now() || !Number.isSafeInteger(launch32.maxOutputBytes) || launch32.maxOutputBytes < 1 || launch32.maxOutputBytes > 64 * 1024 * 1024)
       return yield* Effect_exports2.fail(failure22("PromptChannelUnsupported", "Native process limits are invalid"));
     const ready = yield* Deferred_exports2.make();
@@ -51074,7 +51076,7 @@ function observedModel(value32) {
 function jsonValue2(value32, depth = 0) {
   return depth <= 64 && (value32 === null || typeof value32 === "boolean" || typeof value32 === "string" || typeof value32 === "number" && Number.isFinite(value32) || Array.isArray(value32) && value32.every((v2) => jsonValue2(v2, depth + 1)) || record33(value32) && Object.values(value32).every((v2) => jsonValue2(v2, depth + 1)));
 }
-function createGrokAcpTransport(options2) {
+function createGrokAcpProtocol(options2) {
   const now = options2.now ?? Date.now;
   const version = options2.version ?? "1";
   let installedVersion = options2.installedVersion ?? (/^\d+\.\d+\.\d+/.test(version) ? version : void 0);
@@ -51147,6 +51149,14 @@ function createGrokAcpTransport(options2) {
     for (const [name22, value32] of Object.entries(material.environment ?? {}))
       environment22[name22] = Redacted_exports2.value(value32);
     const nativeProfileDirectory = material.nativeProfileDirectory;
+    if (material.grokLogin && (nativeProfileDirectory || material.environment))
+      return yield* Effect_exports2.fail(problem("AuthenticationRequired", "credential.ambiguous"));
+    const grokAuthJson = material.grokLogin ? yield* material.grokLogin.snapshot({ deadline: request22.limits.deadline }) : void 0;
+    if (grokAuthJson !== void 0) {
+      if (!host.environment.HOME || !isAbsolute2(host.environment.HOME))
+        return yield* unsupported3("credential.workerHome");
+      environment22.GROK_HOME = `${host.environment.HOME}/.grok`;
+    }
     if (nativeProfileDirectory !== void 0) {
       if (!isAbsolute2(nativeProfileDirectory) || resolve(nativeProfileDirectory) !== nativeProfileDirectory)
         return yield* unsupported3("credential.nativeProfileDirectory");
@@ -51169,12 +51179,14 @@ function createGrokAcpTransport(options2) {
     ];
     if (request22.toolPolicy.mode === "none")
       cmd.push("--tools", "", "--deny", "*");
+    else cmd.push("--permission-mode", "default");
     if (host.sandboxProfile) cmd.push("--sandbox", host.sandboxProfile);
     cmd.push("agent", "stdio");
-    const connection = yield* (options2.process ?? host.process ?? createNativeProcessPort(now)).open({
+    const connection = yield* options2.process.open({
       cmd,
       cwd: host.cwd,
       environment: environment22,
+      ...grokAuthJson === void 0 ? {} : { grokAuthJson },
       deadline: request22.limits.deadline,
       maxOutputBytes: Math.min(
         67108864,
@@ -51184,6 +51196,10 @@ function createGrokAcpTransport(options2) {
     const queue = yield* Queue_exports2.unbounded();
     yield* Effect_exports2.addFinalizer(() => Queue_exports2.shutdown(queue));
     let session;
+    let creatingSession = false;
+    const earlyCommandSessions = [];
+    let earlyCommandBytes = 0;
+    let terminalFailure;
     let sequence = 0;
     let output = "";
     let nextId = 1;
@@ -51210,15 +51226,17 @@ function createGrokAcpTransport(options2) {
       ended = true;
       yield* Queue_exports2.offer(queue, { type: "end" });
     });
-    const fail222 = (failure42) => Effect_exports2.gen(function* () {
-      for (const d of pending32.values()) yield* Deferred_exports2.fail(d, failure42);
+    const fail222 = (failure52) => Effect_exports2.gen(function* () {
+      terminalFailure ??= failure52;
+      for (const d of pending32.values()) yield* Deferred_exports2.fail(d, failure52);
       pending32.clear();
       if (!ended) {
-        yield* Queue_exports2.offer(queue, { type: "failure", failure: failure42 });
+        yield* Queue_exports2.offer(queue, { type: "failure", failure: failure52 });
         yield* finish();
       }
     });
     const rpc = (method2, params) => Effect_exports2.gen(function* () {
+      if (terminalFailure) return yield* Effect_exports2.fail(terminalFailure);
       const id42 = nextId++;
       const deferred = yield* Deferred_exports2.make();
       pending32.set(id42, deferred);
@@ -51247,6 +51265,7 @@ function createGrokAcpTransport(options2) {
         (c) => c.kind === "allow_once" && typeof c.optionId === "string"
       );
       let selected = reject4;
+      let denialReason = "shape";
       const call = params.toolCall;
       if (request22.toolPolicy.mode === "native-coding" && host.permissions && record33(call) && typeof call.toolCallId === "string" && typeof call.kind === "string" && jsonValue2(call.rawInput) && !session.cancelRequested) {
         if (!seenCalls.has(call.toolCallId)) {
@@ -51259,7 +51278,9 @@ function createGrokAcpTransport(options2) {
           );
         const tool = {
           callId: call.toolCallId,
-          name: call.kind,
+          // ACP's display category is "other" for Grok's typed ListDir.
+          // Preserve its original arguments for host path checks and receipts.
+          name: call.kind === "other" && record33(call.rawInput) && call.rawInput.variant === "ListDir" && typeof call.rawInput.target_directory === "string" && call.rawInput.target_directory.length > 0 ? "read" : call.kind,
           arguments: call.rawInput,
           authorizationBinding: request22.toolPolicy.hostPermissionPortRef
         };
@@ -51270,6 +51291,7 @@ function createGrokAcpTransport(options2) {
             request22.toolPolicy
           )
         );
+        denialReason = authorization._tag === "Left" ? "authorization" : "allow_once_missing";
         if (authorization._tag === "Right" && !session.cancelRequested && authorization.right && allow) {
           selected = allow;
           if (session.permissionResults.has(call.toolCallId)) return yield* unsupported3("duplicate permission call");
@@ -51291,6 +51313,15 @@ function createGrokAcpTransport(options2) {
       const outcome = session.cancelRequested || !selected ? { outcome: "cancelled" } : { outcome: "selected", optionId: selected.optionId };
       session.pendingPermissions.delete(id42);
       yield* connection.send({ jsonrpc: "2.0", id: id42, result: { outcome } });
+      if (request22.toolPolicy.mode === "native-coding" && !session.cancelRequested) {
+        const kind = record33(call) && ["read", "edit", "delete", "move", "search", "execute", "think", "fetch", "other"].includes(String(call.kind)) ? String(call.kind) : "unknown";
+        const raw = record33(call) && record33(call.rawInput) ? call.rawInput : {};
+        const variant = ["ListDir", "ReadFile", "Bash", "Write", "SearchReplace", "TodoWrite", "Dynamic", "UseTool", "ApplyPatch", "Grep"].includes(String(raw.variant)) ? String(raw.variant) : "unknown";
+        return yield* Effect_exports2.fail({
+          ...problem("UnsupportedCapability", "permission.request"),
+          message: `Grok ACP permission declined: reason=${denialReason}, kind=${kind}, variant=${variant}`
+        });
+      }
     });
     yield* Effect_exports2.forkScoped(
       connection.events.pipe(
@@ -51330,6 +51361,13 @@ function createGrokAcpTransport(options2) {
               return;
             }
             if (message.method !== "session/update") return;
+            if (!session && creatingSession && record33(message.params) && typeof message.params.sessionId === "string" && message.params.sessionId.length > 0 && message.params.sessionId.length <= 4096 && record33(message.params.update) && message.params.update.sessionUpdate === "available_commands_update" && Array.isArray(message.params.update.availableCommands)) {
+              earlyCommandBytes += Buffer.byteLength(JSON.stringify(message.params));
+              if (earlyCommandSessions.length >= 64 || earlyCommandBytes > 65536)
+                return yield* Effect_exports2.fail(problem("MalformedEvent", "session.earlyUpdates"));
+              earlyCommandSessions.push(message.params.sessionId);
+              return;
+            }
             if (!session || !record33(message.params) || message.params.sessionId !== (session.identity.kind === "native" ? session.identity.sessionId : void 0) || !record33(message.params.update))
               return yield* Effect_exports2.fail(
                 problem("MalformedEvent", "session.update")
@@ -51379,10 +51417,10 @@ function createGrokAcpTransport(options2) {
                 String(update52.status)
               ) && !session?.permissionResults.get(update52.toolCallId)?.granted)
                 return yield* Effect_exports2.fail(
-                  problem(
+                  { ...problem(
                     "UnsupportedCapability",
                     "toolPolicy.permissionBoundary"
-                  )
+                  ), message: `Grok ACP refused unapproved tool progress: permission=${!session.permissionResults.has(update52.toolCallId) ? "absent" : session.permissionResults.get(update52.toolCallId)?.resultDigest === void 0 ? "pending" : "denied"}, status=${update52.status === "completed" ? "completed" : "in_progress"}` }
                 );
             }
           })
@@ -51406,7 +51444,7 @@ function createGrokAcpTransport(options2) {
     if (init.protocolVersion !== 1)
       return yield* unsupported3("protocolVersion");
     const methods = Array.isArray(init.authMethods) ? init.authMethods.filter(record33) : [];
-    const authMethod = material.environment?.XAI_API_KEY && methods.some((m2) => m2.id === "xai.api_key") ? "xai.api_key" : nativeProfileDirectory && methods.some((m2) => m2.id === "cached_token") ? "cached_token" : void 0;
+    const authMethod = material.environment?.XAI_API_KEY && methods.some((m2) => m2.id === "xai.api_key") ? "xai.api_key" : (nativeProfileDirectory || grokAuthJson !== void 0) && methods.some((m2) => m2.id === "cached_token") ? "cached_token" : void 0;
     if (!authMethod)
       return yield* Effect_exports2.fail(
         problem("AuthenticationRequired", "credentialProfileRef")
@@ -51415,12 +51453,19 @@ function createGrokAcpTransport(options2) {
       methodId: authMethod,
       _meta: { headless: true }
     });
+    creatingSession = true;
     const created = yield* rpc("session/new", {
       cwd: host.cwd,
-      mcpServers: []
+      mcpServers: [],
+      _meta: { systemPromptOverride: request22.trustedInstructions }
     });
+    creatingSession = false;
+    if (terminalFailure) return yield* Effect_exports2.fail(terminalFailure);
     if (typeof created.sessionId !== "string" || !created.sessionId || created.sessionId.length > 4096)
       return yield* Effect_exports2.fail(problem("MalformedEvent", "sessionId"));
+    if (earlyCommandSessions.some((id42) => id42 !== created.sessionId))
+      return yield* Effect_exports2.fail(problem("MalformedEvent", "session.earlyUpdates.sessionId"));
+    earlyCommandSessions.length = 0;
     const model = observedModel(created);
     if (!model)
       return yield* Effect_exports2.fail(
@@ -51463,13 +51508,27 @@ function createGrokAcpTransport(options2) {
     );
     yield* emit22({ type: "started" }, `session:${created.sessionId}`);
     yield* Effect_exports2.forkScoped(
-      rpc("session/prompt", { sessionId: created.sessionId, prompt }).pipe(
+      rpc("session/prompt", { sessionId: created.sessionId, prompt, _meta: { outputSchema: lowered.value.jsonSchema } }).pipe(
         Effect_exports2.flatMap(
           (result4) => Effect_exports2.gen(function* () {
             if (!session) return;
             if (result4.stopReason === "end_turn") {
+              const meta = result4._meta;
+              if (!record33(meta))
+                return yield* Effect_exports2.fail(problem("MalformedEvent", "prompt.structuredOutput"));
+              if (Object.hasOwn(meta, "structuredOutputError"))
+                return yield* Effect_exports2.fail(problem("MalformedEvent", "prompt.structuredOutputError"));
+              if (!Object.hasOwn(meta, "structuredOutput"))
+                return yield* Effect_exports2.fail(problem("MalformedEvent", "prompt.structuredOutput"));
+              if (meta.sessionId !== created.sessionId || meta.modelId !== model)
+                return yield* Effect_exports2.fail(problem("MalformedEvent", "prompt.structuredOutput.identity"));
+              if (!jsonValue2(meta.structuredOutput))
+                return yield* Effect_exports2.fail(problem("MalformedEvent", "prompt.structuredOutput"));
+              const finalOutput = canonicalize22(meta.structuredOutput);
+              if (Buffer.byteLength(output) + Buffer.byteLength(finalOutput) > request22.limits.maxOutputBytes)
+                return yield* Effect_exports2.fail(problem("OutputIncomplete", "limits.maxOutputBytes"));
               const decoded = decodeProviderResult(
-                output,
+                finalOutput,
                 request22.outputSchema,
                 request22.limits.maxOutputBytes
               );
@@ -51567,9 +51626,13 @@ function createGrokAcpTransport(options2) {
         if (session.cancelRequested || !session.pendingPermissions.has(pending32.rpcId)) return yield* unsupported3("cancelled permission request");
         const selected = content.decision === "accept" ? pending32.allowId : content.decision === "decline" ? pending32.rejectId : void 0;
         const outcome = selected ? { outcome: "selected", optionId: selected } : { outcome: "cancelled" };
-        yield* session.connection.send({ jsonrpc: "2.0", id: pending32.rpcId, result: { outcome } });
-        pending32.resultDigest = digest6;
         pending32.granted = content.decision === "accept";
+        yield* session.connection.send({ jsonrpc: "2.0", id: pending32.rpcId, result: { outcome } }).pipe(
+          Effect_exports2.onError(() => Effect_exports2.sync(() => {
+            pending32.granted = false;
+          }))
+        );
+        pending32.resultDigest = digest6;
         session.pendingPermissions.delete(pending32.rpcId);
       }));
     }),
@@ -51618,6 +51681,24 @@ function createGrokAcpTransport(options2) {
         "qualified ACP continuation and cursor replay"
       )
     )
+  };
+}
+function createGrokAcpTransport(options2) {
+  const protocol = createGrokAcpProtocol({
+    ...options2,
+    process: options2.process ?? options2.host?.process ?? createNativeProcessPort(options2.now)
+  });
+  return {
+    ...protocol,
+    get installedVersion() {
+      return protocol.installedVersion;
+    },
+    start: () => Effect_exports2.fail({
+      _tag: "UnsupportedCapability",
+      retryClass: "never",
+      fieldPath: "limits.hardBudgetEnforcement",
+      message: "Grok ACP cannot enforce aggregate maxInputTokens, maxOutputTokens, or maxCostUsd before native requests"
+    })
   };
 }
 function assistantFailure(error) {
@@ -52262,7 +52343,7 @@ function createGeminiCliTransport(options2) {
     )
   };
 }
-var __defProp2, __export2, isFunction3, dual2, identity5, constant3, constTrue2, constFalse2, constUndefined2, constVoid2, make63, mapInput4, array5, let_10, bindTo10, bind10, globalStoreId2, globalStore2, globalValue2, isString2, isNumber2, isBoolean2, isBigInt2, isFunction22, isRecordOrArray2, isObject2, hasProperty2, isTagged2, isNullable2, isIterable2, isPromiseLike2, getBugErrorMessage2, GenKindTypeId2, GenKindImpl2, SingleShotGen3, defaultIncHi2, defaultIncLo2, MUL_HI2, MUL_LO2, BIT_532, BIT_272, PCGRandom2, YieldWrapTypeId2, YieldWrap2, structuralRegionState2, standard2, forced2, isNotOptimizedAway2, internalCall2, genConstructor2, isGeneratorFunction2, randomHashCache2, symbol3, hash3, random4, combine11, optimize2, isHash2, number4, string3, structureKeys2, structure2, array22, cached4, symbol22, isEqual2, equivalence2, NodeInspectSymbol2, toJSON2, format5, BaseProto2, Class5, toStringUnknown2, stringifyCircular2, symbolRedactable2, isRedactable2, redactableState2, withRedactableContext2, redact2, pipeArguments2, OP_ASYNC2, OP_COMMIT2, OP_FAILURE2, OP_ON_FAILURE3, OP_ON_SUCCESS3, OP_ON_SUCCESS_AND_FAILURE2, OP_SUCCESS2, OP_SYNC3, OP_TAG2, OP_UPDATE_RUNTIME_FLAGS2, OP_WHILE2, OP_ITERATOR2, OP_WITH_RUNTIME2, OP_YIELD3, OP_REVERT_FLAGS2, moduleVersion2, getCurrentVersion2, EffectTypeId4, StreamTypeId4, SinkTypeId3, ChannelTypeId3, effectVariance2, sinkVariance3, channelVariance3, EffectPrototype3, StructuralPrototype2, CommitPrototype3, StructuralCommitPrototype2, Base3, TypeId33, CommonProto3, SomeProto2, NoneHash2, NoneProto2, isOption3, isNone4, isSome3, none12, some9, TypeId210, CommonProto22, RightProto2, LeftProto2, isEither5, isLeft4, isRight4, left3, right3, right22, left22, isLeft22, isRight22, match22, merge14, isNonEmptyArray3, make210, number22, mapInput22, all10, tuple3, greaterThan4, none22, some22, isNone22, isSome22, match23, getOrElse8, orElse15, orElseSome2, fromNullable5, getOrUndefined3, getOrThrowWith3, getOrThrow3, map28, flatMap23, containsWith3, _equivalence5, contains5, mergeWith5, make310, findFirst8, allocate2, makeBy3, fromIterable14, ensure2, prepend6, append4, appendAll4, isEmptyArray2, isEmptyReadonlyArray2, isNonEmptyArray22, isNonEmptyReadonlyArray2, isOutOfBounds2, clamp4, get19, unsafeGet10, head8, headNonEmpty3, last5, lastNonEmpty2, tailNonEmpty3, spanIndex2, span5, drop5, findFirst22, reverse4, sort3, zip12, zipWith17, _equivalence22, splitAt3, splitNonEmptyAt2, copy4, unionWith3, union10, empty37, of6, map29, flatMap24, flatten18, filterMap9, filterMapWhile5, partitionMap4, getSomes2, filter16, reduce16, reduceRight7, every9, unfold5, getEquivalence7, dedupeWith2, dedupe2, join5, mapAccum7, Order6, nextPow22, escape2, not2, Context_exports2, TagTypeId3, ReferenceTypeId3, STMSymbolKey3, STMTypeId4, TagProto2, ReferenceProto2, makeGenericTag2, Tag4, Reference3, TypeId34, ContextProto2, makeContext2, serviceNotFoundError2, isContext3, isTag3, isReference3, _empty8, empty210, make410, add6, defaultValueCache2, getDefaultValue2, unsafeGetReference2, unsafeGet22, get22, getOrElse22, getOption3, merge22, mergeAll12, pick4, omit4, TagTypeId22, ReferenceTypeId22, GenericTag2, unsafeMake11, isContext22, isTag22, isReference22, empty38, make510, add22, get32, getOrElse32, unsafeGet32, getOption22, merge32, mergeAll22, pick22, omit22, Tag22, Reference22, Deferred_exports2, TypeId42, emptyArray2, getEquivalence22, _equivalence32, ChunkProto2, makeChunk2, isChunk2, _empty22, empty42, make64, of22, fromIterable22, copyToArray2, toReadonlyArray_2, toReadonlyArray2, reverseChunk2, reverse22, get42, unsafeFromArray2, unsafeFromNonEmptyArray2, unsafeGet42, append22, prepend22, take9, drop22, dropWhile6, appendAll22, filterMap22, filter22, filterMapWhile22, flatMap32, flatten22, isEmpty16, isNonEmpty6, head22, unsafeHead4, headNonEmpty22, last22, unsafeLast2, map32, mapAccum22, splitAt22, splitWhere2, tailNonEmpty22, takeRight4, takeWhile6, zipWith22, makeBy22, range4, findFirst32, reduce22, reduceRight22, TypeId52, bigint05, bigint242, bigint602, bigint1e32, bigint1e62, bigint1e92, DURATION_REGEX2, decode2, zeroValue2, infinityValue2, DurationProto2, make72, isDuration2, isFinite3, isZero3, zero4, infinity2, nanos2, micros2, millis2, seconds2, minutes2, hours2, days2, weeks2, toMillis2, unsafeToNanos2, toHrTime2, match32, matchWith2, Equivalence4, sum3, lessThanOrEqualTo22, greaterThan22, greaterThanOrEqualTo22, equals22, parts2, format22, SIZE2, BUCKET_SIZE2, MASK3, MAX_INDEX_NODE2, MIN_ARRAY_NODE2, make82, EmptyNode2, LeafNode2, CollisionNode2, IndexedNode2, ArrayNode2, HashMapSymbolKey2, HashMapTypeId2, HashMapProto2, makeImpl4, HashMapIterator2, applyCont2, visitLazy2, visitLazyChildren2, _empty32, empty52, fromIterable32, isHashMap2, isEmpty22, get52, getHash2, has8, set9, setTree2, keys6, size16, beginMutation3, endMutation3, mutate4, modifyAt3, modifyHash2, remove22, map42, forEach13, reduce32, HashSetSymbolKey2, HashSetTypeId2, HashSetProto2, makeImpl22, isHashSet2, _empty42, empty62, fromIterable42, make92, has22, some32, every22, size22, beginMutation22, endMutation22, mutate22, add32, remove32, difference22, union22, forEach22, reduce42, empty72, fromIterable52, make102, has32, every32, size32, add42, remove42, difference32, union32, forEach32, reduce52, TypeId62, MutableRefProto2, make112, compareAndSet2, get62, set22, FiberIdSymbolKey2, FiberIdTypeId2, OP_NONE2, OP_RUNTIME2, OP_COMPOSITE2, emptyHash2, None4, Runtime2, Composite3, none32, isFiberId2, isNone32, combine22, combineAll3, getOrElse42, ids3, _fiberCounter2, threadName3, toSet3, unsafeMake22, none42, combine32, combineAll22, getOrElse52, ids22, threadName22, unsafeMake32, empty82, fromIterable62, isEmpty32, get72, set32, keys23, mutate32, modifyAt22, map62, forEach42, reduce62, TypeId72, toArray22, getEquivalence32, _equivalence42, ConsProto2, makeCons2, NilHash2, NilProto2, _Nil2, isList2, isNil2, isCons2, nil3, cons2, empty92, of32, appendAll32, prepend32, prependAll2, reduce72, reverse32, ArrayProto2, Structural2, struct2, ContextPatchTypeId2, PatchProto4, EmptyProto4, _empty52, empty102, AndThenProto4, makeAndThen4, AddServiceProto2, makeAddService2, RemoveServiceProto2, makeRemoveService2, UpdateServiceProto2, makeUpdateService2, diff8, combine42, patch9, HashSetPatchTypeId2, PatchProto22, EmptyProto22, _empty62, empty112, AndThenProto22, makeAndThen22, AddProto2, makeAdd2, RemoveProto2, makeRemove2, diff22, combine52, patch22, ReadonlyArrayPatchTypeId2, PatchProto32, EmptyProto32, _empty72, empty122, AndThenProto32, makeAndThen32, AppendProto2, makeAppend2, SliceProto2, makeSlice2, UpdateProto2, makeUpdate2, diff32, combine62, patch32, DifferTypeId2, DifferProto2, make142, environment2, hashSet2, readonlyArray2, update8, updateWith2, BIT_MASK2, BIT_SHIFT2, active2, enabled2, make152, empty132, enable4, disable4, exclude3, andThen9, invert2, None22, Interruption2, OpSupervision2, RuntimeMetrics2, WindDown2, CooperativeYielding2, cooperativeYielding2, disable22, enable22, interruptible5, interruption2, isEnabled3, make162, none52, runtimeMetrics2, windDown2, diff42, patch42, differ3, empty142, enable32, disable32, exclude22, empty152, par2, seq2, single2, flatten32, step4, merge42, EntryTypeId2, EntryImpl2, blockedRequestVariance2, makeEntry2, RequestBlockParallelTypeId2, parallelVariance2, ParallelImpl2, parallelCollectionEmpty2, parallelCollectionAdd2, parallelCollectionCombine2, parallelCollectionIsEmpty2, parallelCollectionKeys2, parallelCollectionToSequentialCollection2, SequentialCollectionTypeId2, sequentialVariance2, SequentialImpl2, sequentialCollectionMake2, sequentialCollectionCombine2, sequentialCollectionKeys2, sequentialCollectionToChunk2, OP_DIE4, OP_EMPTY4, OP_FAIL6, OP_INTERRUPT4, OP_PARALLEL3, OP_SEQUENTIAL3, CauseSymbolKey2, CauseTypeId3, variance42, proto13, empty162, fail21, die14, interrupt11, parallel5, sequential5, isCause3, isEmptyType3, isDieType3, isEmpty52, isInterrupted4, isInterruptedOnly3, failures3, defects3, interruptors3, failureOption3, failureOrCause3, flipCauseOption3, interruptOption3, keepDefects3, keepDefectsAndElectFailures2, stripFailures3, electFailures2, map82, flatMap72, flatten42, causeEquals2, flattenCause2, flattenCauseLoop2, find5, evaluateCause2, IsInterruptedOnlyCauseReducer2, OP_SEQUENTIAL_CASE2, OP_PARALLEL_CASE2, match42, reduce82, reduceWithContext4, pretty5, renderErrorCause2, makePrettyError2, prettyErrorMessage2, locationRegex2, spanToTrace2, prettyErrorStack2, spanSymbol2, prettyErrors3, OP_STATE_PENDING2, OP_STATE_DONE3, DeferredSymbolKey2, DeferredTypeId3, deferredVariance2, pending5, done14, SingleShotGen22, blocked3, runRequestBlock3, EffectTypeId22, RevertFlags2, EffectPrimitive2, EffectPrimitiveFailure2, EffectPrimitiveSuccess2, isEffect3, withFiberRuntime3, acquireUseRelease6, as14, asVoid8, custom3, unsafeAsync2, asyncInterrupt2, async_2, catchAllCause8, catchAll10, catchIf3, catchSome7, checkInterruptible3, originalSymbol2, capture3, die22, dieMessage7, dieSync10, either22, exit4, fail23, failSync11, failCause16, failCauseSync9, fiberId5, fiberIdWith3, flatMap82, andThen22, step22, flatten52, flip6, matchCause6, matchCauseEffect4, matchEffect4, forEachSequential2, forEachSequentialDiscard2, if_5, interrupt22, interruptWith4, interruptible22, interruptibleMask3, intoDeferred3, map92, mapBoth11, mapError12, onError5, onExit4, onInterrupt3, orElse22, orDie9, orDieWith8, partitionMap22, runtimeFlags2, succeed19, suspend13, sync13, tap10, transplant3, attemptOrElse2, uninterruptible3, uninterruptibleMask4, void_13, updateRuntimeFlags3, whenEffect5, whileLoop4, fromIterator2, gen8, fnUntraced3, withConcurrency3, withRequestBatching3, withRuntimeFlags2, withTracerEnabled3, withTracerTiming3, yieldNow5, zip22, zipLeft12, zipRight13, zipWith32, never7, interruptFiber2, interruptAsFiber2, logLevelAll2, logLevelFatal2, logLevelError2, logLevelWarning2, logLevelInfo2, logLevelDebug2, logLevelTrace2, logLevelNone2, FiberRefSymbolKey2, FiberRefTypeId2, fiberRefVariance2, fiberRefGet2, fiberRefGetWith2, fiberRefSet2, fiberRefModify2, RequestResolverSymbolKey2, RequestResolverTypeId2, requestResolverVariance2, RequestResolverImpl2, isRequestResolver2, fiberRefLocally3, fiberRefLocallyWith3, fiberRefUnsafeMake2, fiberRefUnsafeMakeHashSet2, fiberRefUnsafeMakeReadonlyArray2, fiberRefUnsafeMakeContext2, fiberRefUnsafeMakePatch2, fiberRefUnsafeMakeRuntimeFlags2, currentContext3, currentSchedulingPriority3, currentMaxOpsBeforeYield2, currentLogAnnotations2, currentLogLevel2, currentLogSpan2, withSchedulingPriority3, withMaxOpsBeforeYield3, currentConcurrency2, currentRequestBatching2, currentUnhandledErrorLogLevel2, currentVersionMismatchErrorLogLevel2, withUnhandledErrorLogLevel3, currentMetricLabels2, metricLabels3, currentForkScopeOverride2, currentInterruptedCause2, currentTracerEnabled2, currentTracerTimingEnabled3, currentTracerSpanAnnotations2, currentTracerSpanLinks2, ScopeTypeId3, CloseableScopeTypeId3, scopeAddFinalizer2, scopeAddFinalizerExit2, scopeClose2, scopeFork2, causeSquash2, causeSquashWith2, YieldableError3, makeException2, RuntimeExceptionTypeId3, RuntimeException3, isRuntimeException3, InterruptedExceptionTypeId3, InterruptedException3, isInterruptedException3, IllegalArgumentExceptionTypeId3, IllegalArgumentException3, NoSuchElementExceptionTypeId3, NoSuchElementException3, isNoSuchElementException3, InvalidPubSubCapacityExceptionTypeId3, InvalidPubSubCapacityException2, ExceededCapacityExceptionTypeId3, ExceededCapacityException3, TimeoutExceptionTypeId3, TimeoutException3, timeoutExceptionFromDuration2, UnknownExceptionTypeId3, UnknownException3, exitIsExit2, exitIsFailure2, exitIsSuccess2, exitAs2, exitAsVoid2, exitCollectAll2, exitDie3, exitFail2, exitFailCause3, exitFlatMap2, exitFlatten2, exitForEachEffect2, exitInterrupt3, exitMap2, exitMapBoth2, exitMatch2, exitMatchEffect2, exitSucceed3, exitVoid3, exitZip2, exitZipRight2, exitZipWith2, exitCollectAllInternal2, deferredUnsafeMake2, deferredMake2, deferredMakeAs2, deferredAwait2, deferredComplete2, deferredCompleteWith2, deferredDone2, deferredFail2, deferredFailSync2, deferredFailCause2, deferredFailCauseSync2, deferredDie2, deferredDieSync2, deferredInterrupt2, deferredInterruptWith2, deferredIsDone2, deferredPoll2, deferredSucceed2, deferredSync2, deferredUnsafeDone2, deferredInterruptJoiner2, constContext2, context10, contextWithEffect5, provideContext9, provideSomeContext6, mapInputContext8, filterEffectOrElse3, filterEffectOrFail3, currentSpanFromFiber2, NoopSpanProto2, noopSpan2, DeferredTypeId22, make182, makeAs2, _await4, complete5, completeWith2, done22, fail32, failSync22, failCause22, failCauseSync22, die32, dieSync22, interrupt32, interruptWith22, isDone7, poll8, succeed22, sync22, unsafeMake42, unsafeDone2, isFailure8, isSuccess7, all22, die42, fail42, failCause32, flatten62, forEachEffect2, interrupt42, map102, mapBoth22, match52, succeed32, void_22, zip32, zipRight22, zipWith42, TypeId82, MutableHashMapProto2, MutableHashMapIterator2, BucketIterator2, empty172, get82, getFromBucket2, has42, set42, removeFromBucket2, remove52, size42, TypeId92, MutableListProto2, makeNode3, empty182, isEmpty62, length3, append32, shift2, remove62, TypeId102, EmptyMutableQueue2, MutableQueueProto2, make192, bounded8, unbounded8, length22, isEmpty72, capacity7, offer6, offerAll5, poll22, pollUpTo2, ClockSymbolKey2, ClockTypeId3, clockTag2, MAX_TIMER_MILLIS2, globalClockScheduler2, performanceNowNanos2, processOrPerformanceNow2, ClockImpl2, make202, OP_AND2, OP_OR2, OP_INVALID_DATA2, OP_MISSING_DATA2, OP_SOURCE_UNAVAILABLE2, OP_UNSUPPORTED2, ConfigErrorSymbolKey2, ConfigErrorTypeId2, proto22, And2, Or2, InvalidData2, MissingData2, SourceUnavailable2, Unsupported2, prefixed2, reduceWithContext22, empty192, patch52, OP_CONSTANT2, OP_FAIL22, OP_FALLBACK2, OP_DESCRIBED2, OP_LAZY2, OP_MAP_OR_FAIL2, OP_NESTED2, OP_PRIMITIVE2, OP_REDACTED2, OP_SEQUENCE2, OP_HASHMAP2, OP_ZIP_WITH3, concat4, ConfigProviderSymbolKey2, ConfigProviderTypeId2, configProviderTag2, FlatConfigProviderSymbolKey2, FlatConfigProviderTypeId2, make222, makeFlat2, fromFlat2, fromEnv2, extend3, appendConfigPath2, RedactedConfigErrorReducer2, redactConfigError2, fromFlatLoop2, fromFlatLoopFail2, splitPathString2, parsePrimitive2, transpose2, indicesFrom2, QUOTED_INDEX_REGEX2, parseQuotedIndex2, parseInteger2, TypeId112, consoleTag2, defaultConsole2, RandomSymbolKey2, RandomTypeId2, randomTag2, RandomImpl2, shuffleWith2, swap3, make232, FixedRandomImpl2, fixed5, TracerTypeId2, make242, tracerTag2, spanTag2, randomHexString2, NativeSpan2, nativeTracer2, addSpanStackTrace2, DisablePropagation2, liveServices2, currentServices2, sleep5, defaultServicesWith2, clockWith5, currentTimeMillis3, currentTimeNanos3, withClock3, withConfigProvider3, configProviderWith3, randomWith3, withRandom3, tracerWith5, withTracer3, sleep22, currentTimeMillis22, currentTimeNanos22, clockWith22, Clock2, FiberRefsSym2, FiberRefsImpl2, findAncestor2, joinAs3, forkAs2, unsafeForkAs2, fiberRefs3, setAll3, delete_3, get92, getOrDefault3, updateAs3, unsafeUpdateAs2, updateManyAs3, get102, getOrDefault22, joinAs22, setAll22, updateManyAs22, empty212, All2, Fatal2, Error22, Warning2, Info2, Debug2, Trace2, None32, Order22, greaterThan32, fromLiteral2, make252, formatLabel2, render2, make262, Ref_exports2, EffectPrototype22, CommitPrototype22, Base22, Class22, TypeId122, Proto8, RefTypeId3, refVariance2, RefImpl2, unsafeMake62, make272, get112, set52, getAndSet5, getAndUpdate5, getAndUpdateSome5, setAndGet5, modify32, modifySome5, update22, updateAndGet5, updateSome5, updateSomeAndGet5, RefTypeId22, make282, get122, getAndSet22, getAndUpdate22, getAndUpdateSome22, modify42, modifySome22, set62, setAndGet22, update32, updateAndGet22, updateSome22, updateSomeAndGet22, unsafeMake72, tracerWith22, OP_EMPTY22, OP_ADD2, OP_REMOVE2, OP_UPDATE2, OP_AND_THEN3, empty222, diff52, combine72, patch62, MetricLabelSymbolKey2, MetricLabelTypeId2, MetricLabelImpl2, make292, isMetricLabel2, annotateLogs5, asSome5, asSomeError5, try_6, _catch3, catchAllDefect3, catchSomeCause5, catchSomeDefect3, catchTag7, catchTags7, cause3, clockWith32, clock3, delay3, descriptorWith3, allowInterrupt3, descriptor3, diffFiberRefs3, diffFiberRefsAndRuntimeFlags2, Do8, bind22, bindTo22, let_22, dropUntil5, dropWhile22, contextWith7, eventually5, filterMap42, filterOrDie5, filterOrDieMessage5, filterOrElse5, liftPredicate5, filterOrFail5, findFirst52, findLoop2, firstSuccessOf4, flipWith5, match72, every52, forAllLoop2, forever7, fiberRefs22, head32, ignore5, ignoreLogged3, inheritFiberRefs3, isFailure22, isSuccess22, iterate7, logWithLevel3, log3, logTrace3, logDebug3, logInfo3, logWarning3, logError3, logFatal3, withLogSpan3, logAnnotations3, loop5, loopInternal2, loopDiscard2, mapAccum32, mapErrorCause7, memoize4, merge52, negate5, none62, once4, option6, orElseFail7, orElseSucceed7, parallelErrors3, patchFiberRefs3, promise3, provideService9, provideServiceEffect5, random22, reduce92, reduceRight32, reduceWhile3, reduceWhileLoop2, repeatN3, repeatNLoop2, sandbox3, setFiberRefs3, sleep32, succeedNone5, succeedSome5, summarized5, tagMetrics3, labelMetrics3, takeUntil5, takeWhile22, tapBoth7, tapDefect3, tapError9, tapErrorTag3, tapErrorCause7, timed3, timedWith3, tracerWith32, tracer3, tryPromise3, tryMap3, tryMapPromise3, unless5, unlessEffect3, unsandbox3, updateFiberRefs4, updateService6, when7, whenFiberRef3, whenRef3, withMetric3, serviceFunctionEffect3, serviceFunction3, serviceFunctions3, serviceConstants3, serviceMembers3, serviceOption3, serviceOptional3, annotateCurrentSpan3, linkSpanCurrent3, annotateSpans5, currentParentSpan3, currentSpan3, currentPropagatedSpan3, linkSpans3, bigint022, filterDisablePropagation2, unsafeMakeSpan2, makeSpan3, spanAnnotations3, spanLinks3, endSpan2, useSpan3, withParentSpan5, withSpan8, functionWithSpan3, fromNullable22, optionFromOptional3, OP_SEQUENTIAL22, OP_PARALLEL22, OP_PARALLEL_N2, sequential22, parallel22, parallelN3, isSequential2, isParallel2, sequential32, parallel32, parallelN22, diff62, patch72, FiberStatusSymbolKey2, FiberStatusTypeId2, OP_DONE7, OP_RUNNING3, OP_SUSPENDED2, DoneHash2, Done5, Running2, Suspended2, done32, running4, suspended3, isFiberStatus2, isDone22, isRunning4, isSuspended3, done42, running22, suspended22, isDone32, isRunning22, isSuspended22, TypeId132, MicroExitTypeId2, MicroCauseTypeId2, microCauseVariance2, MicroCauseImpl2, Die2, causeDie2, Interrupt2, causeInterrupt2, causeIsInterrupt2, MicroFiberTypeId2, fiberVariance3, MicroFiberImpl2, fiberMiddleware2, fiberInterruptAll2, identifier2, args2, evaluate3, successCont2, failureCont2, ensureCont2, Yield2, microVariance2, MicroProto2, makePrimitiveProto2, makePrimitive2, makeExit2, succeed42, failCause42, sync32, suspend22, yieldNowWith2, yieldNow22, void_32, withMicroFiber2, asyncOptions2, asyncFinalizer2, async3, as22, exit22, flatMap92, OnSuccessProto2, map112, isMicroExit2, exitSucceed22, exitFailCause22, exitInterrupt22, exitDie22, exitVoid22, exitVoidAll2, setImmediate22, MicroSchedulerDefault2, updateContext3, provideContext22, MaxOpsBeforeYield2, CurrentConcurrency2, CurrentScheduler2, matchCauseEffect22, OnSuccessAndFailureProto2, matchCause22, MicroScopeTypeId2, MicroScopeImpl2, onExit22, setInterruptible2, interruptible32, uninterruptibleMask22, whileLoop22, forEach52, unsafeFork4, runFork4, SchedulerRunner2, PriorityBuckets2, MixedScheduler2, defaultScheduler2, SyncScheduler2, currentScheduler3, withScheduler3, currentRequestMap2, match92, matchSimple2, OP_INTERRUPT_SIGNAL2, OP_STATEFUL2, OP_RESUME2, OP_YIELD_NOW2, interruptSignal2, stateful2, resume2, yieldNow32, FiberScopeSymbolKey2, FiberScopeTypeId2, Global2, Local2, unsafeMake82, globalScope2, FiberSymbolKey2, FiberTypeId3, fiberVariance22, fiberProto2, RuntimeFiberSymbolKey2, RuntimeFiberTypeId3, Order32, isFiber3, isRuntimeFiber3, _await22, children3, done52, dump3, dumpAll3, fail52, failCause52, fromEffect10, id4, inheritAll3, interrupted4, interruptAll3, interruptAllAs3, interruptAsFork3, join22, map122, mapEffect6, mapFiber3, match102, _never2, never22, orElse32, orElseEither9, poll32, parseMs2, renderStatus2, pretty22, unsafeRoots3, roots3, status3, succeed52, void_42, currentFiberURI2, getCurrentFiber3, LoggerSymbolKey2, LoggerTypeId2, loggerVariance2, makeLogger2, none72, textOnly2, format32, escapeDoubleQuotes2, stringLogger2, colors2, logLevelColors2, hasProcessStdout2, processStdoutIsTTY2, hasProcessStdoutOrDeno2, MetricBoundariesSymbolKey2, MetricBoundariesTypeId2, MetricBoundariesImpl2, isMetricBoundaries2, fromIterable72, exponential3, MetricKeyTypeSymbolKey2, MetricKeyTypeTypeId2, CounterKeyTypeSymbolKey2, CounterKeyTypeTypeId2, FrequencyKeyTypeSymbolKey2, FrequencyKeyTypeTypeId2, GaugeKeyTypeSymbolKey2, GaugeKeyTypeTypeId2, HistogramKeyTypeSymbolKey2, HistogramKeyTypeTypeId2, SummaryKeyTypeSymbolKey2, SummaryKeyTypeTypeId2, metricKeyTypeVariance2, CounterKeyType2, FrequencyKeyTypeHash2, FrequencyKeyType2, GaugeKeyTypeHash2, GaugeKeyType2, HistogramKeyType2, SummaryKeyType2, counter6, histogram6, isCounterKey2, isFrequencyKey2, isGaugeKey2, isHistogramKey2, isSummaryKey2, MetricKeySymbolKey2, MetricKeyTypeId2, metricKeyVariance2, arrayEquivilence2, MetricKeyImpl2, isMetricKey2, counter22, histogram22, taggedWithLabels3, MetricStateSymbolKey2, MetricStateTypeId2, CounterStateSymbolKey2, CounterStateTypeId2, FrequencyStateSymbolKey2, FrequencyStateTypeId2, GaugeStateSymbolKey2, GaugeStateTypeId2, HistogramStateSymbolKey2, HistogramStateTypeId2, SummaryStateSymbolKey2, SummaryStateTypeId2, metricStateVariance2, CounterState2, arrayEquals2, FrequencyState2, GaugeState2, HistogramState2, SummaryState2, counter32, frequency22, gauge22, histogram32, summary22, isCounterState2, isFrequencyState2, isGaugeState2, isHistogramState2, isSummaryState2, MetricHookSymbolKey2, MetricHookTypeId2, metricHookVariance2, make302, bigint032, counter42, frequency32, gauge32, histogram42, summary32, calculateQuantiles2, resolveQuantile2, MetricPairSymbolKey2, MetricPairTypeId2, metricPairVariance2, unsafeMake92, MetricRegistrySymbolKey2, MetricRegistryTypeId2, MetricRegistryImpl2, make312, MetricSymbolKey2, MetricTypeId2, metricVariance2, globalMetricRegistry2, make322, counter52, fromMetricKey2, histogram52, tagged3, taggedWithLabels22, update42, RequestSymbolKey2, RequestTypeId2, requestVariance2, RequestPrototype2, isRequest3, complete22, Listeners2, Direction2, RedBlackTreeIterator2, Color2, clone3, repaint2, recount2, RedBlackTreeSymbolKey2, RedBlackTreeTypeId2, redBlackTreeVariance2, RedBlackTreeProto2, makeImpl32, isRedBlackTree2, findFirst62, has52, insert3, keysForward2, keys32, removeFirst3, fixDoubleBlack2, has62, insert22, keys42, removeFirst22, TypeId142, SortedSetProto2, fromTree2, isSortedSet2, add52, remove72, SupervisorSymbolKey2, SupervisorTypeId3, supervisorVariance2, ProxySupervisor2, Zip2, isZip2, Track2, Const2, FibersIn2, unsafeTrack2, track2, fromEffect22, none82, make342, OP_EMPTY32, OP_ADD_SUPERVISOR2, OP_REMOVE_SUPERVISOR2, OP_AND_THEN22, empty252, combine82, patch82, patchLoop2, removeSupervisor2, toSet22, diff72, differ22, fiberStarted2, fiberActive2, fiberSuccesses2, fiberFailures2, fiberLifetimes2, EvaluationSignalContinue2, EvaluationSignalDone2, EvaluationSignalYieldNow2, runtimeFiberVariance2, absurd2, YieldedOp2, yieldedOpChannel2, contOpSuccess2, drainQueueWhileRunningTable2, runBlockedRequests2, _version2, FiberRuntime2, currentMinimumLogLevel2, loggerWithConsoleLog2, defaultLogger2, tracerLogger2, currentLoggers2, annotateLogsScoped3, whenLogLevel3, acquireRelease5, acquireReleaseInterruptible3, addFinalizer4, daemonChildren3, _existsParFound2, exists7, existsLoop2, filter52, allResolveInput2, allValidate2, allEither2, all42, allWith3, allSuccesses3, replicate5, replicateEffect3, forEach82, forEachParUnbounded2, forEachConcurrentDiscard2, forEachParN2, fork4, forkDaemon3, forkWithErrorHandler3, unsafeFork22, unsafeForkUnstarted2, unsafeMakeChildFiber2, forkWithScopeOverride2, mergeAll32, partition32, validateAll5, raceAll5, reduceEffect4, parallelFinalizers3, parallelNFinalizers2, finalizersMask3, finalizersMaskInternal2, scopeWith3, scopedWith6, scopedEffect2, sequentialFinalizers3, tagMetricsScoped3, labelMetricsScoped3, using3, validate4, validateWith3, validateFirst5, withClockScoped3, withRandomScoped3, withConfigProviderScoped3, withEarlyRelease3, zipOptions2, zipLeftOptions2, zipRightOptions2, zipWithOptions2, withRuntimeFlagsScoped2, scopeTag2, scope5, scopeUnsafeAddFinalizer2, ScopeImplProto2, scopeUnsafeMake2, scopeMake2, scopeExtend2, scopeUse2, fiberRefUnsafeMakeSupervisor2, fiberRefLocallyScoped3, fiberRefLocallyScopedWith4, currentRuntimeFlags2, currentSupervisor2, fiberAwaitAll2, fiberAll2, fiberInterruptFork2, fiberJoinAll2, fiberScoped2, raceWith4, disconnect3, race5, raceFibersWith2, completeRace2, ensuring9, invokeWithInterrupt2, makeSpanScoped3, withTracerScoped3, withSpanScoped3, complete32, pending22, refreshing2, MapKeyTypeId2, MapKeyImpl2, makeMapKey2, isMapKey2, KeySetImpl2, makeKeySet2, makeCacheState2, initialCacheState2, CacheSymbolKey2, CacheTypeId2, cacheVariance2, ConsumerCacheSymbolKey2, ConsumerCacheTypeId2, consumerCacheVariance2, makeCacheStats2, makeEntryStats2, CacheImpl2, unsafeMakeWith2, fail62, die52, interrupt52, isDieType22, isInterrupted22, isInterruptedOnly22, interruptors22, failureOrCause22, flipCauseOption22, map132, squash2, IllegalArgumentException22, NoSuchElementException22, RuntimeException22, isRuntimeException22, Effect_exports2, IntervalSymbolKey2, IntervalTypeId2, empty262, make352, lessThan22, min22, isEmpty82, intersect6, size82, after3, make362, empty272, lessThan32, isEmpty92, intersect22, size92, after22, IntervalsSymbolKey2, IntervalsTypeId2, make372, intersect32, intersectLoop2, start5, end6, lessThan42, isNonEmpty32, make382, intersect42, start22, end22, lessThan52, isNonEmpty42, OP_CONTINUE3, OP_DONE22, _continue3, continueWith3, done62, isContinue3, isDone42, _continue22, continueWith22, done72, isContinue22, isDone52, Scope2, addFinalizer22, addFinalizerExit2, close2, extend22, fork22, make392, Semaphore2, unsafeMakeSemaphore3, makeSemaphore3, Latch2, unsafeMakeLatch3, makeLatch3, awaitAllChildren3, cached22, cachedInvalidateWithTTL3, computeCachedValue2, getCachedValue2, invalidateCache2, ensuringChild3, ensuringChildren3, forkAll3, forkIn3, forkScoped3, fromFiber3, fromFiberEffect3, memoKeySymbol2, Key2, cachedFunction3, raceFirst3, supervised3, timeout5, timeoutFail5, timeoutFailCause5, timeoutOption3, timeoutTo5, SynchronizedSymbolKey2, SynchronizedTypeId2, synchronizedVariance2, SynchronizedImpl2, makeSynchronized2, unsafeMakeSynchronized2, updateSomeAndGetEffectSynchronized2, zipFiber2, zipLeftFiber2, zipRightFiber2, zipWithFiber2, bindAll3, TypeId152, OP_EXTEND_SCOPE2, OP_FOLD3, OP_FRESH2, OP_FROM_EFFECT4, OP_SCOPED2, OP_SUSPEND4, OP_PROVIDE4, OP_PROVIDE_MERGE2, OP_MERGE_ALL2, OP_ZIP_WITH22, Fiber_exports2, FiberTypeId22, RuntimeFiberTypeId22, Order42, isFiber22, isRuntimeFiber22, id22, _await32, awaitAll2, children22, all52, done82, dump22, dumpAll22, fail72, failCause62, fromEffect32, getCurrentFiber22, inheritAll22, interrupt62, interrupted22, interruptAs4, interruptAsFork22, interruptAll22, interruptAllAs22, interruptFork2, join32, joinAll2, map142, mapEffect22, mapFiber22, match112, never32, orElse42, orElseEither32, poll42, pretty32, roots22, unsafeRoots22, scoped8, status22, succeed62, void_52, zip52, zipLeft22, zipRight32, zipWith52, makeDual2, unsafeFork32, unsafeRunCallback2, unsafeRunSync2, AsyncFiberExceptionImpl2, asyncFiberException2, FiberFailureId2, FiberFailureCauseId2, FiberFailureImpl2, fiberFailure2, fastPath2, unsafeRunSyncExit2, unsafeRunPromise2, unsafeRunPromiseExit2, RuntimeImpl2, make402, runtime22, defaultRuntimeFlags2, defaultRuntime3, unsafeRunEffect2, unsafeForkEffect2, unsafeRunPromiseEffect2, unsafeRunPromiseExitEffect2, unsafeRunSyncEffect2, unsafeRunSyncExitEffect2, asyncEffect5, modifyEffect2, LayerSymbolKey2, LayerTypeId3, layerVariance2, proto32, MemoMapTypeIdKey2, MemoMapTypeId3, CurrentMemoMap3, isLayer3, isFresh3, MemoMapImpl2, makeMemoMap3, unsafeMakeMemoMap2, build3, buildWithScope3, buildWithMemoMap3, makeBuilder2, catchAll22, catchAllCause22, die62, dieSync32, discard3, context22, extendScope3, fail82, failSync32, failCause72, failCauseSync32, flatMap102, flatten72, fresh3, fromEffect42, fromEffectDiscard2, fiberRefLocally22, locallyEffect3, fiberRefLocallyWith22, fiberRefLocallyScoped22, fiberRefLocallyScopedWith22, fromFunction4, launch3, mock3, mockImpl2, makeUnimplemented2, map152, mapError22, matchCause32, match122, memoize22, merge62, mergeAll42, orDie22, orElse52, passthrough4, project3, retry9, retryLoop2, retryUpdate2, scoped22, scopedDiscard3, scopedContext3, scope22, service3, succeed72, succeedContext3, empty292, suspend32, sync42, syncContext3, tap22, tapError22, tapErrorCause22, toRuntime3, toRuntimeWithMemoMap3, provide4, provideMerge3, zipWith62, unwrapEffect3, unwrapScoped6, annotateLogs22, annotateSpans22, withSpan22, withParentSpan22, provideSomeLayer4, provideSomeRuntime2, effect_provide2, console22, consoleWith3, withConsole3, withConsoleScoped3, fixed22, ScheduleSymbolKey2, ScheduleTypeId2, isSchedule2, ScheduleDriverSymbolKey2, ScheduleDriverTypeId2, defaultIterationMetadata2, CurrentIterationMetadata3, scheduleVariance2, scheduleDriverVariance2, ScheduleImpl2, updateInfo2, ScheduleDriverImpl2, makeWithState2, addDelay2, addDelayEffect2, asVoid22, check5, checkEffect2, driver3, intersect52, intersectWith2, intersectWithLoop2, map162, mapEffect32, modifyDelayEffect2, passthrough22, recurs2, spaced3, unfold22, untilInputEffect2, whileInputEffect2, whileOutput2, ScheduleDefectTypeId2, ScheduleDefect2, isScheduleDefect2, scheduleDefectWrap2, scheduleDefectRefailCause2, scheduleDefectRefail3, repeat_Effect2, repeat_combined2, repeatOrElse_Effect2, repeatOrElseEffectLoop2, retry_Effect2, retry_combined2, fromRetryOptions2, retryOrElse_Effect2, retryOrElse_EffectLoop2, schedule_Effect2, scheduleFrom_Effect2, scheduleFrom_EffectLoop2, forever22, once22, scheduleForked3, withExecutionPlan5, scheduleFromStep2, currentCache2, currentCacheEnabled2, fromRequest2, cacheRequest2, withRequestCaching3, withRequestCache3, isRequest22, EffectTypeId32, isEffect22, cachedWithTTL2, cachedInvalidateWithTTL22, cached32, cachedFunction22, once32, all62, allWith22, allSuccesses22, dropUntil22, dropWhile32, takeUntil22, takeWhile32, every62, exists22, filter72, filterMap52, findFirst72, forEach92, head42, mergeAll52, partition42, reduce112, reduceWhile22, reduceRight42, reduceEffect22, replicate22, replicateEffect22, validateAll22, validateFirst22, async22, asyncEffect22, custom22, withFiberRuntime22, fail102, failSync42, failCause92, failCauseSync42, die72, dieMessage22, dieSync42, gen22, never42, none92, promise22, succeed92, succeedNone22, succeedSome22, suspend42, sync52, _void2, yieldNow42, _catch22, catchAll32, catchAllCause32, catchAllDefect22, catchIf22, catchSome22, catchSomeCause22, catchSomeDefect22, catchTag22, catchTags22, cause22, eventually22, ignore22, ignoreLogged22, parallelErrors22, sandbox22, retry22, withExecutionPlan22, retryOrElse2, try_22, tryMap22, tryMapPromise22, tryPromise22, unsandbox22, allowInterrupt22, checkInterruptible22, disconnect22, interrupt72, interruptWith32, interruptible42, interruptibleMask22, onInterrupt22, uninterruptible22, uninterruptibleMask32, liftPredicate22, as42, asSome22, asSomeError22, asVoid32, flip22, flipWith22, map172, mapAccum42, mapBoth32, mapError32, mapErrorCause22, merge72, negate22, acquireRelease22, acquireReleaseInterruptible22, acquireUseRelease22, addFinalizer32, ensuring22, onError22, onExit32, parallelFinalizers22, sequentialFinalizers22, finalizersMask22, scope32, scopeWith22, scopedWith22, scoped32, using22, withEarlyRelease22, awaitAllChildren22, daemonChildren22, descriptor22, descriptorWith22, diffFiberRefs22, ensuringChild22, ensuringChildren22, fiberId22, fiberIdWith22, fork32, forkDaemon22, forkAll22, forkIn22, forkScoped22, forkWithErrorHandler22, fromFiber22, fromFiberEffect22, supervised22, transplant22, withConcurrency22, withScheduler22, withSchedulingPriority22, withMaxOpsBeforeYield22, clock22, clockWith42, withClockScoped22, withClock22, console32, consoleWith22, withConsoleScoped22, withConsole22, delay22, sleep42, timed22, timedWith22, timeout22, timeoutOption22, timeoutFail22, timeoutFailCause22, timeoutTo22, configProviderWith22, withConfigProvider22, withConfigProviderScoped22, context32, contextWith22, contextWithEffect22, mapInputContext22, provide22, provideService22, provideServiceEffect22, serviceFunction22, serviceFunctionEffect22, serviceFunctions22, serviceConstants22, serviceMembers22, serviceOption22, serviceOptional22, updateService22, Do22, bind32, bindAll22, bindTo32, let_32, option22, either32, exit32, intoDeferred22, if_22, filterOrDie22, filterOrDieMessage22, filterOrElse22, filterOrFail22, filterEffectOrElse22, filterEffectOrFail22, unless22, unlessEffect22, when22, whenEffect22, whenFiberRef22, whenRef22, flatMap112, andThen42, flatten82, race22, raceAll22, raceFirst22, raceWith22, summarized22, tap32, tapBoth22, tapDefect22, tapError32, tapErrorTag22, tapErrorCause32, forever32, iterate22, loop22, repeat4, repeatN22, repeatOrElse2, schedule4, scheduleForked22, scheduleFrom2, whileLoop32, getFiberRefs2, inheritFiberRefs22, locally3, locallyWith3, locallyScoped3, locallyScopedWith2, patchFiberRefs22, setFiberRefs22, updateFiberRefs22, isFailure42, isSuccess32, match132, matchCause42, matchCauseEffect32, matchEffect22, log22, logWithLevel22, logTrace22, logDebug22, logInfo22, logWarning22, logError22, logFatal22, withLogSpan22, annotateLogs32, annotateLogsScoped22, logAnnotations22, withUnhandledErrorLogLevel22, whenLogLevel22, orDie32, orDieWith22, orElse62, orElseFail22, orElseSucceed22, firstSuccessOf22, random32, randomWith22, withRandom22, withRandomFixed2, withRandomScoped22, runtime32, getRuntimeFlags2, patchRuntimeFlags2, withRuntimeFlagsPatch2, withRuntimeFlagsPatchScoped2, tagMetrics22, labelMetrics22, tagMetricsScoped22, labelMetricsScoped22, metricLabels22, withMetric22, unsafeMakeSemaphore22, makeSemaphore22, unsafeMakeLatch22, makeLatch22, runFork22, runCallback2, runPromise2, runPromiseExit3, runSync2, runSyncExit2, validate22, validateWith22, zip62, zipLeft32, zipRight42, zipWith72, ap4, blocked22, runRequestBlock22, step32, request2, cacheRequestResult2, withRequestBatching22, withRequestCaching22, withRequestCache22, tracer22, tracerWith42, withTracer22, withTracerScoped22, withTracerEnabled22, withTracerTiming22, annotateSpans32, annotateCurrentSpan22, currentSpan22, currentPropagatedSpan22, currentParentSpan22, spanAnnotations22, spanLinks22, linkSpans22, linkSpanCurrent22, makeSpan22, makeSpanScoped22, useSpan22, withSpan32, functionWithSpan22, withSpanScoped22, withParentSpan32, fromNullable32, optionFromOptional22, transposeOption3, transposeMapOption3, makeTagProxy2, Tag32, Service2, fn2, fnUntraced22, ensureSuccessType3, ensureErrorType3, ensureRequirementsType3, get132, currentContext22, currentSchedulingPriority22, currentScheduler22, currentTracerTimingEnabled22, Layer_exports2, setConfigProvider3, parentSpan3, span23, setTracer3, LayerTypeId22, MemoMapTypeId22, CurrentMemoMap22, isLayer22, isFresh22, annotateLogs42, annotateSpans42, build22, buildWithScope22, catchAll42, catchAllCause42, context42, die82, dieSync52, discard22, effect4, effectDiscard2, effectContext2, empty302, extendScope22, fail112, failSync52, failCause102, failCauseSync52, flatMap122, flatten92, fresh22, mock22, fromFunction22, launch22, map182, mapError42, match142, matchCause52, memoize32, merge82, mergeAll62, orDie42, orElse72, passthrough32, project22, locallyEffect22, locally22, locallyWith22, locallyScoped22, fiberRefLocallyScopedWith32, retry32, scope42, scoped42, scopedDiscard22, scopedContext22, service22, succeed102, succeedContext22, suspend52, sync62, syncContext22, tap42, tapError42, tapErrorCause42, toRuntime22, toRuntimeWithMemoMap22, provide32, provideMerge22, zipWith82, unwrapEffect22, unwrapScoped22, setClock2, setConfigProvider22, parentSpan22, setRandom2, setRequestBatching2, setRequestCaching2, setRequestCache2, setScheduler2, span32, setTracer22, setTracerEnabled2, setTracerTiming2, setUnhandledErrorLogLevel2, setVersionMismatchErrorLogLevel2, withSpan42, withParentSpan42, makeMemoMap22, buildWithMemoMap22, updateService32, ensureSuccessType22, ensureErrorType22, ensureRequirementsType22, EnqueueSymbolKey2, EnqueueTypeId3, DequeueSymbolKey2, DequeueTypeId3, QueueStrategySymbolKey2, QueueStrategyTypeId3, BackingQueueSymbolKey2, BackingQueueTypeId3, queueStrategyVariance2, backingQueueVariance2, enqueueVariance2, dequeueVariance2, QueueImpl2, takeRemainderLoop3, isQueue3, isEnqueue3, isDequeue3, bounded22, dropping7, sliding9, unbounded22, unsafeMake102, make412, BackingQueueFromMutableQueue2, backingQueueFromMutableQueue2, capacity22, size102, isFull6, isEmpty102, isShutdown7, awaitShutdown6, shutdown7, offer22, unsafeOffer3, offerAll22, poll52, take22, takeAll4, takeUpTo4, takeBetween4, takeN4, backPressureStrategy3, droppingStrategy3, slidingStrategy3, BackPressureStrategy3, DroppingStrategy3, SlidingStrategy3, unsafeCompleteDeferred3, unsafeOfferAll3, unsafePollAll2, unsafePollN3, unsafeRemove3, unsafeCompleteTakers2, AbsentValue3, addSubscribers2, removeSubscribers2, bounded32, dropping22, sliding22, unbounded32, shutdown22, subscribe4, makeBoundedPubSub2, makeUnboundedPubSub2, makeSubscription3, unsafeMakeSubscription2, BoundedPubSubArb2, BoundedPubSubArbSubscription2, BoundedPubSubPow22, BoundedPubSubPow2Subscription2, BoundedPubSubSingle2, BoundedPubSubSingleSubscription2, UnboundedPubSub2, UnboundedPubSubSubscription2, SubscriptionImpl2, takeRemainderLoop22, PubSubImpl2, makePubSub2, unsafeMakePubSub2, ensureCapacity2, unsafeCompleteDeferred22, unsafeOfferAll22, unsafePollAllQueue2, unsafePollAllSubscription2, unsafePollN22, unsafePublishAll2, unsafeRemove22, BackPressureStrategy22, DroppingStrategy22, SlidingStrategy22, unsafeStrategyCompletePollers2, unsafeStrategyCompleteSubscribers2, ReplayBuffer2, ReplayWindowImpl2, emptyReplayWindow2, bounded42, dropping32, sliding32, unbounded42, shutdown32, subscribe22, Queue_exports2, EnqueueTypeId22, DequeueTypeId22, QueueStrategyTypeId22, BackingQueueTypeId22, isQueue22, isDequeue22, isEnqueue22, backPressureStrategy22, droppingStrategy22, slidingStrategy22, make422, bounded52, dropping42, sliding42, unbounded52, capacity42, size122, isEmpty122, isFull32, isShutdown32, awaitShutdown32, shutdown42, offer32, unsafeOffer22, offerAll32, poll62, take32, takeAll22, takeUpTo22, takeBetween22, takeN22, OP_CONTINUE22, OP_CLOSE2, OP_YIELD22, ChildExecutorDecisionSymbolKey2, ChildExecutorDecisionTypeId2, proto42, Continue2, OP_CONTINUATION_K2, OP_CONTINUATION_FINALIZER2, ContinuationTypeId2, continuationVariance2, ContinuationKImpl2, ContinuationFinalizerImpl2, OP_PULL_AFTER_NEXT2, OP_PULL_AFTER_ALL_ENQUEUED2, UpstreamPullStrategySymbolKey2, UpstreamPullStrategyTypeId2, upstreamPullStrategyVariance2, proto52, PullAfterNext2, OP_BRACKET_OUT2, OP_BRIDGE2, OP_CONCAT_ALL2, OP_EMIT5, OP_ENSURING2, OP_FAIL32, OP_FOLD22, OP_FROM_EFFECT22, OP_PIPE_TO2, OP_PROVIDE22, OP_READ3, OP_SUCCEED4, OP_SUCCEED_NOW2, OP_SUSPEND22, ChannelSymbolKey2, ChannelTypeId22, channelVariance22, proto62, isChannel2, acquireReleaseOut2, catchAllCause52, collectElements2, collectElementsReader2, concatAllWith2, concatMapWith2, embedInput2, ensuringWith4, fail122, failCause112, failCauseSync62, flatMap132, foldCauseChannel2, fromEffect52, pipeTo2, provideContext32, readWith2, readWithCause2, succeed112, succeedNow2, suspend62, sync72, void_62, write2, OP_DONE32, OP_EMIT22, OP_FROM_EFFECT32, OP_READ22, ChannelStateTypeId2, channelStateVariance2, proto72, Done22, Emit3, fromEffect62, Read2, isFromEffect2, effect22, effectOrUndefinedIgnored2, OP_PULL_FROM_CHILD2, OP_PULL_FROM_UPSTREAM2, OP_DRAIN_CHILD_EXECUTORS2, OP_EMIT32, PullFromChild2, PullFromUpstream2, DrainChildExecutors2, Emit22, OP_PULLED2, OP_NO_UPSTREAM2, UpstreamPullRequestSymbolKey2, UpstreamPullRequestTypeId2, upstreamPullRequestVariance2, proto82, Pulled2, NoUpstream2, ChannelExecutor2, ifNotNull2, runFinalizers2, readUpstream2, runIn2, runScopedInterpret2, OP_DONE42, OP_AWAIT2, MergeDecisionSymbolKey2, MergeDecisionTypeId2, proto92, Done32, Await3, OP_BOTH_RUNNING2, OP_LEFT_DONE2, OP_RIGHT_DONE2, MergeStateSymbolKey2, MergeStateTypeId2, proto102, BothRunning2, LeftDone2, RightDone2, OP_BACK_PRESSURE2, OP_BUFFER_SLIDING2, MergeStrategySymbolKey2, MergeStrategyTypeId2, proto112, BackPressure3, BufferSliding2, match152, OP_STATE_EMPTY2, OP_STATE_EMIT2, OP_STATE_ERROR2, OP_STATE_DONE22, stateEmpty3, stateEmit2, stateError2, stateDone2, SingleProducerAsyncInputImpl2, make432, acquireUseRelease32, as52, catchAll52, concatMap2, drain5, ensuring32, flatten102, foldChannel2, fromInput3, fromQueue4, fromQueueInternal2, identityChannel2, interruptWhen4, interruptWhenDeferred4, map192, mapError52, mapErrorCause32, mapOut2, mapOutEffect2, mapOutEffectPar2, mergeAll72, mergeAllWith2, mergeMap2, mergeWith22, orDieWith32, orElse82, pipeToOrFail2, repeated2, run5, runDrain4, runScoped4, scoped52, scopedWith32, splitLines4, toPubSub4, toPull4, toPullIn2, interpretToPull2, toQueue4, toQueueInternal2, unwrap4, unwrapScoped32, unwrapScopedWith5, withSpan52, writeAll2, writeChunk2, writeChunkWriter2, zip72, zipLeft42, zipRight52, ChannelExceptionTypeId2, ChannelException2, isChannelException2, SinkTypeId22, sinkVariance22, SinkImpl2, isSink2, suspend72, collectAll2, collectAllLoop2, collectAllN2, collectAllNLoop2, collectLeftover2, drain22, fail132, fold2, foldReader2, foldChunkSplit2, foldSink2, foldChunks2, foldChunksReader2, foldEffect2, foldEffectReader2, foldChunkSplitEffect2, foldChunkSplitEffectInternal2, foldLeftChunks2, flatMap142, forEach102, forEachChunk2, forEachWhile2, forEachWhileReader2, fromChannel4, fromEffect72, head52, last42, map202, raceWith32, sum22, toChannel5, unwrapScopedWith22, zipRight62, zipWith92, count3, mkString4, Done42, Await22, TypeId162, stateEmpty22, stateClosed2, variance52, RcRefImpl2, make442, get142, make452, get152, runFork32, runPromiseExit22, defaultRuntime22, driver22, forever42, spaced22, CurrentIterationMetadata22, OP_LEFT2, OP_RIGHT2, OP_BOTH2, OP_EITHER2, Left2, Right2, Both3, Either2, fromInput22, Both22, Versioned2, make462, unsafeGet62, unsafeSet3, commit4, isInvalid2, isChanged2, JournalAnalysisInvalid2, JournalAnalysisReadWrite2, JournalAnalysisReadOnly2, commitJournal2, analyzeJournal2, collectTodos2, execTodos2, addTodo2, OP_WITH_STM_RUNTIME2, OP_ON_FAILURE22, OP_ON_RETRY2, OP_ON_SUCCESS22, OP_PROVIDE32, OP_SYNC22, OP_SUCCEED22, OP_RETRY3, OP_FAIL42, OP_DIE22, OP_INTERRUPT22, OP_FAIL52, OP_DIE32, OP_INTERRUPT32, OP_SUCCEED32, OP_RETRY22, OP_DONE52, OP_SUSPEND32, OP_DONE62, OP_INTERRUPTED2, OP_RUNNING22, STMStateSymbolKey2, STMStateTypeId2, isSTMState2, isRunning32, isDone62, done92, interruptedHash2, interrupted32, runningHash2, running32, fromTExit2, TExitSymbolKey2, TExitTypeId2, variance62, isExit3, isSuccess42, isRetry2, fail142, die92, interrupt82, succeed132, retryHash2, retry42, done102, suspend82, txnCounter2, make472, STMSymbolKey22, STMTypeId22, stmVariance2, STMPrimitive2, unsafeAtomically2, tryCommit2, tryCommitSync2, tryCommitAsync2, completeTodos2, completeTryCommit2, STMDriver2, catchAll62, die102, dieSync62, effect32, ensuring52, fail152, failSync72, flatMap152, matchSTM3, withSTMRuntime2, interruptAs22, map212, retry52, succeed142, sync92, zipRight82, zipWith112, OP_BACKPRESSURE_STRATEGY2, OP_DROPPING_STRATEGY2, OP_SLIDING_STRATEGY2, as72, flatten112, forEach112, all72, suspend92, tap52, void_72, TRefSymbolKey2, TRefTypeId3, tRefVariance2, TRefImpl2, make482, get162, set72, getOrMakeEntry2, unsafeGet72, unsafeSet22, TEnqueueSymbolKey2, TEnqueueTypeId2, TDequeueSymbolKey2, TDequeueTypeId2, tDequeueVariance2, tEnqueueVariance2, TQueueImpl2, isShutdown42, shutdown52, take42, TPubSubSymbolKey2, TPubSubTypeId2, AbsentValue22, makeNode22, TPubSubImpl2, TPubSubSubscriptionImpl2, makeSubscription22, subscribe32, subscribeScoped3, subscribeScoped22, isShutdown62, take52, TypeId172, ReadonlyTypeId2, empty312, exitEmpty2, exitFalse2, exitTrue2, constDone2, MailboxImpl2, make492, toChannel22, RingBuffer2, OP_NOT_STARTED2, OP_PREVIOUS2, OP_CURRENT2, notStarted2, previous2, current2, make502, makePush2, HandoffTypeId2, OP_HANDOFF_STATE_EMPTY2, OP_HANDOFF_STATE_FULL2, handoffStateEmpty2, handoffStateFull2, handoffStateMatch2, handoffVariance2, make512, offer52, take62, OP_EMIT42, OP_HALT2, OP_END2, emit2, halt2, end32, TakeSymbolKey2, TakeTypeId2, takeVariance2, TakeImpl2, chunk22, done112, end42, failCause122, fromPull4, match182, of52, end52, failCause132, OP_SCHEDULE_END2, OP_UPSTREAM_END2, ScheduleEnd2, UpstreamEnd2, OP_DRAIN_LEFT2, OP_DRAIN_RIGHT2, OP_PULL_BOTH3, OP_PULL_LEFT3, OP_PULL_RIGHT3, DrainLeft2, DrainRight2, PullBoth3, PullLeft3, PullRight3, OP_PULL_BOTH22, OP_PULL_LEFT22, OP_PULL_RIGHT22, PullBoth22, PullLeft22, PullRight22, StreamSymbolKey2, StreamTypeId22, streamVariance3, StreamImpl2, isStream2, DefaultChunkSize3, accumulate3, accumulateChunks3, acquireRelease32, aggregate3, aggregateWithin3, aggregateWithinEither3, as82, queueFromBufferOptions2, _async3, asyncEffect32, mailboxFromBufferOptionsPush2, asyncPush3, asyncScoped3, branchAfter3, broadcast3, broadcastDynamic3, share3, broadcastedQueues3, broadcastedQueuesDynamic3, buffer3, bufferChunks3, bufferChunksDropping2, bufferChunksSliding2, bufferDropping2, bufferSliding2, bufferUnbounded2, bufferSignal2, catchAll72, catchAllCause62, catchSome32, catchSomeCause32, catchTag32, catchTags32, changes3, changesWith3, changesWithEffect3, chunks3, chunksWith3, unsome4, combine92, combineChunks3, concat22, concatAll22, cross3, crossLeft3, crossRight3, crossWith3, debounce3, die112, dieSync72, dieMessage42, distributedWith3, distributedWithDynamicId2, newDistributedWithDynamicId2, distributedWithDynamic3, distributedWithDynamicCallback2, drain32, drainFork3, drop32, dropRight3, dropUntil32, dropUntilEffect3, dropWhile42, dropWhileEffect3, either52, empty322, ensuring62, ensuringWith22, context52, contextWith32, contextWithEffect32, contextWithStream3, execute3, fail162, failSync82, failCause142, failCauseSync72, filter82, filterEffect3, filterMap62, filterMapEffect3, filterMapWhile32, filterMapWhileEffect3, finalizer3, find22, findEffect3, flatMap162, matchConcurrency2, flatMapParSwitchBuffer2, flatten122, flattenChunks3, flattenEffect3, flattenExitOption3, flattenIterables3, flattenTake3, forever52, fromAsyncIterable3, fromChannel22, toChannel32, mailboxToStream2, fromChunk3, fromChunkPubSub3, fromChunkQueue3, fromChunks3, fromEffect82, fromEffectOption3, fromPubSub3, fromTPubSub3, fromIterable112, fromIterableEffect3, fromIteratorSucceed3, fromPull22, fromQueue22, fromTQueue3, fromSchedule3, fromReadableStream3, fromReadableStreamByob3, EOF2, readChunkStreamByobReader2, groupAdjacentBy3, grouped3, groupedWithin3, haltWhen3, haltAfter3, haltWhenDeferred3, identityStream2, interleave3, interleaveWith3, intersperse3, intersperseAffixes3, interruptAfter3, interruptWhen22, interruptWhenDeferred22, iterate32, make522, map222, mapAccum52, mapAccumEffect3, mapBoth52, mapChunks3, mapChunksEffect3, mapConcat3, mapConcatChunk3, mapConcatChunkEffect3, mapConcatEffect3, mapEffectSequential2, mapEffectPar2, mapError62, mapErrorCause42, merge92, mergeAll82, mergeWithTag3, mergeEither3, mergeLeft3, mergeRight3, mergeWith32, mkString22, never52, onEnd3, onError32, onDone3, onStart3, orDie52, orDieWith42, orElse92, orElseEither42, orElseFail32, orElseIfEmpty3, orElseIfEmptyChunk3, orElseIfEmptyStream3, orElseSucceed32, paginate3, paginateChunk3, paginateChunkEffect3, paginateEffect3, peel3, partition52, partitionEither3, pipeThrough3, pipeThroughChannel3, pipeThroughChannelOrFail3, prepend42, provideContext52, provideSomeContext22, provideLayer3, provideService52, provideServiceEffect32, provideServiceStream3, mapInputContext52, provideSomeLayer22, range22, race32, raceAll32, rechunk3, rechunkProcess2, StreamRechunker2, refineOrDie5, refineOrDieWith5, repeat22, repeatEffect3, repeatEffectChunk3, repeatEffectChunkOption3, repeatEffectOption3, repeatEither3, repeatElements3, repeatElementsWith3, repeatValue3, repeatWith3, repeatWithSchedule2, repeatEffectWithSchedule3, retry62, withExecutionPlan32, scheduleDefectRefail22, run32, runCollect3, runCount3, runDrain22, runFold3, runFoldEffect3, runFoldScoped3, runFoldScopedEffect3, runFoldWhile3, runFoldWhileEffect3, runFoldWhileScoped3, runFoldWhileScopedEffect3, runForEach3, runForEachChunk3, runForEachChunkScoped3, runForEachScoped3, runForEachWhile3, runForEachWhileScoped3, runHead3, runIntoPubSub3, runIntoPubSubScoped3, runIntoQueue3, runIntoQueueElementsScoped3, runIntoQueueScoped3, runLast3, runScoped22, runSum3, scan3, scanReduce3, scanReduceEffect3, schedule22, scheduleWith3, scanEffect3, scoped62, scopedWith42, some52, someOrElse3, someOrFail3, sliding72, slidingSize3, split3, splitOnChunk3, splitLines22, succeed152, sync102, suspend102, take72, takeRight22, takeUntil32, takeUntilEffect3, takeWhile42, tap62, tapBoth32, tapError52, tapErrorCause52, tapSink3, throttle3, throttleEffect3, throttleEnforceEffect2, throttleShapeEffect2, tick3, timeout32, timeoutFail32, timeoutFailCause32, timeoutTo32, pubsubFromOptions2, toPubSub22, toPull22, toQueue22, toQueueOfElements3, toReadableStream3, toReadableStreamEffect3, toReadableStreamRuntime3, transduce3, toAsyncIterableRuntime3, toAsyncIterable3, toAsyncIterableEffect3, unfold32, unfoldChunk3, unfoldChunkEffect3, unfoldEffect3, void_82, unwrap22, unwrapScoped42, unwrapScopedWith32, updateService42, when32, whenCase3, whenCaseEffect3, whenEffect32, withSpan62, zip82, zipFlatten3, zipAll3, zipAllLeft3, zipAllRight3, zipAllSortedByKey3, zipAllSortedByKeyLeft3, zipAllSortedByKeyRight3, zipAllSortedByKeyWith3, zipAllWith3, zipLatest3, zipLatestAll3, zipLatestWith3, zipLeft62, zipRight92, zipWith122, zipWithChunks3, zipWithIndex3, zipWithNext3, zipWithPrevious3, zipWithPreviousAndNext3, zipChunks2, Do32, bind42, bindTo42, let_42, decodeText3, encodeText3, fromEventListener3, RedactedSymbolKey2, redactedRegistry2, RedactedTypeId3, proto122, isRedacted3, make532, value3, unsafeWipe3, GroupBySymbolKey2, GroupByTypeId2, groupByVariance2, isGroupBy2, evaluate22, make542, groupBy3, mapEffectOptions2, bindEffect3, mapDequeue2, MapDequeue2, groupByKey3, groupByIterable2, Redacted_exports2, RedactedTypeId22, isRedacted22, make552, value22, unsafeWipe22, getEquivalence42, Stream_exports2, StreamTypeId32, DefaultChunkSize22, accumulate22, accumulateChunks22, acquireRelease42, aggregate22, aggregateWithin22, aggregateWithinEither22, as92, _async22, asyncEffect42, asyncPush22, asyncScoped22, branchAfter22, broadcast22, share22, broadcastDynamic22, broadcastedQueues22, broadcastedQueuesDynamic22, buffer22, bufferChunks22, catchAll82, catchAllCause72, catchSome42, catchTag42, catchTags42, catchSomeCause42, changes22, changesWith22, changesWithEffect22, chunks22, chunksWith22, combine102, combineChunks22, concat32, concatAll32, cross22, crossLeft22, crossRight22, crossWith22, debounce22, die122, dieSync82, dieMessage52, distributedWith22, distributedWithDynamic22, drain42, drainFork22, drop42, dropRight22, dropUntil42, dropUntilEffect22, dropWhile52, dropWhileEffect22, either62, empty332, ensuring72, ensuringWith32, context62, contextWith42, contextWithEffect42, contextWithStream22, execute22, fail172, failSync92, failCause152, failCauseSync82, filter92, filterEffect22, filterMap72, filterMapEffect22, filterMapWhile42, filterMapWhileEffect22, finalizer22, find32, findEffect22, flatMap172, flatten132, flattenChunks22, flattenEffect22, flattenExitOption22, flattenIterables22, flattenTake22, forever62, fromAsyncIterable22, fromChannel32, toChannel42, fromChunk22, fromChunkPubSub22, fromChunkQueue22, fromChunks22, fromEffect92, fromEffectOption22, fromPubSub22, fromTPubSub22, fromIterable122, fromIterableEffect22, fromIteratorSucceed22, fromPull32, fromQueue32, fromTQueue22, fromReadableStream22, fromReadableStreamByob22, fromSchedule22, groupAdjacentBy22, groupBy22, groupByKey22, grouped22, groupedWithin22, haltAfter22, haltWhen22, haltWhenDeferred22, identity32, interleave22, interleaveWith22, intersperse22, intersperseAffixes22, interruptAfter22, interruptWhen32, interruptWhenDeferred32, iterate42, make562, map232, mapAccum62, mapAccumEffect22, mapBoth62, mapChunks22, mapChunksEffect22, mapConcat22, mapConcatChunk22, mapConcatChunkEffect22, mapConcatEffect22, mapEffect52, mapError72, mapErrorCause52, merge102, mergeAll92, mergeWithTag22, mergeWith42, mergeEither22, mergeLeft22, mergeRight22, mkString32, never62, onEnd22, onError42, onDone22, onStart22, orDie62, orDieWith52, orElse102, orElseEither52, orElseFail42, orElseIfEmpty22, orElseIfEmptyChunk22, orElseIfEmptyStream22, orElseSucceed42, paginate22, paginateChunk22, paginateChunkEffect22, paginateEffect22, partition62, partitionEither22, peel22, pipeThrough22, pipeThroughChannel22, pipeThroughChannelOrFail22, prepend52, provideContext62, provideSomeContext32, provideLayer22, provideService62, provideServiceEffect42, provideServiceStream22, mapInputContext62, provideSomeLayer32, race42, raceAll42, range32, rechunk22, refineOrDie22, refineOrDieWith22, repeat32, repeatEffect22, repeatEffectChunk22, repeatEffectChunkOption22, repeatEffectOption22, repeatEffectWithSchedule22, repeatEither22, repeatElements22, repeatElementsWith22, repeatValue22, repeatWith22, retry72, withExecutionPlan42, run42, runCollect22, runCount22, runDrain32, runFold22, runFoldEffect22, runFoldScoped22, runFoldScopedEffect22, runFoldWhile22, runFoldWhileEffect22, runFoldWhileScoped22, runFoldWhileScopedEffect22, runForEach22, runForEachChunk22, runForEachChunkScoped22, runForEachScoped22, runForEachWhile22, runForEachWhileScoped22, runHead22, runIntoPubSub22, runIntoPubSubScoped22, runIntoQueue22, runIntoQueueElementsScoped22, runIntoQueueScoped22, runLast22, runScoped32, runSum22, scan22, scanEffect22, scanReduce22, scanReduceEffect22, schedule32, scheduleWith22, scoped72, scopedWith52, sliding82, slidingSize22, some62, someOrElse22, someOrFail22, split22, splitOnChunk22, splitLines32, succeed162, sync112, suspend112, take82, takeRight32, takeUntil42, takeUntilEffect22, takeWhile52, tap72, tapBoth42, tapError62, tapErrorCause62, tapSink22, throttle22, throttleEffect22, tick22, timeout42, timeoutFail42, timeoutFailCause42, timeoutTo42, toPubSub32, toPull32, toQueue32, toQueueOfElements22, toReadableStream22, toReadableStreamEffect22, toReadableStreamRuntime22, toAsyncIterableRuntime22, toAsyncIterableEffect22, toAsyncIterable22, transduce22, unfold42, unfoldChunk22, unfoldChunkEffect22, unfoldEffect22, void_92, unwrap32, unwrapScoped52, unwrapScopedWith42, updateService52, when42, whenCase22, whenCaseEffect22, whenEffect42, withSpan72, zip92, zipFlatten22, zipAll22, zipAllLeft22, zipAllRight22, zipAllSortedByKey22, zipAllSortedByKeyLeft22, zipAllSortedByKeyRight22, zipAllSortedByKeyWith22, zipAllWith22, zipLatest22, zipLatestAll22, zipLatestWith22, zipLeft72, zipRight102, zipWith132, zipWithChunks22, zipWithNext22, zipWithPrevious22, zipWithPreviousAndNext22, zipWithIndex22, Do42, bind52, bindEffect22, bindTo52, let_52, decodeText22, encodeText22, fromEventListener22, ProviderGenerationPort, CredentialPort, record4, SOURCE_MANIFEST_HASH, facts, PROVIDER_PROFILES, fail182, listedCapabilities, DEFAULT_LIMITS2, id32, PEL_PROFILE2, CORE_FAILURE_BRAND3, PARSE_FAIL3, dataSpan2, maximumDataDepth2, syntheticSpan2, binaryStrict2, unaryXStrict2, builtinArgSpecs2, DESCRIPTOR_BRAND2, REGISTRY_BRAND2, ZERO_SPAN2, MAX_BYTES2, MAX_ENTRIES2, BASE_FAILURE_ID2, registries2, byteSize2, text2, name2, natural3, CODEC_MAX_BYTES2, DEFAULT_RUN_OPTIONS2, CORE_FAILURE_BRAND22, PARSE_FAIL22, BUILTIN_PROVIDER_SCHEMAS, hash22, fail192, GENERATION_OUTPUT_SCHEMA, GENERATION_TRUSTED_INSTRUCTIONS, fail202, apiFailure, disconnected, object2, objects, string22, initialState, noTool, unknownOutput, inertResponseItems, responseToolItems, classifyResponseItem, inertResponseParts, classifyResponsePart, toolSurfaceKeys, hash32, apiPrefixHash, identityKey, unwrap42, statusFailure, xaiResponsesDialect, createXaiResponsesTransport, inertBlocks, toolBlocks, classifyBlock, inertDeltas, toolDeltas, classifyDelta, anthropicMessagesDialect, createAnthropicMessagesTransport, openaiResponsesDialect, createOpenaiResponsesTransport, inertSteps, toolSteps, classifyStep, inertContent, toolContent, classifyContent, googleInteractionsDialect, createGoogleInteractionsTransport, FOREMAN_LAUNCH_VERSION, EXIT_TIMEOUT, EXIT_LAUNCHER_ERROR, HEARTBEAT_KEYS, DETACH_HANDOFF_BOUND_MS, PIDNS_INNER_ENV, HOST_PID_ENV, PIDNS_KIND_ENV, UNSHARE_USERNS_PIDNS_FLAGS, UNSHARE_PIDNS_FLAGS, UNSHARE_PROBE_LADDER, ChildSpawner, ProcessGroupTerminator, WindowsTreeTerminator, ExecveService, UnshareProbeService, HeartbeatWriter, CapabilityWriter, ByteSink, LauncherClock, DetachSpawner, StderrLog, liveClock, LiveClockLayer, liveChildSpawner, liveProcessGroupTerminator, liveWindowsTreeTerminator, liveExecve, liveUnshareProbe, liveCapabilityWriter, liveHeartbeatWriter, liveByteSink, liveStderrLog, liveDetachSpawner, LiveLauncherLayer, defaultIo, isMain, failure22, fail212, object22, text22, record33, problem, failure32, object3, sha, unwrap5;
+var __defProp2, __export2, isFunction3, dual2, identity5, constant3, constTrue2, constFalse2, constUndefined2, constVoid2, make63, mapInput4, array5, let_10, bindTo10, bind10, globalStoreId2, globalStore2, globalValue2, isString2, isNumber2, isBoolean2, isBigInt2, isFunction22, isRecordOrArray2, isObject2, hasProperty2, isTagged2, isNullable2, isIterable2, isPromiseLike2, getBugErrorMessage2, GenKindTypeId2, GenKindImpl2, SingleShotGen3, defaultIncHi2, defaultIncLo2, MUL_HI2, MUL_LO2, BIT_532, BIT_272, PCGRandom2, YieldWrapTypeId2, YieldWrap2, structuralRegionState2, standard2, forced2, isNotOptimizedAway2, internalCall2, genConstructor2, isGeneratorFunction2, randomHashCache2, symbol3, hash3, random4, combine11, optimize2, isHash2, number4, string3, structureKeys2, structure2, array22, cached4, symbol22, isEqual2, equivalence2, NodeInspectSymbol2, toJSON2, format5, BaseProto2, Class5, toStringUnknown2, stringifyCircular2, symbolRedactable2, isRedactable2, redactableState2, withRedactableContext2, redact2, pipeArguments2, OP_ASYNC2, OP_COMMIT2, OP_FAILURE2, OP_ON_FAILURE3, OP_ON_SUCCESS3, OP_ON_SUCCESS_AND_FAILURE2, OP_SUCCESS2, OP_SYNC3, OP_TAG2, OP_UPDATE_RUNTIME_FLAGS2, OP_WHILE2, OP_ITERATOR2, OP_WITH_RUNTIME2, OP_YIELD3, OP_REVERT_FLAGS2, moduleVersion2, getCurrentVersion2, EffectTypeId4, StreamTypeId4, SinkTypeId3, ChannelTypeId3, effectVariance2, sinkVariance3, channelVariance3, EffectPrototype3, StructuralPrototype2, CommitPrototype3, StructuralCommitPrototype2, Base3, TypeId33, CommonProto3, SomeProto2, NoneHash2, NoneProto2, isOption3, isNone4, isSome3, none12, some9, TypeId210, CommonProto22, RightProto2, LeftProto2, isEither5, isLeft4, isRight4, left3, right3, right22, left22, isLeft22, isRight22, match22, merge14, isNonEmptyArray3, make210, number22, mapInput22, all10, tuple3, greaterThan4, none22, some22, isNone22, isSome22, match23, getOrElse8, orElse15, orElseSome2, fromNullable5, getOrUndefined3, getOrThrowWith3, getOrThrow3, map28, flatMap23, containsWith3, _equivalence5, contains5, mergeWith5, make310, findFirst8, allocate2, makeBy3, fromIterable14, ensure2, prepend6, append4, appendAll4, isEmptyArray2, isEmptyReadonlyArray2, isNonEmptyArray22, isNonEmptyReadonlyArray2, isOutOfBounds2, clamp4, get19, unsafeGet10, head8, headNonEmpty3, last5, lastNonEmpty2, tailNonEmpty3, spanIndex2, span5, drop5, findFirst22, reverse4, sort3, zip12, zipWith17, _equivalence22, splitAt3, splitNonEmptyAt2, copy4, unionWith3, union10, empty37, of6, map29, flatMap24, flatten18, filterMap9, filterMapWhile5, partitionMap4, getSomes2, filter16, reduce16, reduceRight7, every9, unfold5, getEquivalence7, dedupeWith2, dedupe2, join5, mapAccum7, Order6, nextPow22, escape2, not2, Context_exports2, TagTypeId3, ReferenceTypeId3, STMSymbolKey3, STMTypeId4, TagProto2, ReferenceProto2, makeGenericTag2, Tag4, Reference3, TypeId34, ContextProto2, makeContext2, serviceNotFoundError2, isContext3, isTag3, isReference3, _empty8, empty210, make410, add6, defaultValueCache2, getDefaultValue2, unsafeGetReference2, unsafeGet22, get22, getOrElse22, getOption3, merge22, mergeAll12, pick4, omit4, TagTypeId22, ReferenceTypeId22, GenericTag2, unsafeMake11, isContext22, isTag22, isReference22, empty38, make510, add22, get32, getOrElse32, unsafeGet32, getOption22, merge32, mergeAll22, pick22, omit22, Tag22, Reference22, Deferred_exports2, TypeId42, emptyArray2, getEquivalence22, _equivalence32, ChunkProto2, makeChunk2, isChunk2, _empty22, empty42, make64, of22, fromIterable22, copyToArray2, toReadonlyArray_2, toReadonlyArray2, reverseChunk2, reverse22, get42, unsafeFromArray2, unsafeFromNonEmptyArray2, unsafeGet42, append22, prepend22, take9, drop22, dropWhile6, appendAll22, filterMap22, filter22, filterMapWhile22, flatMap32, flatten22, isEmpty16, isNonEmpty6, head22, unsafeHead4, headNonEmpty22, last22, unsafeLast2, map32, mapAccum22, splitAt22, splitWhere2, tailNonEmpty22, takeRight4, takeWhile6, zipWith22, makeBy22, range4, findFirst32, reduce22, reduceRight22, TypeId52, bigint05, bigint242, bigint602, bigint1e32, bigint1e62, bigint1e92, DURATION_REGEX2, decode2, zeroValue2, infinityValue2, DurationProto2, make72, isDuration2, isFinite3, isZero3, zero4, infinity2, nanos2, micros2, millis2, seconds2, minutes2, hours2, days2, weeks2, toMillis2, unsafeToNanos2, toHrTime2, match32, matchWith2, Equivalence4, sum3, lessThanOrEqualTo22, greaterThan22, greaterThanOrEqualTo22, equals22, parts2, format22, SIZE2, BUCKET_SIZE2, MASK3, MAX_INDEX_NODE2, MIN_ARRAY_NODE2, make82, EmptyNode2, LeafNode2, CollisionNode2, IndexedNode2, ArrayNode2, HashMapSymbolKey2, HashMapTypeId2, HashMapProto2, makeImpl4, HashMapIterator2, applyCont2, visitLazy2, visitLazyChildren2, _empty32, empty52, fromIterable32, isHashMap2, isEmpty22, get52, getHash2, has8, set9, setTree2, keys6, size16, beginMutation3, endMutation3, mutate4, modifyAt3, modifyHash2, remove22, map42, forEach13, reduce32, HashSetSymbolKey2, HashSetTypeId2, HashSetProto2, makeImpl22, isHashSet2, _empty42, empty62, fromIterable42, make92, has22, some32, every22, size22, beginMutation22, endMutation22, mutate22, add32, remove32, difference22, union22, forEach22, reduce42, empty72, fromIterable52, make102, has32, every32, size32, add42, remove42, difference32, union32, forEach32, reduce52, TypeId62, MutableRefProto2, make112, compareAndSet2, get62, set22, FiberIdSymbolKey2, FiberIdTypeId2, OP_NONE2, OP_RUNTIME2, OP_COMPOSITE2, emptyHash2, None4, Runtime2, Composite3, none32, isFiberId2, isNone32, combine22, combineAll3, getOrElse42, ids3, _fiberCounter2, threadName3, toSet3, unsafeMake22, none42, combine32, combineAll22, getOrElse52, ids22, threadName22, unsafeMake32, empty82, fromIterable62, isEmpty32, get72, set32, keys23, mutate32, modifyAt22, map62, forEach42, reduce62, TypeId72, toArray22, getEquivalence32, _equivalence42, ConsProto2, makeCons2, NilHash2, NilProto2, _Nil2, isList2, isNil2, isCons2, nil3, cons2, empty92, of32, appendAll32, prepend32, prependAll2, reduce72, reverse32, ArrayProto2, Structural2, struct2, ContextPatchTypeId2, PatchProto4, EmptyProto4, _empty52, empty102, AndThenProto4, makeAndThen4, AddServiceProto2, makeAddService2, RemoveServiceProto2, makeRemoveService2, UpdateServiceProto2, makeUpdateService2, diff8, combine42, patch9, HashSetPatchTypeId2, PatchProto22, EmptyProto22, _empty62, empty112, AndThenProto22, makeAndThen22, AddProto2, makeAdd2, RemoveProto2, makeRemove2, diff22, combine52, patch22, ReadonlyArrayPatchTypeId2, PatchProto32, EmptyProto32, _empty72, empty122, AndThenProto32, makeAndThen32, AppendProto2, makeAppend2, SliceProto2, makeSlice2, UpdateProto2, makeUpdate2, diff32, combine62, patch32, DifferTypeId2, DifferProto2, make142, environment2, hashSet2, readonlyArray2, update8, updateWith2, BIT_MASK2, BIT_SHIFT2, active2, enabled2, make152, empty132, enable4, disable4, exclude3, andThen9, invert2, None22, Interruption2, OpSupervision2, RuntimeMetrics2, WindDown2, CooperativeYielding2, cooperativeYielding2, disable22, enable22, interruptible5, interruption2, isEnabled3, make162, none52, runtimeMetrics2, windDown2, diff42, patch42, differ3, empty142, enable32, disable32, exclude22, empty152, par2, seq2, single2, flatten32, step4, merge42, EntryTypeId2, EntryImpl2, blockedRequestVariance2, makeEntry2, RequestBlockParallelTypeId2, parallelVariance2, ParallelImpl2, parallelCollectionEmpty2, parallelCollectionAdd2, parallelCollectionCombine2, parallelCollectionIsEmpty2, parallelCollectionKeys2, parallelCollectionToSequentialCollection2, SequentialCollectionTypeId2, sequentialVariance2, SequentialImpl2, sequentialCollectionMake2, sequentialCollectionCombine2, sequentialCollectionKeys2, sequentialCollectionToChunk2, OP_DIE4, OP_EMPTY4, OP_FAIL6, OP_INTERRUPT4, OP_PARALLEL3, OP_SEQUENTIAL3, CauseSymbolKey2, CauseTypeId3, variance42, proto13, empty162, fail21, die14, interrupt11, parallel5, sequential5, isCause3, isEmptyType3, isDieType3, isEmpty52, isInterrupted4, isInterruptedOnly3, failures3, defects3, interruptors3, failureOption3, failureOrCause3, flipCauseOption3, interruptOption3, keepDefects3, keepDefectsAndElectFailures2, stripFailures3, electFailures2, map82, flatMap72, flatten42, causeEquals2, flattenCause2, flattenCauseLoop2, find5, evaluateCause2, IsInterruptedOnlyCauseReducer2, OP_SEQUENTIAL_CASE2, OP_PARALLEL_CASE2, match42, reduce82, reduceWithContext4, pretty5, renderErrorCause2, makePrettyError2, prettyErrorMessage2, locationRegex2, spanToTrace2, prettyErrorStack2, spanSymbol2, prettyErrors3, OP_STATE_PENDING2, OP_STATE_DONE3, DeferredSymbolKey2, DeferredTypeId3, deferredVariance2, pending5, done14, SingleShotGen22, blocked3, runRequestBlock3, EffectTypeId22, RevertFlags2, EffectPrimitive2, EffectPrimitiveFailure2, EffectPrimitiveSuccess2, isEffect3, withFiberRuntime3, acquireUseRelease6, as14, asVoid8, custom3, unsafeAsync2, asyncInterrupt2, async_2, catchAllCause8, catchAll10, catchIf3, catchSome7, checkInterruptible3, originalSymbol2, capture3, die22, dieMessage7, dieSync10, either22, exit4, fail23, failSync11, failCause16, failCauseSync9, fiberId5, fiberIdWith3, flatMap82, andThen22, step22, flatten52, flip6, matchCause6, matchCauseEffect4, matchEffect4, forEachSequential2, forEachSequentialDiscard2, if_5, interrupt22, interruptWith4, interruptible22, interruptibleMask3, intoDeferred3, map92, mapBoth11, mapError12, onError5, onExit4, onInterrupt3, orElse22, orDie9, orDieWith8, partitionMap22, runtimeFlags2, succeed19, suspend13, sync13, tap10, transplant3, attemptOrElse2, uninterruptible3, uninterruptibleMask4, void_13, updateRuntimeFlags3, whenEffect5, whileLoop4, fromIterator2, gen8, fnUntraced3, withConcurrency3, withRequestBatching3, withRuntimeFlags2, withTracerEnabled3, withTracerTiming3, yieldNow5, zip22, zipLeft12, zipRight13, zipWith32, never7, interruptFiber2, interruptAsFiber2, logLevelAll2, logLevelFatal2, logLevelError2, logLevelWarning2, logLevelInfo2, logLevelDebug2, logLevelTrace2, logLevelNone2, FiberRefSymbolKey2, FiberRefTypeId2, fiberRefVariance2, fiberRefGet2, fiberRefGetWith2, fiberRefSet2, fiberRefModify2, RequestResolverSymbolKey2, RequestResolverTypeId2, requestResolverVariance2, RequestResolverImpl2, isRequestResolver2, fiberRefLocally3, fiberRefLocallyWith3, fiberRefUnsafeMake2, fiberRefUnsafeMakeHashSet2, fiberRefUnsafeMakeReadonlyArray2, fiberRefUnsafeMakeContext2, fiberRefUnsafeMakePatch2, fiberRefUnsafeMakeRuntimeFlags2, currentContext3, currentSchedulingPriority3, currentMaxOpsBeforeYield2, currentLogAnnotations2, currentLogLevel2, currentLogSpan2, withSchedulingPriority3, withMaxOpsBeforeYield3, currentConcurrency2, currentRequestBatching2, currentUnhandledErrorLogLevel2, currentVersionMismatchErrorLogLevel2, withUnhandledErrorLogLevel3, currentMetricLabels2, metricLabels3, currentForkScopeOverride2, currentInterruptedCause2, currentTracerEnabled2, currentTracerTimingEnabled3, currentTracerSpanAnnotations2, currentTracerSpanLinks2, ScopeTypeId3, CloseableScopeTypeId3, scopeAddFinalizer2, scopeAddFinalizerExit2, scopeClose2, scopeFork2, causeSquash2, causeSquashWith2, YieldableError3, makeException2, RuntimeExceptionTypeId3, RuntimeException3, isRuntimeException3, InterruptedExceptionTypeId3, InterruptedException3, isInterruptedException3, IllegalArgumentExceptionTypeId3, IllegalArgumentException3, NoSuchElementExceptionTypeId3, NoSuchElementException3, isNoSuchElementException3, InvalidPubSubCapacityExceptionTypeId3, InvalidPubSubCapacityException2, ExceededCapacityExceptionTypeId3, ExceededCapacityException3, TimeoutExceptionTypeId3, TimeoutException3, timeoutExceptionFromDuration2, UnknownExceptionTypeId3, UnknownException3, exitIsExit2, exitIsFailure2, exitIsSuccess2, exitAs2, exitAsVoid2, exitCollectAll2, exitDie3, exitFail2, exitFailCause3, exitFlatMap2, exitFlatten2, exitForEachEffect2, exitInterrupt3, exitMap2, exitMapBoth2, exitMatch2, exitMatchEffect2, exitSucceed3, exitVoid3, exitZip2, exitZipRight2, exitZipWith2, exitCollectAllInternal2, deferredUnsafeMake2, deferredMake2, deferredMakeAs2, deferredAwait2, deferredComplete2, deferredCompleteWith2, deferredDone2, deferredFail2, deferredFailSync2, deferredFailCause2, deferredFailCauseSync2, deferredDie2, deferredDieSync2, deferredInterrupt2, deferredInterruptWith2, deferredIsDone2, deferredPoll2, deferredSucceed2, deferredSync2, deferredUnsafeDone2, deferredInterruptJoiner2, constContext2, context10, contextWithEffect5, provideContext9, provideSomeContext6, mapInputContext8, filterEffectOrElse3, filterEffectOrFail3, currentSpanFromFiber2, NoopSpanProto2, noopSpan2, DeferredTypeId22, make182, makeAs2, _await4, complete5, completeWith2, done22, fail32, failSync22, failCause22, failCauseSync22, die32, dieSync22, interrupt32, interruptWith22, isDone7, poll8, succeed22, sync22, unsafeMake42, unsafeDone2, isFailure8, isSuccess7, all22, die42, fail42, failCause32, flatten62, forEachEffect2, interrupt42, map102, mapBoth22, match52, succeed32, void_22, zip32, zipRight22, zipWith42, TypeId82, MutableHashMapProto2, MutableHashMapIterator2, BucketIterator2, empty172, get82, getFromBucket2, has42, set42, removeFromBucket2, remove52, size42, TypeId92, MutableListProto2, makeNode3, empty182, isEmpty62, length3, append32, shift2, remove62, TypeId102, EmptyMutableQueue2, MutableQueueProto2, make192, bounded8, unbounded8, length22, isEmpty72, capacity7, offer6, offerAll5, poll22, pollUpTo2, ClockSymbolKey2, ClockTypeId3, clockTag2, MAX_TIMER_MILLIS2, globalClockScheduler2, performanceNowNanos2, processOrPerformanceNow2, ClockImpl2, make202, OP_AND2, OP_OR2, OP_INVALID_DATA2, OP_MISSING_DATA2, OP_SOURCE_UNAVAILABLE2, OP_UNSUPPORTED2, ConfigErrorSymbolKey2, ConfigErrorTypeId2, proto22, And2, Or2, InvalidData2, MissingData2, SourceUnavailable2, Unsupported2, prefixed2, reduceWithContext22, empty192, patch52, OP_CONSTANT2, OP_FAIL22, OP_FALLBACK2, OP_DESCRIBED2, OP_LAZY2, OP_MAP_OR_FAIL2, OP_NESTED2, OP_PRIMITIVE2, OP_REDACTED2, OP_SEQUENCE2, OP_HASHMAP2, OP_ZIP_WITH3, concat4, ConfigProviderSymbolKey2, ConfigProviderTypeId2, configProviderTag2, FlatConfigProviderSymbolKey2, FlatConfigProviderTypeId2, make222, makeFlat2, fromFlat2, fromEnv2, extend3, appendConfigPath2, RedactedConfigErrorReducer2, redactConfigError2, fromFlatLoop2, fromFlatLoopFail2, splitPathString2, parsePrimitive2, transpose2, indicesFrom2, QUOTED_INDEX_REGEX2, parseQuotedIndex2, parseInteger2, TypeId112, consoleTag2, defaultConsole2, RandomSymbolKey2, RandomTypeId2, randomTag2, RandomImpl2, shuffleWith2, swap3, make232, FixedRandomImpl2, fixed5, TracerTypeId2, make242, tracerTag2, spanTag2, randomHexString2, NativeSpan2, nativeTracer2, addSpanStackTrace2, DisablePropagation2, liveServices2, currentServices2, sleep5, defaultServicesWith2, clockWith5, currentTimeMillis3, currentTimeNanos3, withClock3, withConfigProvider3, configProviderWith3, randomWith3, withRandom3, tracerWith5, withTracer3, sleep22, currentTimeMillis22, currentTimeNanos22, clockWith22, Clock2, FiberRefsSym2, FiberRefsImpl2, findAncestor2, joinAs3, forkAs2, unsafeForkAs2, fiberRefs3, setAll3, delete_3, get92, getOrDefault3, updateAs3, unsafeUpdateAs2, updateManyAs3, get102, getOrDefault22, joinAs22, setAll22, updateManyAs22, empty212, All2, Fatal2, Error22, Warning2, Info2, Debug2, Trace2, None32, Order22, greaterThan32, fromLiteral2, make252, formatLabel2, render2, make262, Ref_exports2, EffectPrototype22, CommitPrototype22, Base22, Class22, TypeId122, Proto8, RefTypeId3, refVariance2, RefImpl2, unsafeMake62, make272, get112, set52, getAndSet5, getAndUpdate5, getAndUpdateSome5, setAndGet5, modify32, modifySome5, update22, updateAndGet5, updateSome5, updateSomeAndGet5, RefTypeId22, make282, get122, getAndSet22, getAndUpdate22, getAndUpdateSome22, modify42, modifySome22, set62, setAndGet22, update32, updateAndGet22, updateSome22, updateSomeAndGet22, unsafeMake72, tracerWith22, OP_EMPTY22, OP_ADD2, OP_REMOVE2, OP_UPDATE2, OP_AND_THEN3, empty222, diff52, combine72, patch62, MetricLabelSymbolKey2, MetricLabelTypeId2, MetricLabelImpl2, make292, isMetricLabel2, annotateLogs5, asSome5, asSomeError5, try_6, _catch3, catchAllDefect3, catchSomeCause5, catchSomeDefect3, catchTag7, catchTags7, cause3, clockWith32, clock3, delay3, descriptorWith3, allowInterrupt3, descriptor3, diffFiberRefs3, diffFiberRefsAndRuntimeFlags2, Do8, bind22, bindTo22, let_22, dropUntil5, dropWhile22, contextWith7, eventually5, filterMap42, filterOrDie5, filterOrDieMessage5, filterOrElse5, liftPredicate5, filterOrFail5, findFirst52, findLoop2, firstSuccessOf4, flipWith5, match72, every52, forAllLoop2, forever7, fiberRefs22, head32, ignore5, ignoreLogged3, inheritFiberRefs3, isFailure22, isSuccess22, iterate7, logWithLevel3, log3, logTrace3, logDebug3, logInfo3, logWarning3, logError3, logFatal3, withLogSpan3, logAnnotations3, loop5, loopInternal2, loopDiscard2, mapAccum32, mapErrorCause7, memoize4, merge52, negate5, none62, once4, option6, orElseFail7, orElseSucceed7, parallelErrors3, patchFiberRefs3, promise3, provideService9, provideServiceEffect5, random22, reduce92, reduceRight32, reduceWhile3, reduceWhileLoop2, repeatN3, repeatNLoop2, sandbox3, setFiberRefs3, sleep32, succeedNone5, succeedSome5, summarized5, tagMetrics3, labelMetrics3, takeUntil5, takeWhile22, tapBoth7, tapDefect3, tapError9, tapErrorTag3, tapErrorCause7, timed3, timedWith3, tracerWith32, tracer3, tryPromise3, tryMap3, tryMapPromise3, unless5, unlessEffect3, unsandbox3, updateFiberRefs4, updateService6, when7, whenFiberRef3, whenRef3, withMetric3, serviceFunctionEffect3, serviceFunction3, serviceFunctions3, serviceConstants3, serviceMembers3, serviceOption3, serviceOptional3, annotateCurrentSpan3, linkSpanCurrent3, annotateSpans5, currentParentSpan3, currentSpan3, currentPropagatedSpan3, linkSpans3, bigint022, filterDisablePropagation2, unsafeMakeSpan2, makeSpan3, spanAnnotations3, spanLinks3, endSpan2, useSpan3, withParentSpan5, withSpan8, functionWithSpan3, fromNullable22, optionFromOptional3, OP_SEQUENTIAL22, OP_PARALLEL22, OP_PARALLEL_N2, sequential22, parallel22, parallelN3, isSequential2, isParallel2, sequential32, parallel32, parallelN22, diff62, patch72, FiberStatusSymbolKey2, FiberStatusTypeId2, OP_DONE7, OP_RUNNING3, OP_SUSPENDED2, DoneHash2, Done5, Running2, Suspended2, done32, running4, suspended3, isFiberStatus2, isDone22, isRunning4, isSuspended3, done42, running22, suspended22, isDone32, isRunning22, isSuspended22, TypeId132, MicroExitTypeId2, MicroCauseTypeId2, microCauseVariance2, MicroCauseImpl2, Die2, causeDie2, Interrupt2, causeInterrupt2, causeIsInterrupt2, MicroFiberTypeId2, fiberVariance3, MicroFiberImpl2, fiberMiddleware2, fiberInterruptAll2, identifier2, args2, evaluate3, successCont2, failureCont2, ensureCont2, Yield2, microVariance2, MicroProto2, makePrimitiveProto2, makePrimitive2, makeExit2, succeed42, failCause42, sync32, suspend22, yieldNowWith2, yieldNow22, void_32, withMicroFiber2, asyncOptions2, asyncFinalizer2, async3, as22, exit22, flatMap92, OnSuccessProto2, map112, isMicroExit2, exitSucceed22, exitFailCause22, exitInterrupt22, exitDie22, exitVoid22, exitVoidAll2, setImmediate22, MicroSchedulerDefault2, updateContext3, provideContext22, MaxOpsBeforeYield2, CurrentConcurrency2, CurrentScheduler2, matchCauseEffect22, OnSuccessAndFailureProto2, matchCause22, MicroScopeTypeId2, MicroScopeImpl2, onExit22, setInterruptible2, interruptible32, uninterruptibleMask22, whileLoop22, forEach52, unsafeFork4, runFork4, SchedulerRunner2, PriorityBuckets2, MixedScheduler2, defaultScheduler2, SyncScheduler2, currentScheduler3, withScheduler3, currentRequestMap2, match92, matchSimple2, OP_INTERRUPT_SIGNAL2, OP_STATEFUL2, OP_RESUME2, OP_YIELD_NOW2, interruptSignal2, stateful2, resume2, yieldNow32, FiberScopeSymbolKey2, FiberScopeTypeId2, Global2, Local2, unsafeMake82, globalScope2, FiberSymbolKey2, FiberTypeId3, fiberVariance22, fiberProto2, RuntimeFiberSymbolKey2, RuntimeFiberTypeId3, Order32, isFiber3, isRuntimeFiber3, _await22, children3, done52, dump3, dumpAll3, fail52, failCause52, fromEffect10, id4, inheritAll3, interrupted4, interruptAll3, interruptAllAs3, interruptAsFork3, join22, map122, mapEffect6, mapFiber3, match102, _never2, never22, orElse32, orElseEither9, poll32, parseMs2, renderStatus2, pretty22, unsafeRoots3, roots3, status3, succeed52, void_42, currentFiberURI2, getCurrentFiber3, LoggerSymbolKey2, LoggerTypeId2, loggerVariance2, makeLogger2, none72, textOnly2, format32, escapeDoubleQuotes2, stringLogger2, colors2, logLevelColors2, hasProcessStdout2, processStdoutIsTTY2, hasProcessStdoutOrDeno2, MetricBoundariesSymbolKey2, MetricBoundariesTypeId2, MetricBoundariesImpl2, isMetricBoundaries2, fromIterable72, exponential3, MetricKeyTypeSymbolKey2, MetricKeyTypeTypeId2, CounterKeyTypeSymbolKey2, CounterKeyTypeTypeId2, FrequencyKeyTypeSymbolKey2, FrequencyKeyTypeTypeId2, GaugeKeyTypeSymbolKey2, GaugeKeyTypeTypeId2, HistogramKeyTypeSymbolKey2, HistogramKeyTypeTypeId2, SummaryKeyTypeSymbolKey2, SummaryKeyTypeTypeId2, metricKeyTypeVariance2, CounterKeyType2, FrequencyKeyTypeHash2, FrequencyKeyType2, GaugeKeyTypeHash2, GaugeKeyType2, HistogramKeyType2, SummaryKeyType2, counter6, histogram6, isCounterKey2, isFrequencyKey2, isGaugeKey2, isHistogramKey2, isSummaryKey2, MetricKeySymbolKey2, MetricKeyTypeId2, metricKeyVariance2, arrayEquivilence2, MetricKeyImpl2, isMetricKey2, counter22, histogram22, taggedWithLabels3, MetricStateSymbolKey2, MetricStateTypeId2, CounterStateSymbolKey2, CounterStateTypeId2, FrequencyStateSymbolKey2, FrequencyStateTypeId2, GaugeStateSymbolKey2, GaugeStateTypeId2, HistogramStateSymbolKey2, HistogramStateTypeId2, SummaryStateSymbolKey2, SummaryStateTypeId2, metricStateVariance2, CounterState2, arrayEquals2, FrequencyState2, GaugeState2, HistogramState2, SummaryState2, counter32, frequency22, gauge22, histogram32, summary22, isCounterState2, isFrequencyState2, isGaugeState2, isHistogramState2, isSummaryState2, MetricHookSymbolKey2, MetricHookTypeId2, metricHookVariance2, make302, bigint032, counter42, frequency32, gauge32, histogram42, summary32, calculateQuantiles2, resolveQuantile2, MetricPairSymbolKey2, MetricPairTypeId2, metricPairVariance2, unsafeMake92, MetricRegistrySymbolKey2, MetricRegistryTypeId2, MetricRegistryImpl2, make312, MetricSymbolKey2, MetricTypeId2, metricVariance2, globalMetricRegistry2, make322, counter52, fromMetricKey2, histogram52, tagged3, taggedWithLabels22, update42, RequestSymbolKey2, RequestTypeId2, requestVariance2, RequestPrototype2, isRequest3, complete22, Listeners2, Direction2, RedBlackTreeIterator2, Color2, clone3, repaint2, recount2, RedBlackTreeSymbolKey2, RedBlackTreeTypeId2, redBlackTreeVariance2, RedBlackTreeProto2, makeImpl32, isRedBlackTree2, findFirst62, has52, insert3, keysForward2, keys32, removeFirst3, fixDoubleBlack2, has62, insert22, keys42, removeFirst22, TypeId142, SortedSetProto2, fromTree2, isSortedSet2, add52, remove72, SupervisorSymbolKey2, SupervisorTypeId3, supervisorVariance2, ProxySupervisor2, Zip2, isZip2, Track2, Const2, FibersIn2, unsafeTrack2, track2, fromEffect22, none82, make342, OP_EMPTY32, OP_ADD_SUPERVISOR2, OP_REMOVE_SUPERVISOR2, OP_AND_THEN22, empty252, combine82, patch82, patchLoop2, removeSupervisor2, toSet22, diff72, differ22, fiberStarted2, fiberActive2, fiberSuccesses2, fiberFailures2, fiberLifetimes2, EvaluationSignalContinue2, EvaluationSignalDone2, EvaluationSignalYieldNow2, runtimeFiberVariance2, absurd2, YieldedOp2, yieldedOpChannel2, contOpSuccess2, drainQueueWhileRunningTable2, runBlockedRequests2, _version2, FiberRuntime2, currentMinimumLogLevel2, loggerWithConsoleLog2, defaultLogger2, tracerLogger2, currentLoggers2, annotateLogsScoped3, whenLogLevel3, acquireRelease5, acquireReleaseInterruptible3, addFinalizer4, daemonChildren3, _existsParFound2, exists7, existsLoop2, filter52, allResolveInput2, allValidate2, allEither2, all42, allWith3, allSuccesses3, replicate5, replicateEffect3, forEach82, forEachParUnbounded2, forEachConcurrentDiscard2, forEachParN2, fork4, forkDaemon3, forkWithErrorHandler3, unsafeFork22, unsafeForkUnstarted2, unsafeMakeChildFiber2, forkWithScopeOverride2, mergeAll32, partition32, validateAll5, raceAll5, reduceEffect4, parallelFinalizers3, parallelNFinalizers2, finalizersMask3, finalizersMaskInternal2, scopeWith3, scopedWith6, scopedEffect2, sequentialFinalizers3, tagMetricsScoped3, labelMetricsScoped3, using3, validate4, validateWith3, validateFirst5, withClockScoped3, withRandomScoped3, withConfigProviderScoped3, withEarlyRelease3, zipOptions2, zipLeftOptions2, zipRightOptions2, zipWithOptions2, withRuntimeFlagsScoped2, scopeTag2, scope5, scopeUnsafeAddFinalizer2, ScopeImplProto2, scopeUnsafeMake2, scopeMake2, scopeExtend2, scopeUse2, fiberRefUnsafeMakeSupervisor2, fiberRefLocallyScoped3, fiberRefLocallyScopedWith4, currentRuntimeFlags2, currentSupervisor2, fiberAwaitAll2, fiberAll2, fiberInterruptFork2, fiberJoinAll2, fiberScoped2, raceWith4, disconnect3, race5, raceFibersWith2, completeRace2, ensuring9, invokeWithInterrupt2, makeSpanScoped3, withTracerScoped3, withSpanScoped3, complete32, pending22, refreshing2, MapKeyTypeId2, MapKeyImpl2, makeMapKey2, isMapKey2, KeySetImpl2, makeKeySet2, makeCacheState2, initialCacheState2, CacheSymbolKey2, CacheTypeId2, cacheVariance2, ConsumerCacheSymbolKey2, ConsumerCacheTypeId2, consumerCacheVariance2, makeCacheStats2, makeEntryStats2, CacheImpl2, unsafeMakeWith2, fail62, die52, interrupt52, isDieType22, isInterrupted22, isInterruptedOnly22, interruptors22, failureOrCause22, flipCauseOption22, map132, squash2, IllegalArgumentException22, NoSuchElementException22, RuntimeException22, isRuntimeException22, Effect_exports2, IntervalSymbolKey2, IntervalTypeId2, empty262, make352, lessThan22, min22, isEmpty82, intersect6, size82, after3, make362, empty272, lessThan32, isEmpty92, intersect22, size92, after22, IntervalsSymbolKey2, IntervalsTypeId2, make372, intersect32, intersectLoop2, start5, end6, lessThan42, isNonEmpty32, make382, intersect42, start22, end22, lessThan52, isNonEmpty42, OP_CONTINUE3, OP_DONE22, _continue3, continueWith3, done62, isContinue3, isDone42, _continue22, continueWith22, done72, isContinue22, isDone52, Scope2, addFinalizer22, addFinalizerExit2, close2, extend22, fork22, make392, Semaphore2, unsafeMakeSemaphore3, makeSemaphore3, Latch2, unsafeMakeLatch3, makeLatch3, awaitAllChildren3, cached22, cachedInvalidateWithTTL3, computeCachedValue2, getCachedValue2, invalidateCache2, ensuringChild3, ensuringChildren3, forkAll3, forkIn3, forkScoped3, fromFiber3, fromFiberEffect3, memoKeySymbol2, Key2, cachedFunction3, raceFirst3, supervised3, timeout5, timeoutFail5, timeoutFailCause5, timeoutOption3, timeoutTo5, SynchronizedSymbolKey2, SynchronizedTypeId2, synchronizedVariance2, SynchronizedImpl2, makeSynchronized2, unsafeMakeSynchronized2, updateSomeAndGetEffectSynchronized2, zipFiber2, zipLeftFiber2, zipRightFiber2, zipWithFiber2, bindAll3, TypeId152, OP_EXTEND_SCOPE2, OP_FOLD3, OP_FRESH2, OP_FROM_EFFECT4, OP_SCOPED2, OP_SUSPEND4, OP_PROVIDE4, OP_PROVIDE_MERGE2, OP_MERGE_ALL2, OP_ZIP_WITH22, Fiber_exports2, FiberTypeId22, RuntimeFiberTypeId22, Order42, isFiber22, isRuntimeFiber22, id22, _await32, awaitAll2, children22, all52, done82, dump22, dumpAll22, fail72, failCause62, fromEffect32, getCurrentFiber22, inheritAll22, interrupt62, interrupted22, interruptAs4, interruptAsFork22, interruptAll22, interruptAllAs22, interruptFork2, join32, joinAll2, map142, mapEffect22, mapFiber22, match112, never32, orElse42, orElseEither32, poll42, pretty32, roots22, unsafeRoots22, scoped8, status22, succeed62, void_52, zip52, zipLeft22, zipRight32, zipWith52, makeDual2, unsafeFork32, unsafeRunCallback2, unsafeRunSync2, AsyncFiberExceptionImpl2, asyncFiberException2, FiberFailureId2, FiberFailureCauseId2, FiberFailureImpl2, fiberFailure2, fastPath2, unsafeRunSyncExit2, unsafeRunPromise2, unsafeRunPromiseExit2, RuntimeImpl2, make402, runtime22, defaultRuntimeFlags2, defaultRuntime3, unsafeRunEffect2, unsafeForkEffect2, unsafeRunPromiseEffect2, unsafeRunPromiseExitEffect2, unsafeRunSyncEffect2, unsafeRunSyncExitEffect2, asyncEffect5, modifyEffect2, LayerSymbolKey2, LayerTypeId3, layerVariance2, proto32, MemoMapTypeIdKey2, MemoMapTypeId3, CurrentMemoMap3, isLayer3, isFresh3, MemoMapImpl2, makeMemoMap3, unsafeMakeMemoMap2, build3, buildWithScope3, buildWithMemoMap3, makeBuilder2, catchAll22, catchAllCause22, die62, dieSync32, discard3, context22, extendScope3, fail82, failSync32, failCause72, failCauseSync32, flatMap102, flatten72, fresh3, fromEffect42, fromEffectDiscard2, fiberRefLocally22, locallyEffect3, fiberRefLocallyWith22, fiberRefLocallyScoped22, fiberRefLocallyScopedWith22, fromFunction4, launch3, mock3, mockImpl2, makeUnimplemented2, map152, mapError22, matchCause32, match122, memoize22, merge62, mergeAll42, orDie22, orElse52, passthrough4, project3, retry9, retryLoop2, retryUpdate2, scoped22, scopedDiscard3, scopedContext3, scope22, service3, succeed72, succeedContext3, empty292, suspend32, sync42, syncContext3, tap22, tapError22, tapErrorCause22, toRuntime3, toRuntimeWithMemoMap3, provide4, provideMerge3, zipWith62, unwrapEffect3, unwrapScoped6, annotateLogs22, annotateSpans22, withSpan22, withParentSpan22, provideSomeLayer4, provideSomeRuntime2, effect_provide2, console22, consoleWith3, withConsole3, withConsoleScoped3, fixed22, ScheduleSymbolKey2, ScheduleTypeId2, isSchedule2, ScheduleDriverSymbolKey2, ScheduleDriverTypeId2, defaultIterationMetadata2, CurrentIterationMetadata3, scheduleVariance2, scheduleDriverVariance2, ScheduleImpl2, updateInfo2, ScheduleDriverImpl2, makeWithState2, addDelay2, addDelayEffect2, asVoid22, check5, checkEffect2, driver3, intersect52, intersectWith2, intersectWithLoop2, map162, mapEffect32, modifyDelayEffect2, passthrough22, recurs2, spaced3, unfold22, untilInputEffect2, whileInputEffect2, whileOutput2, ScheduleDefectTypeId2, ScheduleDefect2, isScheduleDefect2, scheduleDefectWrap2, scheduleDefectRefailCause2, scheduleDefectRefail3, repeat_Effect2, repeat_combined2, repeatOrElse_Effect2, repeatOrElseEffectLoop2, retry_Effect2, retry_combined2, fromRetryOptions2, retryOrElse_Effect2, retryOrElse_EffectLoop2, schedule_Effect2, scheduleFrom_Effect2, scheduleFrom_EffectLoop2, forever22, once22, scheduleForked3, withExecutionPlan5, scheduleFromStep2, currentCache2, currentCacheEnabled2, fromRequest2, cacheRequest2, withRequestCaching3, withRequestCache3, isRequest22, EffectTypeId32, isEffect22, cachedWithTTL2, cachedInvalidateWithTTL22, cached32, cachedFunction22, once32, all62, allWith22, allSuccesses22, dropUntil22, dropWhile32, takeUntil22, takeWhile32, every62, exists22, filter72, filterMap52, findFirst72, forEach92, head42, mergeAll52, partition42, reduce112, reduceWhile22, reduceRight42, reduceEffect22, replicate22, replicateEffect22, validateAll22, validateFirst22, async22, asyncEffect22, custom22, withFiberRuntime22, fail102, failSync42, failCause92, failCauseSync42, die72, dieMessage22, dieSync42, gen22, never42, none92, promise22, succeed92, succeedNone22, succeedSome22, suspend42, sync52, _void2, yieldNow42, _catch22, catchAll32, catchAllCause32, catchAllDefect22, catchIf22, catchSome22, catchSomeCause22, catchSomeDefect22, catchTag22, catchTags22, cause22, eventually22, ignore22, ignoreLogged22, parallelErrors22, sandbox22, retry22, withExecutionPlan22, retryOrElse2, try_22, tryMap22, tryMapPromise22, tryPromise22, unsandbox22, allowInterrupt22, checkInterruptible22, disconnect22, interrupt72, interruptWith32, interruptible42, interruptibleMask22, onInterrupt22, uninterruptible22, uninterruptibleMask32, liftPredicate22, as42, asSome22, asSomeError22, asVoid32, flip22, flipWith22, map172, mapAccum42, mapBoth32, mapError32, mapErrorCause22, merge72, negate22, acquireRelease22, acquireReleaseInterruptible22, acquireUseRelease22, addFinalizer32, ensuring22, onError22, onExit32, parallelFinalizers22, sequentialFinalizers22, finalizersMask22, scope32, scopeWith22, scopedWith22, scoped32, using22, withEarlyRelease22, awaitAllChildren22, daemonChildren22, descriptor22, descriptorWith22, diffFiberRefs22, ensuringChild22, ensuringChildren22, fiberId22, fiberIdWith22, fork32, forkDaemon22, forkAll22, forkIn22, forkScoped22, forkWithErrorHandler22, fromFiber22, fromFiberEffect22, supervised22, transplant22, withConcurrency22, withScheduler22, withSchedulingPriority22, withMaxOpsBeforeYield22, clock22, clockWith42, withClockScoped22, withClock22, console32, consoleWith22, withConsoleScoped22, withConsole22, delay22, sleep42, timed22, timedWith22, timeout22, timeoutOption22, timeoutFail22, timeoutFailCause22, timeoutTo22, configProviderWith22, withConfigProvider22, withConfigProviderScoped22, context32, contextWith22, contextWithEffect22, mapInputContext22, provide22, provideService22, provideServiceEffect22, serviceFunction22, serviceFunctionEffect22, serviceFunctions22, serviceConstants22, serviceMembers22, serviceOption22, serviceOptional22, updateService22, Do22, bind32, bindAll22, bindTo32, let_32, option22, either32, exit32, intoDeferred22, if_22, filterOrDie22, filterOrDieMessage22, filterOrElse22, filterOrFail22, filterEffectOrElse22, filterEffectOrFail22, unless22, unlessEffect22, when22, whenEffect22, whenFiberRef22, whenRef22, flatMap112, andThen42, flatten82, race22, raceAll22, raceFirst22, raceWith22, summarized22, tap32, tapBoth22, tapDefect22, tapError32, tapErrorTag22, tapErrorCause32, forever32, iterate22, loop22, repeat4, repeatN22, repeatOrElse2, schedule4, scheduleForked22, scheduleFrom2, whileLoop32, getFiberRefs2, inheritFiberRefs22, locally3, locallyWith3, locallyScoped3, locallyScopedWith2, patchFiberRefs22, setFiberRefs22, updateFiberRefs22, isFailure42, isSuccess32, match132, matchCause42, matchCauseEffect32, matchEffect22, log22, logWithLevel22, logTrace22, logDebug22, logInfo22, logWarning22, logError22, logFatal22, withLogSpan22, annotateLogs32, annotateLogsScoped22, logAnnotations22, withUnhandledErrorLogLevel22, whenLogLevel22, orDie32, orDieWith22, orElse62, orElseFail22, orElseSucceed22, firstSuccessOf22, random32, randomWith22, withRandom22, withRandomFixed2, withRandomScoped22, runtime32, getRuntimeFlags2, patchRuntimeFlags2, withRuntimeFlagsPatch2, withRuntimeFlagsPatchScoped2, tagMetrics22, labelMetrics22, tagMetricsScoped22, labelMetricsScoped22, metricLabels22, withMetric22, unsafeMakeSemaphore22, makeSemaphore22, unsafeMakeLatch22, makeLatch22, runFork22, runCallback2, runPromise2, runPromiseExit3, runSync2, runSyncExit2, validate22, validateWith22, zip62, zipLeft32, zipRight42, zipWith72, ap4, blocked22, runRequestBlock22, step32, request2, cacheRequestResult2, withRequestBatching22, withRequestCaching22, withRequestCache22, tracer22, tracerWith42, withTracer22, withTracerScoped22, withTracerEnabled22, withTracerTiming22, annotateSpans32, annotateCurrentSpan22, currentSpan22, currentPropagatedSpan22, currentParentSpan22, spanAnnotations22, spanLinks22, linkSpans22, linkSpanCurrent22, makeSpan22, makeSpanScoped22, useSpan22, withSpan32, functionWithSpan22, withSpanScoped22, withParentSpan32, fromNullable32, optionFromOptional22, transposeOption3, transposeMapOption3, makeTagProxy2, Tag32, Service2, fn2, fnUntraced22, ensureSuccessType3, ensureErrorType3, ensureRequirementsType3, get132, currentContext22, currentSchedulingPriority22, currentScheduler22, currentTracerTimingEnabled22, Layer_exports2, setConfigProvider3, parentSpan3, span23, setTracer3, LayerTypeId22, MemoMapTypeId22, CurrentMemoMap22, isLayer22, isFresh22, annotateLogs42, annotateSpans42, build22, buildWithScope22, catchAll42, catchAllCause42, context42, die82, dieSync52, discard22, effect4, effectDiscard2, effectContext2, empty302, extendScope22, fail112, failSync52, failCause102, failCauseSync52, flatMap122, flatten92, fresh22, mock22, fromFunction22, launch22, map182, mapError42, match142, matchCause52, memoize32, merge82, mergeAll62, orDie42, orElse72, passthrough32, project22, locallyEffect22, locally22, locallyWith22, locallyScoped22, fiberRefLocallyScopedWith32, retry32, scope42, scoped42, scopedDiscard22, scopedContext22, service22, succeed102, succeedContext22, suspend52, sync62, syncContext22, tap42, tapError42, tapErrorCause42, toRuntime22, toRuntimeWithMemoMap22, provide32, provideMerge22, zipWith82, unwrapEffect22, unwrapScoped22, setClock2, setConfigProvider22, parentSpan22, setRandom2, setRequestBatching2, setRequestCaching2, setRequestCache2, setScheduler2, span32, setTracer22, setTracerEnabled2, setTracerTiming2, setUnhandledErrorLogLevel2, setVersionMismatchErrorLogLevel2, withSpan42, withParentSpan42, makeMemoMap22, buildWithMemoMap22, updateService32, ensureSuccessType22, ensureErrorType22, ensureRequirementsType22, EnqueueSymbolKey2, EnqueueTypeId3, DequeueSymbolKey2, DequeueTypeId3, QueueStrategySymbolKey2, QueueStrategyTypeId3, BackingQueueSymbolKey2, BackingQueueTypeId3, queueStrategyVariance2, backingQueueVariance2, enqueueVariance2, dequeueVariance2, QueueImpl2, takeRemainderLoop3, isQueue3, isEnqueue3, isDequeue3, bounded22, dropping7, sliding9, unbounded22, unsafeMake102, make412, BackingQueueFromMutableQueue2, backingQueueFromMutableQueue2, capacity22, size102, isFull6, isEmpty102, isShutdown7, awaitShutdown6, shutdown7, offer22, unsafeOffer3, offerAll22, poll52, take22, takeAll4, takeUpTo4, takeBetween4, takeN4, backPressureStrategy3, droppingStrategy3, slidingStrategy3, BackPressureStrategy3, DroppingStrategy3, SlidingStrategy3, unsafeCompleteDeferred3, unsafeOfferAll3, unsafePollAll2, unsafePollN3, unsafeRemove3, unsafeCompleteTakers2, AbsentValue3, addSubscribers2, removeSubscribers2, bounded32, dropping22, sliding22, unbounded32, shutdown22, subscribe4, makeBoundedPubSub2, makeUnboundedPubSub2, makeSubscription3, unsafeMakeSubscription2, BoundedPubSubArb2, BoundedPubSubArbSubscription2, BoundedPubSubPow22, BoundedPubSubPow2Subscription2, BoundedPubSubSingle2, BoundedPubSubSingleSubscription2, UnboundedPubSub2, UnboundedPubSubSubscription2, SubscriptionImpl2, takeRemainderLoop22, PubSubImpl2, makePubSub2, unsafeMakePubSub2, ensureCapacity2, unsafeCompleteDeferred22, unsafeOfferAll22, unsafePollAllQueue2, unsafePollAllSubscription2, unsafePollN22, unsafePublishAll2, unsafeRemove22, BackPressureStrategy22, DroppingStrategy22, SlidingStrategy22, unsafeStrategyCompletePollers2, unsafeStrategyCompleteSubscribers2, ReplayBuffer2, ReplayWindowImpl2, emptyReplayWindow2, bounded42, dropping32, sliding32, unbounded42, shutdown32, subscribe22, Queue_exports2, EnqueueTypeId22, DequeueTypeId22, QueueStrategyTypeId22, BackingQueueTypeId22, isQueue22, isDequeue22, isEnqueue22, backPressureStrategy22, droppingStrategy22, slidingStrategy22, make422, bounded52, dropping42, sliding42, unbounded52, capacity42, size122, isEmpty122, isFull32, isShutdown32, awaitShutdown32, shutdown42, offer32, unsafeOffer22, offerAll32, poll62, take32, takeAll22, takeUpTo22, takeBetween22, takeN22, OP_CONTINUE22, OP_CLOSE2, OP_YIELD22, ChildExecutorDecisionSymbolKey2, ChildExecutorDecisionTypeId2, proto42, Continue2, OP_CONTINUATION_K2, OP_CONTINUATION_FINALIZER2, ContinuationTypeId2, continuationVariance2, ContinuationKImpl2, ContinuationFinalizerImpl2, OP_PULL_AFTER_NEXT2, OP_PULL_AFTER_ALL_ENQUEUED2, UpstreamPullStrategySymbolKey2, UpstreamPullStrategyTypeId2, upstreamPullStrategyVariance2, proto52, PullAfterNext2, OP_BRACKET_OUT2, OP_BRIDGE2, OP_CONCAT_ALL2, OP_EMIT5, OP_ENSURING2, OP_FAIL32, OP_FOLD22, OP_FROM_EFFECT22, OP_PIPE_TO2, OP_PROVIDE22, OP_READ3, OP_SUCCEED4, OP_SUCCEED_NOW2, OP_SUSPEND22, ChannelSymbolKey2, ChannelTypeId22, channelVariance22, proto62, isChannel2, acquireReleaseOut2, catchAllCause52, collectElements2, collectElementsReader2, concatAllWith2, concatMapWith2, embedInput2, ensuringWith4, fail122, failCause112, failCauseSync62, flatMap132, foldCauseChannel2, fromEffect52, pipeTo2, provideContext32, readWith2, readWithCause2, succeed112, succeedNow2, suspend62, sync72, void_62, write2, OP_DONE32, OP_EMIT22, OP_FROM_EFFECT32, OP_READ22, ChannelStateTypeId2, channelStateVariance2, proto72, Done22, Emit3, fromEffect62, Read2, isFromEffect2, effect22, effectOrUndefinedIgnored2, OP_PULL_FROM_CHILD2, OP_PULL_FROM_UPSTREAM2, OP_DRAIN_CHILD_EXECUTORS2, OP_EMIT32, PullFromChild2, PullFromUpstream2, DrainChildExecutors2, Emit22, OP_PULLED2, OP_NO_UPSTREAM2, UpstreamPullRequestSymbolKey2, UpstreamPullRequestTypeId2, upstreamPullRequestVariance2, proto82, Pulled2, NoUpstream2, ChannelExecutor2, ifNotNull2, runFinalizers2, readUpstream2, runIn2, runScopedInterpret2, OP_DONE42, OP_AWAIT2, MergeDecisionSymbolKey2, MergeDecisionTypeId2, proto92, Done32, Await3, OP_BOTH_RUNNING2, OP_LEFT_DONE2, OP_RIGHT_DONE2, MergeStateSymbolKey2, MergeStateTypeId2, proto102, BothRunning2, LeftDone2, RightDone2, OP_BACK_PRESSURE2, OP_BUFFER_SLIDING2, MergeStrategySymbolKey2, MergeStrategyTypeId2, proto112, BackPressure3, BufferSliding2, match152, OP_STATE_EMPTY2, OP_STATE_EMIT2, OP_STATE_ERROR2, OP_STATE_DONE22, stateEmpty3, stateEmit2, stateError2, stateDone2, SingleProducerAsyncInputImpl2, make432, acquireUseRelease32, as52, catchAll52, concatMap2, drain5, ensuring32, flatten102, foldChannel2, fromInput3, fromQueue4, fromQueueInternal2, identityChannel2, interruptWhen4, interruptWhenDeferred4, map192, mapError52, mapErrorCause32, mapOut2, mapOutEffect2, mapOutEffectPar2, mergeAll72, mergeAllWith2, mergeMap2, mergeWith22, orDieWith32, orElse82, pipeToOrFail2, repeated2, run5, runDrain4, runScoped4, scoped52, scopedWith32, splitLines4, toPubSub4, toPull4, toPullIn2, interpretToPull2, toQueue4, toQueueInternal2, unwrap4, unwrapScoped32, unwrapScopedWith5, withSpan52, writeAll2, writeChunk2, writeChunkWriter2, zip72, zipLeft42, zipRight52, ChannelExceptionTypeId2, ChannelException2, isChannelException2, SinkTypeId22, sinkVariance22, SinkImpl2, isSink2, suspend72, collectAll2, collectAllLoop2, collectAllN2, collectAllNLoop2, collectLeftover2, drain22, fail132, fold2, foldReader2, foldChunkSplit2, foldSink2, foldChunks2, foldChunksReader2, foldEffect2, foldEffectReader2, foldChunkSplitEffect2, foldChunkSplitEffectInternal2, foldLeftChunks2, flatMap142, forEach102, forEachChunk2, forEachWhile2, forEachWhileReader2, fromChannel4, fromEffect72, head52, last42, map202, raceWith32, sum22, toChannel5, unwrapScopedWith22, zipRight62, zipWith92, count3, mkString4, Done42, Await22, TypeId162, stateEmpty22, stateClosed2, variance52, RcRefImpl2, make442, get142, make452, get152, runFork32, runPromiseExit22, defaultRuntime22, driver22, forever42, spaced22, CurrentIterationMetadata22, OP_LEFT2, OP_RIGHT2, OP_BOTH2, OP_EITHER2, Left2, Right2, Both3, Either2, fromInput22, Both22, Versioned2, make462, unsafeGet62, unsafeSet3, commit4, isInvalid2, isChanged2, JournalAnalysisInvalid2, JournalAnalysisReadWrite2, JournalAnalysisReadOnly2, commitJournal2, analyzeJournal2, collectTodos2, execTodos2, addTodo2, OP_WITH_STM_RUNTIME2, OP_ON_FAILURE22, OP_ON_RETRY2, OP_ON_SUCCESS22, OP_PROVIDE32, OP_SYNC22, OP_SUCCEED22, OP_RETRY3, OP_FAIL42, OP_DIE22, OP_INTERRUPT22, OP_FAIL52, OP_DIE32, OP_INTERRUPT32, OP_SUCCEED32, OP_RETRY22, OP_DONE52, OP_SUSPEND32, OP_DONE62, OP_INTERRUPTED2, OP_RUNNING22, STMStateSymbolKey2, STMStateTypeId2, isSTMState2, isRunning32, isDone62, done92, interruptedHash2, interrupted32, runningHash2, running32, fromTExit2, TExitSymbolKey2, TExitTypeId2, variance62, isExit3, isSuccess42, isRetry2, fail142, die92, interrupt82, succeed132, retryHash2, retry42, done102, suspend82, txnCounter2, make472, STMSymbolKey22, STMTypeId22, stmVariance2, STMPrimitive2, unsafeAtomically2, tryCommit2, tryCommitSync2, tryCommitAsync2, completeTodos2, completeTryCommit2, STMDriver2, catchAll62, die102, dieSync62, effect32, ensuring52, fail152, failSync72, flatMap152, matchSTM3, withSTMRuntime2, interruptAs22, map212, retry52, succeed142, sync92, zipRight82, zipWith112, OP_BACKPRESSURE_STRATEGY2, OP_DROPPING_STRATEGY2, OP_SLIDING_STRATEGY2, as72, flatten112, forEach112, all72, suspend92, tap52, void_72, TRefSymbolKey2, TRefTypeId3, tRefVariance2, TRefImpl2, make482, get162, set72, getOrMakeEntry2, unsafeGet72, unsafeSet22, TEnqueueSymbolKey2, TEnqueueTypeId2, TDequeueSymbolKey2, TDequeueTypeId2, tDequeueVariance2, tEnqueueVariance2, TQueueImpl2, isShutdown42, shutdown52, take42, TPubSubSymbolKey2, TPubSubTypeId2, AbsentValue22, makeNode22, TPubSubImpl2, TPubSubSubscriptionImpl2, makeSubscription22, subscribe32, subscribeScoped3, subscribeScoped22, isShutdown62, take52, TypeId172, ReadonlyTypeId2, empty312, exitEmpty2, exitFalse2, exitTrue2, constDone2, MailboxImpl2, make492, toChannel22, RingBuffer2, OP_NOT_STARTED2, OP_PREVIOUS2, OP_CURRENT2, notStarted2, previous2, current2, make502, makePush2, HandoffTypeId2, OP_HANDOFF_STATE_EMPTY2, OP_HANDOFF_STATE_FULL2, handoffStateEmpty2, handoffStateFull2, handoffStateMatch2, handoffVariance2, make512, offer52, take62, OP_EMIT42, OP_HALT2, OP_END2, emit2, halt2, end32, TakeSymbolKey2, TakeTypeId2, takeVariance2, TakeImpl2, chunk22, done112, end42, failCause122, fromPull4, match182, of52, end52, failCause132, OP_SCHEDULE_END2, OP_UPSTREAM_END2, ScheduleEnd2, UpstreamEnd2, OP_DRAIN_LEFT2, OP_DRAIN_RIGHT2, OP_PULL_BOTH3, OP_PULL_LEFT3, OP_PULL_RIGHT3, DrainLeft2, DrainRight2, PullBoth3, PullLeft3, PullRight3, OP_PULL_BOTH22, OP_PULL_LEFT22, OP_PULL_RIGHT22, PullBoth22, PullLeft22, PullRight22, StreamSymbolKey2, StreamTypeId22, streamVariance3, StreamImpl2, isStream2, DefaultChunkSize3, accumulate3, accumulateChunks3, acquireRelease32, aggregate3, aggregateWithin3, aggregateWithinEither3, as82, queueFromBufferOptions2, _async3, asyncEffect32, mailboxFromBufferOptionsPush2, asyncPush3, asyncScoped3, branchAfter3, broadcast3, broadcastDynamic3, share3, broadcastedQueues3, broadcastedQueuesDynamic3, buffer3, bufferChunks3, bufferChunksDropping2, bufferChunksSliding2, bufferDropping2, bufferSliding2, bufferUnbounded2, bufferSignal2, catchAll72, catchAllCause62, catchSome32, catchSomeCause32, catchTag32, catchTags32, changes3, changesWith3, changesWithEffect3, chunks3, chunksWith3, unsome4, combine92, combineChunks3, concat22, concatAll22, cross3, crossLeft3, crossRight3, crossWith3, debounce3, die112, dieSync72, dieMessage42, distributedWith3, distributedWithDynamicId2, newDistributedWithDynamicId2, distributedWithDynamic3, distributedWithDynamicCallback2, drain32, drainFork3, drop32, dropRight3, dropUntil32, dropUntilEffect3, dropWhile42, dropWhileEffect3, either52, empty322, ensuring62, ensuringWith22, context52, contextWith32, contextWithEffect32, contextWithStream3, execute3, fail162, failSync82, failCause142, failCauseSync72, filter82, filterEffect3, filterMap62, filterMapEffect3, filterMapWhile32, filterMapWhileEffect3, finalizer3, find22, findEffect3, flatMap162, matchConcurrency2, flatMapParSwitchBuffer2, flatten122, flattenChunks3, flattenEffect3, flattenExitOption3, flattenIterables3, flattenTake3, forever52, fromAsyncIterable3, fromChannel22, toChannel32, mailboxToStream2, fromChunk3, fromChunkPubSub3, fromChunkQueue3, fromChunks3, fromEffect82, fromEffectOption3, fromPubSub3, fromTPubSub3, fromIterable112, fromIterableEffect3, fromIteratorSucceed3, fromPull22, fromQueue22, fromTQueue3, fromSchedule3, fromReadableStream3, fromReadableStreamByob3, EOF2, readChunkStreamByobReader2, groupAdjacentBy3, grouped3, groupedWithin3, haltWhen3, haltAfter3, haltWhenDeferred3, identityStream2, interleave3, interleaveWith3, intersperse3, intersperseAffixes3, interruptAfter3, interruptWhen22, interruptWhenDeferred22, iterate32, make522, map222, mapAccum52, mapAccumEffect3, mapBoth52, mapChunks3, mapChunksEffect3, mapConcat3, mapConcatChunk3, mapConcatChunkEffect3, mapConcatEffect3, mapEffectSequential2, mapEffectPar2, mapError62, mapErrorCause42, merge92, mergeAll82, mergeWithTag3, mergeEither3, mergeLeft3, mergeRight3, mergeWith32, mkString22, never52, onEnd3, onError32, onDone3, onStart3, orDie52, orDieWith42, orElse92, orElseEither42, orElseFail32, orElseIfEmpty3, orElseIfEmptyChunk3, orElseIfEmptyStream3, orElseSucceed32, paginate3, paginateChunk3, paginateChunkEffect3, paginateEffect3, peel3, partition52, partitionEither3, pipeThrough3, pipeThroughChannel3, pipeThroughChannelOrFail3, prepend42, provideContext52, provideSomeContext22, provideLayer3, provideService52, provideServiceEffect32, provideServiceStream3, mapInputContext52, provideSomeLayer22, range22, race32, raceAll32, rechunk3, rechunkProcess2, StreamRechunker2, refineOrDie5, refineOrDieWith5, repeat22, repeatEffect3, repeatEffectChunk3, repeatEffectChunkOption3, repeatEffectOption3, repeatEither3, repeatElements3, repeatElementsWith3, repeatValue3, repeatWith3, repeatWithSchedule2, repeatEffectWithSchedule3, retry62, withExecutionPlan32, scheduleDefectRefail22, run32, runCollect3, runCount3, runDrain22, runFold3, runFoldEffect3, runFoldScoped3, runFoldScopedEffect3, runFoldWhile3, runFoldWhileEffect3, runFoldWhileScoped3, runFoldWhileScopedEffect3, runForEach3, runForEachChunk3, runForEachChunkScoped3, runForEachScoped3, runForEachWhile3, runForEachWhileScoped3, runHead3, runIntoPubSub3, runIntoPubSubScoped3, runIntoQueue3, runIntoQueueElementsScoped3, runIntoQueueScoped3, runLast3, runScoped22, runSum3, scan3, scanReduce3, scanReduceEffect3, schedule22, scheduleWith3, scanEffect3, scoped62, scopedWith42, some52, someOrElse3, someOrFail3, sliding72, slidingSize3, split3, splitOnChunk3, splitLines22, succeed152, sync102, suspend102, take72, takeRight22, takeUntil32, takeUntilEffect3, takeWhile42, tap62, tapBoth32, tapError52, tapErrorCause52, tapSink3, throttle3, throttleEffect3, throttleEnforceEffect2, throttleShapeEffect2, tick3, timeout32, timeoutFail32, timeoutFailCause32, timeoutTo32, pubsubFromOptions2, toPubSub22, toPull22, toQueue22, toQueueOfElements3, toReadableStream3, toReadableStreamEffect3, toReadableStreamRuntime3, transduce3, toAsyncIterableRuntime3, toAsyncIterable3, toAsyncIterableEffect3, unfold32, unfoldChunk3, unfoldChunkEffect3, unfoldEffect3, void_82, unwrap22, unwrapScoped42, unwrapScopedWith32, updateService42, when32, whenCase3, whenCaseEffect3, whenEffect32, withSpan62, zip82, zipFlatten3, zipAll3, zipAllLeft3, zipAllRight3, zipAllSortedByKey3, zipAllSortedByKeyLeft3, zipAllSortedByKeyRight3, zipAllSortedByKeyWith3, zipAllWith3, zipLatest3, zipLatestAll3, zipLatestWith3, zipLeft62, zipRight92, zipWith122, zipWithChunks3, zipWithIndex3, zipWithNext3, zipWithPrevious3, zipWithPreviousAndNext3, zipChunks2, Do32, bind42, bindTo42, let_42, decodeText3, encodeText3, fromEventListener3, RedactedSymbolKey2, redactedRegistry2, RedactedTypeId3, proto122, isRedacted3, make532, value3, unsafeWipe3, GroupBySymbolKey2, GroupByTypeId2, groupByVariance2, isGroupBy2, evaluate22, make542, groupBy3, mapEffectOptions2, bindEffect3, mapDequeue2, MapDequeue2, groupByKey3, groupByIterable2, Redacted_exports2, RedactedTypeId22, isRedacted22, make552, value22, unsafeWipe22, getEquivalence42, Stream_exports2, StreamTypeId32, DefaultChunkSize22, accumulate22, accumulateChunks22, acquireRelease42, aggregate22, aggregateWithin22, aggregateWithinEither22, as92, _async22, asyncEffect42, asyncPush22, asyncScoped22, branchAfter22, broadcast22, share22, broadcastDynamic22, broadcastedQueues22, broadcastedQueuesDynamic22, buffer22, bufferChunks22, catchAll82, catchAllCause72, catchSome42, catchTag42, catchTags42, catchSomeCause42, changes22, changesWith22, changesWithEffect22, chunks22, chunksWith22, combine102, combineChunks22, concat32, concatAll32, cross22, crossLeft22, crossRight22, crossWith22, debounce22, die122, dieSync82, dieMessage52, distributedWith22, distributedWithDynamic22, drain42, drainFork22, drop42, dropRight22, dropUntil42, dropUntilEffect22, dropWhile52, dropWhileEffect22, either62, empty332, ensuring72, ensuringWith32, context62, contextWith42, contextWithEffect42, contextWithStream22, execute22, fail172, failSync92, failCause152, failCauseSync82, filter92, filterEffect22, filterMap72, filterMapEffect22, filterMapWhile42, filterMapWhileEffect22, finalizer22, find32, findEffect22, flatMap172, flatten132, flattenChunks22, flattenEffect22, flattenExitOption22, flattenIterables22, flattenTake22, forever62, fromAsyncIterable22, fromChannel32, toChannel42, fromChunk22, fromChunkPubSub22, fromChunkQueue22, fromChunks22, fromEffect92, fromEffectOption22, fromPubSub22, fromTPubSub22, fromIterable122, fromIterableEffect22, fromIteratorSucceed22, fromPull32, fromQueue32, fromTQueue22, fromReadableStream22, fromReadableStreamByob22, fromSchedule22, groupAdjacentBy22, groupBy22, groupByKey22, grouped22, groupedWithin22, haltAfter22, haltWhen22, haltWhenDeferred22, identity32, interleave22, interleaveWith22, intersperse22, intersperseAffixes22, interruptAfter22, interruptWhen32, interruptWhenDeferred32, iterate42, make562, map232, mapAccum62, mapAccumEffect22, mapBoth62, mapChunks22, mapChunksEffect22, mapConcat22, mapConcatChunk22, mapConcatChunkEffect22, mapConcatEffect22, mapEffect52, mapError72, mapErrorCause52, merge102, mergeAll92, mergeWithTag22, mergeWith42, mergeEither22, mergeLeft22, mergeRight22, mkString32, never62, onEnd22, onError42, onDone22, onStart22, orDie62, orDieWith52, orElse102, orElseEither52, orElseFail42, orElseIfEmpty22, orElseIfEmptyChunk22, orElseIfEmptyStream22, orElseSucceed42, paginate22, paginateChunk22, paginateChunkEffect22, paginateEffect22, partition62, partitionEither22, peel22, pipeThrough22, pipeThroughChannel22, pipeThroughChannelOrFail22, prepend52, provideContext62, provideSomeContext32, provideLayer22, provideService62, provideServiceEffect42, provideServiceStream22, mapInputContext62, provideSomeLayer32, race42, raceAll42, range32, rechunk22, refineOrDie22, refineOrDieWith22, repeat32, repeatEffect22, repeatEffectChunk22, repeatEffectChunkOption22, repeatEffectOption22, repeatEffectWithSchedule22, repeatEither22, repeatElements22, repeatElementsWith22, repeatValue22, repeatWith22, retry72, withExecutionPlan42, run42, runCollect22, runCount22, runDrain32, runFold22, runFoldEffect22, runFoldScoped22, runFoldScopedEffect22, runFoldWhile22, runFoldWhileEffect22, runFoldWhileScoped22, runFoldWhileScopedEffect22, runForEach22, runForEachChunk22, runForEachChunkScoped22, runForEachScoped22, runForEachWhile22, runForEachWhileScoped22, runHead22, runIntoPubSub22, runIntoPubSubScoped22, runIntoQueue22, runIntoQueueElementsScoped22, runIntoQueueScoped22, runLast22, runScoped32, runSum22, scan22, scanEffect22, scanReduce22, scanReduceEffect22, schedule32, scheduleWith22, scoped72, scopedWith52, sliding82, slidingSize22, some62, someOrElse22, someOrFail22, split22, splitOnChunk22, splitLines32, succeed162, sync112, suspend112, take82, takeRight32, takeUntil42, takeUntilEffect22, takeWhile52, tap72, tapBoth42, tapError62, tapErrorCause62, tapSink22, throttle22, throttleEffect22, tick22, timeout42, timeoutFail42, timeoutFailCause42, timeoutTo42, toPubSub32, toPull32, toQueue32, toQueueOfElements22, toReadableStream22, toReadableStreamEffect22, toReadableStreamRuntime22, toAsyncIterableRuntime22, toAsyncIterableEffect22, toAsyncIterable22, transduce22, unfold42, unfoldChunk22, unfoldChunkEffect22, unfoldEffect22, void_92, unwrap32, unwrapScoped52, unwrapScopedWith42, updateService52, when42, whenCase22, whenCaseEffect22, whenEffect42, withSpan72, zip92, zipFlatten22, zipAll22, zipAllLeft22, zipAllRight22, zipAllSortedByKey22, zipAllSortedByKeyLeft22, zipAllSortedByKeyRight22, zipAllSortedByKeyWith22, zipAllWith22, zipLatest22, zipLatestAll22, zipLatestWith22, zipLeft72, zipRight102, zipWith132, zipWithChunks22, zipWithNext22, zipWithPrevious22, zipWithPreviousAndNext22, zipWithIndex22, Do42, bind52, bindEffect22, bindTo52, let_52, decodeText22, encodeText22, fromEventListener22, ProviderGenerationPort, CredentialPort, record4, SOURCE_MANIFEST_HASH, facts, PROVIDER_PROFILES, fail182, listedCapabilities, DEFAULT_LIMITS2, id32, PEL_PROFILE2, CORE_FAILURE_BRAND3, PARSE_FAIL3, dataSpan2, maximumDataDepth2, syntheticSpan2, binaryStrict2, unaryXStrict2, builtinArgSpecs2, DESCRIPTOR_BRAND2, REGISTRY_BRAND2, ZERO_SPAN2, MAX_BYTES2, MAX_ENTRIES2, BASE_FAILURE_ID2, registries2, byteSize2, text2, name2, natural3, CODEC_MAX_BYTES2, DEFAULT_RUN_OPTIONS2, CORE_FAILURE_BRAND22, PARSE_FAIL22, BUILTIN_PROVIDER_SCHEMAS, hash22, fail192, GENERATION_OUTPUT_SCHEMA, GENERATION_TRUSTED_INSTRUCTIONS, fail202, apiFailure, disconnected, object2, objects, string22, initialState, noTool, unknownOutput, inertResponseItems, responseToolItems, classifyResponseItem, inertResponseParts, classifyResponsePart, toolSurfaceKeys, hash32, apiPrefixHash, identityKey, unwrap42, statusFailure, xaiResponsesDialect, createXaiResponsesTransport, inertBlocks, toolBlocks, classifyBlock, inertDeltas, toolDeltas, classifyDelta, anthropicMessagesDialect, createAnthropicMessagesTransport, openaiResponsesDialect, createOpenaiResponsesTransport, inertSteps, toolSteps, classifyStep, inertContent, toolContent, classifyContent, googleInteractionsDialect, createGoogleInteractionsTransport, FOREMAN_LAUNCH_VERSION, EXIT_TIMEOUT, EXIT_LAUNCHER_ERROR, HEARTBEAT_KEYS, DETACH_HANDOFF_BOUND_MS, PIDNS_INNER_ENV, HOST_PID_ENV, PIDNS_KIND_ENV, UNSHARE_USERNS_PIDNS_FLAGS, UNSHARE_PIDNS_FLAGS, UNSHARE_PROBE_LADDER, ChildSpawner, ProcessGroupTerminator, WindowsTreeTerminator, ExecveService, UnshareProbeService, HeartbeatWriter, CapabilityWriter, ByteSink, LauncherClock, DetachSpawner, StderrLog, liveClock, LiveClockLayer, liveChildSpawner, liveProcessGroupTerminator, liveWindowsTreeTerminator, liveExecve, liveUnshareProbe, liveCapabilityWriter, liveHeartbeatWriter, liveByteSink, liveStderrLog, liveDetachSpawner, LiveLauncherLayer, defaultIo, isMain, failure22, fail212, object22, text22, record33, problem, failure32, object3, sha, unwrap5, CredentialStorePort, MAX_BYTES22;
 var init_providers = __esm({
   "packages/providers/dist/providers.js"() {
     "use strict";
@@ -52681,25 +52762,25 @@ var init_providers = __esm({
     cached4 = function() {
       if (arguments.length === 1) {
         const self2 = arguments[0];
-        return function(hash52) {
+        return function(hash62) {
           Object.defineProperty(self2, symbol3, {
             value() {
-              return hash52;
+              return hash62;
             },
             enumerable: false
           });
-          return hash52;
+          return hash62;
         };
       }
       const self = arguments[0];
-      const hash42 = arguments[1];
+      const hash52 = arguments[1];
       Object.defineProperty(self, symbol3, {
         value() {
-          return hash42;
+          return hash52;
         },
         enumerable: false
       });
-      return hash42;
+      return hash52;
     };
     symbol22 = /* @__PURE__ */ Symbol.for("effect/Equal");
     isEqual2 = (u2) => hasProperty2(u2, symbol22);
@@ -54345,11 +54426,11 @@ var init_providers = __esm({
     });
     EmptyNode2 = class _EmptyNode {
       _tag = "EmptyNode";
-      modify(edit, _shift, f2, hash42, key, size152) {
+      modify(edit, _shift, f2, hash52, key, size152) {
         const v2 = f2(none22());
         if (isNone22(v2)) return new _EmptyNode();
         ++size152.value;
-        return new LeafNode2(edit, hash42, key, v2);
+        return new LeafNode2(edit, hash52, key, v2);
       }
     };
     LeafNode2 = class _LeafNode {
@@ -54358,13 +54439,13 @@ var init_providers = __esm({
       key;
       value;
       _tag = "LeafNode";
-      constructor(edit, hash42, key, value32) {
+      constructor(edit, hash52, key, value32) {
         this.edit = edit;
-        this.hash = hash42;
+        this.hash = hash52;
         this.key = key;
         this.value = value32;
       }
-      modify(edit, shift22, f2, hash42, key, size152) {
+      modify(edit, shift22, f2, hash52, key, size152) {
         if (equals5(key, this.key)) {
           const v22 = f2(this.value);
           if (v22 === this.value) return this;
@@ -54376,12 +54457,12 @@ var init_providers = __esm({
             this.value = v22;
             return this;
           }
-          return new _LeafNode(edit, hash42, key, v22);
+          return new _LeafNode(edit, hash52, key, v22);
         }
         const v2 = f2(none22());
         if (isNone22(v2)) return this;
         ++size152.value;
-        return mergeLeaves2(edit, shift22, this.hash, this, hash42, new _LeafNode(edit, hash42, key, v2));
+        return mergeLeaves2(edit, shift22, this.hash, this, hash52, new _LeafNode(edit, hash52, key, v2));
       }
     };
     CollisionNode2 = class _CollisionNode {
@@ -54389,13 +54470,13 @@ var init_providers = __esm({
       hash;
       children;
       _tag = "CollisionNode";
-      constructor(edit, hash42, children32) {
+      constructor(edit, hash52, children32) {
         this.edit = edit;
-        this.hash = hash42;
+        this.hash = hash52;
         this.children = children32;
       }
-      modify(edit, shift22, f2, hash42, key, size152) {
-        if (hash42 === this.hash) {
+      modify(edit, shift22, f2, hash52, key, size152) {
+        if (hash52 === this.hash) {
           const canEdit = canEditNode2(this, edit);
           const list7 = this.updateCollisionList(canEdit, edit, this.hash, this.children, f2, key, size152);
           if (list7 === this.children) return this;
@@ -54404,9 +54485,9 @@ var init_providers = __esm({
         const v2 = f2(none22());
         if (isNone22(v2)) return this;
         ++size152.value;
-        return mergeLeaves2(edit, shift22, this.hash, this, hash42, new LeafNode2(edit, hash42, key, v2));
+        return mergeLeaves2(edit, shift22, this.hash, this, hash52, new LeafNode2(edit, hash52, key, v2));
       }
-      updateCollisionList(mutate42, edit, hash42, list7, f2, key, size152) {
+      updateCollisionList(mutate42, edit, hash52, list7, f2, key, size152) {
         const len = list7.length;
         for (let i = 0; i < len; ++i) {
           const child2 = list7[i];
@@ -54418,13 +54499,13 @@ var init_providers = __esm({
               --size152.value;
               return arraySpliceOut2(mutate42, i, list7);
             }
-            return arrayUpdate2(mutate42, i, new LeafNode2(edit, hash42, key, newValue2), list7);
+            return arrayUpdate2(mutate42, i, new LeafNode2(edit, hash52, key, newValue2), list7);
           }
         }
         const newValue = f2(none22());
         if (isNone22(newValue)) return list7;
         ++size152.value;
-        return arrayUpdate2(mutate42, len, new LeafNode2(edit, hash42, key, newValue), list7);
+        return arrayUpdate2(mutate42, len, new LeafNode2(edit, hash52, key, newValue), list7);
       }
     };
     IndexedNode2 = class _IndexedNode {
@@ -54437,21 +54518,21 @@ var init_providers = __esm({
         this.mask = mask;
         this.children = children32;
       }
-      modify(edit, shift22, f2, hash42, key, size152) {
+      modify(edit, shift22, f2, hash52, key, size152) {
         const mask = this.mask;
         const children32 = this.children;
-        const frag = hashFragment2(shift22, hash42);
+        const frag = hashFragment2(shift22, hash52);
         const bit = toBitmap2(frag);
         const indx = fromBitmap2(mask, bit);
         const exists32 = mask & bit;
         const canEdit = canEditNode2(this, edit);
         if (!exists32) {
-          const _newChild = new EmptyNode2().modify(edit, shift22 + SIZE2, f2, hash42, key, size152);
+          const _newChild = new EmptyNode2().modify(edit, shift22 + SIZE2, f2, hash52, key, size152);
           if (!_newChild) return this;
           return children32.length >= MAX_INDEX_NODE2 ? expand2(edit, frag, _newChild, mask, children32) : new _IndexedNode(edit, mask | bit, arraySpliceIn2(canEdit, indx, _newChild, children32));
         }
         const current22 = children32[indx];
-        const child2 = current22.modify(edit, shift22 + SIZE2, f2, hash42, key, size152);
+        const child2 = current22.modify(edit, shift22 + SIZE2, f2, hash52, key, size152);
         if (current22 === child2) return this;
         let bitmap = mask;
         let newChildren;
@@ -54483,12 +54564,12 @@ var init_providers = __esm({
         this.size = size152;
         this.children = children32;
       }
-      modify(edit, shift22, f2, hash42, key, size152) {
+      modify(edit, shift22, f2, hash52, key, size152) {
         let count32 = this.size;
         const children32 = this.children;
-        const frag = hashFragment2(shift22, hash42);
+        const frag = hashFragment2(shift22, hash52);
         const child2 = children32[frag];
-        const newChild = (child2 || new EmptyNode2()).modify(edit, shift22 + SIZE2, f2, hash42, key, size152);
+        const newChild = (child2 || new EmptyNode2()).modify(edit, shift22 + SIZE2, f2, hash52, key, size152);
         if (child2 === newChild) return this;
         const canEdit = canEditNode2(this, edit);
         let newChildren;
@@ -54520,11 +54601,11 @@ var init_providers = __esm({
         return new HashMapIterator2(this, (k2, v2) => [k2, v2]);
       },
       [symbol3]() {
-        let hash42 = hash3(HashMapSymbolKey2);
+        let hash52 = hash3(HashMapSymbolKey2);
         for (const item of this) {
-          hash42 ^= pipe2(hash3(item[0]), combine11(hash3(item[1])));
+          hash52 ^= pipe2(hash3(item[0]), combine11(hash3(item[1])));
         }
-        return cached4(this, hash42);
+        return cached4(this, hash52);
       },
       [symbol22](that) {
         if (isHashMap2(that)) {
@@ -54640,7 +54721,7 @@ var init_providers = __esm({
     isHashMap2 = (u2) => hasProperty2(u2, HashMapTypeId2);
     isEmpty22 = (self) => self && isEmptyNode2(self._root);
     get52 = /* @__PURE__ */ dual2(2, (self, key) => getHash2(self, key, hash3(key)));
-    getHash2 = /* @__PURE__ */ dual2(3, (self, key, hash42) => {
+    getHash2 = /* @__PURE__ */ dual2(3, (self, key, hash52) => {
       let node = self._root;
       let shift22 = 0;
       while (true) {
@@ -54649,7 +54730,7 @@ var init_providers = __esm({
             return equals5(key, node.key) ? node.value : none22();
           }
           case "CollisionNode": {
-            if (hash42 === node.hash) {
+            if (hash52 === node.hash) {
               const children32 = node.children;
               for (let i = 0, len = children32.length; i < len; ++i) {
                 const child2 = children32[i];
@@ -54661,7 +54742,7 @@ var init_providers = __esm({
             return none22();
           }
           case "IndexedNode": {
-            const frag = hashFragment2(shift22, hash42);
+            const frag = hashFragment2(shift22, hash52);
             const bit = toBitmap2(frag);
             if (node.mask & bit) {
               node = node.children[fromBitmap2(node.mask, bit)];
@@ -54671,7 +54752,7 @@ var init_providers = __esm({
             return none22();
           }
           case "ArrayNode": {
-            node = node.children[hashFragment2(shift22, hash42)];
+            node = node.children[hashFragment2(shift22, hash52)];
             if (node) {
               shift22 += SIZE2;
               break;
@@ -54708,11 +54789,11 @@ var init_providers = __esm({
       return endMutation3(transient);
     });
     modifyAt3 = /* @__PURE__ */ dual2(3, (self, key, f2) => modifyHash2(self, key, hash3(key), f2));
-    modifyHash2 = /* @__PURE__ */ dual2(4, (self, key, hash42, f2) => {
+    modifyHash2 = /* @__PURE__ */ dual2(4, (self, key, hash52, f2) => {
       const size152 = {
         value: self._size
       };
-      const newRoot = self._root.modify(self._editable ? self._edit : NaN, 0, f2, hash42, key, size152);
+      const newRoot = self._root.modify(self._editable ? self._edit : NaN, 0, f2, hash52, key, size152);
       return pipe2(self, setTree2(newRoot, size152.value));
     });
     remove22 = /* @__PURE__ */ dual2(2, (self, key) => modifyAt3(self, key, none22));
@@ -55958,7 +56039,7 @@ var init_providers = __esm({
     });
     keepDefectsAndElectFailures2 = (self) => match42(self, {
       onEmpty: none22(),
-      onFail: (failure42) => some22(die14(failure42)),
+      onFail: (failure52) => some22(die14(failure52)),
       onDie: (defect) => some22(die14(defect)),
       onInterrupt: () => none22(),
       onSequential: mergeWith5(sequential5),
@@ -57674,8 +57755,8 @@ ${this.stack.split("\n").slice(1).join("\n")}` : this.toString();
       if (isEqual2(key) === false) {
         return self.referential.has(key) ? some22(self.referential.get(key)) : none22();
       }
-      const hash42 = key[symbol3]();
-      const bucket = self.buckets.get(hash42);
+      const hash52 = key[symbol3]();
+      const bucket = self.buckets.get(hash52);
       if (bucket === void 0) {
         return none22();
       }
@@ -57700,10 +57781,10 @@ ${this.stack.split("\n").slice(1).join("\n")}` : this.toString();
         self.referential.set(key, value32);
         return self;
       }
-      const hash42 = key[symbol3]();
-      const bucket = self.buckets.get(hash42);
+      const hash52 = key[symbol3]();
+      const bucket = self.buckets.get(hash52);
       if (bucket === void 0) {
-        self.buckets.set(hash42, [[key, value32]]);
+        self.buckets.set(hash52, [[key, value32]]);
         self.bucketsSize++;
         return self;
       }
@@ -57726,14 +57807,14 @@ ${this.stack.split("\n").slice(1).join("\n")}` : this.toString();
         self.referential.delete(key);
         return self;
       }
-      const hash42 = key[symbol3]();
-      const bucket = self.buckets.get(hash42);
+      const hash52 = key[symbol3]();
+      const bucket = self.buckets.get(hash52);
       if (bucket === void 0) {
         return self;
       }
       removeFromBucket2(self, bucket, key);
       if (bucket.length === 0) {
-        self.buckets.delete(hash42);
+        self.buckets.delete(hash52);
       }
       return self;
     });
@@ -58650,8 +58731,8 @@ ${this.stack.split("\n").slice(1).join("\n")}` : this.toString();
           if (typeof value32 === "number" && Number.isFinite(value32)) {
             return Math.max(min32, Math.min(max52 - 1, Math.round(value32)));
           }
-          const hash42 = Math.abs(hash3(value32));
-          return min32 + hash42 % (max52 - min32);
+          const hash52 = Math.abs(hash3(value32));
+          return min32 + hash52 % (max52 - min32);
         });
       }
       shuffle(elements) {
@@ -62204,11 +62285,11 @@ ${this.stack.split("\n").slice(1).join("\n")}` : this.toString();
     RedBlackTreeProto2 = {
       [RedBlackTreeTypeId2]: redBlackTreeVariance2,
       [symbol3]() {
-        let hash42 = hash3(RedBlackTreeSymbolKey2);
+        let hash52 = hash3(RedBlackTreeSymbolKey2);
         for (const item of this) {
-          hash42 ^= pipe2(hash3(item[0]), combine11(hash3(item[1])));
+          hash52 ^= pipe2(hash3(item[0]), combine11(hash3(item[1])));
         }
-        return cached4(this, hash42);
+        return cached4(this, hash52);
       },
       [symbol22](that) {
         if (isRedBlackTree2(that)) {
@@ -65974,8 +66055,8 @@ ${this.stack.split("\n").slice(1).join("\n")}` : this.toString();
         return zipRight13(this.await, self);
       };
     };
-    unsafeMakeLatch3 = (open7) => new Latch2(open7 ?? false);
-    makeLatch3 = (open7) => sync13(() => unsafeMakeLatch3(open7));
+    unsafeMakeLatch3 = (open8) => new Latch2(open8 ?? false);
+    makeLatch3 = (open8) => sync13(() => unsafeMakeLatch3(open8));
     awaitAllChildren3 = (self) => ensuringChildren3(self, fiberAwaitAll2);
     cached22 = /* @__PURE__ */ dual2(2, (self, timeToLive) => map92(cachedInvalidateWithTTL3(self, timeToLive), (tuple22) => tuple22[0]));
     cachedInvalidateWithTTL3 = /* @__PURE__ */ dual2(2, (self, timeToLive) => {
@@ -78248,6 +78329,9 @@ ${this.stack.split("\n").slice(1).join("\n")}` : this.toString();
     object3 = (v2) => v2 !== null && typeof v2 === "object" && !Array.isArray(v2) ? v2 : void 0;
     sha = (value32) => createHash7("sha256").update(value32).digest("hex");
     unwrap5 = (v2) => v2.ok ? Effect_exports2.succeed(v2.value) : Effect_exports2.fail(v2.error);
+    CredentialStorePort = class extends Context_exports2.Tag("@foreman/providers/CredentialStorePort")() {
+    };
+    MAX_BYTES22 = 64 * 1024;
   }
 });
 
@@ -81834,11 +81918,11 @@ var require_lib = __commonJS({
     var {
       defineProperty
     } = Object;
-    var toUnenumerable = (object17, key) => {
-      if (object17) {
-        defineProperty(object17, key, {
+    var toUnenumerable = (object18, key) => {
+      if (object18) {
+        defineProperty(object18, key, {
           enumerable: false,
-          value: object17[key]
+          value: object18[key]
         });
       }
     };
@@ -85788,20 +85872,20 @@ var require_lib = __commonJS({
       UnterminatedJsxContent: "Unterminated JSX contents.",
       UnwrappedAdjacentJSXElements: "Adjacent JSX elements must be wrapped in an enclosing tag. Did you want a JSX fragment <>...</>?"
     });
-    function isFragment(object17) {
-      return object17 ? object17.type === "JSXOpeningFragment" || object17.type === "JSXClosingFragment" : false;
+    function isFragment(object18) {
+      return object18 ? object18.type === "JSXOpeningFragment" || object18.type === "JSXClosingFragment" : false;
     }
-    function getQualifiedJSXName(object17) {
-      if (object17.type === "JSXIdentifier") {
-        return object17.name;
+    function getQualifiedJSXName(object18) {
+      if (object18.type === "JSXIdentifier") {
+        return object18.name;
       }
-      if (object17.type === "JSXNamespacedName") {
-        return object17.namespace.name + ":" + object17.name.name;
+      if (object18.type === "JSXNamespacedName") {
+        return object18.namespace.name + ":" + object18.name.name;
       }
-      if (object17.type === "JSXMemberExpression") {
-        return getQualifiedJSXName(object17.object) + "." + getQualifiedJSXName(object17.property);
+      if (object18.type === "JSXMemberExpression") {
+        return getQualifiedJSXName(object18.object) + "." + getQualifiedJSXName(object18.property);
       }
-      throw new Error("Node had unexpected type: " + object17.type);
+      throw new Error("Node had unexpected type: " + object18.type);
     }
     var jsx = (superClass) => class JSXParserMixin extends superClass {
       jsxReadToken() {
@@ -100725,17 +100809,17 @@ function selfScriptArgvPrefix2() {
 function buildSelfScriptArgvPrefix2(execArgv, script) {
   return script ? [...execArgv, script] : [...execArgv];
 }
-function runMain2(argv = process.argv, io7 = defaultIo2, layer = LiveLauncherLayer2) {
+function runMain2(argv = process.argv, io8 = defaultIo2, layer = LiveLauncherLayer2) {
   const raw = stripNodeArgv2(argv);
   const parsed = parseArgs3(raw);
   if (parsed._tag === "Version") {
-    io7.writeStdout(formatVersionLine2() + "\n");
+    io8.writeStdout(formatVersionLine2() + "\n");
     return Promise.resolve(0);
   }
   if (parsed._tag === "UsageError") {
-    io7.writeStderr(`foreman-launch: ${parsed.message}
+    io8.writeStderr(`foreman-launch: ${parsed.message}
 `);
-    io7.writeStderr(usage3() + "\n");
+    io8.writeStderr(usage3() + "\n");
     return Promise.resolve(EXIT_LAUNCHER_ERROR2);
   }
   const args6 = parsed.value;
@@ -104227,7 +104311,8 @@ var init_pel_provider_readiness_live = __esm({
 });
 
 // packages/orchestration/src/pel-native-boundary.ts
-import { lstat, realpath, stat, unlink } from "node:fs/promises";
+import { lstat, realpath, stat, unlink, mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { randomBytes as randomBytes6 } from "node:crypto";
 import { dirname as dirname7, isAbsolute as isAbsolute13, join as join16, resolve as resolve4, sep as sep2, basename as basename4 } from "node:path";
 function noToolArguments(request3, cmd) {
@@ -104323,8 +104408,30 @@ function makePelNativeBoundary(options2) {
       });
       const selectedEnvironment = { ...environment3 };
       for (const key of options2.environmentKeys) if (secretKeys[request3.transportId]?.includes(key) && launch4.environment[key] !== void 0) selectedEnvironment[key] = launch4.environment[key];
-      for (const key of ["GROK_HOME", "CODEX_HOME", "CLAUDE_CONFIG_DIR"]) if (launch4.environment[key] && launch4.environment[key] !== environment3.HOME) return yield* Effect_exports.fail(denied());
-      return yield* native.open({ ...launch4, cmd: [admitted.bwrap, ...flags, admitted.executable, ...launch4.cmd.slice(1)], environment: selectedEnvironment });
+      let launchFlags = [...flags];
+      let grokHomeRoot;
+      if (request3.transportId === "grok-acp" && coding) {
+        grokHomeRoot = yield* Effect_exports.acquireRelease(attempt5(() => mkdtemp(join16(tmpdir(), "foreman-grok-login-"))), (path4) => Effect_exports.promise(() => rm(path4, { recursive: true, force: true })).pipe(Effect_exports.orDie));
+        const policyPath = join16(grokHomeRoot, "config.toml");
+        yield* attempt5(() => writeFile(policyPath, '[permission]\nrules = [{ action = "ask", tool = "any" }]\n[ui]\nremember_tool_approvals = false\n', { mode: 384, flag: "wx" }));
+        const insertion = launchFlags.indexOf("--remount-ro");
+        launchFlags = [...launchFlags.slice(0, insertion), "--dir", environment3.HOME + "/.grok", "--ro-bind", policyPath, environment3.HOME + "/.grok/config.toml", ...launchFlags.slice(insertion)];
+        selectedEnvironment.GROK_HOME = environment3.HOME + "/.grok";
+      }
+      if (launch4.grokAuthJson !== void 0) {
+        if (request3.transportId !== "grok-acp" || !coding || !Redacted_exports.isRedacted(launch4.grokAuthJson) || launch4.environment.GROK_HOME !== environment3.HOME + "/.grok") return yield* Effect_exports.fail(denied());
+        const bytes3 = Redacted_exports.value(launch4.grokAuthJson);
+        if (Buffer.byteLength(bytes3) > 65536 || !bytes3.length) return yield* Effect_exports.fail(denied());
+        if (!grokHomeRoot) return yield* Effect_exports.fail(denied());
+        const snapshotPath = join16(grokHomeRoot, "auth.json");
+        yield* attempt5(() => writeFile(snapshotPath, bytes3, { mode: 384, flag: "wx" }));
+        const insertion = launchFlags.indexOf("--remount-ro");
+        launchFlags = [...launchFlags.slice(0, insertion), "--ro-bind", snapshotPath, environment3.HOME + "/.grok/auth.json", ...launchFlags.slice(insertion)];
+        selectedEnvironment.GROK_HOME = environment3.HOME + "/.grok";
+      }
+      for (const key of ["GROK_HOME", "CODEX_HOME", "CLAUDE_CONFIG_DIR"]) if (launch4.environment[key] && launch4.environment[key] !== environment3.HOME && !(key === "GROK_HOME" && grokHomeRoot !== void 0 && launch4.environment[key] === selectedEnvironment.GROK_HOME)) return yield* Effect_exports.fail(denied());
+      const { grokAuthJson: consumed, ...publicLaunch } = launch4;
+      return yield* native.open({ ...publicLaunch, cmd: [admitted.bwrap, ...launchFlags, admitted.executable, ...launch4.cmd.slice(1)], environment: selectedEnvironment });
     }) };
     const boundary2 = { host: { cwd: admitted.root, environment: environment3, process: nativePort, workspaceGrantId: context11.workspace.grantId, permissionGrantIds: options2.permissionGrantIds, hostPermissionPortRef: options2.hostPermissionPortRef, permissions: options2.permissions, toolPolicyNoneEnforced: !coding, workspaceBoundaryEnforced: true, permissionBoundaryEnforced: coding }, identityRevision: options2.identityRevisionByTransport[request3.transportId] };
     return boundary2;
@@ -104348,9 +104455,9 @@ var init_pel_native_boundary = __esm({
 
 // packages/orchestration/src/pel-native-live.ts
 import { constants as constants4 } from "node:fs";
-import { realpath as realpath2, lstat as lstat2, open as open2, mkdtemp, rm } from "node:fs/promises";
+import { realpath as realpath2, lstat as lstat2, open as open2, mkdtemp as mkdtemp2, rm as rm2 } from "node:fs/promises";
 import { dirname as dirname8, join as join17, resolve as resolve5, isAbsolute as isAbsolute14, sep as sep3 } from "node:path";
-import { tmpdir } from "node:os";
+import { tmpdir as tmpdir2 } from "node:os";
 async function prefix(path4, size17) {
   const fd = await open2(path4, constants4.O_RDONLY | constants4.O_NOFOLLOW);
   try {
@@ -104397,7 +104504,7 @@ function makeLivePelNativeServices(live, ports) {
       }
       return { executable, nodeExecutable, bwrapPath, readOnlyRuntimeRoots };
     });
-    const directory2 = yield* Effect_exports.acquireRelease(io(() => mkdtemp(join17(tmpdir(), "foreman-native-version-"))), (path4) => Effect_exports.promise(() => rm(path4, { recursive: true, force: true })).pipe(Effect_exports.orDie));
+    const directory2 = yield* Effect_exports.acquireRelease(io(() => mkdtemp2(join17(tmpdir2(), "foreman-native-version-"))), (path4) => Effect_exports.promise(() => rm2(path4, { recursive: true, force: true })).pipe(Effect_exports.orDie));
     const result4 = yield* captured({ command: facts2.executable, args: ["--version"], cwd: directory2, env: { PATH: [dirname8(facts2.nodeExecutable), "/usr/bin", "/bin"].join(":"), HOME: directory2, TMPDIR: directory2, LANG: "C.UTF-8" }, maxOutputBytes: 4096, timeoutMs: 1e4 }).pipe(Effect_exports.mapError(fail26));
     const text12 = result4.stdout.trim(), version = /\b(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)\b/u.exec(text12)?.[1];
     if (result4.exitCode !== 0 || !version || Buffer.byteLength(text12) > 4096) return yield* Effect_exports.fail(fail26());
@@ -104430,7 +104537,7 @@ var init_pel_native_live = __esm({
     pelNativeSupportedModes = { "grok-acp": ["native-coding"], "codex-app-server": ["native-coding"], "claude-code": ["none"], "gemini-cli": [] };
     names4 = { "grok-acp": "grok", "codex-app-server": "codex", "claude-code": "claude" };
     unsupported2 = (message) => ({ _tag: "UnsupportedCapability", retryClass: "never", message });
-    hostFailure = (failure15) => ({ code: "capability-denied", message: failure15.message, cause: { providerFailure: { _tag: failure15._tag, retryClass: failure15.retryClass } } });
+    hostFailure = (failure16) => ({ code: "capability-denied", message: failure16.message, cause: { providerFailure: { _tag: failure16._tag, retryClass: failure16.retryClass } } });
     fail26 = () => unsupported2("Install a supported native executable and Linux bubblewrap boundary, then refresh the exact provider preflight and qualification evidence. The current installation cannot enforce this request.");
     io = (run6) => Effect_exports.tryPromise({ try: run6, catch: fail26 });
     within2 = (root, path4) => path4 === root || path4.startsWith(root + sep3);
@@ -104439,13 +104546,13 @@ var init_pel_native_live = __esm({
 
 // packages/orchestration/src/pel-codex-auth.ts
 import { constants as constants5 } from "node:fs";
-import { lstat as lstat3, realpath as realpath3, open as open3, mkdtemp as mkdtemp2, rm as rm2 } from "node:fs/promises";
+import { lstat as lstat3, realpath as realpath3, open as open3, mkdtemp as mkdtemp3, rm as rm3 } from "node:fs/promises";
 import { dirname as dirname9, isAbsolute as isAbsolute15, join as join18 } from "node:path";
-import { tmpdir as tmpdir2 } from "node:os";
+import { tmpdir as tmpdir3 } from "node:os";
 function refreshManagedAccount(profile, live, deadline, ports) {
   return Effect_exports.scoped(Effect_exports.gen(function* () {
     const installed = ports?.installed ?? (yield* makeLivePelNativeServices(live).installed("codex-app-server"));
-    const cwd = yield* Effect_exports.acquireRelease(io2(() => mkdtemp2(join18(tmpdir2(), "foreman-auth-host-"))), (path4) => Effect_exports.promise(() => rm2(path4, { recursive: true, force: true })));
+    const cwd = yield* Effect_exports.acquireRelease(io2(() => mkdtemp3(join18(tmpdir3(), "foreman-auth-host-"))), (path4) => Effect_exports.promise(() => rm3(path4, { recursive: true, force: true })));
     const peer = yield* (ports?.process ?? createNativeProcessPort()).open({
       cmd: [installed.executable, "app-server", "--stdio"],
       cwd,
@@ -104534,6 +104641,95 @@ var init_pel_codex_auth = __esm({
   }
 });
 
+// packages/orchestration/src/pel-grok-auth.ts
+import { constants as constants6 } from "node:fs";
+import { lstat as lstat4, realpath as realpath4, open as open4 } from "node:fs/promises";
+import { isAbsolute as isAbsolute16, join as join19 } from "node:path";
+function makeGrokLoginCredential(profile) {
+  return Effect_exports.gen(function* () {
+    const identity8 = yield* io3(async () => {
+      if (!isAbsolute16(profile) || await realpath4(profile) !== profile) throw failure7();
+      const info = await lstat4(profile);
+      if (!info.isDirectory() || info.uid !== process.geteuid?.() || (info.mode & 18) !== 0) throw failure7();
+      return { dev: info.dev, ino: info.ino };
+    });
+    const read2 = (deadline) => io3(async () => {
+      if (deadline !== void 0 && (!Number.isFinite(deadline) || deadline <= Date.now())) throw failure7();
+      const checkDirectory = async () => {
+        const stat7 = await lstat4(profile);
+        if (await realpath4(profile) !== profile || !stat7.isDirectory() || stat7.dev !== identity8.dev || stat7.ino !== identity8.ino || stat7.uid !== process.geteuid?.() || (stat7.mode & 18) !== 0) throw failure7();
+      };
+      await checkDirectory();
+      const file2 = await open4(join19(profile, "auth.json"), constants6.O_RDONLY | constants6.O_NOFOLLOW | constants6.O_NONBLOCK);
+      try {
+        const stat7 = await file2.stat();
+        if (!stat7.isFile() || stat7.size > 65536 || stat7.nlink !== 1 || stat7.uid !== process.geteuid?.() || (stat7.mode & 63) !== 0) throw failure7();
+        const bytes3 = Buffer.alloc(65537);
+        const { bytesRead } = await file2.read(bytes3, 0, bytes3.length, 0);
+        const after4 = await file2.stat();
+        if (bytesRead !== stat7.size || after4.size !== stat7.size || after4.mtimeMs !== stat7.mtimeMs || after4.ctimeMs !== stat7.ctimeMs) throw failure7();
+        const decoded = parseJsonRejectDuplicateKeys(new TextDecoder("utf-8", { fatal: true }).decode(bytes3.subarray(0, bytesRead)));
+        if (isCoreFailure(decoded)) throw failure7();
+        const entries2 = Object.entries(object7(decoded));
+        if (entries2.length !== 1) throw failure7();
+        const [name3, raw] = entries2[0];
+        const source2 = object7(raw);
+        const field = (key2, max6 = 512) => {
+          const value4 = source2[key2];
+          if (typeof value4 !== "string" || !value4.trim() || value4.length > max6 || /[\u0000-\u001f]/u.test(value4)) throw failure7();
+          return value4;
+        };
+        const key = field("key", 32768), auth_mode = field("auth_mode");
+        const oidc_issuer = field("oidc_issuer"), oidc_client_id = field("oidc_client_id");
+        const expires_at = field("expires_at"), expiry = Date.parse(expires_at);
+        const create_time = field("create_time");
+        if (auth_mode !== "oidc" || oidc_issuer !== "https://auth.x.ai" || name3 !== `${oidc_issuer}::${oidc_client_id}` || !Number.isFinite(expiry) || !Number.isFinite(Date.parse(create_time)) || expiry <= (deadline ?? Date.now())) throw failure7();
+        const selected = {
+          key,
+          auth_mode,
+          oidc_issuer,
+          oidc_client_id,
+          expires_at,
+          create_time,
+          user_id: field("user_id"),
+          principal_type: field("principal_type"),
+          principal_id: field("principal_id")
+        };
+        if (source2.team_id !== void 0 && source2.team_id !== null) selected.team_id = field("team_id");
+        const accountIdentity = JSON.stringify([name3, selected.user_id, selected.principal_type, selected.principal_id, selected.team_id ?? null]);
+        await checkDirectory();
+        return { accountIdentity, snapshot: Redacted_exports.make(JSON.stringify({ [name3]: selected })) };
+      } finally {
+        await file2.close();
+      }
+    });
+    const initial = yield* read2();
+    return { grokLogin: { snapshot: ({ deadline }) => Effect_exports.gen(function* () {
+      const current3 = yield* read2(deadline);
+      if (current3.accountIdentity !== initial.accountIdentity) return yield* Effect_exports.fail(failure7());
+      return current3.snapshot;
+    }) } };
+  });
+}
+var failure7, io3, object7;
+var init_pel_grok_auth = __esm({
+  "packages/orchestration/src/pel-grok-auth.ts"() {
+    "use strict";
+    init_esm();
+    init_src();
+    failure7 = () => ({
+      _tag: "AuthenticationRequired",
+      retryClass: "never",
+      message: "The selected Grok login is unavailable, ambiguous, changed, or expires before this request ends. Sign in with the selected Grok account."
+    });
+    io3 = (run6) => Effect_exports.tryPromise({ try: run6, catch: failure7 });
+    object7 = (v2) => {
+      if (v2 === null || typeof v2 !== "object" || Array.isArray(v2)) throw failure7();
+      return v2;
+    };
+  }
+});
+
 // packages/orchestration/src/pel-research-context.ts
 var pel_research_context_exports = {};
 __export(pel_research_context_exports, {
@@ -104549,27 +104745,27 @@ __export(pel_research_context_exports, {
   researchBytes: () => researchBytes,
   researchFailure: () => researchFailure
 });
-import { constants as constants6 } from "node:fs";
-import { lstat as lstat4, open as open4, realpath as realpath4, stat as stat2, opendir } from "node:fs/promises";
-import { isAbsolute as isAbsolute16, join as join19, relative as relative2, sep as sep4, dirname as dirname10, basename as basename5, normalize as normalize6 } from "node:path";
+import { constants as constants7 } from "node:fs";
+import { lstat as lstat5, open as open5, realpath as realpath5, stat as stat2, opendir } from "node:fs/promises";
+import { isAbsolute as isAbsolute17, join as join20, relative as relative2, sep as sep4, dirname as dirname10, basename as basename5, normalize as normalize6 } from "node:path";
 function file(x) {
-  return object7(x) && keys8(x, ["path", "sha256", "byteLength"]) && path2(x.path) && hash8(x.sha256) && Number.isSafeInteger(x.byteLength) && Number(x.byteLength) >= 0 && Number(x.byteLength) <= RESEARCH_BOUNDS.sourceBytes;
+  return object8(x) && keys8(x, ["path", "sha256", "byteLength"]) && path2(x.path) && hash8(x.sha256) && Number.isSafeInteger(x.byteLength) && Number(x.byteLength) >= 0 && Number(x.byteLength) <= RESEARCH_BOUNDS.sourceBytes;
 }
 function source(x) {
-  return object7(x) && keys8(x, ["id", "sourceLocator", "capturedAt", "raw", "clean", "claimClass", "coverage"], ["notePath", "excerptRange"]) && bounded9(x.id, 256) && bounded9(x.sourceLocator, 4096) && date2(x.capturedAt) && file(x.raw) && file(x.clean) && claim(x.claimClass) && coverage(x.coverage) && (x.notePath === void 0 || path2(x.notePath)) && (x.excerptRange === void 0 || object7(x.excerptRange) && keys8(x.excerptRange, ["startByte", "endByte"]) && Number.isSafeInteger(x.excerptRange.startByte) && Number.isSafeInteger(x.excerptRange.endByte) && Number(x.excerptRange.startByte) >= 0 && Number(x.excerptRange.endByte) > Number(x.excerptRange.startByte) && Number(x.excerptRange.endByte) <= x.clean.byteLength && Number(x.excerptRange.endByte) - Number(x.excerptRange.startByte) <= 8192);
+  return object8(x) && keys8(x, ["id", "sourceLocator", "capturedAt", "raw", "clean", "claimClass", "coverage"], ["notePath", "excerptRange"]) && bounded9(x.id, 256) && bounded9(x.sourceLocator, 4096) && date2(x.capturedAt) && file(x.raw) && file(x.clean) && claim(x.claimClass) && coverage(x.coverage) && (x.notePath === void 0 || path2(x.notePath)) && (x.excerptRange === void 0 || object8(x.excerptRange) && keys8(x.excerptRange, ["startByte", "endByte"]) && Number.isSafeInteger(x.excerptRange.startByte) && Number.isSafeInteger(x.excerptRange.endByte) && Number(x.excerptRange.startByte) >= 0 && Number(x.excerptRange.endByte) > Number(x.excerptRange.startByte) && Number(x.excerptRange.endByte) <= x.clean.byteLength && Number(x.excerptRange.endByte) - Number(x.excerptRange.startByte) <= 8192);
 }
 function graph(x) {
-  return x === null || object7(x) && keys8(x, ["graphifyVersion", "authority", "sha256", "sourceCommit", "coverage"]) && (x.graphifyVersion === "0.9.48" && x.authority === "qualified" || x.graphifyVersion === "0.9.61" && x.authority === "advisory") && hash8(x.sha256) && typeof x.sourceCommit === "string" && /^[a-f0-9]{40}$/u.test(x.sourceCommit) && coverage(x.coverage);
+  return x === null || object8(x) && keys8(x, ["graphifyVersion", "authority", "sha256", "sourceCommit", "coverage"]) && (x.graphifyVersion === "0.9.48" && x.authority === "qualified" || x.graphifyVersion === "0.9.61" && x.authority === "advisory") && hash8(x.sha256) && typeof x.sourceCommit === "string" && /^[a-f0-9]{40}$/u.test(x.sourceCommit) && coverage(x.coverage);
 }
 function decodeResearchBundleV1(x) {
-  return object7(x) && keys8(x, ["schemaVersion", "bundleId", "capturedAt", "sources", "graph"], ["includesExternalVault"]) && x.schemaVersion === 1 && bounded9(x.bundleId, 256) && date2(x.capturedAt) && Array.isArray(x.sources) && x.sources.length <= RESEARCH_BOUNDS.sources && x.sources.every(source) && new Set(x.sources.map((s3) => s3.id)).size === x.sources.length && graph(x.graph) && (x.includesExternalVault === void 0 || typeof x.includesExternalVault === "boolean");
+  return object8(x) && keys8(x, ["schemaVersion", "bundleId", "capturedAt", "sources", "graph"], ["includesExternalVault"]) && x.schemaVersion === 1 && bounded9(x.bundleId, 256) && date2(x.capturedAt) && Array.isArray(x.sources) && x.sources.length <= RESEARCH_BOUNDS.sources && x.sources.every(source) && new Set(x.sources.map((s3) => s3.id)).size === x.sources.length && graph(x.graph) && (x.includesExternalVault === void 0 || typeof x.includesExternalVault === "boolean");
 }
 function decodeResearchSnapshotV1(x) {
-  if (!object7(x) || !keys8(x, ["schemaVersion", "bundleDigest", "bundle", "results"], ["sourceRoot"]) || x.schemaVersion !== 1 || !hash8(x.bundleDigest) || !decodeResearchBundleV1(x.bundle) || !Array.isArray(x.results) || x.results.length !== x.bundle.sources.length || x.sourceRoot !== void 0 && (!bounded9(x.sourceRoot, 4096) || !isAbsolute16(x.sourceRoot) || normalize6(x.sourceRoot) !== x.sourceRoot)) return false;
+  if (!object8(x) || !keys8(x, ["schemaVersion", "bundleDigest", "bundle", "results"], ["sourceRoot"]) || x.schemaVersion !== 1 || !hash8(x.bundleDigest) || !decodeResearchBundleV1(x.bundle) || !Array.isArray(x.results) || x.results.length !== x.bundle.sources.length || x.sourceRoot !== void 0 && (!bounded9(x.sourceRoot, 4096) || !isAbsolute17(x.sourceRoot) || normalize6(x.sourceRoot) !== x.sourceRoot)) return false;
   const bundle = x.bundle;
   return x.results.every((r, index) => {
     const binding = bundle.sources[index];
-    return object7(r) && keys8(r, ["id", "sourceLocator", "sourceHash", "rawHash", "capturedAt", "claimClass", "freshness", "excerpt", "coverage", "wikilinks"], ["noteLink"]) && r.id === binding.id && r.sourceLocator === binding.sourceLocator && r.sourceHash === binding.clean.sha256 && r.rawHash === binding.raw.sha256 && r.capturedAt === binding.capturedAt && r.claimClass === binding.claimClass && ["fresh", "stale", "missing"].includes(String(r.freshness)) && typeof r.excerpt === "string" && Buffer.byteLength(r.excerpt) <= 8192 && coverage(r.coverage) && Array.isArray(r.wikilinks) && r.wikilinks.length <= 20 && r.wikilinks.every((v2) => bounded9(v2, 256)) && (r.noteLink === void 0 || bounded9(r.noteLink, 8192));
+    return object8(r) && keys8(r, ["id", "sourceLocator", "sourceHash", "rawHash", "capturedAt", "claimClass", "freshness", "excerpt", "coverage", "wikilinks"], ["noteLink"]) && r.id === binding.id && r.sourceLocator === binding.sourceLocator && r.sourceHash === binding.clean.sha256 && r.rawHash === binding.raw.sha256 && r.capturedAt === binding.capturedAt && r.claimClass === binding.claimClass && ["fresh", "stale", "missing"].includes(String(r.freshness)) && typeof r.excerpt === "string" && Buffer.byteLength(r.excerpt) <= 8192 && coverage(r.coverage) && Array.isArray(r.wikilinks) && r.wikilinks.length <= 20 && r.wikilinks.every((v2) => bounded9(v2, 256)) && (r.noteLink === void 0 || bounded9(r.noteLink, 8192));
   });
 }
 function parseResearchJson(bytes3) {
@@ -104669,7 +104865,7 @@ function makePelResearchContextService(options2) {
         } catch {
           return yield* Effect_exports.fail(researchFailure("invalid", "invalid-refresh-marker", "Refresh metadata is invalid."));
         }
-        if (!object7(value4) || !keys8(value4, ["schemaVersion", "previousSnapshotSha256"]) || value4.schemaVersion !== 1 || value4.previousSnapshotSha256 !== null && !hash8(value4.previousSnapshotSha256)) return yield* Effect_exports.fail(researchFailure("invalid", "invalid-refresh-marker", "Refresh metadata is invalid."));
+        if (!object8(value4) || !keys8(value4, ["schemaVersion", "previousSnapshotSha256"]) || value4.schemaVersion !== 1 || value4.previousSnapshotSha256 !== null && !hash8(value4.previousSnapshotSha256)) return yield* Effect_exports.fail(researchFailure("invalid", "invalid-refresh-marker", "Refresh metadata is invalid."));
         if (value4.previousSnapshotSha256 === snapshotDigest) warnings.push("The previous refresh did not complete.");
       }
     }
@@ -104682,7 +104878,7 @@ function makePelResearchContextService(options2) {
       else {
         for (let i = 0; i < results.length; i++) {
           const note = loaded.bundle.sources[i]?.notePath;
-          if (note) results[i] = { ...results[i], noteLink: `obsidian://open?path=${encodeURIComponent(join19(vault, note))}` };
+          if (note) results[i] = { ...results[i], noteLink: `obsidian://open?path=${encodeURIComponent(join20(vault, note))}` };
         }
         if (reader.listNotes) {
           const notes = yield* Effect_exports.either(Effect_exports.gen(function* () {
@@ -104699,7 +104895,7 @@ function makePelResearchContextService(options2) {
               } catch {
                 return yield* Effect_exports.fail(researchFailure("invalid", "unsupported-note", "Optional note is not UTF-8."));
               }
-              const excerpt = safeExcerpt(text12), sourceHash = sha256Hex(bytes3), noteLink = `obsidian://open?path=${encodeURIComponent(join19(vault, name3))}`;
+              const excerpt = safeExcerpt(text12), sourceHash = sha256Hex(bytes3), noteLink = `obsidian://open?path=${encodeURIComponent(join20(vault, name3))}`;
               rows.push({ id: `vault:${name3}`, sourceLocator: noteLink, sourceHash, rawHash: sourceHash, capturedAt: null, observedAt: (/* @__PURE__ */ new Date()).toISOString(), claimClass: "hypothesis", freshness: "uncaptured", excerpt, coverage: ["Unverified external note; no execution authority.", "Live note observation; no immutable capture or freshness proof."], noteLink, wikilinks: [...excerpt.matchAll(/\[\[([^\]\n]{1,256})\]\]/gu)].slice(0, 20).map((m2) => m2[1]) });
             }
             return rows;
@@ -104731,15 +104927,15 @@ function normalizeCapturedResearchManifest(data3, metadata) {
     let rows;
     let capturedAt;
     if (Array.isArray(manifest)) rows = manifest;
-    else if (object7(manifest)) {
+    else if (object8(manifest)) {
       capturedAt = manifest.archivedAt ?? manifest.fetched_at ?? manifest.captured_at;
       if (Array.isArray(manifest.sources)) rows = manifest.sources;
       else if (Array.isArray(manifest.records)) rows = manifest.records;
-      else if (object7(manifest.files)) rows = Object.entries(manifest.files).map(([file2, sha256]) => ({ file: file2, sha256, url: manifest.url }));
+      else if (object8(manifest.files)) rows = Object.entries(manifest.files).map(([file2, sha256]) => ({ file: file2, sha256, url: manifest.url }));
       else throw Error("Unsupported capture manifest");
     } else throw Error("Unsupported capture manifest");
     const result4 = rows.map((row, index) => {
-      if (!object7(row)) throw Error("Invalid source");
+      if (!object8(row)) throw Error("Invalid source");
       const rawPath = row.raw_file ?? row.file ?? row.path, cleanPath = row.clean_file ?? rawPath, rawHash = row.raw_sha256 ?? row.sha256, cleanHash = row.clean_sha256 ?? rawHash, rawBytes = row.raw_bytes ?? row.bytes ?? row.byteLength, cleanBytes = row.clean_bytes ?? rawBytes;
       const value4 = { id: String(row.id ?? index), sourceLocator: row.source_url ?? row.url, capturedAt: row.captured_at ?? row.retrieved_at ?? row.captureFileModifiedAt ?? capturedAt, raw: { path: rawPath, sha256: rawHash, byteLength: rawBytes }, clean: { path: cleanPath, sha256: cleanHash, byteLength: cleanBytes }, claimClass: metadata.claimClass, coverage: [...metadata.coverage, ...cleanPath === rawPath ? ["No separate clean extraction is available."] : []].slice(0, 20) };
       if (!source(value4)) throw Error("Capture manifest needs validated byte lengths and provenance");
@@ -104751,7 +104947,7 @@ function normalizeCapturedResearchManifest(data3, metadata) {
     return { ok: false, error: "The captured manifest is invalid or lacks bounded source provenance." };
   }
 }
-var RESEARCH_BOUNDS, researchFailure, object7, keys8, bounded9, hash8, path2, date2, coverage, claim, researchBytes, liveResearchReadPort;
+var RESEARCH_BOUNDS, researchFailure, object8, keys8, bounded9, hash8, path2, date2, coverage, claim, researchBytes, liveResearchReadPort;
 var init_pel_research_context = __esm({
   "packages/orchestration/src/pel-research-context.ts"() {
     "use strict";
@@ -104759,28 +104955,28 @@ var init_pel_research_context = __esm({
     init_src();
     RESEARCH_BOUNDS = { manifestBytes: 1024 * 1024, sourceBytes: 32 * 1024 * 1024, totalBytes: 128 * 1024 * 1024, snapshotBytes: 8 * 1024 * 1024, sources: 512, results: 20, excerptBytes: 8192 };
     researchFailure = (outcome, code, message) => ({ _tag: "ResearchFailure", outcome, code, message });
-    object7 = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
+    object8 = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
     keys8 = (x, required2, optional = []) => required2.every((k2) => Object.hasOwn(x, k2)) && Object.keys(x).every((k2) => required2.includes(k2) || optional.includes(k2));
     bounded9 = (x, max6) => typeof x === "string" && x.length > 0 && Buffer.byteLength(x) <= max6 && !/[\u0000-\u001f\u007f]/u.test(x);
     hash8 = (x) => typeof x === "string" && /^[a-f0-9]{64}$/u.test(x);
-    path2 = (x) => bounded9(x, 4096) && !isAbsolute16(x) && !x.includes("\\") && x.split("/").every((p2) => p2 !== "." && p2 !== ".." && p2 !== "" && ![".git", ".env", ".harness"].includes(p2)) && !/\.(pem|key|p12|pfx)$/iu.test(x);
+    path2 = (x) => bounded9(x, 4096) && !isAbsolute17(x) && !x.includes("\\") && x.split("/").every((p2) => p2 !== "." && p2 !== ".." && p2 !== "" && ![".git", ".env", ".harness"].includes(p2)) && !/\.(pem|key|p12|pfx)$/iu.test(x);
     date2 = (x) => bounded9(x, 64) && Number.isFinite(Date.parse(x));
     coverage = (x) => Array.isArray(x) && x.length <= 20 && x.every((v2) => bounded9(v2, 1024));
     claim = (x) => ["hypothesis", "adopted-decision", "verified-observation", "open-question"].includes(String(x));
     researchBytes = (value4) => Buffer.from(canonicalize(value4) + "\n");
     liveResearchReadPort = {
       listNotes: (root) => Effect_exports.tryPromise({ try: async () => {
-        const canonical3 = await realpath4(root), notes = [];
+        const canonical3 = await realpath5(root), notes = [];
         let entries2 = 0;
         const visit = async (directory2, depth) => {
           if (depth > 16) throw Error("Vault depth bound");
-          const canonicalDirectory = await realpath4(directory2);
+          const canonicalDirectory = await realpath5(directory2);
           if (relative2(canonical3, canonicalDirectory).split(sep4).includes("..")) throw Error("Vault path escape");
           const handle = await opendir(directory2);
           for await (const entry of handle) {
             if (++entries2 > 4096) throw Error("Vault entry bound");
             if (entry.name.startsWith(".") || entry.isSymbolicLink()) continue;
-            const target = join19(directory2, entry.name), name3 = relative2(canonical3, target).split(sep4).join("/");
+            const target = join20(directory2, entry.name), name3 = relative2(canonical3, target).split(sep4).join("/");
             if (!path2(name3)) continue;
             if (entry.isDirectory()) await visit(target, depth + 1);
             else if (entry.isFile() && /\.md$/iu.test(entry.name)) {
@@ -104804,33 +105000,33 @@ var init_pel_research_context = __esm({
         if (!path2(name3) || !Number.isSafeInteger(maxBytes) || maxBytes < 0) throw researchFailure("invalid", "invalid-path", "The source path or read bound is invalid.");
         let canonical3;
         try {
-          canonical3 = await realpath4(root);
+          canonical3 = await realpath5(root);
         } catch (e) {
           if (e.code === "ENOENT") return null;
           throw e;
         }
-        const target = join19(canonical3, name3);
+        const target = join20(canonical3, name3);
         let before2;
         try {
-          before2 = await lstat4(target);
+          before2 = await lstat5(target);
         } catch (e) {
           if (e.code === "ENOENT") return null;
           throw e;
         }
-        const parent2 = await realpath4(join19(target, ".."));
+        const parent2 = await realpath5(join20(target, ".."));
         if (relative2(canonical3, parent2).split(sep4).includes("..") || before2.isSymbolicLink() || !before2.isFile() || before2.size > maxBytes) throw researchFailure("invalid", "unsafe-source", "The source escapes its root, changed type, or exceeds its bound.");
-        const fd = await open4(target, constants6.O_RDONLY | constants6.O_NOFOLLOW);
+        const fd = await open5(target, constants7.O_RDONLY | constants7.O_NOFOLLOW);
         try {
           const opened = await fd.stat();
           if (opened.dev !== before2.dev || opened.ino !== before2.ino || opened.size > maxBytes) throw Error("Changed source");
           const content = await fd.readFile();
-          const after4 = await fd.stat(), current3 = await lstat4(target);
+          const after4 = await fd.stat(), current3 = await lstat5(target);
           if (content.byteLength > maxBytes || after4.ino !== current3.ino || after4.dev !== current3.dev || after4.mtimeMs !== opened.mtimeMs || after4.ctimeMs !== opened.ctimeMs || after4.size !== opened.size) throw Error("Changed source");
           return content;
         } finally {
           await fd.close();
         }
-      }, catch: (e) => object7(e) && e._tag === "ResearchFailure" ? e : researchFailure("failed", "read-failed", "The required research input could not be read safely.") })
+      }, catch: (e) => object8(e) && e._tag === "ResearchFailure" ? e : researchFailure("failed", "read-failed", "The required research input could not be read safely.") })
     };
   }
 });
@@ -104839,13 +105035,13 @@ var init_pel_research_context = __esm({
 function makePelResearchHandler(ports) {
   const prepare = (request3, context11) => Effect_exports.gen(function* () {
     const id5 = text7(request3, "id", 256), query = text7(request3, "query", 4096), bundle = text7(request3, "bundle", 256), limitValue = request3.boundArguments.limit, limit2 = limitValue === void 0 ? 5 : limitValue.tag === "number" ? limitValue.value : NaN;
-    if (request3.registryId !== "fm/research" || request3.expectedResultSchemaId !== "schema:research-result-v1" || !id5 || !query || !bundle || !/^bundle:[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(bundle) || !Number.isSafeInteger(limit2) || limit2 < 1 || limit2 > 20 || Object.keys(request3.boundArguments).some((k2) => !["id", "query", "bundle", "limit"].includes(k2))) return yield* Effect_exports.fail(failure7("capability-denied", "The research arguments are outside their admitted bounds."));
-    if (!context11.checked.snapshot.policy.allowedCapabilities.includes("research.read")) return yield* Effect_exports.fail(failure7("capability-denied", "Research reads are not admitted."));
+    if (request3.registryId !== "fm/research" || request3.expectedResultSchemaId !== "schema:research-result-v1" || !id5 || !query || !bundle || !/^bundle:[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(bundle) || !Number.isSafeInteger(limit2) || limit2 < 1 || limit2 > 20 || Object.keys(request3.boundArguments).some((k2) => !["id", "query", "bundle", "limit"].includes(k2))) return yield* Effect_exports.fail(failure8("capability-denied", "The research arguments are outside their admitted bounds."));
+    if (!context11.checked.snapshot.policy.allowedCapabilities.includes("research.read")) return yield* Effect_exports.fail(failure8("capability-denied", "Research reads are not admitted."));
     const selected = yield* ports.resolveBundle(bundle, context11);
-    if (selected.bundleId !== bundle || selected.resources.writes.length || selected.resources.unknownScope || selected.sources.length > 1024 || ![selected.indexRef, ...selected.sources].every((ref3) => decodePelArtifactRefV1(ref3).ok)) return yield* Effect_exports.fail(failure7("resource-denied", "The research bundle changed its immutable read binding."));
-    if (selected.includesExternalVault && !context11.checked.snapshot.policy.allowedCapabilities.includes("vault.read")) return yield* Effect_exports.fail(failure7("capability-denied", "External vault reads are not admitted."));
-    const result4 = yield* selected.query({ text: query, limit: limit2 }).pipe(Effect_exports.mapError((error) => failure7(error.outcome === "invalid" ? "task-output-invalid" : "artifact-missing", error.message)));
-    if (result4.query !== query || result4.results.length > limit2 || result4.results.some((row) => !/^[a-f0-9]{64}$/u.test(row.sourceHash) || typeof row.capturedAt !== "string" || row.freshness === "uncaptured" || row.observedAt !== void 0)) return yield* Effect_exports.fail(failure7("task-output-invalid", "Research output differs from its bounded query or source hashes."));
+    if (selected.bundleId !== bundle || selected.resources.writes.length || selected.resources.unknownScope || selected.sources.length > 1024 || ![selected.indexRef, ...selected.sources].every((ref3) => decodePelArtifactRefV1(ref3).ok)) return yield* Effect_exports.fail(failure8("resource-denied", "The research bundle changed its immutable read binding."));
+    if (selected.includesExternalVault && !context11.checked.snapshot.policy.allowedCapabilities.includes("vault.read")) return yield* Effect_exports.fail(failure8("capability-denied", "External vault reads are not admitted."));
+    const result4 = yield* selected.query({ text: query, limit: limit2 }).pipe(Effect_exports.mapError((error) => failure8(error.outcome === "invalid" ? "task-output-invalid" : "artifact-missing", error.message)));
+    if (result4.query !== query || result4.results.length > limit2 || result4.results.some((row) => !/^[a-f0-9]{64}$/u.test(row.sourceHash) || typeof row.capturedAt !== "string" || row.freshness === "uncaptured" || row.observedAt !== void 0)) return yield* Effect_exports.fail(failure8("task-output-invalid", "Research output differs from its bounded query or source hashes."));
     const value4 = association([["status", string4(result4.status)], ["results", list(result4.results.map((row) => association([
       ["sourceLocator", string4(row.sourceLocator)],
       ["sourceHash", string4(row.sourceHash)],
@@ -104856,18 +105052,18 @@ function makePelResearchHandler(ports) {
       ["coverage", list([.../* @__PURE__ */ new Set([...row.coverage, ...result4.warnings, ...result4.graph?.coverage ?? []])].slice(0, 20).map(string4))]
     ])))]]);
     const schema = context11.checked.snapshot.registry.dataSchemas[request3.expectedResultSchemaId];
-    if (!schema || !validateDataSchema(value4, schema)) return yield* Effect_exports.fail(failure7("task-output-invalid", "Research output does not match the canonical host schema."));
+    if (!schema || !validateDataSchema(value4, schema)) return yield* Effect_exports.fail(failure8("task-output-invalid", "Research output does not match the canonical host schema."));
     const byId = /* @__PURE__ */ new Map();
     for (const ref3 of [selected.indexRef, ...selected.sources]) {
       const previous3 = byId.get(ref3.artifactId);
-      if (previous3 && canonicalize(previous3) !== canonicalize(ref3)) return yield* Effect_exports.fail(failure7("resource-denied", "One research artifact changed its immutable metadata."));
+      if (previous3 && canonicalize(previous3) !== canonicalize(ref3)) return yield* Effect_exports.fail(failure8("resource-denied", "One research artifact changed its immutable metadata."));
       byId.set(ref3.artifactId, ref3);
     }
     const sources = [...byId.values()];
     const preparationDigest = sha256Hex(canonicalize({ id: id5, query, bundle, limit: limit2, indexRef: selected.indexRef, sources, resources: selected.resources, value: value4 }));
     return { kind: "read-result", value: value4, sources, preparationDigest };
   });
-  return { prepare, dispatch: () => Effect_exports.fail(failure7("capability-denied", "Read-only research preparation cannot dispatch an external action.")) };
+  return { prepare, dispatch: () => Effect_exports.fail(failure8("capability-denied", "Read-only research preparation cannot dispatch an external action.")) };
 }
 function decodePelResearchIndexExpansion(bundleId, indexRef, bytes3) {
   try {
@@ -104919,10 +105115,10 @@ function loadPelResearchBundleInputs(project4, read2) {
 function resolvePelResearchIndex(request3, context11) {
   return Effect_exports.gen(function* () {
     const id5 = text7(request3, "bundle", 256), ref3 = id5 ? context11.project.researchBundles?.[id5] : void 0;
-    if (!id5 || !ref3 || !context11.checked.snapshot.policy.resourceEnvelope.reads.includes(id5)) return yield* Effect_exports.fail(failure7("resource-denied", "The research bundle is not in the original admitted index map."));
-    const runtime4 = yield* PelRuntime, bytes3 = yield* runtime4.artifacts.get(context11.binding.runId, ref3, RESEARCH_BOUNDS.manifestBytes).pipe(Effect_exports.mapError(() => failure7("artifact-missing", "The original research index is unavailable or changed."))), expanded = decodePelResearchIndexExpansion(id5, ref3, bytes3);
-    if (!expanded) return yield* Effect_exports.fail(failure7("task-output-invalid", "The original research index is invalid."));
-    if (expanded.bundle.includesExternalVault && !context11.checked.snapshot.policy.allowedCapabilities.includes("vault.read")) return yield* Effect_exports.fail(failure7("capability-denied", "The admitted research index requires vault.read."));
+    if (!id5 || !ref3 || !context11.checked.snapshot.policy.resourceEnvelope.reads.includes(id5)) return yield* Effect_exports.fail(failure8("resource-denied", "The research bundle is not in the original admitted index map."));
+    const runtime4 = yield* PelRuntime, bytes3 = yield* runtime4.artifacts.get(context11.binding.runId, ref3, RESEARCH_BOUNDS.manifestBytes).pipe(Effect_exports.mapError(() => failure8("artifact-missing", "The original research index is unavailable or changed."))), expanded = decodePelResearchIndexExpansion(id5, ref3, bytes3);
+    if (!expanded) return yield* Effect_exports.fail(failure8("task-output-invalid", "The original research index is invalid."));
+    if (expanded.bundle.includesExternalVault && !context11.checked.snapshot.policy.allowedCapabilities.includes("vault.read")) return yield* Effect_exports.fail(failure8("capability-denied", "The admitted research index requires vault.read."));
     return expanded;
   });
 }
@@ -104940,7 +105136,7 @@ function makePelImmutableResearchHandler() {
     return { ...expanded, includesExternalVault: expanded.bundle.includesExternalVault ?? false, query: service4.query };
   }) });
 }
-var failure7, text7, string4, list, association;
+var failure8, text7, string4, list, association;
 var init_pel_research_host = __esm({
   "packages/orchestration/src/pel-research-host.ts"() {
     "use strict";
@@ -104950,7 +105146,7 @@ var init_pel_research_host = __esm({
     init_pel_run_contract();
     init_pel_research_context();
     init_pel_journal();
-    failure7 = (code, message) => ({ code, message });
+    failure8 = (code, message) => ({ code, message });
     text7 = (request3, name3, max6) => {
       const value4 = request3.boundArguments[name3];
       return value4?.tag === "string" && value4.value.length > 0 && Buffer.byteLength(value4.value) <= max6 && !/[\u0000-\u001f\u007f]/u.test(value4.value) ? value4.value : null;
@@ -104962,16 +105158,16 @@ var init_pel_research_host = __esm({
 });
 
 // packages/orchestration/src/pel-resource-scope.ts
-import { realpath as realpath5, stat as stat3 } from "node:fs/promises";
-import { dirname as dirname11, isAbsolute as isAbsolute17, join as join20, relative as relative3, resolve as resolve6, sep as sep5 } from "node:path";
+import { realpath as realpath6, stat as stat3 } from "node:fs/promises";
+import { dirname as dirname11, isAbsolute as isAbsolute18, join as join21, relative as relative3, resolve as resolve6, sep as sep5 } from "node:path";
 async function canonical2(path4) {
   try {
-    return await realpath5(path4);
+    return await realpath6(path4);
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
     const parent2 = dirname11(path4);
     if (parent2 === path4) throw error;
-    return join20(await canonical2(parent2), relative3(parent2, path4));
+    return join21(await canonical2(parent2), relative3(parent2, path4));
   }
 }
 function canonicalWorkspacePath(path4, context11) {
@@ -104979,14 +105175,14 @@ function canonicalWorkspacePath(path4, context11) {
     if (path4.includes("\0") || path4.split(/[\\/]/u).includes("..")) throw denied2();
     const root = context11.workspace.canonicalRoot;
     const info = await stat3(root);
-    if (await realpath5(root) !== root || `${info.dev}:${info.ino}` !== context11.workspace.directoryIdentity) throw denied2();
-    const result4 = await canonical2(isAbsolute17(path4) ? path4 : resolve6(root, path4));
+    if (await realpath6(root) !== root || `${info.dev}:${info.ino}` !== context11.workspace.directoryIdentity) throw denied2();
+    const result4 = await canonical2(isAbsolute18(path4) ? path4 : resolve6(root, path4));
     if (!contains6(root, result4)) throw denied2();
     return result4;
   }, catch: denied2 });
 }
 function overlaps(a, b2) {
-  return a === b2 || isAbsolute17(a) && isAbsolute17(b2) && (contains6(a, b2) || contains6(b2, a));
+  return a === b2 || isAbsolute18(a) && isAbsolute18(b2) && (contains6(a, b2) || contains6(b2, a));
 }
 function conflicts(a, b2) {
   const ar2 = a.reads, aw = [...a.writes, ...a.unknownScope ? [a.unknownScope] : []];
@@ -105005,20 +105201,20 @@ function makePelResourceScope(options2 = {}) {
         if (suffix === context11.workspace.grantId || suffix === context11.workspace.worktreeId) return canonicalWorkspacePath(".", context11);
         return Effect_exports.fail(denied2());
       }
-      if (isAbsolute17(name3) || name3.startsWith("./")) return canonicalWorkspacePath(name3, context11);
+      if (isAbsolute18(name3) || name3.startsWith("./")) return canonicalWorkspacePath(name3, context11);
       if (name3.startsWith("artifact:") || name3 === "host:output") return Effect_exports.succeed(name3);
       return Effect_exports.fail(denied2());
     };
     const acquire = (resources, context11) => Effect_exports.gen(function* () {
       const validate5 = Effect_exports.gen(function* () {
         for (const name3 of [...resources.reads, ...resources.writes, ...resources.unknownScope ? [resources.unknownScope] : []]) {
-          if (!isAbsolute17(name3)) {
+          if (!isAbsolute18(name3)) {
             if (!name3.startsWith("artifact:") && name3 !== "host:output" && !admittedPublication(name3, context11)) return yield* Effect_exports.fail(denied2());
             continue;
           }
           if (yield* canonicalWorkspacePath(name3, context11).pipe(Effect_exports.map((c) => c !== name3))) return yield* Effect_exports.fail(denied2());
         }
-        for (const name3 of resources.writes.filter(isAbsolute17)) {
+        for (const name3 of resources.writes.filter(isAbsolute18)) {
           const allowed = yield* Effect_exports.forEach(context11.workspace.writablePaths, (p2) => canonicalWorkspacePath(p2, context11));
           if (!allowed.some((p2) => contains6(p2, name3))) return yield* Effect_exports.fail(denied2());
         }
@@ -105089,7 +105285,7 @@ var init_pel_resource_scope = __esm({
 });
 
 // packages/orchestration/src/pel-native-permissions.ts
-import { isAbsolute as isAbsolute18, relative as relative4, resolve as resolve7, sep as sep6 } from "node:path";
+import { isAbsolute as isAbsolute19, relative as relative4, resolve as resolve7, sep as sep6 } from "node:path";
 function makePelNativePermissionAuthorizer(request3, context11) {
   return (identity8, tool, policy) => Effect_exports.gen(function* () {
     const profile = resolveProfile(request3.profileId);
@@ -105114,7 +105310,7 @@ function makePelNativePermissionAuthorizer(request3, context11) {
     if (!visit(tool.arguments, 0)) return yield* Effect_exports.fail(denied3());
     const root = yield* canonicalWorkspacePath(".", context11).pipe(Effect_exports.mapError(denied3));
     for (const item of found) {
-      const absolute = isAbsolute18(item.path) ? resolve7(item.path) : resolve7(root, item.path), path4 = yield* canonicalWorkspacePath(absolute, context11).pipe(Effect_exports.mapError(denied3));
+      const absolute = isAbsolute19(item.path) ? resolve7(item.path) : resolve7(root, item.path), path4 = yield* canonicalWorkspacePath(absolute, context11).pipe(Effect_exports.mapError(denied3));
       if (!inside(root, path4) || relative4(root, path4).split(sep6).some((p2) => p2.toLowerCase() === ".git")) return yield* Effect_exports.fail(denied3());
       if (writes(tool.name) && !item.cwd) {
         const allowed = yield* Effect_exports.forEach(context11.workspace.writablePaths, (p2) => canonicalWorkspacePath(p2, context11).pipe(Effect_exports.mapError(denied3)));
@@ -105145,7 +105341,7 @@ var init_pel_native_permissions = __esm({
     init_pel_resource_scope();
     denied3 = () => ({ _tag: "UnsupportedCapability", retryClass: "never", message: "The native permission request is outside its original effect, provider, writable paths or finite method set." });
     inside = (root, path4) => path4 === root || path4.startsWith(root + sep6);
-    paths = /* @__PURE__ */ new Set(["path", "file_path", "filePath", "cwd", "workingDirectory", "working_directory", "sourcePath", "destinationPath", "old_path", "new_path", "grantRoot"]);
+    paths = /* @__PURE__ */ new Set(["path", "file_path", "filePath", "target_directory", "cwd", "workingDirectory", "working_directory", "sourcePath", "destinationPath", "old_path", "new_path", "grantRoot"]);
     method = (transport, name3) => transport === "codex-app-server" ? ["item/fileChange/requestApproval", "item/commandExecution/requestApproval"].includes(name3) : transport === "grok-acp" && ["read", "edit", "delete", "move", "search", "execute"].includes(name3);
     writes = (name3) => ["edit", "delete", "move", "item/fileChange/requestApproval"].includes(name3);
   }
@@ -105203,19 +105399,19 @@ var pel_native_qualification_exports = {};
 __export(pel_native_qualification_exports, {
   runNativeCodingQualification: () => runNativeCodingQualification
 });
-import { constants as constants7, openSync as openSync9, closeSync as closeSync9, fstatSync as fstatSync8 } from "node:fs";
-import { mkdir, mkdtemp as mkdtemp3, rm as rm3, realpath as realpath6, stat as stat4, writeFile, lstat as lstat5 } from "node:fs/promises";
-import { tmpdir as tmpdir3 } from "node:os";
-import { join as join21 } from "node:path";
+import { constants as constants8, openSync as openSync9, closeSync as closeSync9, fstatSync as fstatSync8 } from "node:fs";
+import { mkdir, mkdtemp as mkdtemp4, rm as rm4, realpath as realpath7, stat as stat4, writeFile as writeFile2, lstat as lstat6 } from "node:fs/promises";
+import { tmpdir as tmpdir4 } from "node:os";
+import { join as join23 } from "node:path";
 function readBounded(path4, max6) {
-  const fd = openSync9(path4, constants7.O_RDONLY | constants7.O_NOFOLLOW);
+  const fd = openSync9(path4, constants8.O_RDONLY | constants8.O_NOFOLLOW);
   try {
     const info = fstatSync8(fd);
     if (!info.isFile() || info.size > max6)
-      throw failure8();
+      throw failure9();
     const bytes3 = readFdBounded(fd, max6);
     if (isCoreFailure(bytes3))
-      throw failure8();
+      throw failure9();
     return Buffer.from(bytes3);
   } finally {
     closeSync9(fd);
@@ -105224,62 +105420,63 @@ function readBounded(path4, max6) {
 function runNativeCodingQualification(selection2, live, fixture) {
   return Effect_exports.scoped(Effect_exports.gen(function* () {
     if (!["grok-acp", "codex-app-server"].includes(selection2.transportId) || selection2.controls.toolChoice !== "auto" || selection2.limits.maxToolCalls < 1 || Boolean(fixture) !== (selection2.binding.kind === "qualification-fixture"))
-      return yield* Effect_exports.fail(failure8("Coding qualification requires a supported native transport, automatic bounded tools, and a matching product or fixture binding."));
+      return yield* Effect_exports.fail(failure9("Coding qualification requires a supported native transport, automatic bounded tools, and a matching product or fixture binding."));
     const bounded10 = qualificationBounds(selection2.limits, Date.now()), profile = resolveProfile(selection2.profileId);
     if (!bounded10.ok)
       return yield* Effect_exports.fail(bounded10.error);
     if (!profile.ok)
       return yield* Effect_exports.fail(profile.error);
     if (!profile.value.transports.includes(selection2.transportId))
-      return yield* Effect_exports.fail(failure8("The exact profile does not support this transport."));
+      return yield* Effect_exports.fail(failure9("The exact profile does not support this transport."));
     const credentials = makeLiveProviderCredentials(live, selection2.transportId);
     if (!fixture) {
       const selected = yield* credentials.resolve(selection2.credentialProfileRef);
-      if (selected.nativeProfileDirectory || !selected.environment && !(selection2.transportId === "codex-app-server" && selected.chatgpt))
-        return yield* Effect_exports.fail(failure8("The isolated coding boundary requires an explicit environment credential or host-managed ChatGPT login. Native profile directories are not mounted."));
+      if (selected.nativeProfileDirectory || !selected.environment && !(selection2.transportId === "codex-app-server" && selected.chatgpt) && !(selection2.transportId === "grok-acp" && selected.grokLogin))
+        return yield* Effect_exports.fail(failure9("The isolated coding boundary requires an explicit environment credential or host-managed native login. Native profile directories are not mounted."));
     }
     const installed = fixture?.installed ?? (yield* makeLivePelNativeServices(live).installed(selection2.transportId));
-    const workspace = yield* Effect_exports.acquireRelease(io3(() => mkdtemp3(join21(tmpdir3(), "foreman-code-qualification-"))), (root) => Effect_exports.promise(() => rm3(root, { recursive: true, force: true })));
-    yield* io3(async () => {
-      await mkdir(join21(workspace, "src"));
-      await writeFile(join21(workspace, "src/value.txt"), "0\n", { mode: 384 });
+    const workspace = yield* Effect_exports.acquireRelease(io4(() => mkdtemp4(join23(tmpdir4(), "foreman-code-qualification-"))), (root) => Effect_exports.promise(() => rm4(root, { recursive: true, force: true })));
+    yield* io4(async () => {
+      await mkdir(join23(workspace, "src"));
+      await writeFile2(join23(workspace, "src/value.txt"), "0\n", { mode: 384 });
     });
     yield* git(workspace, ["init", "--quiet"]);
     yield* git(workspace, ["add", "--", "src/value.txt"]);
     yield* git(workspace, ["-c", "user.name=Foreman Qualification", "-c", "user.email=qualification@invalid", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", "commit", "--quiet", "-m", "Qualification input"]);
     const head9 = (yield* git(workspace, ["rev-parse", "HEAD"])).trim();
-    const indexBefore = yield* Effect_exports.try({ try: () => sha256Hex(readBounded(join21(workspace, ".git/index"), 65536)), catch: () => failure8() });
-    const evidenceRoot = yield* io3(async () => {
+    const indexBefore = yield* Effect_exports.try({ try: () => sha256Hex(readBounded(join23(workspace, ".git/index"), 65536)), catch: () => failure9() });
+    const evidenceRoot = yield* io4(async () => {
       await mkdir(live.stateRoot, { recursive: true, mode: 448 });
-      if (await realpath6(live.stateRoot) !== live.stateRoot)
-        throw failure8();
-      const providers = join21(live.stateRoot, "providers");
+      if (await realpath7(live.stateRoot) !== live.stateRoot)
+        throw failure9();
+      const providers = join23(live.stateRoot, "providers");
       await mkdir(providers, { recursive: true, mode: 448 });
-      if (await realpath6(providers) !== providers)
-        throw failure8();
-      return mkdtemp3(join21(providers, "qualification-"));
+      if (await realpath7(providers) !== providers)
+        throw failure9();
+      return mkdtemp4(join23(providers, "qualification-"));
     });
     const id5 = decodeRunId("qualification");
     if (typeof id5 !== "string")
-      return yield* Effect_exports.fail(failure8());
+      return yield* Effect_exports.fail(failure9());
     const runId2 = id5;
     const journal = yield* Effect_exports.provide(RunJournal, makeLiveRunJournalLayer(evidenceRoot));
     const artifacts = makeLivePelArtifactPort(evidenceRoot);
-    const workspaceInfo = yield* io3(() => stat4(workspace));
+    const workspaceInfo = yield* io4(() => stat4(workspace));
     const bindingSha256 = sha256Hex(canonicalize({ binding: selection2.binding, profile: selection2.profileId, transport: selection2.transportId, controls: selection2.controls, workspace, identity: `${workspaceInfo.dev}:${workspaceInfo.ino}`, head: head9 }));
-    const scope6 = { workspace: { grantId: `qualification-${bindingSha256}`, canonicalRoot: workspace, directoryIdentity: `${workspaceInfo.dev}:${workspaceInfo.ino}`, writablePaths: ["src"] }, binding: { stateRoot: evidenceRoot, repository: { gitCommonDir: join21(workspace, ".git") } }, effect: { effectId: `qualification-${bindingSha256}` } };
-    const request3 = { schemaVersion: 1, effectId: scope6.effect.effectId, profileId: selection2.profileId, transportId: selection2.transportId, credentialProfileRef: selection2.credentialProfileRef, profileHash: profile.value.profileHash, sourceManifestHash: profile.value.sourceManifestHash, transportVersion: installed.version, controls: selection2.controls, limits: bounded10.value, artifacts: [], trustedInstructions: 'This is a bounded Foreman coding qualification. Change only src/value.txt from the UTF-8 bytes 0 followed by LF to 1 followed by LF. Do not change Git metadata or any other file. Use at most two tool requests. Then return exactly the JSON object {"value":true}.', toolPolicy: { mode: "native-coding", workspaceGrantId: scope6.workspace.grantId, permissionGrantIds: [`qualification-write-${bindingSha256}`], hostPermissionPortRef: `qualification-host-${bindingSha256}` }, outputSchema: { id: "schema:pel-boolean-v1", content: { type: "boolean" } } };
+    const scope6 = { workspace: { grantId: `qualification-${bindingSha256}`, canonicalRoot: workspace, directoryIdentity: `${workspaceInfo.dev}:${workspaceInfo.ino}`, writablePaths: ["src"] }, binding: { stateRoot: evidenceRoot, repository: { gitCommonDir: join23(workspace, ".git") } }, effect: { effectId: `qualification-${bindingSha256}` } };
+    const task3 = 'This is a bounded Foreman coding qualification. The host created src/value.txt with exactly the UTF-8 bytes 0 followed by LF. Change that file to exactly 1 followed by LF. Perform the write directly. Do not list directories or read files before the edit. Do not change Git metadata or any other file. Use at most two tool requests. Then return exactly the JSON object {"value":true}.';
+    const request3 = { schemaVersion: 1, effectId: scope6.effect.effectId, profileId: selection2.profileId, transportId: selection2.transportId, credentialProfileRef: selection2.credentialProfileRef, profileHash: profile.value.profileHash, sourceManifestHash: profile.value.sourceManifestHash, transportVersion: installed.version, controls: selection2.controls, limits: bounded10.value, artifacts: [{ id: "qualification-task", contentRef: "qualification:task", sha256: sha256Hex(task3), content: task3 }], trustedInstructions: task3, toolPolicy: { mode: "native-coding", workspaceGrantId: scope6.workspace.grantId, permissionGrantIds: [`qualification-write-${bindingSha256}`], hostPermissionPortRef: `qualification-host-${bindingSha256}` }, outputSchema: { id: "schema:pel-boolean-v1", content: { type: "boolean" } } };
     const permissions = makeQualificationPermissions({ request: request3, scope: scope6, journal, runId: runId2 });
     const boundary2 = yield* makePelNativeBoundary({ bwrapPath: installed.bwrapPath, executableByTransport: { [request3.transportId]: installed.executable }, readOnlyRuntimeRoots: installed.readOnlyRuntimeRoots, runtimeExecutablePaths: [installed.nodeExecutable], environmentKeys: ["XAI_API_KEY", "OPENAI_API_KEY"], permissionGrantIds: request3.toolPolicy.mode === "native-coding" ? request3.toolPolicy.permissionGrantIds : [], hostPermissionPortRef: request3.toolPolicy.mode === "native-coding" ? request3.toolPolicy.hostPermissionPortRef : "", permissions: permissions.permissions, identityRevisionByTransport: { [request3.transportId]: installed.identityRevision }, transportVersionByTransport: { [request3.transportId]: installed.version }, probeWriteBoundary: true })(request3, scope6);
-    yield* journal.append(runId2, { type: "provider.qualification.host.v1", lane: "qualification", payload: { bindingSha256, requestSha256: sha256Hex(canonicalize(request3)), workspaceGrant: scope6.workspace, initialHead: head9, initialIndexSha256: indexBefore, writeMountProbes: "passed", evidenceKind: selection2.binding.kind } }).pipe(Effect_exports.mapError(() => failure8()));
+    yield* journal.append(runId2, { type: "provider.qualification.host.v1", lane: "qualification", payload: { bindingSha256, requestSha256: sha256Hex(canonicalize(request3)), workspaceGrant: scope6.workspace, initialHead: head9, initialIndexSha256: indexBefore, writeMountProbes: "passed", evidenceKind: selection2.binding.kind } }).pipe(Effect_exports.mapError(() => failure9()));
     const makeTransport = () => fixture ? fixture.transport(request3, boundary2.host) : Effect_exports.succeed(request3.transportId === "grok-acp" ? createGrokAcpTransport({ credentials, host: boundary2.host, version: installed.version }) : createCodexAppServerTransport({ credentials, host: boundary2.host, version: installed.version }));
     const observe = () => Effect_exports.gen(function* () {
-      const bytes3 = yield* Effect_exports.try({ try: () => readBounded(join21(workspace, "src/value.txt"), 1024), catch: () => failure8() });
+      const bytes3 = yield* Effect_exports.try({ try: () => readBounded(join23(workspace, "src/value.txt"), 1024), catch: () => failure9() });
       const changed = (yield* git(workspace, ["diff", "--no-ext-diff", "--no-textconv", "--name-only", "-z", "HEAD", "--"])).split("\0").filter(Boolean);
       const untracked = yield* git(workspace, ["ls-files", "--others", "-z"]);
       const currentHead = (yield* git(workspace, ["rev-parse", "HEAD"])).trim();
-      const indexAfter = yield* Effect_exports.try({ try: () => sha256Hex(readBounded(join21(workspace, ".git/index"), 65536)), catch: () => failure8() });
-      const src = yield* io3(() => lstat5(join21(workspace, "src")));
+      const indexAfter = yield* Effect_exports.try({ try: () => sha256Hex(readBounded(join23(workspace, ".git/index"), 65536)), catch: () => failure9() });
+      const src = yield* io4(() => lstat6(join23(workspace, "src")));
       const intact = currentHead === head9 && indexAfter === indexBefore && src.isDirectory() && !src.isSymbolicLink() && untracked === "" && changed.every((path4) => path4 === "src/value.txt");
       return { bytes: bytes3, intact, changed: bytes3.equals(Buffer.from("1\n")) && changed.length === 1 };
     });
@@ -105289,8 +105486,10 @@ function runNativeCodingQualification(selection2, live, fixture) {
         const complete6 = events.some((event) => event.payload.type === "completed");
         if (capability === "generation" || capability === "structuredOutput")
           return { passed: complete6, reason: "The bounded native request returned its validated terminal schema." };
-        if (capability === "tools")
-          return { passed: complete6 && permissions.acknowledged() > 0, reason: "The original host retained a permission result before acknowledging the native request." };
+        if (capability === "tools") {
+          const acknowledged = permissions.acknowledged() > 0;
+          return { passed: complete6 && acknowledged, reason: !acknowledged ? "No durable host permission result was acknowledged." : !complete6 ? "A durable host permission result was acknowledged, but no validated terminal result was received." : "The original host retained a permission result before acknowledging the native request." };
+        }
         const observation = yield* observe();
         if (capability === "codingTask")
           return { passed: complete6 && observation.intact && observation.changed && permissions.acknowledged() > 0, reason: "The actual disposable file has the required bytes and its Git HEAD and index remain unchanged." };
@@ -105303,18 +105502,18 @@ function runNativeCodingQualification(selection2, live, fixture) {
     if (observed._tag === "Left" || !observed.right.intact || !observed.right.changed) {
       const invalidated = /* @__PURE__ */ new Set(["codingTask", "workspaceBoundary", "permissionBoundary"]);
       const relevant = report.assertions.some((assertion) => invalidated.has(assertion.capability));
-      report = { ...report, ...relevant ? { outcome: "failed", failure: report.failure ?? failure8("Post-cleanup coding evidence differs from the exact qualification input and expected output.") } : {}, assertions: report.assertions.map((assertion) => invalidated.has(assertion.capability) ? { ...assertion, passed: false, reason: "The post-cleanup workspace does not retain the exact qualified edit and boundary evidence." } : assertion), evidence: report.evidence.filter((row) => !invalidated.has(row.capability)) };
+      report = { ...report, ...relevant ? { outcome: "failed", failure: report.failure ?? failure9("Post-cleanup coding evidence differs from the exact qualification input and expected output.") } : {}, assertions: report.assertions.map((assertion) => invalidated.has(assertion.capability) ? { ...assertion, passed: false, reason: "The post-cleanup workspace does not retain the exact qualified edit and boundary evidence." } : assertion), evidence: report.evidence.filter((row) => !invalidated.has(row.capability)) };
     }
     if (observed._tag === "Right") {
-      const ref3 = yield* artifacts.put(runId2, observed.right.bytes, 1024, "ordinary").pipe(Effect_exports.mapError(() => failure8()));
-      yield* journal.append(runId2, { type: "provider.qualification.result.v1", lane: "qualification", payload: { outputRef: ref3, workspaceIntact: observed.right.intact, expectedChange: observed.right.changed, reportSha256: sha256Hex(canonicalize(report)) } }).pipe(Effect_exports.mapError(() => failure8()));
+      const ref3 = yield* artifacts.put(runId2, observed.right.bytes, 1024, "ordinary").pipe(Effect_exports.mapError(() => failure9()));
+      yield* journal.append(runId2, { type: "provider.qualification.result.v1", lane: "qualification", payload: { outputRef: ref3, workspaceIntact: observed.right.intact, expectedChange: observed.right.changed, reportSha256: sha256Hex(canonicalize(report)) } }).pipe(Effect_exports.mapError(() => failure9()));
     }
-    const reportRef = yield* artifacts.put(runId2, Buffer.from(canonicalize(report)), 1048576, "ordinary").pipe(Effect_exports.mapError(() => failure8()));
-    yield* journal.append(runId2, { type: "provider.qualification.report.v1", lane: "qualification", payload: { evidenceRef: selection2.binding.evidenceRef, reportRef } }).pipe(Effect_exports.mapError(() => failure8()));
+    const reportRef = yield* artifacts.put(runId2, Buffer.from(canonicalize(report)), 1048576, "ordinary").pipe(Effect_exports.mapError(() => failure9()));
+    yield* journal.append(runId2, { type: "provider.qualification.report.v1", lane: "qualification", payload: { evidenceRef: selection2.binding.evidenceRef, reportRef } }).pipe(Effect_exports.mapError(() => failure9()));
     return report;
   }));
 }
-var failure8, io3, git;
+var failure9, io4, git;
 var init_pel_native_qualification = __esm({
   "packages/orchestration/src/pel-native-qualification.ts"() {
     "use strict";
@@ -105329,54 +105528,54 @@ var init_pel_native_qualification = __esm({
     init_pel_native_boundary();
     init_pel_qualification_permissions();
     init_pel_journal();
-    failure8 = (message = "Native coding qualification could not retain or verify its bounded host evidence.") => ({ _tag: "CapabilityUnverified", retryClass: "never", message });
-    io3 = (run6) => Effect_exports.tryPromise({ try: run6, catch: () => failure8() });
+    failure9 = (message = "Native coding qualification could not retain or verify its bounded host evidence.") => ({ _tag: "CapabilityUnverified", retryClass: "never", message });
+    io4 = (run6) => Effect_exports.tryPromise({ try: run6, catch: () => failure9() });
     git = (root, args6) => Effect_exports.gen(function* () {
       const processPort = yield* ProcessExec;
-      const result4 = yield* processPort.runCaptured({ command: "/usr/bin/git", args: ["--no-pager", ...args6], cwd: root, env: { ...sanitizedGitEnv(), GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" }, maxOutputBytes: 65536, timeoutMs: 1e4 }).pipe(Effect_exports.mapError(() => failure8()));
+      const result4 = yield* processPort.runCaptured({ command: "/usr/bin/git", args: ["--no-pager", ...args6], cwd: root, env: { ...sanitizedGitEnv(), GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" }, maxOutputBytes: 65536, timeoutMs: 1e4 }).pipe(Effect_exports.mapError(() => failure9()));
       if (result4.exitCode !== 0)
-        return yield* Effect_exports.fail(failure8());
+        return yield* Effect_exports.fail(failure9());
       return result4.stdout;
     }).pipe(Effect_exports.provide(liveProcessExec));
   }
 });
 
 // packages/orchestration/src/pel-provider-live.ts
-import { mkdtemp as mkdtemp4, rm as rm4, writeFile as writeFile2, readdir, lstat as lstat6 } from "node:fs/promises";
-import { homedir, tmpdir as tmpdir4 } from "node:os";
-import { join as join23, isAbsolute as isAbsolute19 } from "node:path";
+import { mkdtemp as mkdtemp5, rm as rm5, writeFile as writeFile3, readdir, lstat as lstat7 } from "node:fs/promises";
+import { homedir, tmpdir as tmpdir5 } from "node:os";
+import { join as join24, isAbsolute as isAbsolute20 } from "node:path";
 function makeLiveProviderCredentials(context11, transportId) {
   return { resolve: (ref3) => Effect_exports.gen(function* () {
     const selected = environmentKeys[transportId];
     if (ref3 === `env:${selected.key}`) {
       const value4 = context11.environment[selected.key];
       if (!value4)
-        return yield* Effect_exports.fail(failure9("AuthenticationRequired", "The selected credential environment entry is unavailable"));
+        return yield* Effect_exports.fail(failure10("AuthenticationRequired", "The selected credential environment entry is unavailable"));
       return { headers: { [selected.header]: Redacted_exports.make(selected.bearer ? `Bearer ${value4}` : value4) }, environment: { [selected.key]: Redacted_exports.make(value4) } };
     }
     const profile = /^profile:(grok|codex):([A-Za-z0-9][A-Za-z0-9._-]{0,63})$/.exec(ref3);
     if (profile) {
       const vendor = profile[1];
       if (vendor === "grok" && transportId !== "grok-acp" || vendor === "codex" && transportId !== "codex-app-server")
-        return yield* Effect_exports.fail(failure9("AuthenticationRequired", "Credential profile does not match the selected native transport"));
+        return yield* Effect_exports.fail(failure10("AuthenticationRequired", "Credential profile does not match the selected native transport"));
       const resolved = yield* resolveProfile2({ stateRoot: context11.stateRoot, worktreeRoot: context11.worktreeRoot, profileId: profile[2], vendor }).pipe(Effect_exports.provide(liveCredentialProfile));
       if (resolved._tag !== "Ready")
-        return yield* Effect_exports.fail(failure9("AuthenticationRequired", "The selected credential profile is not ready"));
-      return vendor === "codex" ? yield* makeCodexChatGptCredential(resolved.configRoot, context11) : { nativeProfileDirectory: resolved.configRoot };
+        return yield* Effect_exports.fail(failure10("AuthenticationRequired", "The selected credential profile is not ready"));
+      return vendor === "codex" ? yield* makeCodexChatGptCredential(resolved.configRoot, context11) : yield* makeGrokLoginCredential(resolved.configRoot);
     }
     const native = /^native:(claude|gemini|grok|codex):default$/.exec(ref3);
     if (native) {
       const vendor = native[1];
       const expected = { claude: "claude-code", gemini: "gemini-cli", grok: "grok-acp", codex: "codex-app-server" };
       if (expected[vendor] !== transportId)
-        return yield* Effect_exports.fail(failure9("AuthenticationRequired", "Native account reference does not match the selected transport"));
-      const directory2 = join23(context11.userHome, `.${vendor}`);
-      const stat7 = yield* Effect_exports.tryPromise({ try: () => lstat6(directory2), catch: () => failure9("AuthenticationRequired", "The explicitly selected native credential directory is unavailable") });
+        return yield* Effect_exports.fail(failure10("AuthenticationRequired", "Native account reference does not match the selected transport"));
+      const directory2 = join24(context11.userHome, `.${vendor}`);
+      const stat7 = yield* Effect_exports.tryPromise({ try: () => lstat7(directory2), catch: () => failure10("AuthenticationRequired", "The explicitly selected native credential directory is unavailable") });
       if (!stat7.isDirectory() || stat7.isSymbolicLink())
-        return yield* Effect_exports.fail(failure9("AuthenticationRequired", "Native credential directory must be a real directory"));
-      return vendor === "codex" ? yield* makeCodexChatGptCredential(directory2, context11) : { nativeProfileDirectory: directory2 };
+        return yield* Effect_exports.fail(failure10("AuthenticationRequired", "Native credential directory must be a real directory"));
+      return vendor === "codex" ? yield* makeCodexChatGptCredential(directory2, context11) : vendor === "grok" ? yield* makeGrokLoginCredential(directory2) : { nativeProfileDirectory: directory2 };
     }
-    return yield* Effect_exports.fail(failure9("AuthenticationRequired", "Credential reference is unavailable for this transport"));
+    return yield* Effect_exports.fail(failure10("AuthenticationRequired", "Credential reference is unavailable for this transport"));
   }) };
 }
 function nativeVersion(executable, environment3, cwd) {
@@ -105388,10 +105587,10 @@ function nativeVersion(executable, environment3, cwd) {
         overflow = true;
       else
         text12 += Buffer.from(bytes3).toString("utf8");
-    }), writeStderr: () => Effect_exports.void }), Effect_exports.provide(LiveLauncherLayer2), Effect_exports.mapError(() => failure9("ProbeUnknown", "Native executable could not report its version")));
+    }), writeStderr: () => Effect_exports.void }), Effect_exports.provide(LiveLauncherLayer2), Effect_exports.mapError(() => failure10("ProbeUnknown", "Native executable could not report its version")));
     const version = /\b(\d+\.\d+\.\d+)\b/.exec(text12)?.[1];
     if (!version || result4.exitCode !== 0 || result4.timedOut || overflow)
-      return yield* Effect_exports.fail(failure9("CapabilityUnverified", "Native executable version is unavailable"));
+      return yield* Effect_exports.fail(failure10("CapabilityUnverified", "Native executable version is unavailable"));
     return version;
   });
 }
@@ -105408,13 +105607,13 @@ function makeLiveProviderTransport(request3, context11) {
       case "google-interactions":
         return createGoogleInteractionsTransport({ credentials });
     }
-    const directory2 = yield* Effect_exports.acquireRelease(Effect_exports.tryPromise({ try: () => mkdtemp4(join23(tmpdir4(), "foreman-provider-")), catch: () => failure9("ProbeUnknown", "Disposable qualification workspace could not be created") }), (path4) => Effect_exports.promise(() => rm4(path4, { recursive: true, force: true })));
+    const directory2 = yield* Effect_exports.acquireRelease(Effect_exports.tryPromise({ try: () => mkdtemp5(join24(tmpdir5(), "foreman-provider-")), catch: () => failure10("ProbeUnknown", "Disposable qualification workspace could not be created") }), (path4) => Effect_exports.promise(() => rm5(path4, { recursive: true, force: true })));
     const environment3 = { PATH: context11.environment.PATH ?? "", HOME: directory2, LANG: "C.UTF-8" };
     const tool = { "grok-acp": "grok", "claude-code": "claude", "codex-app-server": "codex", "gemini-cli": "gemini" }[request3.transportId];
     const version = yield* nativeVersion(tool, environment3, directory2);
     const host = { cwd: directory2, environment: environment3, toolPolicyNoneEnforced: request3.transportId === "claude-code" || request3.transportId === "gemini-cli", workspaceBoundaryEnforced: false, permissionBoundaryEnforced: false };
     if (request3.toolPolicy.mode === "none" && !host.toolPolicyNoneEnforced)
-      return yield* Effect_exports.fail(failure9("CapabilityUnverified", "The installed native transport has no admitted no-tool execution boundary"));
+      return yield* Effect_exports.fail(failure10("CapabilityUnverified", "The installed native transport has no admitted no-tool execution boundary"));
     switch (request3.transportId) {
       case "grok-acp":
         return createGrokAcpTransport({ credentials, host, version });
@@ -105431,18 +105630,18 @@ function makeLiveProviderTransport(request3, context11) {
               return [];
             throw error;
           }
-        }, catch: () => failure9("CapabilityUnverified", "Gemini system policy isolation could not be established") });
+        }, catch: () => failure10("CapabilityUnverified", "Gemini system policy isolation could not be established") });
         if (policies.some((name3) => name3.endsWith(".toml")))
-          return yield* Effect_exports.fail(failure9("CapabilityUnverified", "Gemini system policies prevent the qualification deny-all policy from taking precedence"));
+          return yield* Effect_exports.fail(failure10("CapabilityUnverified", "Gemini system policies prevent the qualification deny-all policy from taking precedence"));
         const files = geminiConfigurationFiles(request3);
-        const settingsPath = join23(directory2, "system-settings.json");
-        const defaultsPath = join23(directory2, "system-defaults.json");
-        const adminPolicyPath = join23(directory2, "deny-all.toml");
+        const settingsPath = join24(directory2, "system-settings.json");
+        const defaultsPath = join24(directory2, "system-defaults.json");
+        const adminPolicyPath = join24(directory2, "deny-all.toml");
         yield* Effect_exports.tryPromise({ try: async () => {
-          await writeFile2(settingsPath, files.settings, { mode: 256 });
-          await writeFile2(defaultsPath, files.defaults, { mode: 256 });
-          await writeFile2(adminPolicyPath, files.policy, { mode: 256 });
-        }, catch: () => failure9("ProbeUnknown", "Gemini qualification configuration could not be created") });
+          await writeFile3(settingsPath, files.settings, { mode: 256 });
+          await writeFile3(defaultsPath, files.defaults, { mode: 256 });
+          await writeFile3(adminPolicyPath, files.policy, { mode: 256 });
+        }, catch: () => failure10("ProbeUnknown", "Gemini qualification configuration could not be created") });
         return createGeminiCliTransport({ credentials, host, protocolVersion: version, configuration: { settingsPath, defaultsPath, adminPolicyPath, configDirectory: directory2, settingsSha256: sha256Hex(files.settings), defaultsSha256: sha256Hex(files.defaults), policySha256: sha256Hex(files.policy), controlsHash: controlsHash(request3.controls), systemPoliciesIsolated: true } });
       }
     }
@@ -105455,7 +105654,7 @@ function makeQualificationRequest(selection2) {
   return { schemaVersion: 1, effectId: `qualification:${selection2.binding.evidenceRef}`, profileId: selection2.profileId, transportId: selection2.transportId, credentialProfileRef: selection2.credentialProfileRef, profileHash: profile.value.profileHash, sourceManifestHash: profile.value.sourceManifestHash, transportVersion: "1", trustedInstructions: 'Return exactly the JSON object {"value":true}. Do not call tools. This is a bounded provider protocol qualification.', artifacts: [], toolPolicy: { mode: "none" }, outputSchema: { id: "schema:pel-boolean-v1", content: { type: "boolean" } }, controls: selection2.controls, limits: selection2.limits };
 }
 function defaultLiveProviderContext() {
-  return { stateRoot: join23(homedir(), ".foreman"), worktreeRoot: process.cwd(), userHome: homedir(), environment: process.env };
+  return { stateRoot: join24(homedir(), ".foreman"), worktreeRoot: process.cwd(), userHome: homedir(), environment: process.env };
 }
 function assessLiveQualificationCapability(capability, events, identity8) {
   const completed = events.some((event) => event.payload.type === "completed");
@@ -105468,21 +105667,21 @@ function assessLiveQualificationCapability(capability, events, identity8) {
   return { passed: false, reason: "This capability requires a separate host qualification fixture" };
 }
 function makeLiveProviderCliServices(context11 = defaultLiveProviderContext()) {
-  if (!isAbsolute19(context11.stateRoot) || !isAbsolute19(context11.worktreeRoot) || !isAbsolute19(context11.userHome))
+  if (!isAbsolute20(context11.stateRoot) || !isAbsolute20(context11.worktreeRoot) || !isAbsolute20(context11.userHome))
     throw new Error("Provider host roots must be absolute");
   return { list: makeLiveProviderList(context11), qualify: (selection2) => Effect_exports.scoped(Effect_exports.gen(function* () {
     if (selection2.binding.kind !== "qualification")
-      return yield* Effect_exports.fail(failure9("UnsupportedCapability", "Product qualification requires a product binding"));
+      return yield* Effect_exports.fail(failure10("UnsupportedCapability", "Product qualification requires a product binding"));
     if (selection2.requiredCapabilities.some((c) => c === "codingTask" || c === "tools" || c === "permissionBoundary" || c === "workspaceBoundary"))
       return yield* Effect_exports.promise(() => Promise.resolve().then(() => (init_pel_native_qualification(), pel_native_qualification_exports))).pipe(Effect_exports.flatMap((module) => module.runNativeCodingQualification(selection2, context11)));
-    yield* makeLiveProviderCredentials(context11, selection2.transportId).resolve(selection2.credentialProfileRef).pipe(Effect_exports.mapError(() => failure9("UnsupportedCapability", "The explicitly selected credential account is unavailable before qualification")));
+    yield* makeLiveProviderCredentials(context11, selection2.transportId).resolve(selection2.credentialProfileRef).pipe(Effect_exports.mapError(() => failure10("UnsupportedCapability", "The explicitly selected credential account is unavailable before qualification")));
     const prepared = makeQualificationRequest(selection2);
     const transport = yield* makeLiveProviderTransport(prepared, context11);
     const request3 = { ...prepared, transportVersion: transport.version };
     return yield* runQualification({ request: request3, requiredCapabilities: selection2.requiredCapabilities, binding: selection2.binding }, { transport, now: Date.now, assess: (capability, events, identity8) => Effect_exports.succeed(assessLiveQualificationCapability(capability, events, identity8)) });
   })) };
 }
-var failure9, environmentKeys;
+var failure10, environmentKeys;
 var init_pel_provider_live = __esm({
   "packages/orchestration/src/pel-provider-live.ts"() {
     "use strict";
@@ -105494,7 +105693,8 @@ var init_pel_provider_live = __esm({
     init_pel_provider_list_live();
     init_pel_provider_readiness_live();
     init_pel_codex_auth();
-    failure9 = (tag, message) => ({ _tag: tag, retryClass: "never", message });
+    init_pel_grok_auth();
+    failure10 = (tag, message) => ({ _tag: tag, retryClass: "never", message });
     environmentKeys = {
       "xai-responses": { key: "XAI_API_KEY", header: "Authorization", bearer: true },
       "anthropic-messages": { key: "ANTHROPIC_API_KEY", header: "x-api-key", bearer: false },
@@ -106276,7 +106476,7 @@ import {
   unlinkSync as unlinkSync6,
   writeFileSync as writeFileSync6
 } from "node:fs";
-import { dirname as dirname15, join as join26 } from "node:path";
+import { dirname as dirname15, join as join27 } from "node:path";
 function ledgerFailure(reason) {
   return {
     [ENDSTOP_LEDGER_FAILURE_BRAND]: true,
@@ -106977,7 +107177,7 @@ function withJournalFailure(effect7) {
   );
 }
 function familyManifestPath(stateRoot, familySha256) {
-  return join26(stateRoot, "release-families", familySha256, "manifest.json");
+  return join27(stateRoot, "release-families", familySha256, "manifest.json");
 }
 function loadFamilyManifestLive(stateRoot, familySha256) {
   try {
@@ -107012,7 +107212,7 @@ function publishFamilyManifestLive(stateRoot, manifest, familySha256) {
     if (current3.equals(Buffer.from(bytes3))) return;
     throw new Error("conflicting family manifest");
   }
-  const temporary = join26(parent2, `.manifest-${randomUUID3()}.tmp`);
+  const temporary = join27(parent2, `.manifest-${randomUUID3()}.tmp`);
   let fd = null;
   try {
     fd = openSync12(temporary, "wx", 384);
@@ -107887,8 +108087,8 @@ var init_execution_ledger = __esm({
 });
 
 // packages/orchestration/src/pel-provider-tools.ts
-function providerFailureToHostFailure(failure15) {
-  return { code: failure15._tag === "OutcomeUnknown" ? "unknown-external-outcome" : "provider-failure", message: "The provider reported a structured failure.", cause: { providerFailure: failure15 } };
+function providerFailureToHostFailure(failure16) {
+  return { code: failure16._tag === "OutcomeUnknown" ? "unknown-external-outcome" : "provider-failure", message: "The provider reported a structured failure.", cause: { providerFailure: failure16 } };
 }
 function cancellationExternalOutcome(observation) {
   if (observation.localCleanup !== "complete" && observation.localCleanup !== "not-required") return "unknown";
@@ -108152,8 +108352,8 @@ function projectPelProviderUsage(binding) {
       if (record12.data.providerIdentity || value4.requestRef) {
         if (!effects.has(record12.data.effectId)) effects.set(record12.data.effectId, void 0);
       }
-      const failure15 = value4.providerFailure;
-      const usage4 = value4.usage ?? failure15?.usage;
+      const failure16 = value4.providerFailure;
+      const usage4 = value4.usage ?? failure16?.usage;
       if (usage4) {
         const valid = yield* Effect_exports.try({ try: () => normalizeUsage(usage4), catch: () => pelFailure("journal-corrupt", "Stored usage dimensions are invalid.") });
         if (!valid.ok) return yield* Effect_exports.fail(pelFailure("journal-corrupt", "Stored usage dimensions are invalid."));
@@ -108293,7 +108493,7 @@ function readJson(context11, ref3) {
     return yield* Effect_exports.try({ try: () => {
       const text12 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
       const value4 = JSON.parse(text12);
-      if (object9(value4) && value4.stage === "host-preparation" && canonicalize(value4) !== text12) throw Error("noncanonical");
+      if (object10(value4) && value4.stage === "host-preparation" && canonicalize(value4) !== text12) throw Error("noncanonical");
       return value4;
     }, catch: () => pelFailure("binding-mismatch", "The original host preparation is not canonical evidence.") });
   });
@@ -108307,7 +108507,7 @@ function retainPelHostPreparation(prepared, request3, context11) {
     for (const record12 of replay.value.records) {
       if (record12.type !== "pel.effect.observed.v1" || record12.data.effectId !== context11.effect.effectId) continue;
       const value4 = yield* readJson(context11, record12.data.observationRef);
-      if (!object9(value4) || value4.stage !== "host-preparation") continue;
+      if (!object10(value4) || value4.stage !== "host-preparation") continue;
       if (pelHash(value4) !== pelHash(retained)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The original host preparation changed."));
       return;
     }
@@ -108325,8 +108525,8 @@ function loadPelHostPreparation(context11) {
     for (const record12 of replay.value.records) {
       if (record12.type !== "pel.effect.observed.v1" || record12.data.effectId !== context11.effect.effectId) continue;
       const value4 = yield* readJson(context11, record12.data.observationRef);
-      if (!object9(value4) || value4.stage !== "host-preparation") continue;
-      if (Object.keys(value4).length !== 4 || typeof value4.registryId !== "string" || typeof value4.expectedResultSchemaId !== "string" || !object9(value4.prepared) || value4.prepared.kind !== "dispatch" || Object.hasOwn(value4.prepared, "actionAuthority") && !decodePelActionAuthorityV1(value4.prepared.actionAuthority).ok || !intent?.reservation || pelHash(value4.prepared) !== intent.preparationDigest || intent.reservation.preparationDigest !== intent.preparationDigest || intent.expectedResultSchemaId !== value4.expectedResultSchemaId || pelHash(intent.effect) !== pelHash(context11.effect) || retained && pelHash(retained) !== pelHash(value4))
+      if (!object10(value4) || value4.stage !== "host-preparation") continue;
+      if (Object.keys(value4).length !== 4 || typeof value4.registryId !== "string" || typeof value4.expectedResultSchemaId !== "string" || !object10(value4.prepared) || value4.prepared.kind !== "dispatch" || Object.hasOwn(value4.prepared, "actionAuthority") && !decodePelActionAuthorityV1(value4.prepared.actionAuthority).ok || !intent?.reservation || pelHash(value4.prepared) !== intent.preparationDigest || intent.reservation.preparationDigest !== intent.preparationDigest || intent.expectedResultSchemaId !== value4.expectedResultSchemaId || pelHash(intent.effect) !== pelHash(context11.effect) || retained && pelHash(retained) !== pelHash(value4))
         return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The retained host preparation differs from its original intent."));
       retained = value4;
     }
@@ -108370,7 +108570,7 @@ function recoverPelHostOperation(context11, observationOnly = false) {
     for (const record12 of [...replay.value.records].reverse()) {
       if (record12.type !== "pel.effect.observed.v1" || record12.data.effectId !== context11.effect.effectId || record12.data.externalOutcome !== "confirmed-complete" || !record12.data.providerIdentity) continue;
       const value4 = yield* readJson(context11, record12.data.observationRef);
-      if (!object9(value4) || !(value4.type === "completed" || value4.status === "completed") || !object9(value4.result)) continue;
+      if (!object10(value4) || !(value4.type === "completed" || value4.status === "completed") || !object10(value4.result)) continue;
       const schemaId = yield* originalPelProviderSchema(context11, intent.expectedResultSchemaId);
       const schema = context11.checked.snapshot.registry.dataSchemas[schemaId];
       if (!schema || value4.result.schemaId !== schemaId || value4.result.schemaSha256 !== pelHash(schema) || typeof value4.result.byteLength !== "number" || !Number.isSafeInteger(value4.result.byteLength) || value4.result.byteLength < 0 || value4.result.byteLength > context11.binding.limits.maxOutputBytes || !validateDataSchema(value4.result.value, schema))
@@ -108383,7 +108583,7 @@ function recoverPelHostOperation(context11, observationOnly = false) {
     return yield* withResources(retained, context11, retained.handler.recover(retained.prepared, retained.token, context11));
   });
 }
-var object9;
+var object10;
 var init_pel_host_recovery = __esm({
   "packages/orchestration/src/pel-host-recovery.ts"() {
     "use strict";
@@ -108392,12 +108592,12 @@ var init_pel_host_recovery = __esm({
     init_pel();
     init_pel_run_contract();
     init_pel_journal();
-    object9 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
+    object10 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
   }
 });
 
 // packages/orchestration/src/pel-effects.ts
-import { isAbsolute as isAbsolute23, sep as sep7 } from "node:path";
+import { isAbsolute as isAbsolute24, sep as sep7 } from "node:path";
 function validateResolvedHostRequest(request3, context11, resources, research) {
   const fail31 = (message) => ({ ok: false, error: denied5(message) });
   const { checked: checked2, binding } = context11, snapshot = checked2.snapshot, policy = snapshot.policy;
@@ -108438,7 +108638,7 @@ function validateResolvedHostRequest(request3, context11, resources, research) {
   if (resources) {
     if (research && canonicalAuthoringJson(resources) !== canonicalAuthoringJson(research.resources)) return fail31("Research resources differ from the exact immutable index.");
     for (const [names5, allowed] of [[resources.reads, policy.resourceEnvelope.reads], [resources.writes, policy.resourceEnvelope.writes]]) for (const name3 of names5) {
-      if (isAbsolute23(name3)) {
+      if (isAbsolute24(name3)) {
         if (!inside2(context11.workspace.canonicalRoot, name3) || !allowed.some((p2) => p2 === "workspace:default" || p2 === `source:${name3.slice(context11.workspace.canonicalRoot.length + 1)}`)) return fail31("Canonical resources escaped the admitted workspace.");
       } else if (!allowed.includes(name3) && !(research && names5 === resources.reads && research.resources.reads.includes(name3))) return fail31("Resolved resources escaped the admitted finite envelope.");
     }
@@ -109001,9 +109201,9 @@ function decodeRetrySelectors(value4) {
   }
   return { ok: true, value: selected };
 }
-function retryCategory(failure15) {
-  if (failure15.code !== "provider-failure" || !failure15.cause || typeof failure15.cause !== "object" || Array.isArray(failure15.cause)) return null;
-  const cause4 = failure15.cause;
+function retryCategory(failure16) {
+  if (failure16.code !== "provider-failure" || !failure16.cause || typeof failure16.cause !== "object" || Array.isArray(failure16.cause)) return null;
+  const cause4 = failure16.cause;
   const provider4 = cause4.providerFailure;
   if (!provider4 || typeof provider4 !== "object") return null;
   switch (provider4._tag) {
@@ -109315,7 +109515,7 @@ var init_pel_control_functions = __esm({
 
 // packages/orchestration/src/pel-authoring-main.ts
 init_esm();
-import { open as open6 } from "node:fs/promises";
+import { open as open7 } from "node:fs/promises";
 import { realpathSync as realpathSync13 } from "node:fs";
 import { createInterface } from "node:readline";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
@@ -110496,7 +110696,7 @@ var finiteCount = (value4) => Number.isSafeInteger(value4) && value4 >= 0;
 function makeGenerationBudget(limits3) {
   const reservations = /* @__PURE__ */ new Map();
   let operationId;
-  const failure15 = (message) => ({
+  const failure16 = (message) => ({
     _tag: "GenerationBudgetFailure",
     message
   });
@@ -110511,14 +110711,14 @@ function makeGenerationBudget(limits3) {
         input.conservativeSpendUnits,
         input.deadline
       ].every(finiteCount) || !input.operationId || ![0, 1, 2].includes(input.attempt))
-        return Effect_exports.fail(failure15("Invalid finite generation reservation"));
+        return Effect_exports.fail(failure16("Invalid finite generation reservation"));
       if (operationId !== void 0 && operationId !== input.operationId)
         return Effect_exports.fail(
-          failure15("Generation allowance belongs to another operation")
+          failure16("Generation allowance belongs to another operation")
         );
       const reference4 = `${input.operationId}/attempt/${input.attempt}/budget`;
       if (reservations.has(reference4))
-        return Effect_exports.fail(failure15("Attempt already reserved"));
+        return Effect_exports.fail(failure16("Attempt already reserved"));
       let totalInput = input.maxInputTokens, totalOutput = input.maxOutputTokens, totalCost = input.conservativeSpendUnits;
       for (const row of reservations.values()) {
         totalInput += row.input;
@@ -110526,7 +110726,7 @@ function makeGenerationBudget(limits3) {
         totalCost += row.cost;
       }
       if (totalInput > limits3.maxInputTokens || totalOutput > limits3.maxOutputTokens || totalCost > limits3.maxCostUnits)
-        return Effect_exports.fail(failure15("Aggregate generation budget exhausted"));
+        return Effect_exports.fail(failure16("Aggregate generation budget exhausted"));
       operationId = input.operationId;
       const reservation = Object.freeze({ ...input, reference: reference4 });
       reservations.set(reference4, {
@@ -110542,20 +110742,20 @@ function makeGenerationBudget(limits3) {
       const row = reservations.get(reservation.reference);
       if (!row || row.reservation !== reservation || row.settled)
         return Effect_exports.fail(
-          failure15("Unknown or already settled generation reservation")
+          failure16("Unknown or already settled generation reservation")
         );
       const cost = usage4.providerCounters.costUnits;
       const input = usage4.inputTokens ?? row.input, output = usage4.outputTokens ?? row.output;
       const spend = typeof cost === "number" ? cost : row.cost;
       if (![input, output, spend].every(finiteCount))
-        return Effect_exports.fail(failure15("Invalid usage accounting"));
+        return Effect_exports.fail(failure16("Invalid usage accounting"));
       row.input = input;
       row.output = output;
       row.cost = spend;
       row.settled = true;
       if (input > reservation.maxInputTokens || output > reservation.maxOutputTokens || spend > reservation.conservativeSpendUnits)
         return Effect_exports.fail(
-          failure15("Provider usage exceeded its reservation")
+          failure16("Provider usage exceeded its reservation")
         );
       return Effect_exports.void;
     })
@@ -110634,8 +110834,8 @@ function decodeGenerationEnvelope(value4) {
     return { ok: false, message: "Source exceeds 1 MiB" };
   return { ok: true, pelSource: value4.pelSource };
 }
-function fatalProviderFailure(failure15) {
-  switch (failure15._tag) {
+function fatalProviderFailure(failure16) {
+  switch (failure16._tag) {
     case "ModelUnavailable":
     case "ModelMismatch":
     case "UnsupportedCapability":
@@ -110651,9 +110851,9 @@ function fatalProviderFailure(failure15) {
     case "OutcomeUnknown":
     case "RateLimited":
     case "TransportDisconnected":
-      return failure15;
+      return failure16;
     default: {
-      const exhaustive = failure15;
+      const exhaustive = failure16;
       return exhaustive;
     }
   }
@@ -110752,7 +110952,7 @@ function generatePelPlan(inputRequest, snapshot) {
   return Effect_exports.suspend(() => {
     const request3 = freezeDeep(structuredClone(inputRequest));
     const attempts = [], usages = [], identities = [];
-    const failure15 = (code, message, extra = {}) => ({
+    const failure16 = (code, message, extra = {}) => ({
       _tag: "PelGenerationFailure",
       code,
       message,
@@ -110760,7 +110960,7 @@ function generatePelPlan(inputRequest, snapshot) {
       cumulativeUsage: cumulativeUsage(usages),
       ...extra
     });
-    const providerFailure2 = (cause4) => failure15("PEL_GENERATION_PROVIDER_FAILED", cause4.message.slice(0, 4096), {
+    const providerFailure2 = (cause4) => failure16("PEL_GENERATION_PROVIDER_FAILED", cause4.message.slice(0, 4096), {
       providerCause: fatalProviderFailure(cause4)
     });
     const body = Effect_exports.gen(function* () {
@@ -110768,7 +110968,7 @@ function generatePelPlan(inputRequest, snapshot) {
       const validated = validateAuthoringSnapshotV1(snapshot);
       if (!validated.ok)
         return yield* Effect_exports.fail(
-          failure15("PEL_SCHEMA", "Invalid authoring snapshot")
+          failure16("PEL_SCHEMA", "Invalid authoring snapshot")
         );
       const immutableSnapshot = freezeDeep(validated.value);
       const profile = immutableSnapshot.providerProfiles.find(
@@ -110780,14 +110980,14 @@ function generatePelPlan(inputRequest, snapshot) {
         request3.credentialProfileRef
       ))
         return yield* Effect_exports.fail(
-          failure15(
+          failure16(
             "PEL_PROFILE_UNSUPPORTED",
             "Exact model, transport or credential reference is not admitted"
           )
         );
       if (!validateAuthoringControlsV1(request3.controls, profile).ok || request3.controls.toolChoice !== "none")
         return yield* Effect_exports.fail(
-          failure15(
+          failure16(
             "PEL_PROFILE_UNSUPPORTED",
             "Generation requires admitted controls and toolChoice none"
           )
@@ -110797,7 +110997,7 @@ function generatePelPlan(inputRequest, snapshot) {
         request3.grammarMode
       ) || request3.grammarMode === "grammar-required" && !qualified)
         return yield* Effect_exports.fail(
-          failure15(
+          failure16(
             "PEL_PROFILE_UNSUPPORTED",
             "The exact endpoint lacks qualified grammar support"
           )
@@ -110805,14 +111005,14 @@ function generatePelPlan(inputRequest, snapshot) {
       const bounds = immutableSnapshot.generationLimits;
       if (!Object.values(request3.limits).every(finiteCount) || request3.limits.maxInputTokens > bounds.maxInputTokens || request3.limits.maxOutputTokens > bounds.maxOutputTokens || request3.limits.maxCostUnits > bounds.maxCostUnits || request3.limits.maxSourceBytes > Math.min(bounds.maxSourceBytes, 1048576) || request3.limits.timeoutMs > Math.min(bounds.attemptTimeoutMs, 6e4) || request3.limits.timeoutMs === 0 || request3.attempt !== 0 || !/^[a-f0-9]{64}$/.test(request3.generationId) || request3.effectId !== generationEffectId(request3.generationId, 0))
         return yield* Effect_exports.fail(
-          failure15(
+          failure16(
             "PEL_SCHEMA",
             "Generation request exceeds its finite admission or has an invalid attempt identity"
           )
         );
       if (request3.trustedTemplateId !== "foreman:pel-generation-v1" || canonicalize(request3.outputSchema) !== canonicalize(PEL_GENERATION_OUTPUT_SCHEMA) || canonicalize(request3.registryCatalog) !== canonicalize(immutableSnapshot.registry.descriptors) || canonicalize(request3.capabilitySnapshot) !== canonicalize(immutableSnapshot.policy) || Buffer.byteLength(request3.prompt) > 1048576)
         return yield* Effect_exports.fail(
-          failure15(
+          failure16(
             "PEL_SCHEMA",
             "Generation template, catalog, schema or prompt is invalid"
           )
@@ -110828,7 +111028,7 @@ function generatePelPlan(inputRequest, snapshot) {
       );
       if (canonicalize(request3.artifacts) !== canonicalize(expectedArtifacts))
         return yield* Effect_exports.fail(
-          failure15(
+          failure16(
             "PEL_SCHEMA",
             "Generation artifacts do not match the immutable snapshot"
           )
@@ -110848,7 +111048,7 @@ function generatePelPlan(inputRequest, snapshot) {
         const now = yield* Clock_exports.currentTimeMillis;
         if (now >= deadline)
           return yield* Effect_exports.fail(
-            failure15(
+            failure16(
               "PEL_GENERATION_TIMEOUT",
               "Generation operation deadline elapsed",
               { cause: { _tag: "DeadlineExceeded", scope: "operation" } }
@@ -110864,19 +111064,19 @@ function generatePelPlan(inputRequest, snapshot) {
         };
         const localReservation = yield* localBudget.reserve(input).pipe(
           Effect_exports.mapError(
-            (error) => failure15("PEL_GENERATION_BUDGET_EXHAUSTED", error.message)
+            (error) => failure16("PEL_GENERATION_BUDGET_EXHAUSTED", error.message)
           )
         );
         const reservation = yield* budget.reserve(input).pipe(
           Effect_exports.mapError(
-            (error) => failure15("PEL_GENERATION_BUDGET_EXHAUSTED", error.message)
+            (error) => failure16("PEL_GENERATION_BUDGET_EXHAUSTED", error.message)
           )
         );
         if (typeof reservation.reference !== "string" || !reservation.reference.trim() || Buffer.byteLength(reservation.reference) > 4096 || Object.entries(input).some(
           ([key, value4]) => reservation[key] !== value4
         ))
           return yield* Effect_exports.fail(
-            failure15(
+            failure16(
               "PEL_GENERATION_BUDGET_EXHAUSTED",
               "Generation budget returned an invalid reservation identity or reference"
             )
@@ -110887,11 +111087,11 @@ function generatePelPlan(inputRequest, snapshot) {
             budget.settle(reservation, { providerCounters: {} })
           ).pipe(
             Effect_exports.mapError(
-              (error) => failure15("PEL_GENERATION_BUDGET_EXHAUSTED", error.message)
+              (error) => failure16("PEL_GENERATION_BUDGET_EXHAUSTED", error.message)
             )
           );
           return yield* Effect_exports.fail(
-            failure15(
+            failure16(
               "PEL_GENERATION_TIMEOUT",
               "Generation deadline elapsed during reservation",
               { cause: { _tag: "DeadlineExceeded", scope: "operation" } }
@@ -110928,7 +111128,7 @@ function generatePelPlan(inputRequest, snapshot) {
                 provider4.generate(call).pipe(
                   Effect_exports.timeoutFail({
                     duration: call.limits.timeoutMs,
-                    onTimeout: () => failure15(
+                    onTimeout: () => failure16(
                       "PEL_GENERATION_TIMEOUT",
                       "Generation call deadline elapsed",
                       {
@@ -110963,7 +111163,7 @@ function generatePelPlan(inputRequest, snapshot) {
             );
             if (localSettled._tag === "Left" || externalSettled._tag === "Left")
               return yield* Effect_exports.fail(
-                failure15(
+                failure16(
                   "PEL_GENERATION_BUDGET_EXHAUSTED",
                   localSettled._tag === "Left" ? localSettled.left.message : externalSettled._tag === "Left" ? externalSettled.left.message : "Budget settlement failed"
                 )
@@ -110975,7 +111175,7 @@ function generatePelPlan(inputRequest, snapshot) {
           const cause4 = Cause_exports.failureOption(outcome.cause);
           if (Option_exports.isSome(cause4))
             return yield* Effect_exports.fail(
-              cause4.value._tag === "PelGenerationFailure" ? failure15(
+              cause4.value._tag === "PelGenerationFailure" ? failure16(
                 cause4.value.code,
                 cause4.value.message,
                 cause4.value.cause ? { cause: cause4.value.cause } : {}
@@ -110983,7 +111183,7 @@ function generatePelPlan(inputRequest, snapshot) {
             );
           if (Cause_exports.isInterruptedOnly(outcome.cause))
             return yield* Effect_exports.fail(
-              failure15("PEL_GENERATION_CANCELLED", "Generation cancelled", {
+              failure16("PEL_GENERATION_CANCELLED", "Generation cancelled", {
                 cause: { _tag: "Cancelled" }
               })
             );
@@ -110997,7 +111197,7 @@ function generatePelPlan(inputRequest, snapshot) {
         }
         if ((yield* Clock_exports.currentTimeMillis) >= deadline)
           return yield* Effect_exports.fail(
-            failure15(
+            failure16(
               "PEL_GENERATION_TIMEOUT",
               "Generation deadline elapsed before candidate validation",
               { cause: { _tag: "DeadlineExceeded", scope: "operation" } }
@@ -111025,7 +111225,7 @@ function generatePelPlan(inputRequest, snapshot) {
         identities.push(identity8);
         if (response.refusal)
           return yield* Effect_exports.fail(
-            failure15("PEL_GENERATION_REFUSED", "Provider refused generation", {
+            failure16("PEL_GENERATION_REFUSED", "Provider refused generation", {
               cause: {
                 _tag: "Refusal",
                 message: response.refusal.message.slice(0, 4096)
@@ -111052,7 +111252,7 @@ function generatePelPlan(inputRequest, snapshot) {
             const preview = planPel(checked2.checked);
             if ((yield* Clock_exports.currentTimeMillis) >= deadline)
               return yield* Effect_exports.fail(
-                failure15(
+                failure16(
                   "PEL_GENERATION_TIMEOUT",
                   "Generation deadline elapsed during candidate validation",
                   { cause: { _tag: "DeadlineExceeded", scope: "operation" } }
@@ -111086,7 +111286,7 @@ function generatePelPlan(inputRequest, snapshot) {
         );
       }
       return yield* Effect_exports.fail(
-        failure15(
+        failure16(
           "PEL_GENERATION_EXHAUSTED",
           `All ${maxAttempt + 1} candidate validation attempts were invalid`
         )
@@ -111101,7 +111301,7 @@ function generatePelPlan(inputRequest, snapshot) {
             18e4,
             request3.limits.deadline > 0 ? Math.max(0, request3.limits.deadline - now) : 18e4
           ),
-          onTimeout: () => failure15(
+          onTimeout: () => failure16(
             "PEL_GENERATION_TIMEOUT",
             "Generation operation deadline elapsed",
             { cause: { _tag: "DeadlineExceeded", scope: "operation" } }
@@ -111116,7 +111316,7 @@ function generatePelPlan(inputRequest, snapshot) {
 init_pel_provider_live();
 init_pel_provider_evidence();
 init_pel_provider_evidence();
-var failure10 = (tag, message, fieldPath) => ({
+var failure11 = (tag, message, fieldPath) => ({
   _tag: tag,
   retryClass: "never",
   message,
@@ -111143,7 +111343,7 @@ function authoringUsdLimit(context11) {
   const raw = context11.environment.FOREMAN_PROVIDER_MAX_COST_USD;
   if (raw !== void 0 && (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(raw) || !Number.isFinite(Number(raw)) || Number(raw) <= 0 || Number(raw) > 5))
     return Effect_exports.fail(
-      failure10(
+      failure11(
         "UnsupportedCapability",
         "FOREMAN_PROVIDER_MAX_COST_USD must be a decimal greater than zero and at most 5",
         "FOREMAN_PROVIDER_MAX_COST_USD"
@@ -111176,7 +111376,7 @@ function provisionalAdmission(request3, evidence, now) {
     if (admitted.ok) return Effect_exports.succeed(admitted.value);
   }
   return Effect_exports.fail(
-    failure10(
+    failure11(
       "CapabilityUnverified",
       "Generation requires current exact live generation and structured-output evidence",
       "evidence"
@@ -111222,7 +111422,7 @@ function makeLiveAuthoringGenerate(context11, ports = {}) {
               const installed = readiness.discovery.installedVersion;
               if (!installed)
                 return yield* Effect_exports.fail(
-                  failure10(
+                  failure11(
                     "CapabilityUnverified",
                     "Gemini CLI did not establish its installed protocol revision",
                     "expectedIdentityRevision"
@@ -111262,13 +111462,13 @@ function makeLiveAuthoringGenerate(context11, ports = {}) {
 init_esm();
 init_src();
 init_pel_journal();
-import { constants as constants8, closeSync as closeSync10, openSync as openSync10, mkdirSync as mkdirSync7, realpathSync as realpathSync4, lstatSync as lstatSync8, fstatSync as fstatSync9 } from "node:fs";
-import { dirname as dirname12, isAbsolute as isAbsolute20, normalize as normalize7 } from "node:path";
+import { constants as constants9, closeSync as closeSync10, openSync as openSync10, mkdirSync as mkdirSync7, realpathSync as realpathSync4, lstatSync as lstatSync8, fstatSync as fstatSync9 } from "node:fs";
+import { dirname as dirname12, isAbsolute as isAbsolute21, normalize as normalize7 } from "node:path";
 function withPelRegistryTransaction(foremanHome, operation) {
-  const io7 = (read2) => Effect_exports.try({ try: read2, catch: () => pelFailure("binding-mismatch", "The original project registry transaction is busy or unavailable; admission was not changed.") });
+  const io8 = (read2) => Effect_exports.try({ try: read2, catch: () => pelFailure("binding-mismatch", "The original project registry transaction is busy or unavailable; admission was not changed.") });
   return Effect_exports.scoped(Effect_exports.gen(function* () {
-    const fd = yield* Effect_exports.acquireRelease(io7(() => {
-      if (!isAbsolute20(foremanHome) || normalize7(foremanHome) !== foremanHome) throw Error("home");
+    const fd = yield* Effect_exports.acquireRelease(io8(() => {
+      if (!isAbsolute21(foremanHome) || normalize7(foremanHome) !== foremanHome) throw Error("home");
       let ancestor = foremanHome;
       for (; ; ) {
         try {
@@ -111281,14 +111481,14 @@ function withPelRegistryTransaction(foremanHome, operation) {
       }
       mkdirSync7(foremanHome, { recursive: true, mode: 448 });
       if (realpathSync4(foremanHome) !== foremanHome) throw Error("home");
-      return openSync10(foremanHome, constants8.O_RDONLY | constants8.O_DIRECTORY | constants8.O_NOFOLLOW);
+      return openSync10(foremanHome, constants9.O_RDONLY | constants9.O_DIRECTORY | constants9.O_NOFOLLOW);
     }), (handle) => Effect_exports.sync(() => closeSync10(handle)));
-    yield* Effect_exports.acquireRelease(io7(() => {
+    yield* Effect_exports.acquireRelease(io8(() => {
       const held = acquireKernelDirectoryLock(fd, ".pel-registry-transaction", "foreman.pel-registry-transaction.v1");
       if (!held) throw Error("busy");
       return held;
     }), (held) => Effect_exports.sync(held.release));
-    yield* io7(() => {
+    yield* io8(() => {
       const opened = fstatSync9(fd), named = lstatSync8(foremanHome);
       if (opened.dev !== named.dev || opened.ino !== named.ino || named.isSymbolicLink()) throw Error("changed");
     });
@@ -111305,15 +111505,15 @@ import { fileURLToPath } from "node:url";
 // packages/orchestration/src/pel-install.ts
 init_esm();
 init_src();
-import { constants as constants9, closeSync as closeSync11, openSync as openSync11, lstatSync as lstatSync9, realpathSync as realpathSync5, mkdirSync as mkdirSync8, readlinkSync, symlinkSync, renameSync as renameSync4, rmSync, writeFileSync as writeFileSync5, fsyncSync as fsyncSync7, readdirSync as readdirSync3, fchmodSync as fchmodSync3 } from "node:fs";
-import { dirname as dirname13, isAbsolute as isAbsolute21, join as join25, normalize as normalize8 } from "node:path";
+import { constants as constants10, closeSync as closeSync11, openSync as openSync11, lstatSync as lstatSync9, realpathSync as realpathSync5, mkdirSync as mkdirSync8, readlinkSync, symlinkSync, renameSync as renameSync4, rmSync, writeFileSync as writeFileSync5, fsyncSync as fsyncSync7, readdirSync as readdirSync3, fchmodSync as fchmodSync3 } from "node:fs";
+import { dirname as dirname13, isAbsolute as isAbsolute22, join as join26, normalize as normalize8 } from "node:path";
 import { randomUUID as randomUUID2 } from "node:crypto";
 
 // packages/orchestration/src/pel-package.ts
 init_src();
 init_esm();
 init_src3();
-import { join as join24 } from "node:path";
+import { join as join25 } from "node:path";
 
 // node_modules/tar/dist/esm/index.min.js
 import Qr from "events";
@@ -113507,7 +113707,7 @@ var Ei = (s3, t, e, i) => {
     i(r && r?.code !== "ENOENT" ? r : null);
   });
 };
-var io4 = (s3, t, e, i, r) => {
+var io5 = (s3, t, e, i, r) => {
   if (t.isDirectory()) Es(we.resolve(s3, t.name), e, i, (n) => {
     if (n) return r(n);
     let o = we.resolve(s3, t.name);
@@ -113531,7 +113731,7 @@ var Es = (s3, t, e, i) => {
         if (--o === 0) return Ei(s3, t, e, i);
       }
     };
-    for (let l of n) io4(s3, l, t, e, a);
+    for (let l of n) io5(s3, l, t, e, a);
   });
 };
 var so = (s3, t, e, i) => {
@@ -114308,11 +114508,11 @@ var requiredPelPackagePaths = [
   ...["grok-4.6", "claude-opus-5", "claude-fable-5-1", "gpt-6-astra", "gpt-5.6-sol", "gemini-3.8-flash"].map((id5) => `examples/pel/profiles/${id5}.pel`),
   ...["install", "quickstart", "examples", "migration", "research", "support"].map((name3) => `docs/guides/pel/${name3}.md`)
 ];
-var object8 = (v2) => v2 !== null && typeof v2 === "object" && !Array.isArray(v2);
+var object9 = (v2) => v2 !== null && typeof v2 === "object" && !Array.isArray(v2);
 var keys9 = (v2, names5) => Object.keys(v2).length === names5.length && names5.every((name3) => Object.hasOwn(v2, name3));
 var hash9 = (v2) => typeof v2 === "string" && /^[a-f0-9]{64}$/.test(v2);
 var integer2 = (v2) => typeof v2 === "number" && Number.isSafeInteger(v2) && v2 >= 0;
-var range5 = (v2) => object8(v2) && keys9(v2, ["min", "max"]) && integer2(v2.min) && integer2(v2.max) && v2.min > 0 && v2.min <= v2.max && v2.max <= 1e4;
+var range5 = (v2) => object9(v2) && keys9(v2, ["min", "max"]) && integer2(v2.min) && integer2(v2.max) && v2.min > 0 && v2.min <= v2.max && v2.max <= 1e4;
 var utf8order = (a, b2) => Buffer.compare(Buffer.from(a), Buffer.from(b2));
 function validPackagePath(value4) {
   if (typeof value4 !== "string" || Buffer.byteLength(value4) > 4096 || !value4 || value4.startsWith("/") || /[\\\u0000-\u001f\u007f]/u.test(value4)) return false;
@@ -114331,16 +114531,16 @@ function decodeInstallManifest(bytes3) {
     return invalid7("manifest-encoding");
   }
   const value4 = parseJsonRejectDuplicateKeys(text12);
-  if (isCoreFailure(value4) || !object8(value4) || !keys9(value4, ["schemaVersion", "releaseName", "version", "candidateCommit", "nodeRange", "runtimeSchemas", "runtimeCompatibility", "defaultAuthoringSnapshot", "metricEntry", "files", "buildId"])) return invalid7("manifest-schema");
+  if (isCoreFailure(value4) || !object9(value4) || !keys9(value4, ["schemaVersion", "releaseName", "version", "candidateCommit", "nodeRange", "runtimeSchemas", "runtimeCompatibility", "defaultAuthoringSnapshot", "metricEntry", "files", "buildId"])) return invalid7("manifest-schema");
   if (value4.schemaVersion !== 1 || value4.releaseName !== "Return of the ForeDi" || value4.nodeRange !== ">=24 <25" || typeof value4.candidateCommit !== "string" || !/^([a-f0-9]{40}|[a-f0-9]{64})$/.test(value4.candidateCommit) || !hash9(value4.buildId)) return invalid7("manifest-identity");
   if (value4.version !== null && (typeof value4.version !== "string" || value4.version.length > 120 || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(value4.version))) return invalid7("manifest-version");
-  if (!object8(value4.runtimeCompatibility) || !keys9(value4.runtimeCompatibility, ["runtimeVersion", "runtimeHandlerVersion"]) || !Object.values(value4.runtimeCompatibility).every((v2) => typeof v2 === "string" && /^[0-9A-Za-z][0-9A-Za-z._-]{0,63}$/.test(v2))) return invalid7("manifest-runtime-compatibility");
-  if (!object8(value4.runtimeSchemas) || !keys9(value4.runtimeSchemas, ["journal", "checkpoint", "pelContinuation"]) || !Object.values(value4.runtimeSchemas).every(range5)) return invalid7("manifest-runtime-schemas");
+  if (!object9(value4.runtimeCompatibility) || !keys9(value4.runtimeCompatibility, ["runtimeVersion", "runtimeHandlerVersion"]) || !Object.values(value4.runtimeCompatibility).every((v2) => typeof v2 === "string" && /^[0-9A-Za-z][0-9A-Za-z._-]{0,63}$/.test(v2))) return invalid7("manifest-runtime-compatibility");
+  if (!object9(value4.runtimeSchemas) || !keys9(value4.runtimeSchemas, ["journal", "checkpoint", "pelContinuation"]) || !Object.values(value4.runtimeSchemas).every(range5)) return invalid7("manifest-runtime-schemas");
   if (!Array.isArray(value4.files) || value4.files.length > 4096) return invalid7("manifest-files");
   const files = /* @__PURE__ */ new Map(), folded = /* @__PURE__ */ new Set();
   let previous3 = "", total = 0;
   for (const file2 of value4.files) {
-    if (!object8(file2) || !keys9(file2, ["path", "byteLength", "sha256", "mode"]) || !validPackagePath(file2.path) || !integer2(file2.byteLength) || file2.byteLength > 128 * 1024 * 1024 || !hash9(file2.sha256) || file2.mode !== 420 && file2.mode !== 493) return invalid7("manifest-file");
+    if (!object9(file2) || !keys9(file2, ["path", "byteLength", "sha256", "mode"]) || !validPackagePath(file2.path) || !integer2(file2.byteLength) || file2.byteLength > 128 * 1024 * 1024 || !hash9(file2.sha256) || file2.mode !== 420 && file2.mode !== 493) return invalid7("manifest-file");
     if (previous3 && utf8order(previous3, file2.path) >= 0 || folded.has(file2.path.toLowerCase())) return invalid7("manifest-path-order");
     previous3 = file2.path;
     folded.add(file2.path.toLowerCase());
@@ -114351,7 +114551,7 @@ function decodeInstallManifest(bytes3) {
   if (requiredPelPackagePaths.some((path4) => !files.has(path4))) return invalid7("manifest-required-file");
   for (const [name3, path4] of [["defaultAuthoringSnapshot", "runtime/assets/pel/default-authoring-snapshot.json"], ["metricEntry", "runtime/dist/pel-simplification.js"]]) {
     const ref3 = value4[name3];
-    if (!object8(ref3) || !keys9(ref3, ["path", "sha256"]) || ref3.path !== path4 || ref3.sha256 !== files.get(path4)?.sha256) return invalid7("manifest-required-reference");
+    if (!object9(ref3) || !keys9(ref3, ["path", "sha256"]) || ref3.path !== path4 || ref3.sha256 !== files.get(path4)?.sha256) return invalid7("manifest-required-reference");
   }
   const { buildId, ...payload } = value4;
   if (sha256Hex(canonicalize(payload)) !== buildId) return invalid7("manifest-digest");
@@ -114367,7 +114567,7 @@ function verifyPelPackage(sourceRoot) {
       if (!identitiesEqual2(file2.identity, yield* file2.recheckIdentity())) return yield* Effect_exports.fail(installFailure("PackageIntegrityMismatch", "A package file changed during validation.", path4));
       return { bytes: bytes3, identity: file2.identity };
     }));
-    const manifestFile = yield* read2(join24(root, "manifest.json"), 4 * 1024 * 1024), decoded = decodeInstallManifest(manifestFile.bytes);
+    const manifestFile = yield* read2(join25(root, "manifest.json"), 4 * 1024 * 1024), decoded = decodeInstallManifest(manifestFile.bytes);
     if (!decoded.ok) return yield* Effect_exports.fail(installFailure("PackageIntegrityMismatch", decoded.reason, "manifest.json"));
     if (manifestFile.identity.nlink !== 1 || (manifestFile.identity.mode & 4095) !== 420) return yield* Effect_exports.fail(installFailure("PackageIntegrityMismatch", "The package manifest must be a single ordinary 0644 file."));
     const manifest = decoded.value, expected = new Map(manifest.files.map((file2) => [file2.path, file2])), observed = /* @__PURE__ */ new Set(), files = [];
@@ -114379,7 +114579,7 @@ function verifyPelPackage(sourceRoot) {
       if (names5.length > 4097) return yield* Effect_exports.fail(installFailure("PackageIntegrityMismatch", "Package directory exceeds its entry bound.", relative9));
       for (const name3 of [...names5].sort(utf8order)) {
         if (!name3 || name3 === "." || name3 === ".." || /[\\/\u0000]/u.test(name3)) return yield* Effect_exports.fail(installFailure("PackageIntegrityMismatch", "A package entry has an invalid name."));
-        const rel = relative9 ? `${relative9}/${name3}` : name3, absolute = join24(path4, name3), info = yield* fs4.lstat(absolute);
+        const rel = relative9 ? `${relative9}/${name3}` : name3, absolute = join25(path4, name3), info = yield* fs4.lstat(absolute);
         if (info.isDirectory && !info.isSymbolicLink) {
           if (!manifest.files.some((file2) => file2.path.startsWith(rel + "/"))) return yield* Effect_exports.fail(installFailure("PackageIntegrityMismatch", "Package contains an undeclared directory.", rel));
           yield* walk(absolute, rel);
@@ -114399,7 +114599,7 @@ function verifyPelPackage(sourceRoot) {
     });
     yield* walk(root, "");
     if (observed.size !== expected.size) return yield* Effect_exports.fail(installFailure("PackageIntegrityMismatch", "A declared package file is missing."));
-    const runtime4 = yield* verifyRuntimeTree(join24(root, "runtime"));
+    const runtime4 = yield* verifyRuntimeTree(join25(root, "runtime"));
     if (runtime4._tag !== "Pass") return yield* Effect_exports.fail(installFailure("PackageIntegrityMismatch", `Runtime validation failed: ${runtime4.reason}.`));
     for (const [path4, before2] of directories) if (!identitiesEqual2(before2, yield* fs4.lstat(path4))) return yield* Effect_exports.fail(installFailure("PackageIntegrityMismatch", "A package directory changed during validation."));
     return { root, manifest, files };
@@ -114407,9 +114607,9 @@ function verifyPelPackage(sourceRoot) {
 }
 
 // packages/orchestration/src/pel-install.ts
-var io5 = (f2) => Effect_exports.try({ try: f2, catch: () => installFailure("InstallIoFailure", "The package transaction could not complete.") });
+var io6 = (f2) => Effect_exports.try({ try: f2, catch: () => installFailure("InstallIoFailure", "The package transaction could not complete.") });
 function canonicalPrefix(prefix2, create) {
-  if (!isAbsolute21(prefix2) || normalize8(prefix2) !== prefix2 || prefix2 === "/") throw installFailure("PackageIntegrityMismatch", "The installation prefix must be an absolute canonical directory without symlink ancestors.");
+  if (!isAbsolute22(prefix2) || normalize8(prefix2) !== prefix2 || prefix2 === "/") throw installFailure("PackageIntegrityMismatch", "The installation prefix must be an absolute canonical directory without symlink ancestors.");
   let ancestor = prefix2;
   for (; ; ) {
     try {
@@ -114431,8 +114631,8 @@ function canonicalPrefix(prefix2, create) {
 function withInstalledPrefix(prefix2, create, use2) {
   return Effect_exports.scoped(Effect_exports.gen(function* () {
     const canonical3 = yield* Effect_exports.try({ try: () => canonicalPrefix(prefix2, create), catch: (error) => typeof error === "object" && error !== null && "_tag" in error && error._tag === "PackageIntegrityMismatch" ? error : installFailure(create ? "InstallIoFailure" : "UnknownPackage", "The installation prefix is unavailable or invalid.") });
-    const fd = yield* Effect_exports.acquireRelease(io5(() => openSync11(canonical3, constants9.O_RDONLY | constants9.O_DIRECTORY | constants9.O_NOFOLLOW)), (value4) => Effect_exports.sync(() => closeSync11(value4)));
-    const lock = yield* Effect_exports.acquireRelease(io5(() => {
+    const fd = yield* Effect_exports.acquireRelease(io6(() => openSync11(canonical3, constants10.O_RDONLY | constants10.O_DIRECTORY | constants10.O_NOFOLLOW)), (value4) => Effect_exports.sync(() => closeSync11(value4)));
+    const lock = yield* Effect_exports.acquireRelease(io6(() => {
       const held = acquireKernelDirectoryLock(fd, ".install-lock", "foreman.pel-install.v1");
       if (!held) throw Error("busy");
       return held;
@@ -114456,7 +114656,7 @@ var syncDirectory = (path4) => {
     fsyncSync7(Number(anchor[1]));
     return;
   }
-  const fd = openSync11(path4, constants9.O_RDONLY | constants9.O_DIRECTORY | constants9.O_NOFOLLOW);
+  const fd = openSync11(path4, constants10.O_RDONLY | constants10.O_DIRECTORY | constants10.O_NOFOLLOW);
   try {
     fsyncSync7(fd);
   } finally {
@@ -114465,9 +114665,9 @@ var syncDirectory = (path4) => {
 };
 function currentTarget(anchor) {
   try {
-    const info = lstatSync9(join25(anchor, "current"));
+    const info = lstatSync9(join26(anchor, "current"));
     if (!info.isSymbolicLink()) throw Error("current");
-    const target = readlinkSync(join25(anchor, "current"));
+    const target = readlinkSync(join26(anchor, "current"));
     if (!/^versions\/[a-f0-9]{64}$/.test(target)) throw Error("current");
     return target;
   } catch (error) {
@@ -114476,11 +114676,11 @@ function currentTarget(anchor) {
   }
 }
 function selectInstalledBuild(anchor, buildId, previous3) {
-  return io5(() => {
+  return io6(() => {
     if (!/^[a-f0-9]{64}$/.test(buildId) || currentTarget(anchor) !== previous3) throw Error("changed");
-    const bin = join25(anchor, "bin");
+    const bin = join26(anchor, "bin");
     ordinaryDirectory(bin);
-    const executable = join25(bin, "foreman");
+    const executable = join26(bin, "foreman");
     try {
       if (!lstatSync9(executable).isSymbolicLink() || readlinkSync(executable) !== "../current/runtime/dist/foreman.js") throw Error("entry");
     } catch (error) {
@@ -114488,19 +114688,19 @@ function selectInstalledBuild(anchor, buildId, previous3) {
       symlinkSync("../current/runtime/dist/foreman.js", executable);
       syncDirectory(bin);
     }
-    const temporary = join25(anchor, `.current-${randomUUID2()}`);
+    const temporary = join26(anchor, `.current-${randomUUID2()}`);
     try {
       symlinkSync(`versions/${buildId}`, temporary);
-      renameSync4(temporary, join25(anchor, "current"));
+      renameSync4(temporary, join26(anchor, "current"));
       syncDirectory(anchor);
     } finally {
       rmSync(temporary, { force: true });
     }
   }).pipe(Effect_exports.uninterruptible);
 }
-var readInstalledCurrent = (anchor) => io5(() => currentTarget(anchor));
+var readInstalledCurrent = (anchor) => io6(() => currentTarget(anchor));
 function installedPackageResult(prefix2, manifest) {
-  return { prefix: prefix2, buildId: manifest.buildId, releaseName: manifest.releaseName, version: manifest.version, packageRoot: join25(prefix2, "versions", manifest.buildId) };
+  return { prefix: prefix2, buildId: manifest.buildId, releaseName: manifest.releaseName, version: manifest.version, packageRoot: join26(prefix2, "versions", manifest.buildId) };
 }
 
 // packages/orchestration/src/pel-install-admission.ts
@@ -114533,7 +114733,7 @@ init_execution_ledger();
 init_execution_contract();
 import { existsSync as existsSync4, lstatSync as lstatSync14 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
-import { join as join36 } from "node:path";
+import { join as join37 } from "node:path";
 
 // packages/orchestration/src/supervisor-live-services.ts
 import {
@@ -114547,7 +114747,7 @@ import {
   readSync as readSync9,
   realpathSync as realpathSync7
 } from "node:fs";
-import { join as join27 } from "node:path";
+import { join as join28 } from "node:path";
 
 // packages/orchestration/src/run-lease-kernel.ts
 init_src();
@@ -114679,7 +114879,7 @@ function openBoundChildDir(parent2, name3) {
   if (!recheckBoundDir(parent2)) return { _tag: "bad" };
   const parentAnchor = procFdPath2(parent2.fd);
   if (parentAnchor === null) return { _tag: "bad" };
-  const childPath = join27(parentAnchor, name3);
+  const childPath = join28(parentAnchor, name3);
   const kind = observeDirComponent2(childPath);
   if (kind === "missing") return { _tag: "missing" };
   if (kind !== "directory") return { _tag: "bad" };
@@ -114708,7 +114908,7 @@ function ensureBoundChildDir(parent2, name3) {
   if (!recheckBoundDir(parent2)) return { _tag: "bad" };
   const parentAnchor = procFdPath2(parent2.fd);
   if (parentAnchor === null) return { _tag: "bad" };
-  const childPath = join27(parentAnchor, name3);
+  const childPath = join28(parentAnchor, name3);
   let kind = observeDirComponent2(childPath);
   if (kind === "symlink" || kind === "other") return { _tag: "bad" };
   if (kind === "missing") {
@@ -114769,7 +114969,7 @@ function childPathUnder(dir, name3) {
   if (!recheckBoundDir(dir)) return null;
   const anchor = procFdPath2(dir.fd);
   if (anchor === null) return null;
-  return join27(anchor, name3);
+  return join28(anchor, name3);
 }
 function makeLiveTypedJournalReader(stateRoot) {
   return Layer_exports.succeed(TypedJournalReader, {
@@ -114925,7 +115125,7 @@ init_src();
 import { randomBytes as randomBytes7 } from "node:crypto";
 import {
   closeSync as closeSync14,
-  constants as constants10,
+  constants as constants11,
   fstatSync as fstatSync11,
   fsyncSync as fsyncSync9,
   lstatSync as lstatSync11,
@@ -114935,7 +115135,7 @@ import {
   unlinkSync as unlinkSync7,
   writeSync as writeSync5
 } from "node:fs";
-import { basename as basename7, dirname as dirname16, isAbsolute as isAbsolute22, join as join28 } from "node:path";
+import { basename as basename7, dirname as dirname16, isAbsolute as isAbsolute23, join as join29 } from "node:path";
 var ONE_MIB3 = 1048576;
 var UUID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 var CONTROL = /[\u0000-\u001f\u007f]/;
@@ -114965,7 +115165,7 @@ function validUuid(value4) {
   return typeof value4 === "string" && UUID2.test(value4);
 }
 function validAbsolutePath(value4) {
-  return typeof value4 === "string" && value4.length > 0 && value4.length <= 4096 && !CONTROL.test(value4) && isAbsolute22(value4);
+  return typeof value4 === "string" && value4.length > 0 && value4.length <= 4096 && !CONTROL.test(value4) && isAbsolute23(value4);
 }
 function validSafeInteger(value4, minimum) {
   return Number.isSafeInteger(value4) && value4 >= minimum;
@@ -115181,8 +115381,8 @@ function readRegistryFile(path4) {
   }
   let fd;
   try {
-    const noFollow = constants10.O_NOFOLLOW ?? 0;
-    fd = openSync14(path4, constants10.O_RDONLY | noFollow);
+    const noFollow = constants11.O_NOFOLLOW ?? 0;
+    fd = openSync14(path4, constants11.O_RDONLY | noFollow);
     const opened = fstatSync11(fd);
     if (!opened.isFile() || opened.nlink !== 1 || opened.size > ONE_MIB3 || !sameIdentity(pathStat, opened)) {
       return { _tag: "Refused", reason: "unsafe_path" };
@@ -115238,7 +115438,7 @@ function publishRegistryFile(path4, bytes3, before2) {
   if (parentStat.isSymbolicLink() || !parentStat.isDirectory()) {
     return "unsafe_path";
   }
-  const temporary = join28(
+  const temporary = join29(
     parent2,
     `.${basename7(path4)}.${process.pid}.${randomBytes7(6).toString("hex")}.tmp`
   );
@@ -115247,7 +115447,7 @@ function publishRegistryFile(path4, bytes3, before2) {
   try {
     fd = openSync14(
       temporary,
-      constants10.O_WRONLY | constants10.O_CREAT | constants10.O_EXCL,
+      constants11.O_WRONLY | constants11.O_CREAT | constants11.O_EXCL,
       384
     );
     let offset = 0;
@@ -115260,7 +115460,7 @@ function publishRegistryFile(path4, bytes3, before2) {
     if (!targetUnchanged(path4, before2)) return "unsafe_path";
     renameSync6(temporary, path4);
     published = true;
-    const parentFd = openSync14(parent2, constants10.O_RDONLY);
+    const parentFd = openSync14(parent2, constants11.O_RDONLY);
     try {
       fsyncSync9(parentFd);
     } finally {
@@ -115313,7 +115513,7 @@ init_pel_provider_evidence();
 init_pel_resource_scope();
 init_pel_journal();
 init_pel_run_contract();
-var failure11 = (message) => ({ _tag: "CapabilityUnverified", retryClass: "never", message });
+var failure12 = (message) => ({ _tag: "CapabilityUnverified", retryClass: "never", message });
 var asRun = (error) => pelFailure("binding-mismatch", `Execution provider admission failed: ${error._tag}.`);
 var api = (transportId) => ["xai-responses", "anthropic-messages", "openai-responses", "google-interactions"].includes(transportId);
 function makeExecutionProviderTransport(request3, context11, options2) {
@@ -115330,14 +115530,14 @@ function makeExecutionProviderTransport(request3, context11, options2) {
       case "google-interactions":
         return createGoogleInteractionsTransport(shared);
     }
-    if (!options2.nativeBoundary) return yield* Effect_exports.fail(failure11("Native execution needs an admitted enforcing host boundary."));
-    yield* canonicalWorkspacePath(".", context11).pipe(Effect_exports.mapError(() => failure11("The admitted native workspace identity changed.")));
+    if (!options2.nativeBoundary) return yield* Effect_exports.fail(failure12("Native execution needs an admitted enforcing host boundary."));
+    yield* canonicalWorkspacePath(".", context11).pipe(Effect_exports.mapError(() => failure12("The admitted native workspace identity changed.")));
     const boundary2 = yield* options2.nativeBoundary(request3, context11);
-    if (boundary2.host.cwd !== context11.workspace.canonicalRoot) return yield* Effect_exports.fail(failure11("Native process cwd differs from its admitted worktree."));
+    if (boundary2.host.cwd !== context11.workspace.canonicalRoot) return yield* Effect_exports.fail(failure12("Native process cwd differs from its admitted worktree."));
     const host = { ...boundary2.host, permissions: options2.permissions };
     const checked2 = validateNativeHost(request3, host);
     if (!checked2.ok) return yield* Effect_exports.fail(checked2.error);
-    if (request3.toolPolicy.mode === "native-coding" && (request3.toolPolicy.workspaceGrantId !== context11.workspace.grantId || !context11.workspace.writablePaths.length)) return yield* Effect_exports.fail(failure11("Native tool policy does not match its writable workspace grant."));
+    if (request3.toolPolicy.mode === "native-coding" && (request3.toolPolicy.workspaceGrantId !== context11.workspace.grantId || !context11.workspace.writablePaths.length)) return yield* Effect_exports.fail(failure12("Native tool policy does not match its writable workspace grant."));
     const native = { credentials, host, schemaRegistry: context11.checked.snapshot.registry.dataSchemas };
     switch (request3.transportId) {
       case "grok-acp":
@@ -115347,7 +115547,7 @@ function makeExecutionProviderTransport(request3, context11, options2) {
       case "codex-app-server":
         return createCodexAppServerTransport({ ...native, version: request3.transportVersion });
       case "gemini-cli":
-        if (!boundary2.geminiConfiguration) return yield* Effect_exports.fail(failure11("Gemini execution needs immutable host-enforced configuration."));
+        if (!boundary2.geminiConfiguration) return yield* Effect_exports.fail(failure12("Gemini execution needs immutable host-enforced configuration."));
         return createGeminiCliTransport({ ...native, protocolVersion: boundary2.identityRevision, configuration: boundary2.geminiConfiguration });
     }
   });
@@ -115380,7 +115580,7 @@ function loadOriginalPelProviderRequest(identity8, context11, options2) {
 }
 function makePelExecutionProviderPort(options2) {
   const permissionsFor = (request3, context11) => makeDurablePelPermissionPort({ context: context11, journal: options2.journal, runtime: options2.runtime(), authorize: request3.toolPolicy.mode === "native-coding" && options2.nativeAuthorize ? options2.nativeAuthorize(request3, context11) : options2.permissions.authorize });
-  const make65 = (request3, context11, boundary2, permissions = permissionsFor(request3, context11)) => makeExecutionProviderTransport(request3, context11, { ...options2, permissions, ...boundary2 ? { nativeBoundary: () => Effect_exports.succeed(boundary2) } : {}, requestForIdentity: (identity8) => loadOriginalPelProviderRequest(identity8, context11, options2).pipe(Effect_exports.mapError(() => failure11("The original provider request is unavailable."))) });
+  const make65 = (request3, context11, boundary2, permissions = permissionsFor(request3, context11)) => makeExecutionProviderTransport(request3, context11, { ...options2, permissions, ...boundary2 ? { nativeBoundary: () => Effect_exports.succeed(boundary2) } : {}, requestForIdentity: (identity8) => loadOriginalPelProviderRequest(identity8, context11, options2).pipe(Effect_exports.mapError(() => failure12("The original provider request is unavailable."))) });
   return {
     permissions: options2.permissions,
     resolve: (request3, context11) => Effect_exports.gen(function* () {
@@ -115423,7 +115623,7 @@ init_pel();
 init_providers();
 init_execution_contract();
 init_pel_run_contract();
-import { isAbsolute as isAbsolute24, normalize as normalize9 } from "node:path";
+import { isAbsolute as isAbsolute25, normalize as normalize9 } from "node:path";
 var bad3 = (fieldPath) => ({ ok: false, error: { code: "invalid-contract", fieldPath } });
 function record8(value4) {
   if (value4 === null || typeof value4 !== "object" || Array.isArray(value4)) return false;
@@ -115432,7 +115632,7 @@ function record8(value4) {
 }
 var exact5 = (v2, required2) => required2.length === Object.keys(v2).length && required2.every((k2) => Object.hasOwn(v2, k2));
 var text9 = (v2) => typeof v2 === "string" && v2.length > 0 && v2.isWellFormed() && Buffer.byteLength(v2) <= 4096 && !/[\u0000-\u001f\u007f]/.test(v2);
-var path3 = (v2) => text9(v2) && isAbsolute24(v2) && normalize9(v2) === v2;
+var path3 = (v2) => text9(v2) && isAbsolute25(v2) && normalize9(v2) === v2;
 var digest4 = (v2) => typeof v2 === "string" && /^[a-f0-9]{64}$/.test(v2);
 var oid = (v2) => typeof v2 === "string" && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(v2);
 var positive = (v2) => Number.isSafeInteger(v2) && v2 > 0;
@@ -116264,8 +116464,8 @@ init_pel();
 import { execFile as execFile3 } from "node:child_process";
 import { promisify as promisify2 } from "node:util";
 import { createHash as createHash10, randomUUID as randomUUID4 } from "node:crypto";
-import { closeSync as closeSync15, constants as constants11, existsSync as existsSync3, fstatSync as fstatSync12, fsyncSync as fsyncSync10, lstatSync as lstatSync12, mkdirSync as mkdirSync11, openSync as openSync15, readSync as readSync11, realpathSync as realpathSync8, renameSync as renameSync7, statSync as statSync2, unlinkSync as unlinkSync8, writeSync as writeSync6 } from "node:fs";
-import { dirname as dirname17, isAbsolute as isAbsolute25, join as join29, normalize as normalize10, parse as parse3, relative as relative5, sep as sep8 } from "node:path";
+import { closeSync as closeSync15, constants as constants12, existsSync as existsSync3, fstatSync as fstatSync12, fsyncSync as fsyncSync10, lstatSync as lstatSync12, mkdirSync as mkdirSync11, openSync as openSync15, readSync as readSync11, realpathSync as realpathSync8, renameSync as renameSync7, statSync as statSync2, unlinkSync as unlinkSync8, writeSync as writeSync6 } from "node:fs";
+import { dirname as dirname17, isAbsolute as isAbsolute26, join as join30, normalize as normalize10, parse as parse3, relative as relative5, sep as sep8 } from "node:path";
 var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 var MAX_SETTINGS = 1048576;
 var exec = promisify2(execFile3);
@@ -116273,11 +116473,11 @@ var fail29 = (message) => ({ _tag: "PelRunFailure", code: "binding-mismatch", di
 var attempt6 = (work, message) => Effect_exports.try({ try: work, catch: () => fail29(message) });
 var identity6 = (info) => `${info.dev}:${info.ino}`;
 function directory(path4) {
-  if (!isAbsolute25(path4) || normalize10(path4) !== path4 || realpathSync8(path4) !== path4) throw Error("noncanonical directory");
+  if (!isAbsolute26(path4) || normalize10(path4) !== path4 || realpathSync8(path4) !== path4) throw Error("noncanonical directory");
   const root = parse3(path4).root;
   let current3 = root;
   for (const component of relative5(root, path4).split(sep8).filter(Boolean)) {
-    current3 = join29(current3, component);
+    current3 = join30(current3, component);
     const info = lstatSync12(current3);
     if (info.isSymbolicLink() || !info.isDirectory()) throw Error("unsafe ancestor");
   }
@@ -116292,7 +116492,7 @@ function makeDirectory(path4) {
   directory(parent2);
   mkdirSync11(path4, { mode: 448 });
   directory(path4);
-  const descriptor5 = openSync15(parent2, constants11.O_RDONLY | constants11.O_DIRECTORY | constants11.O_NOFOLLOW);
+  const descriptor5 = openSync15(parent2, constants12.O_RDONLY | constants12.O_DIRECTORY | constants12.O_NOFOLLOW);
   try {
     fsyncSync10(descriptor5);
   } finally {
@@ -116303,7 +116503,7 @@ function readBytes(path4, maxBytes, expected) {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > 64 * 1024 * 1024) throw Error("invalid bound");
   const parent2 = dirname17(path4), before2 = directory(parent2), entry = lstatSync12(path4);
   if (!entry.isFile() || entry.isSymbolicLink() || entry.nlink !== 1 || entry.size > maxBytes) throw Error("unsafe input");
-  const fd = openSync15(path4, constants11.O_RDONLY | constants11.O_NOFOLLOW);
+  const fd = openSync15(path4, constants12.O_RDONLY | constants12.O_NOFOLLOW);
   try {
     const opened = fstatSync12(fd);
     if (identity6(opened) !== identity6(entry) || opened.size !== entry.size) throw Error("changed input");
@@ -116347,7 +116547,7 @@ function resolvePelRepository(cwd) {
     const common2 = (yield* git3(["rev-parse", "--path-format=absolute", "--git-common-dir"])).stdout.trim();
     const worktree = (yield* git3(["rev-parse", "--show-toplevel"])).stdout.trim();
     return yield* attempt6(() => {
-      if (!isAbsolute25(common2) || !isAbsolute25(worktree)) throw Error("Git returned relative identity");
+      if (!isAbsolute26(common2) || !isAbsolute26(worktree)) throw Error("Git returned relative identity");
       const gitCommonDir = realpathSync8(common2), worktreePath = realpathSync8(worktree), info = directory(gitCommonDir);
       directory(worktreePath);
       return { repository: { gitCommonDir, identitySha256: hashAuthoringContent({ gitCommonDir, directoryIdentity: identity6(info) }) }, worktreePath };
@@ -116355,19 +116555,19 @@ function resolvePelRepository(cwd) {
   });
 }
 function makeLivePelProjectServices(options2) {
-  const registryPath = join29(options2.foremanHome, "projects.json");
+  const registryPath = join30(options2.foremanHome, "projects.json");
   const admission = makePelInstalledAdmission(options2.entryUrl ?? import.meta.url, options2.foremanHome);
   const readHash = (project4, sha256, max6) => attempt6(() => {
     if (!UUID3.test(project4.projectId) || !/^([a-f0-9]{64})$/.test(sha256)) throw Error("invalid input hash");
     directory(project4.stateRoot);
-    const bytes3 = readBytes(join29(project4.stateRoot, "project-inputs", project4.projectId, `sha256-${sha256}`), max6);
+    const bytes3 = readBytes(join30(project4.stateRoot, "project-inputs", project4.projectId, `sha256-${sha256}`), max6);
     if (createHash10("sha256").update(bytes3).digest("hex") !== sha256) throw Error("hash mismatch");
     return bytes3;
   }, "The registered input hash is missing, unsafe, changed, or exceeds its bound");
   const readInput = (project4, ref3, max6) => attempt6(() => {
     if (!UUID3.test(project4.projectId) || !/^sha256-[a-f0-9]{64}$/.test(ref3.artifactId) || ref3.artifactId !== `sha256-${ref3.sha256}` || !Number.isSafeInteger(ref3.byteLength) || ref3.byteLength < 0) throw Error("invalid input identity");
     directory(project4.stateRoot);
-    return readBytes(join29(project4.stateRoot, "project-inputs", project4.projectId, ref3.artifactId), max6, ref3);
+    return readBytes(join30(project4.stateRoot, "project-inputs", project4.projectId, ref3.artifactId), max6, ref3);
   }, "The registered project input is missing, unsafe, changed, or exceeds its bound");
   const registered = (context11) => attempt6(() => {
     directory(options2.foremanHome);
@@ -116396,7 +116596,7 @@ function makeLivePelProjectServices(options2) {
     }),
     read: (override) => Effect_exports.gen(function* () {
       const location = yield* resolvePelRepository(options2.cwd);
-      const project4 = yield* attempt6(() => decodeSettings(readBytes(join29(location.repository.gitCommonDir, "foreman", "project.json"), MAX_SETTINGS)), "Project settings are missing, malformed, or unsafe");
+      const project4 = yield* attempt6(() => decodeSettings(readBytes(join30(location.repository.gitCommonDir, "foreman", "project.json"), MAX_SETTINGS)), "Project settings are missing, malformed, or unsafe");
       yield* attempt6(() => validateFilesystem(project4, location.repository), "Project settings no longer match the canonical repository or workspace grants");
       yield* validateWorktrees(project4);
       if (override !== void 0 && override !== project4.stateRoot) return yield* Effect_exports.fail(fail29("The requested state root is not the configured registered root"));
@@ -116410,11 +116610,11 @@ function makeLivePelProjectServices(options2) {
       yield* validateWorktrees(project4);
       yield* options2.validateAuthority(project4, (ref3, max6) => readInput(project4, ref3, max6), (sha256, max6) => readHash(project4, sha256, max6));
       yield* admission(attempt6(() => {
-        if (!isAbsolute25(options2.foremanHome)) throw Error("home must be absolute");
+        if (!isAbsolute26(options2.foremanHome)) throw Error("home must be absolute");
         makeDirectory(options2.foremanHome);
-        const parent2 = join29(location.repository.gitCommonDir, "foreman");
+        const parent2 = join30(location.repository.gitCommonDir, "foreman");
         makeDirectory(parent2);
-        const target = join29(parent2, "project.json");
+        const target = join30(parent2, "project.json");
         let before2;
         try {
           before2 = lstatSync12(target);
@@ -116422,8 +116622,8 @@ function makeLivePelProjectServices(options2) {
           if (error.code !== "ENOENT") throw error;
         }
         if (before2 && (!before2.isFile() || before2.isSymbolicLink() || before2.nlink !== 1)) throw Error("unsafe settings target");
-        const temporary = join29(parent2, `.project-${randomUUID4()}.tmp`);
-        const fd = openSync15(temporary, constants11.O_WRONLY | constants11.O_CREAT | constants11.O_EXCL | constants11.O_NOFOLLOW, 384);
+        const temporary = join30(parent2, `.project-${randomUUID4()}.tmp`);
+        const fd = openSync15(temporary, constants12.O_WRONLY | constants12.O_CREAT | constants12.O_EXCL | constants12.O_NOFOLLOW, 384);
         try {
           const content = Buffer.from(canonicalize(project4));
           let offset = 0;
@@ -116439,7 +116639,7 @@ function makeLivePelProjectServices(options2) {
           directory(parent2);
           if (before2 ? identity6(lstatSync12(target)) !== identity6(before2) : existsSync3(target)) throw Error("concurrent settings replacement");
           renameSync7(temporary, target);
-          const parentFd = openSync15(parent2, constants11.O_RDONLY | constants11.O_DIRECTORY | constants11.O_NOFOLLOW);
+          const parentFd = openSync15(parent2, constants12.O_RDONLY | constants12.O_DIRECTORY | constants12.O_NOFOLLOW);
           try {
             fsyncSync10(parentFd);
           } finally {
@@ -116457,21 +116657,21 @@ function makeLivePelProjectServices(options2) {
 // packages/orchestration/src/pel-registered-root.ts
 init_esm();
 import { lstatSync as lstatSync13, realpathSync as realpathSync9 } from "node:fs";
-import { isAbsolute as isAbsolute26, join as join30, normalize as normalize11 } from "node:path";
+import { isAbsolute as isAbsolute27, join as join31, normalize as normalize11 } from "node:path";
 init_pel_journal();
 function resolvePelRegisteredRoot(cwd, foremanHome, override) {
   return Effect_exports.gen(function* () {
     const location = yield* resolvePelRepository(cwd);
     return yield* Effect_exports.try({ try: () => {
       const home = lstatSync13(foremanHome);
-      if (!isAbsolute26(foremanHome) || normalize11(foremanHome) !== foremanHome || realpathSync9(foremanHome) !== foremanHome || !home.isDirectory() || home.isSymbolicLink()) throw Error("home");
-      const loaded = loadProjectRegistryFileV1(join30(foremanHome, "projects.json"));
+      if (!isAbsolute27(foremanHome) || normalize11(foremanHome) !== foremanHome || realpathSync9(foremanHome) !== foremanHome || !home.isDirectory() || home.isSymbolicLink()) throw Error("home");
+      const loaded = loadProjectRegistryFileV1(join31(foremanHome, "projects.json"));
       if (loaded._tag !== "Valid") throw Error("registry");
       const matches2 = loaded.value.projects.filter((p2) => p2.state === "active" && p2.git_common_dir === location.repository.gitCommonDir && (override === void 0 || p2.store_location === override));
       if (matches2.length !== 1) throw Error("association");
       const registration = matches2[0];
       const stateRoot = registration.store_location, stat7 = lstatSync13(stateRoot);
-      if (!isAbsolute26(stateRoot) || normalize11(stateRoot) !== stateRoot || realpathSync9(stateRoot) !== stateRoot || !stat7.isDirectory() || stat7.isSymbolicLink()) throw Error("state root");
+      if (!isAbsolute27(stateRoot) || normalize11(stateRoot) !== stateRoot || realpathSync9(stateRoot) !== stateRoot || !stat7.isDirectory() || stat7.isSymbolicLink()) throw Error("state root");
       return { projectId: registration.project_id, repository: location.repository, stateRoot, worktreePath: location.worktreePath, registration };
     }, catch: () => pelFailure("binding-mismatch", "The requested state root has no matching active repository registration.") });
   });
@@ -116483,7 +116683,7 @@ init_src();
 init_src3();
 init_execution_ledger();
 init_execution_contract();
-import { isAbsolute as isAbsolute27, normalize as normalize12 } from "node:path";
+import { isAbsolute as isAbsolute28, normalize as normalize12 } from "node:path";
 init_pel_run_contract();
 var MAX = 1048576;
 var fail30 = (message) => ({ _tag: "PelRunFailure", code: "binding-mismatch", diagnostic: { code: "binding-mismatch", message, sourceSpan: null, effectId: null, retryable: false, nextAction: "Reference a typed scope whose bytes match existing registered execution authority.", evidenceRefs: [] } });
@@ -116497,7 +116697,7 @@ var list3 = (value4) => Array.isArray(value4) && value4.length <= 1e3 && Object.
 var strings3 = (value4) => list3(value4) && value4.every(text10) && new Set(value4).size === value4.length;
 var map31 = (value4) => record10(value4) && Object.keys(value4).length <= 1e3 && Object.keys(value4).every(text10);
 var same5 = (a, b2) => canonicalize(a) === canonicalize(b2);
-var relativePath = (path4) => path4 === "." || !isAbsolute27(path4) && normalize12(path4) === path4 && !/[\\*?\u0000-\u001f\u007f]/u.test(path4) && path4.split("/").every((part) => part !== "." && part !== ".." && part.length > 0);
+var relativePath = (path4) => path4 === "." || !isAbsolute28(path4) && normalize12(path4) === path4 && !/[\\*?\u0000-\u001f\u007f]/u.test(path4) && path4.split("/").every((part) => part !== "." && part !== ".." && part.length > 0);
 var sorted = (values3) => [...new Set(values3)].sort((a, b2) => Buffer.compare(Buffer.from(a), Buffer.from(b2)));
 function pelAuthorityFileBytes(value4) {
   return Buffer.from(`${canonicalize(value4)}
@@ -116507,7 +116707,7 @@ function pelV1AllowedPathsSha256(grants) {
   return sha256Hex(pelAuthorityFileBytes({ schema: "foreman.execution-paths.v1", allowedPaths: sorted(grants.flatMap((grant) => grant.writablePaths)) }));
 }
 function decodePelProjectAuthorityV1(value4) {
-  if (!record10(value4) || !exact6(value4, ["schemaVersion", "repository", "stateRoot", "workspaceGrants", "taskActions", "gates", "destinations"]) || value4.schemaVersion !== 1 || !decodePelRepositoryIdentityV1(value4.repository).ok || !text10(value4.stateRoot) || !isAbsolute27(value4.stateRoot) || normalize12(value4.stateRoot) !== value4.stateRoot) return bad4("authority");
+  if (!record10(value4) || !exact6(value4, ["schemaVersion", "repository", "stateRoot", "workspaceGrants", "taskActions", "gates", "destinations"]) || value4.schemaVersion !== 1 || !decodePelRepositoryIdentityV1(value4.repository).ok || !text10(value4.stateRoot) || !isAbsolute28(value4.stateRoot) || normalize12(value4.stateRoot) !== value4.stateRoot) return bad4("authority");
   if (!list3(value4.workspaceGrants) || !value4.workspaceGrants.length) return bad4("authority.workspaceGrants");
   const ids4 = /* @__PURE__ */ new Set(), roots4 = /* @__PURE__ */ new Set();
   for (const raw of value4.workspaceGrants) {
@@ -117586,7 +117786,7 @@ var str = (value4) => ({ tag: "string", value: value4 });
 var refValue = (ref3) => str(`artifact:${ref3.artifactId}`);
 var assoc = (fields3) => ({ tag: "list", items: Object.entries(fields3).map(([key, value4]) => ({ tag: "pair", key, value: value4 })) });
 var put3 = (value4, context11) => Effect_exports.flatMap(PelRuntime, (runtime4) => runtime4.artifacts.put(context11.binding.runId, Buffer.from(canonicalize(value4)), PEL_MAX_ARTIFACT_BYTES, "ordinary"));
-var object10 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
+var object11 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
 var args5 = (request3) => {
   const { id: id5, input, destination } = request3.boundArguments;
   return id5?.tag === "string" && destination?.tag === "string" && input && isPelDataValue(input) ? { id: id5.value, input, destination: destination.value } : null;
@@ -117612,7 +117812,7 @@ var serviceInput = (destinationId, input) => ({ destinationId, candidate: pelRel
 function makePelPublishHandler(ports) {
   const load2 = (prepared, context11) => Effect_exports.gen(function* () {
     const value4 = yield* readPelArtifactJson(context11.binding.runId, prepared.inputs);
-    if (!object10(value4) || Object.keys(value4).sort().join(",") !== "id,input,publication,resolved,schemaVersion" || value4.schemaVersion !== 1 || typeof value4.id !== "string" || !isPelDataValue(value4.input) || !object10(value4.resolved) || !object10(value4.publication) || value4.publication.operationDigest !== prepared.operationDigest) return yield* Effect_exports.fail(invalid4("The retained publication preparation is invalid."));
+    if (!object11(value4) || Object.keys(value4).sort().join(",") !== "id,input,publication,resolved,schemaVersion" || value4.schemaVersion !== 1 || typeof value4.id !== "string" || !isPelDataValue(value4.input) || !object11(value4.resolved) || !object11(value4.publication) || value4.publication.operationDigest !== prepared.operationDigest) return yield* Effect_exports.fail(invalid4("The retained publication preparation is invalid."));
     const stored = value4;
     yield* validateInput(stored.resolved, context11);
     if (pelHash(serviceInput(stored.publication.input.destinationId, stored.resolved)) !== pelHash(stored.publication.input) || pelHash(prepared.candidate) !== pelHash(stored.publication.input.candidate)) return yield* Effect_exports.fail(invalid4("The publication preparation does not bind its original candidate evidence."));
@@ -117623,8 +117823,8 @@ function makePelPublishHandler(ports) {
     if (!replay.ok) return yield* Effect_exports.fail(replay.error);
     for (const row of [...replay.value.records].reverse()) if (row.type === "pel.effect.observed.v1" && row.data.effectId === context11.effect.effectId && row.data.externalOutcome === "confirmed-complete") {
       const value4 = yield* readPelArtifactJson(context11.binding.runId, row.data.observationRef);
-      if (!object10(value4) || value4.stage !== "publication-observed") continue;
-      if (Object.keys(value4).sort().join(",") !== "observation,observedAt,operationDigest,stage" || value4.operationDigest !== operationDigest2 || !Number.isSafeInteger(value4.observedAt) || !object10(value4.observation) || value4.observation.kind !== "published" || value4.observation.operationDigest !== operationDigest2) return yield* Effect_exports.fail(invalid4("The retained publication observation is invalid."));
+      if (!object11(value4) || value4.stage !== "publication-observed") continue;
+      if (Object.keys(value4).sort().join(",") !== "observation,observedAt,operationDigest,stage" || value4.operationDigest !== operationDigest2 || !Number.isSafeInteger(value4.observedAt) || !object11(value4.observation) || value4.observation.kind !== "published" || value4.observation.operationDigest !== operationDigest2) return yield* Effect_exports.fail(invalid4("The retained publication observation is invalid."));
       return { report: value4, reportRef: row.data.observationRef };
     }
     return null;
@@ -117647,7 +117847,7 @@ function makePelPublishHandler(ports) {
     let recorded = false;
     for (const row of replay.value.records) if (row.type === "pel.effect.observed.v1" && row.data.effectId === context11.effect.effectId) {
       const value4 = yield* readPelArtifactJson(context11.binding.runId, row.data.observationRef);
-      if (object10(value4) && value4.stage === "host-evidence" && value4.kind === "publication") {
+      if (object11(value4) && value4.stage === "host-evidence" && value4.kind === "publication") {
         if (pelHash(value4.ref) !== pelHash(ref3)) return yield* Effect_exports.fail(invalid4("A different publication receipt is already recorded."));
         recorded = true;
       }
@@ -117701,27 +117901,27 @@ init_execution_ledger();
 init_queue_services();
 init_pel_run_contract();
 init_pel_effects();
-import { realpath as realpath8, stat as stat6 } from "node:fs/promises";
-import { isAbsolute as isAbsolute29, resolve as resolve11 } from "node:path";
+import { realpath as realpath9, stat as stat6 } from "node:fs/promises";
+import { isAbsolute as isAbsolute30, resolve as resolve11 } from "node:path";
 
 // packages/orchestration/src/pel-candidate-capture.ts
 init_esm();
 init_src();
 init_src3();
 init_queue_services();
-import { constants as constants12 } from "node:fs";
-import { lstat as lstat7, stat as stat5, realpath as realpath7, open as open5, readlink, mkdtemp as mkdtemp5, writeFile as writeFile3, rm as rm5 } from "node:fs/promises";
-import { dirname as dirname18, join as join31, isAbsolute as isAbsolute28, resolve as resolve10, sep as sep9 } from "node:path";
-import { tmpdir as tmpdir5 } from "node:os";
+import { constants as constants13 } from "node:fs";
+import { lstat as lstat8, stat as stat5, realpath as realpath8, open as open6, readlink, mkdtemp as mkdtemp6, writeFile as writeFile4, rm as rm6 } from "node:fs/promises";
+import { dirname as dirname18, join as join33, isAbsolute as isAbsolute29, resolve as resolve10, sep as sep9 } from "node:path";
+import { tmpdir as tmpdir6 } from "node:os";
 init_pel_run_contract();
 init_pel_resource_scope();
 init_pel_run_contract();
 var MAX_FILES = 4096;
 var MAX_BYTES3 = 64 * 1024 * 1024;
-var failure12 = (code, message, cause4) => ({ code, message, ...cause4 ? { cause: JSON.parse(canonicalize(cause4)) } : {} });
+var failure13 = (code, message, cause4) => ({ code, message, ...cause4 ? { cause: JSON.parse(canonicalize(cause4)) } : {} });
 var within3 = (root, path4) => path4 === root || path4.startsWith(root + sep9);
 var identity7 = (s3) => `${s3.dev}:${s3.ino}`;
-var io6 = (run6, code = "candidate-changed") => Effect_exports.tryPromise({ try: run6, catch: () => failure12(code, "Candidate filesystem evidence changed or could not be read safely.") });
+var io7 = (run6, code = "candidate-changed") => Effect_exports.tryPromise({ try: run6, catch: () => failure13(code, "Candidate filesystem evidence changed or could not be read safely.") });
 var oid3 = (text12) => {
   const value4 = text12.trim();
   if (!/^[a-f0-9]{40}$/.test(value4)) throw Error("Invalid Git object identity");
@@ -117731,21 +117931,21 @@ var limit = (context11) => Math.min(MAX_BYTES3, context11.binding.limits.maxOutp
 function git2(context11, args6, extra = {}, allowedStatuses = [0]) {
   return Effect_exports.gen(function* () {
     const runtime4 = yield* PelRuntime, now = yield* runtime4.clock.now;
-    if (context11.binding.limits.deadline <= now) return yield* Effect_exports.fail(failure12("timeout", "The original candidate capture deadline expired."));
+    if (context11.binding.limits.deadline <= now) return yield* Effect_exports.fail(failure13("timeout", "The original candidate capture deadline expired."));
     const proc = yield* ProcessExec;
-    const result4 = yield* proc.runCaptured({ command: "git", args: gitArgv(["--literal-pathspecs", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.excludesFile=/dev/null", "-c", "core.sparseCheckout=false", "-c", "core.ignoreStat=false", "-c", "core.fileMode=true", "-c", "commit.gpgSign=false", ...args6]), cwd: context11.workspace.canonicalRoot, env: { ...sanitizedGitEnv(), GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", ...extra }, maxOutputBytes: limit(context11), timeoutMs: Math.min(3e4, context11.binding.limits.deadline - now) }).pipe(Effect_exports.mapError(() => failure12("candidate-changed", "The bounded candidate Git operation did not complete.")));
-    if (!allowedStatuses.includes(result4.exitCode)) return yield* Effect_exports.fail(failure12("candidate-changed", "Git rejected the observed candidate operation."));
+    const result4 = yield* proc.runCaptured({ command: "git", args: gitArgv(["--literal-pathspecs", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.excludesFile=/dev/null", "-c", "core.sparseCheckout=false", "-c", "core.ignoreStat=false", "-c", "core.fileMode=true", "-c", "commit.gpgSign=false", ...args6]), cwd: context11.workspace.canonicalRoot, env: { ...sanitizedGitEnv(), GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", ...extra }, maxOutputBytes: limit(context11), timeoutMs: Math.min(3e4, context11.binding.limits.deadline - now) }).pipe(Effect_exports.mapError(() => failure13("candidate-changed", "The bounded candidate Git operation did not complete.")));
+    if (!allowedStatuses.includes(result4.exitCode)) return yield* Effect_exports.fail(failure13("candidate-changed", "Git rejected the observed candidate operation."));
     return result4;
   });
 }
 function put4(context11, bytes3) {
-  return Effect_exports.flatMap(PelRuntime, (runtime4) => runtime4.artifacts.put(context11.binding.runId, bytes3, limit(context11), "ordinary")).pipe(Effect_exports.mapError(() => failure12("artifact-missing", "Candidate evidence could not be retained.")));
+  return Effect_exports.flatMap(PelRuntime, (runtime4) => runtime4.artifacts.put(context11.binding.runId, bytes3, limit(context11), "ordinary")).pipe(Effect_exports.mapError(() => failure13("artifact-missing", "Candidate evidence could not be retained.")));
 }
 function stableFile(path4, max6) {
-  return io6(async () => {
-    const entry = await lstat7(path4);
+  return io7(async () => {
+    const entry = await lstat8(path4);
     if (!entry.isFile() || entry.nlink !== 1 || entry.size > max6) throw Error("Unsafe file");
-    const fd = await open5(path4, constants12.O_RDONLY | constants12.O_NOFOLLOW);
+    const fd = await open6(path4, constants13.O_RDONLY | constants13.O_NOFOLLOW);
     try {
       const before2 = await fd.stat();
       if (identity7(before2) !== identity7(entry) || before2.size > max6 || before2.size < 0) throw Error("Changed file");
@@ -117756,7 +117956,7 @@ function stableFile(path4, max6) {
         if (!read2.bytesRead) throw Error("Short file");
         offset += read2.bytesRead;
       }
-      const after4 = await fd.stat(), current3 = await lstat7(path4);
+      const after4 = await fd.stat(), current3 = await lstat8(path4);
       if (identity7(after4) !== identity7(current3) || after4.size !== before2.size || after4.mtimeMs !== before2.mtimeMs || after4.ctimeMs !== before2.ctimeMs) throw Error("Changed file");
       return bytes3;
     } finally {
@@ -117767,36 +117967,36 @@ function stableFile(path4, max6) {
 function inspectPelCandidate(context11) {
   return Effect_exports.scoped(Effect_exports.gen(function* () {
     const root = context11.workspace.canonicalRoot;
-    yield* io6(async () => {
-      if (await realpath7(root) !== root || identity7(await stat5(root)) !== context11.workspace.directoryIdentity) throw Error("Changed workspace");
+    yield* io7(async () => {
+      if (await realpath8(root) !== root || identity7(await stat5(root)) !== context11.workspace.directoryIdentity) throw Error("Changed workspace");
     });
     const common2 = (yield* git2(context11, ["rev-parse", "--path-format=absolute", "--git-common-dir"])).stdout.trim(), top = (yield* git2(context11, ["rev-parse", "--show-toplevel"])).stdout.trim();
-    yield* io6(async () => {
-      const canonical3 = await realpath7(common2), info = await stat5(canonical3);
+    yield* io7(async () => {
+      const canonical3 = await realpath8(common2), info = await stat5(canonical3);
       if (top !== root || canonical3 !== context11.binding.repository.gitCommonDir || canonical3 !== context11.workspace.repository.gitCommonDir || sha256Hex(canonicalize({ gitCommonDir: canonical3, directoryIdentity: identity7(info) })) !== context11.binding.repository.identitySha256 || canonicalize(context11.binding.repository) !== canonicalize(context11.workspace.repository)) throw Error("Changed repository");
     });
-    const headCommit = yield* git2(context11, ["rev-parse", "HEAD"]).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure12("candidate-changed", "Invalid HEAD identity.") })));
-    if (headCommit !== context11.workspace.immutableBase) return yield* Effect_exports.fail(failure12("candidate-changed", "HEAD differs from the admitted immutable base."));
-    const headTree = yield* git2(context11, ["rev-parse", `${headCommit}^{tree}`]).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure12("candidate-changed", "Invalid tree identity.") })));
+    const headCommit = yield* git2(context11, ["rev-parse", "HEAD"]).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure13("candidate-changed", "Invalid HEAD identity.") })));
+    if (headCommit !== context11.workspace.immutableBase) return yield* Effect_exports.fail(failure13("candidate-changed", "HEAD differs from the admitted immutable base."));
+    const headTree = yield* git2(context11, ["rev-parse", `${headCommit}^{tree}`]).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure13("candidate-changed", "Invalid tree identity.") })));
     yield* git2(context11, ["cat-file", "-e", `${context11.workspace.immutableBase}^{commit}`]);
     const branch = (yield* git2(context11, ["symbolic-ref", "--quiet", "HEAD"], {}, [0, 1])).stdout.trim();
-    const scratch = yield* Effect_exports.acquireRelease(io6(() => mkdtemp5(join31(tmpdir5(), "foreman-observation-"))), (path4) => Effect_exports.promise(() => rm5(path4, { recursive: true, force: true })).pipe(Effect_exports.orDie));
-    const environment3 = { GIT_INDEX_FILE: join31(scratch, "index") };
+    const scratch = yield* Effect_exports.acquireRelease(io7(() => mkdtemp6(join33(tmpdir6(), "foreman-observation-"))), (path4) => Effect_exports.promise(() => rm6(path4, { recursive: true, force: true })).pipe(Effect_exports.orDie));
+    const environment3 = { GIT_INDEX_FILE: join33(scratch, "index") };
     yield* git2(context11, ["read-tree", headCommit], environment3);
     const tracked = (yield* git2(context11, ["diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--name-only", "-z", headCommit, "--"], environment3)).stdout;
     const untracked = (yield* git2(context11, ["ls-files", "--others", "--exclude-standard", "-z"], environment3)).stdout;
     const paths2 = [...new Set([...tracked.split("\0"), ...untracked.split("\0")].filter(Boolean))].sort();
-    if (paths2.length > MAX_FILES) return yield* Effect_exports.fail(failure12("task-output-invalid", "Candidate file count exceeds its bound."));
+    if (paths2.length > MAX_FILES) return yield* Effect_exports.fail(failure13("task-output-invalid", "Candidate file count exceeds its bound."));
     const entries2 = [];
     let total = 0;
     for (const path4 of paths2) {
-      if (isAbsolute28(path4) || path4.includes("\uFFFD") || path4.split(/[\\/]/).some((p2) => !p2 || p2 === "." || p2 === ".." || p2 === ".git")) return yield* Effect_exports.fail(failure12("candidate-out-of-scope", "Candidate contains an unsupported or reserved path."));
-      const absolute = join31(root, path4);
-      const info = yield* io6(async () => {
+      if (isAbsolute29(path4) || path4.includes("\uFFFD") || path4.split(/[\\/]/).some((p2) => !p2 || p2 === "." || p2 === ".." || p2 === ".git")) return yield* Effect_exports.fail(failure13("candidate-out-of-scope", "Candidate contains an unsupported or reserved path."));
+      const absolute = join33(root, path4);
+      const info = yield* io7(async () => {
         try {
-          const parent2 = await realpath7(dirname18(absolute));
+          const parent2 = await realpath8(dirname18(absolute));
           if (!within3(root, parent2)) throw Error("Escaping parent");
-          return await lstat7(absolute);
+          return await lstat8(absolute);
         } catch (error) {
           if (error.code === "ENOENT") return null;
           throw error;
@@ -117806,17 +118006,17 @@ function inspectPelCandidate(context11) {
         entries2.push({ path: path4, mode: "deleted", content: null, unsafeSymlink: false });
         continue;
       }
-      if (!info.isFile() && !info.isSymbolicLink()) return yield* Effect_exports.fail(failure12("candidate-out-of-scope", "Candidate contains an unsupported special file."));
+      if (!info.isFile() && !info.isSymbolicLink()) return yield* Effect_exports.fail(failure13("candidate-out-of-scope", "Candidate contains an unsupported special file."));
       let bytes3, unsafeSymlink = false;
       if (info.isSymbolicLink()) {
-        const target = yield* io6(() => readlink(absolute));
+        const target = yield* io7(() => readlink(absolute));
         bytes3 = Buffer.from(target);
-        unsafeSymlink = isAbsolute28(target) || !within3(root, resolve10(dirname18(absolute), target)) || (yield* canonicalWorkspacePath(resolve10(dirname18(absolute), target), context11).pipe(Effect_exports.either))._tag === "Left";
-        const again = yield* io6(() => lstat7(absolute));
-        if (identity7(again) !== identity7(info) || again.mtimeMs !== info.mtimeMs) return yield* Effect_exports.fail(failure12("candidate-changed", "Candidate symlink changed during capture."));
+        unsafeSymlink = isAbsolute29(target) || !within3(root, resolve10(dirname18(absolute), target)) || (yield* canonicalWorkspacePath(resolve10(dirname18(absolute), target), context11).pipe(Effect_exports.either))._tag === "Left";
+        const again = yield* io7(() => lstat8(absolute));
+        if (identity7(again) !== identity7(info) || again.mtimeMs !== info.mtimeMs) return yield* Effect_exports.fail(failure13("candidate-changed", "Candidate symlink changed during capture."));
       } else bytes3 = yield* stableFile(absolute, limit(context11) - total);
       total += bytes3.byteLength;
-      if (total > limit(context11)) return yield* Effect_exports.fail(failure12("task-output-invalid", "Candidate bytes exceed the admitted artifact bound."));
+      if (total > limit(context11)) return yield* Effect_exports.fail(failure13("task-output-invalid", "Candidate bytes exceed the admitted artifact bound."));
       entries2.push({ path: path4, mode: info.isSymbolicLink() ? "120000" : info.mode & 73 ? "100755" : "100644", content: yield* put4(context11, bytes3), unsafeSymlink });
     }
     const data3 = { schemaVersion: 1, repository: context11.binding.repository, workspaceGrantId: context11.workspace.grantId, workspaceIdentity: context11.workspace.directoryIdentity, baseCommit: context11.workspace.immutableBase, headCommit, headTree, branchRef: branch || null, entries: entries2 };
@@ -117827,15 +118027,15 @@ function inspectPelCandidate(context11) {
 function capturePelCandidate(original, context11) {
   return Effect_exports.gen(function* () {
     const current3 = yield* inspectPelCandidate(context11);
-    for (const key of ["repository", "workspaceGrantId", "workspaceIdentity", "baseCommit", "headCommit", "headTree", "branchRef"]) if (canonicalize(original[key]) !== canonicalize(current3[key])) return yield* Effect_exports.fail(failure12("candidate-changed", "The original candidate, branch, or workspace identity changed."));
+    for (const key of ["repository", "workspaceGrantId", "workspaceIdentity", "baseCommit", "headCommit", "headTree", "branchRef"]) if (canonicalize(original[key]) !== canonicalize(current3[key])) return yield* Effect_exports.fail(failure13("candidate-changed", "The original candidate, branch, or workspace identity changed."));
     const old = new Map(original.entries.map((entry) => [entry.path, entry])), now = new Map(current3.entries.map((entry) => [entry.path, entry]));
     const changedPaths = [.../* @__PURE__ */ new Set([...old.keys(), ...now.keys()])].filter((path4) => canonicalize(old.get(path4) ?? null) !== canonicalize(now.get(path4) ?? null)).sort();
     const allowed = context11.workspace.writablePaths.map((p2) => p2 === "." ? "" : p2.replace(/\/$/, ""));
-    if (current3.entries.some((entry) => entry.unsafeSymlink || !allowed.some((path4) => !path4 || entry.path === path4 || entry.path.startsWith(path4 + "/")))) return yield* Effect_exports.fail(failure12("candidate-out-of-scope", "Observed candidate paths escape the admitted writable set.", { manifestRef: current3.manifestRef, changedPaths }));
+    if (current3.entries.some((entry) => entry.unsafeSymlink || !allowed.some((path4) => !path4 || entry.path === path4 || entry.path.startsWith(path4 + "/")))) return yield* Effect_exports.fail(failure13("candidate-out-of-scope", "Observed candidate paths escape the admitted writable set.", { manifestRef: current3.manifestRef, changedPaths }));
     const base = { repository: context11.binding.repository, workspaceGrantId: context11.workspace.grantId, baseCommit: context11.workspace.immutableBase, allowedPathsSha256: pelV1AllowedPathsSha256([context11.workspace]), changedPaths, attempt: context11.effect.attempt, effectId: context11.effect.effectId };
     if (!changedPaths.length) return { status: "no-change", ...base, commit: null, tree: null, treeDigest: null, artifactManifestSha256: sha256Hex(canonicalize([])), observationRef: current3.manifestRef, artifacts: [], manifestRef: current3.manifestRef, diffRef: yield* put4(context11, Buffer.alloc(0)) };
-    const scratch = yield* Effect_exports.acquireRelease(io6(() => mkdtemp5(join31(tmpdir5(), "foreman-candidate-"))), (path4) => Effect_exports.promise(() => rm5(path4, { recursive: true, force: true })).pipe(Effect_exports.orDie));
-    const environment3 = { GIT_INDEX_FILE: join31(scratch, "index") };
+    const scratch = yield* Effect_exports.acquireRelease(io7(() => mkdtemp6(join33(tmpdir6(), "foreman-candidate-"))), (path4) => Effect_exports.promise(() => rm6(path4, { recursive: true, force: true })).pipe(Effect_exports.orDie));
+    const environment3 = { GIT_INDEX_FILE: join33(scratch, "index") };
     yield* git2(context11, ["read-tree", current3.headCommit], environment3);
     const runtime4 = yield* PelRuntime, artifacts = [];
     for (const [index, entry] of current3.entries.entries()) {
@@ -117844,19 +118044,19 @@ function capturePelCandidate(original, context11) {
         artifacts.push({ path: entry.path, change: "deleted", mode: null, gitBlobOid: null, contentSha256: null, artifact: null });
         continue;
       }
-      const bytes3 = yield* runtime4.artifacts.get(context11.binding.runId, entry.content, limit(context11)).pipe(Effect_exports.mapError(() => failure12("artifact-missing", "Captured candidate bytes are unavailable."))), path4 = join31(scratch, `blob-${index}`);
-      yield* io6(() => writeFile3(path4, bytes3, { mode: 384, flag: "wx" }));
-      const hash12 = yield* git2(context11, ["hash-object", "-w", "--no-filters", "--", path4], environment3).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure12("candidate-changed", "Invalid captured blob identity.") })));
+      const bytes3 = yield* runtime4.artifacts.get(context11.binding.runId, entry.content, limit(context11)).pipe(Effect_exports.mapError(() => failure13("artifact-missing", "Captured candidate bytes are unavailable."))), path4 = join33(scratch, `blob-${index}`);
+      yield* io7(() => writeFile4(path4, bytes3, { mode: 384, flag: "wx" }));
+      const hash12 = yield* git2(context11, ["hash-object", "-w", "--no-filters", "--", path4], environment3).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure13("candidate-changed", "Invalid captured blob identity.") })));
       yield* git2(context11, ["update-index", "--add", "--cacheinfo", entry.mode, hash12, entry.path], environment3);
       artifacts.push({ path: entry.path, change: "present", mode: entry.mode, gitBlobOid: hash12, contentSha256: entry.content.sha256, artifact: entry.content });
     }
-    const tree = yield* git2(context11, ["write-tree"], environment3).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure12("candidate-changed", "Invalid candidate tree.") })));
+    const tree = yield* git2(context11, ["write-tree"], environment3).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure13("candidate-changed", "Invalid candidate tree.") })));
     const date3 = `@${Math.floor(context11.binding.limits.deadline / 1e3)} +0000`;
-    const commit5 = yield* git2(context11, ["commit-tree", tree, "-p", current3.headCommit, "-m", `Foreman candidate ${context11.effect.effectId}`], { ...environment3, GIT_AUTHOR_NAME: "Foreman", GIT_AUTHOR_EMAIL: "foreman@invalid", GIT_COMMITTER_NAME: "Foreman", GIT_COMMITTER_EMAIL: "foreman@invalid", GIT_AUTHOR_DATE: date3, GIT_COMMITTER_DATE: date3 }).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure12("candidate-changed", "Invalid candidate commit.") })));
+    const commit5 = yield* git2(context11, ["commit-tree", tree, "-p", current3.headCommit, "-m", `Foreman candidate ${context11.effect.effectId}`], { ...environment3, GIT_AUTHOR_NAME: "Foreman", GIT_AUTHOR_EMAIL: "foreman@invalid", GIT_COMMITTER_NAME: "Foreman", GIT_COMMITTER_EMAIL: "foreman@invalid", GIT_AUTHOR_DATE: date3, GIT_COMMITTER_DATE: date3 }).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure13("candidate-changed", "Invalid candidate commit.") })));
     const diff9 = yield* git2(context11, ["diff", "--binary", "--full-index", "--no-ext-diff", "--no-textconv", "--no-renames", current3.baseCommit, commit5, "--"]);
     const diffRef = yield* put4(context11, diff9.stdoutBytes ?? Buffer.from(diff9.stdout));
     const final = yield* inspectPelCandidate(context11);
-    if (final.manifestRef.sha256 !== current3.manifestRef.sha256) return yield* Effect_exports.fail(failure12("candidate-changed", "Worktree evidence changed while the immutable candidate was captured.", { commit: commit5, tree, diffRef, manifestRef: current3.manifestRef }));
+    if (final.manifestRef.sha256 !== current3.manifestRef.sha256) return yield* Effect_exports.fail(failure13("candidate-changed", "Worktree evidence changed while the immutable candidate was captured.", { commit: commit5, tree, diffRef, manifestRef: current3.manifestRef }));
     const treeBytes = yield* git2(context11, ["cat-file", "tree", tree]);
     const treeDigest = sha256Hex(treeBytes.stdoutBytes ?? Buffer.from(treeBytes.stdout));
     const data3 = { status: "candidate-ready", ...base, commit: commit5, tree, treeDigest, diffRef, observationRef: current3.manifestRef, artifacts };
@@ -117866,22 +118066,22 @@ function capturePelCandidate(original, context11) {
 }
 function observePelCapturedCandidate(candidate3, context11) {
   return Effect_exports.gen(function* () {
-    if (!decodeCandidateRefV1(candidate3).ok || candidate3.workspaceGrantId !== context11.workspace.grantId || canonicalize(candidate3.repository) !== canonicalize(context11.binding.repository) || candidate3.baseCommit !== context11.workspace.immutableBase) return yield* Effect_exports.fail(failure12("candidate-changed", "The candidate is outside its original workspace."));
-    const runtime4 = yield* PelRuntime, bytes3 = yield* runtime4.artifacts.get(context11.binding.runId, candidate3.manifestRef, MAX_BYTES3).pipe(Effect_exports.mapError(() => failure12("artifact-missing", "The original candidate manifest is unavailable.")));
-    const manifest = yield* Effect_exports.try({ try: () => JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes3)), catch: () => failure12("candidate-changed", "The candidate manifest is invalid.") });
+    if (!decodeCandidateRefV1(candidate3).ok || candidate3.workspaceGrantId !== context11.workspace.grantId || canonicalize(candidate3.repository) !== canonicalize(context11.binding.repository) || candidate3.baseCommit !== context11.workspace.immutableBase) return yield* Effect_exports.fail(failure13("candidate-changed", "The candidate is outside its original workspace."));
+    const runtime4 = yield* PelRuntime, bytes3 = yield* runtime4.artifacts.get(context11.binding.runId, candidate3.manifestRef, MAX_BYTES3).pipe(Effect_exports.mapError(() => failure13("artifact-missing", "The original candidate manifest is unavailable.")));
+    const manifest = yield* Effect_exports.try({ try: () => JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes3)), catch: () => failure13("candidate-changed", "The candidate manifest is invalid.") });
     const observation = decodePelArtifactRefV1(manifest.observationRef);
-    if (!observation.ok || !Object.hasOwn(manifest, "attempt") || manifest.commit !== candidate3.commit || manifest.tree !== candidate3.tree || manifest.treeDigest !== candidate3.treeDigest || manifest.effectId !== candidate3.producingEffectId || canonicalize(manifest.attempt) !== canonicalize(candidate3.producingAttempt) || !Array.isArray(manifest.artifacts) || manifest.artifacts.some((a) => !decodeCandidateArtifactV1(a).ok)) return yield* Effect_exports.fail(failure12("candidate-changed", "The candidate manifest changed its immutable Git or attempt identity."));
-    yield* runtime4.artifacts.get(context11.binding.runId, observation.value, MAX_BYTES3).pipe(Effect_exports.mapError(() => failure12("artifact-missing", "The captured worktree observation is unavailable.")));
+    if (!observation.ok || !Object.hasOwn(manifest, "attempt") || manifest.commit !== candidate3.commit || manifest.tree !== candidate3.tree || manifest.treeDigest !== candidate3.treeDigest || manifest.effectId !== candidate3.producingEffectId || canonicalize(manifest.attempt) !== canonicalize(candidate3.producingAttempt) || !Array.isArray(manifest.artifacts) || manifest.artifacts.some((a) => !decodeCandidateArtifactV1(a).ok)) return yield* Effect_exports.fail(failure13("candidate-changed", "The candidate manifest changed its immutable Git or attempt identity."));
+    yield* runtime4.artifacts.get(context11.binding.runId, observation.value, MAX_BYTES3).pipe(Effect_exports.mapError(() => failure13("artifact-missing", "The captured worktree observation is unavailable.")));
     const current3 = yield* inspectPelCandidate(context11);
-    if (current3.manifestRef.sha256 !== observation.value.sha256) return yield* Effect_exports.fail(failure12("candidate-changed", "The current worktree differs from the captured candidate."));
+    if (current3.manifestRef.sha256 !== observation.value.sha256) return yield* Effect_exports.fail(failure13("candidate-changed", "The current worktree differs from the captured candidate."));
     return observation.value.sha256;
   });
 }
 
 // packages/orchestration/src/pel-publication-service.ts
 init_pel_resource_scope();
-var failure13 = (code, message) => ({ code, message });
-var invalid5 = (message) => failure13("publication-authority-invalid", message);
+var failure14 = (code, message) => ({ code, message });
+var invalid5 = (message) => failure14("publication-authority-invalid", message);
 var same6 = (a, b2) => canonicalize(a) === canonicalize(b2);
 var bytes = (value4) => Buffer.from(`${canonicalize(value4)}
 `);
@@ -117889,9 +118089,9 @@ var operationDigest = (value4) => sha256Hex(canonicalize(value4));
 function makePelPublicationService(options2) {
   const git3 = (args6, context11, observation = false) => Effect_exports.gen(function* () {
     const runtime4 = yield* PelRuntime, remaining = context11.binding.limits.deadline - (yield* runtime4.clock.now);
-    if (!observation && remaining <= 0) return yield* Effect_exports.fail(failure13("capability-denied", "The original publication deadline has expired."));
+    if (!observation && remaining <= 0) return yield* Effect_exports.fail(failure14("capability-denied", "The original publication deadline has expired."));
     const env2 = { ...sanitizedGitEnv(), GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
-    return yield* options2.processExec.runCaptured({ command: "git", args: gitArgv(["-c", "core.hooksPath=/dev/null", "-c", "protocol.allow=never", "-c", "protocol.file.allow=always", "-c", "protocol.https.allow=always", "-c", "protocol.ssh.allow=always", "-c", "core.sshCommand=ssh", ...args6]), cwd: context11.workspace.canonicalRoot, env: env2, maxOutputBytes: Math.min(65536, context11.binding.limits.maxOutputBytes), timeoutMs: observation ? 15e3 : Math.min(15e3, remaining) }).pipe(Effect_exports.mapError(() => failure13("publication-authority-invalid", "The bounded Git operation did not produce a reliable result.")));
+    return yield* options2.processExec.runCaptured({ command: "git", args: gitArgv(["-c", "core.hooksPath=/dev/null", "-c", "protocol.allow=never", "-c", "protocol.file.allow=always", "-c", "protocol.https.allow=always", "-c", "protocol.ssh.allow=always", "-c", "core.sshCommand=ssh", ...args6]), cwd: context11.workspace.canonicalRoot, env: env2, maxOutputBytes: Math.min(65536, context11.binding.limits.maxOutputBytes), timeoutMs: observation ? 15e3 : Math.min(15e3, remaining) }).pipe(Effect_exports.mapError(() => failure14("publication-authority-invalid", "The bounded Git operation did not produce a reliable result.")));
   });
   const checkedGit = (args6, context11) => Effect_exports.gen(function* () {
     const result4 = yield* git3(args6, context11);
@@ -117900,39 +118100,39 @@ function makePelPublicationService(options2) {
   });
   const destination = (input, context11) => Effect_exports.gen(function* () {
     const value4 = context11.project.destinations[input.destinationId];
-    if (!value4 || value4.operation !== "publish") return yield* Effect_exports.fail(failure13("publication-destination-unsupported", "Only a host-admitted external Git ref publication is supported."));
+    if (!value4 || value4.operation !== "publish") return yield* Effect_exports.fail(failure14("publication-destination-unsupported", "Only a host-admitted external Git ref publication is supported."));
     if (value4.repositoryIdentitySha256 !== context11.workspace.repository.identitySha256 || value4.repositoryIdentitySha256 !== context11.project.repository.identitySha256 || !/^refs\/(heads|tags)\/[A-Za-z0-9][A-Za-z0-9._/-]*$/u.test(value4.ref) || value4.ref.includes("..") || value4.ref.includes("//") || value4.ref.endsWith("/") || value4.ref.endsWith(".lock")) return yield* Effect_exports.fail(invalid5("The destination differs from the admitted repository or ref."));
     if (value4.expectedOldObject.kind === "exact" && !isCommitSha40(value4.expectedOldObject.oid)) return yield* Effect_exports.fail(invalid5("The expected remote object is invalid."));
-    if (!isAbsolute29(value4.remoteIdentity)) {
+    if (!isAbsolute30(value4.remoteIdentity)) {
       let url;
       try {
         url = new URL(value4.remoteIdentity);
       } catch {
-        return yield* Effect_exports.fail(failure13("publication-destination-unsupported", "Publication requires an exact canonical path, HTTPS URL, or SSH URL."));
+        return yield* Effect_exports.fail(failure14("publication-destination-unsupported", "Publication requires an exact canonical path, HTTPS URL, or SSH URL."));
       }
-      if (!["https:", "ssh:"].includes(url.protocol) || url.password || url.protocol === "https:" && url.username || url.search || url.hash || url.href !== value4.remoteIdentity) return yield* Effect_exports.fail(failure13("publication-destination-unsupported", "The remote transport identity is unsupported."));
+      if (!["https:", "ssh:"].includes(url.protocol) || url.password || url.protocol === "https:" && url.username || url.search || url.hash || url.href !== value4.remoteIdentity) return yield* Effect_exports.fail(failure14("publication-destination-unsupported", "The remote transport identity is unsupported."));
     }
     return value4;
   });
-  const remoteIdentity = (target) => !isAbsolute29(target.remoteIdentity) ? Effect_exports.succeed(null) : Effect_exports.tryPromise({ try: async () => {
-    const path4 = await realpath8(target.remoteIdentity), info = await stat6(path4);
+  const remoteIdentity = (target) => !isAbsolute30(target.remoteIdentity) ? Effect_exports.succeed(null) : Effect_exports.tryPromise({ try: async () => {
+    const path4 = await realpath9(target.remoteIdentity), info = await stat6(path4);
     if (path4 !== target.remoteIdentity || !info.isDirectory()) throw Error("identity");
     return `${info.dev}:${info.ino}`;
   }, catch: () => invalid5("The canonical remote directory identity changed.") });
   const validateCandidate = (input, target, context11) => Effect_exports.gen(function* () {
     yield* canonicalWorkspacePath(".", context11);
-    if (!isCommitSha40(input.candidate.commit) || !isCommitSha40(input.candidate.tree) || input.candidate.candidateSha256 !== sha256Hex(input.candidate.commit)) return yield* Effect_exports.fail(failure13("candidate-changed", "The candidate identity is invalid."));
-    const common2 = yield* checkedGit(["rev-parse", "--git-common-dir"], context11), commonPath = yield* Effect_exports.tryPromise({ try: () => realpath8(resolve11(context11.workspace.canonicalRoot, common2)), catch: () => invalid5("The repository identity is unavailable.") });
+    if (!isCommitSha40(input.candidate.commit) || !isCommitSha40(input.candidate.tree) || input.candidate.candidateSha256 !== sha256Hex(input.candidate.commit)) return yield* Effect_exports.fail(failure14("candidate-changed", "The candidate identity is invalid."));
+    const common2 = yield* checkedGit(["rev-parse", "--git-common-dir"], context11), commonPath = yield* Effect_exports.tryPromise({ try: () => realpath9(resolve11(context11.workspace.canonicalRoot, common2)), catch: () => invalid5("The repository identity is unavailable.") });
     if (commonPath !== context11.workspace.repository.gitCommonDir) return yield* Effect_exports.fail(invalid5("The candidate belongs to another Git repository."));
     const tree = yield* checkedGit(["rev-parse", "--verify", `${input.candidate.commit}^{tree}`], context11);
-    if (tree !== input.candidate.tree) return yield* Effect_exports.fail(failure13("candidate-changed", "The immutable candidate tree changed."));
+    if (tree !== input.candidate.tree) return yield* Effect_exports.fail(failure14("candidate-changed", "The immutable candidate tree changed."));
     if (options2.resolveCapturedCandidate) {
       const candidate3 = yield* options2.resolveCapturedCandidate(input, context11), ref3 = input.evidenceRefs[0];
-      if (!ref3 || !decodeCandidateRefV1(candidate3).ok || !same6({ commit: candidate3.commit, tree: candidate3.tree, candidateSha256: candidate3.candidateSha256 }, input.candidate) || !same6(yield* readPelArtifactJson(context11.binding.runId, ref3), candidate3)) return yield* Effect_exports.fail(failure13("candidate-changed", "The captured candidate differs from its original publication evidence."));
+      if (!ref3 || !decodeCandidateRefV1(candidate3).ok || !same6({ commit: candidate3.commit, tree: candidate3.tree, candidateSha256: candidate3.candidateSha256 }, input.candidate) || !same6(yield* readPelArtifactJson(context11.binding.runId, ref3), candidate3)) return yield* Effect_exports.fail(failure14("candidate-changed", "The captured candidate differs from its original publication evidence."));
       yield* observePelCapturedCandidate(candidate3, context11).pipe(Effect_exports.provideService(ProcessExec, options2.processExec));
     } else {
       const head9 = yield* checkedGit(["rev-parse", "--verify", "HEAD"], context11), dirty = yield* checkedGit(["status", "--porcelain=v1", "--untracked-files=all"], context11);
-      if (head9 !== input.candidate.commit || dirty !== "") return yield* Effect_exports.fail(failure13("candidate-changed", "The candidate worktree or commit changed after evidence capture."));
+      if (head9 !== input.candidate.commit || dirty !== "") return yield* Effect_exports.fail(failure14("candidate-changed", "The candidate worktree or commit changed after evidence capture."));
     }
     yield* checkedGit(["check-ref-format", target.ref], context11);
     const rewrites = yield* git3(["config", "--get-regexp", "^url\\..*\\.(insteadof|pushinsteadof)$"], context11);
@@ -118037,9 +118237,9 @@ init_src();
 init_pel();
 init_pel_run_contract();
 init_pel_journal();
-import { lstat as lstat8 } from "node:fs/promises";
-import { join as join33 } from "node:path";
-var object11 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
+import { lstat as lstat9 } from "node:fs/promises";
+import { join as join34 } from "node:path";
+var object12 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
 var pelArtifactString = (ref3) => `artifact:${ref3.artifactId}`;
 function pelHostField(value4, key) {
   if (value4.tag !== "list" || value4.items.some((item) => item.tag !== "pair")) return void 0;
@@ -118050,7 +118250,7 @@ function resolvePelRunArtifact(reference4, context11) {
   return Effect_exports.gen(function* () {
     if (!/^artifact:sha256-[a-f0-9]{64}$/u.test(reference4)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The result does not contain a run-owned artifact reference."));
     const artifactId = reference4.slice("artifact:".length), sha256 = artifactId.slice("sha256-".length);
-    const info = yield* Effect_exports.tryPromise({ try: () => lstat8(join33(context11.binding.stateRoot, "runs", context11.binding.runId, "artifacts", artifactId)), catch: () => pelFailure("binding-mismatch", "The referenced run artifact is absent.") });
+    const info = yield* Effect_exports.tryPromise({ try: () => lstat9(join34(context11.binding.stateRoot, "runs", context11.binding.runId, "artifacts", artifactId)), catch: () => pelFailure("binding-mismatch", "The referenced run artifact is absent.") });
     if (!info.isFile() || info.isSymbolicLink() || info.size > PEL_MAX_ARTIFACT_BYTES) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The run artifact exceeds its supported type or bound."));
     const ref3 = { artifactId, sha256, byteLength: info.size }, runtime4 = yield* PelRuntime;
     yield* runtime4.artifacts.get(context11.binding.runId, ref3, PEL_MAX_ARTIFACT_BYTES);
@@ -118065,7 +118265,7 @@ function readPelHostEvidenceRecords(context11) {
     for (const record12 of replay.value.records) {
       if (record12.type !== "pel.effect.observed.v1") continue;
       const value4 = yield* readPelArtifactJson(context11.binding.runId, record12.data.observationRef);
-      if (!object11(value4) || value4.stage !== "host-evidence") continue;
+      if (!object12(value4) || value4.stage !== "host-evidence") continue;
       if (Object.keys(value4).sort().join(",") !== "kind,ref,stage" || !["implementation", "verification", "review", "publication"].includes(String(value4.kind)) || !decodePelArtifactRefV1(value4.ref).ok || record12.data.externalOutcome !== "confirmed-complete" || record12.data.providerIdentity !== null)
         return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The host evidence provenance record is invalid."));
       entries2.push({ kind: value4.kind, ref: value4.ref, effectId: record12.data.effectId, sequence: record12.sequence });
@@ -118086,7 +118286,7 @@ function loadPelHostEvidence(ref3, kind, context11) {
       for (const record12 of replay.records) {
         if (record12.type !== "pel.effect.observed.v1" || record12.sequence <= entry.sequence) continue;
         const value4 = yield* readPelArtifactJson(context11.binding.runId, record12.data.observationRef);
-        if (object11(value4) && value4.stage === "review-in-progress" && pelHash(value4.candidateRef) === pelHash(decoded.value.candidateRef))
+        if (object12(value4) && value4.stage === "review-in-progress" && pelHash(value4.candidateRef) === pelHash(decoded.value.candidateRef))
           return yield* Effect_exports.fail(pelFailure("binding-mismatch", "A later review invalidated the previous review receipt."));
       }
     }
@@ -118099,7 +118299,7 @@ function projectPelHostReceiptEvidence(binding, currentCandidateSha256) {
     const newestReview = /* @__PURE__ */ new Map();
     for (const record12 of replay.records) if (record12.type === "pel.effect.observed.v1") {
       const value4 = yield* readPelArtifactJson(binding.runId, record12.data.observationRef);
-      if (object11(value4) && value4.stage === "review-in-progress" && decodePelArtifactRefV1(value4.candidateRef).ok) newestReview.set(pelHash(value4.candidateRef), record12.data.effectId);
+      if (object12(value4) && value4.stage === "review-in-progress" && decodePelArtifactRefV1(value4.candidateRef).ok) newestReview.set(pelHash(value4.candidateRef), record12.data.effectId);
     }
     const receiptRefs = [], receiptCandidates = {};
     for (const entry of entries2) {
@@ -118151,7 +118351,7 @@ function resolvePelCandidateInput(input, context11) {
     const implementation = yield* loadPelHostEvidence(implementationEntry.ref, "implementation", context11);
     if (implementation.kind !== "implementation" || pelHash(implementation.candidateRef) !== pelHash(candidateRef)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Implementation evidence names a different candidate."));
     const manifest = yield* readPelArtifactJson(context11.binding.runId, candidate3.manifestRef);
-    if (!object11(manifest) || !decodePelArtifactRefV1(manifest.observationRef).ok) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The captured candidate manifest has no host observation."));
+    if (!object12(manifest) || !decodePelArtifactRefV1(manifest.observationRef).ok) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The captured candidate manifest has no host observation."));
     return { candidate: candidate3, candidateRef, task: task3, implementation, implementationRef: implementationEntry.ref, manifest, observationRef: manifest.observationRef };
   });
 }
@@ -118246,7 +118446,7 @@ function pelTaskRaceBudget(context11) {
 init_pel_resource_scope();
 var PEL_VERIFICATION_POLICY_V1 = { schema: "foreman.pel-verification-policy.v1", version: 1, maxAgeMs: 864e5 };
 var PEL_REVIEW_POLICY_V1 = { schema: "foreman.pel-review-policy.v1", version: 1, id: "independent-review", differentObservedVendor: true, maxVerificationAgeMs: 864e5 };
-var object12 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
+var object13 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
 function makeForemanHostRegistry(handlers, registry = createDefaultAuthoringSnapshotV1().registry) {
   for (const id5 of ["fm/task", "fm/verify", "fm/review", "fm/publish"]) if (!handlers.has(id5)) throw Error(`Missing canonical host handler: ${id5}`);
   if (registry.digest !== createDefaultAuthoringSnapshotV1().registry.digest) throw Error("The host library differs from the canonical descriptor registry.");
@@ -118276,7 +118476,7 @@ function makePelHostLibraryServices(options2) {
     const environment3 = {};
     for (const ref3 of refs) {
       const descriptor5 = context11.checked.snapshot.artifactDescriptors.find((value4) => value4.id === ref3);
-      if (!descriptor5 || !object12(descriptor5.content)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The gate environment reference is absent from the bound snapshot."));
+      if (!descriptor5 || !object13(descriptor5.content)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The gate environment reference is absent from the bound snapshot."));
       for (const [key, value4] of Object.entries(descriptor5.content)) {
         if (typeof value4 !== "string" || Object.hasOwn(environment3, key)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Gate environment bindings overlap or contain non-string values."));
         environment3[key] = value4;
@@ -118544,7 +118744,7 @@ init_pel_provider_tools();
 init_queue_services();
 var denied6 = (message) => ({ code: "capability-denied", message });
 var invalid6 = (message) => ({ code: "task-output-invalid", message });
-var object13 = (v2) => v2 !== null && typeof v2 === "object" && !Array.isArray(v2);
+var object14 = (v2) => v2 !== null && typeof v2 === "object" && !Array.isArray(v2);
 var str2 = (value4) => ({ tag: "string", value: value4 });
 var artifact2 = (ref3) => str2(`artifact:${ref3.artifactId}`);
 var list6 = (items) => ({ tag: "list", items });
@@ -118557,13 +118757,13 @@ var put5 = (value4, context11) => Effect_exports.flatMap(PelRuntime, (runtime4) 
 function load(prepared, context11) {
   return Effect_exports.gen(function* () {
     const data3 = yield* readPelArtifactJson(context11.binding.runId, prepared.inputs);
-    if (!object13(data3) || Object.keys(data3).sort().join(",") !== "before,id,requestRef" || typeof data3.id !== "string" || !object13(data3.before) || !decodePelArtifactRefV1(data3.requestRef).ok || pelHash(data3) !== prepared.operationDigest) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The original task preparation changed."));
+    if (!object14(data3) || Object.keys(data3).sort().join(",") !== "before,id,requestRef" || typeof data3.id !== "string" || !object14(data3.before) || !decodePelArtifactRefV1(data3.requestRef).ok || pelHash(data3) !== prepared.operationDigest) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The original task preparation changed."));
     const before2 = data3.before;
     if (!decodePelArtifactRefV1(before2.manifestRef).ok || before2.schemaVersion !== 1 || before2.workspaceGrantId !== context11.workspace.grantId || pelHash(before2.repository) !== pelHash(context11.binding.repository) || before2.workspaceIdentity !== context11.workspace.directoryIdentity || before2.baseCommit !== context11.workspace.immutableBase || !Array.isArray(before2.entries)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The original task observation changed."));
     const { manifestRef, ...facts2 } = before2, storedBefore = yield* readPelArtifactJson(context11.binding.runId, manifestRef);
     if (pelHash(storedBefore) !== pelHash(facts2)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The retained task observation differs from its preparation."));
     const provider4 = yield* readPelArtifactJson(context11.binding.runId, data3.requestRef);
-    if (!object13(provider4) || provider4.schemaVersion !== 1 || provider4.effectId !== context11.effect.effectId || !object13(provider4.toolPolicy) || provider4.toolPolicy.mode !== "native-coding" || provider4.toolPolicy.workspaceGrantId !== context11.workspace.grantId || !object13(provider4.outputSchema) || provider4.outputSchema.id !== "schema:candidate-v1" || pelHash(provider4.outputSchema.content) !== pelHash(context11.checked.snapshot.registry.dataSchemas["schema:candidate-v1"]) || !object13(provider4.limits) || provider4.limits.deadline !== context11.binding.limits.deadline) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The original native task request changed."));
+    if (!object14(provider4) || provider4.schemaVersion !== 1 || provider4.effectId !== context11.effect.effectId || !object14(provider4.toolPolicy) || provider4.toolPolicy.mode !== "native-coding" || provider4.toolPolicy.workspaceGrantId !== context11.workspace.grantId || !object14(provider4.outputSchema) || provider4.outputSchema.id !== "schema:candidate-v1" || pelHash(provider4.outputSchema.content) !== pelHash(context11.checked.snapshot.registry.dataSchemas["schema:candidate-v1"]) || !object14(provider4.limits) || provider4.limits.deadline !== context11.binding.limits.deadline) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The original native task request changed."));
     return { data: data3, request: provider4 };
   });
 }
@@ -118580,7 +118780,7 @@ function makePelTaskHandler(ports) {
     for (const record12 of [...replay.value.records].reverse()) {
       if (record12.type !== "pel.effect.observed.v1" || record12.data.effectId !== context11.effect.effectId) continue;
       const saved = yield* readPelArtifactJson(context11.binding.runId, record12.data.observationRef);
-      if (!object13(saved) || saved.stage !== "task-completed") continue;
+      if (!object14(saved) || saved.stage !== "task-completed") continue;
       if (Object.keys(saved).sort().join(",") !== "inputs,receiptRef,result,stage" || pelHash(saved.inputs) !== pelHash(prepared.inputs) || !decodePelArtifactRefV1(saved.receiptRef).ok || !isPelDataValue(saved.result) || !validateDataSchema(saved.result, context11.checked.snapshot.registry.dataSchemas["schema:task-result-v1"])) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Retained task completion changed."));
       const receiptRef = saved.receiptRef, decoded = decodeImplementationReceiptV1(yield* readPelArtifactJson(context11.binding.runId, receiptRef));
       if (!decoded.ok || pelHash(decoded.value.effect) !== pelHash(context11.effect) || pelHash(decoded.value.reservation) !== pelHash(token) || pelHash(decoded.value.beforeManifestRef) !== pelHash(original.data.before.manifestRef) || !observedIdentity(original.request, decoded.value.providerIdentity)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Retained implementation receipt changed its authority or provider."));
@@ -118592,7 +118792,7 @@ function makePelTaskHandler(ports) {
         if (!value4.ok || value4.value.producingEffectId !== context11.effect.effectId || pelHash(value4.value.producingAttempt) !== pelHash(context11.effect.attempt) || value4.value.workspaceGrantId !== context11.workspace.grantId || pelHash(value4.value.repository) !== pelHash(context11.binding.repository)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Retained candidate changed its original attempt."));
         candidate3 = value4.value;
         const manifest = yield* readPelArtifactJson(context11.binding.runId, candidate3.manifestRef);
-        if (!object13(manifest) || !Array.isArray(manifest.artifacts) || manifest.artifacts.some((a) => !decodeCandidateArtifactV1(a).ok) || pelHash(manifest.observationRef) !== pelHash(receipt2.afterManifestRef)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Retained candidate artifacts changed."));
+        if (!object14(manifest) || !Array.isArray(manifest.artifacts) || manifest.artifacts.some((a) => !decodeCandidateArtifactV1(a).ok) || pelHash(manifest.observationRef) !== pelHash(receipt2.afterManifestRef)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Retained candidate artifacts changed."));
         artifacts = manifest.artifacts;
         const runtime4 = yield* PelRuntime;
         for (const entry of artifacts) if (entry.artifact) yield* runtime4.artifacts.get(context11.binding.runId, entry.artifact, PEL_MAX_ARTIFACT_BYTES);
@@ -118663,7 +118863,7 @@ function makePelTaskHandler(ports) {
       if (!replay.ok) return yield* Effect_exports.fail(replay.error);
       for (const row of [...replay.value.records].reverse()) if (row.type === "pel.effect.observed.v1" && row.data.effectId === context11.effect.effectId && row.data.providerIdentity) {
         const data3 = yield* readPelArtifactJson(context11.binding.runId, row.data.observationRef);
-        if (object13(data3) && data3.type === "completed") return yield* complete6(prepared, token, { value: outcome.outcome.value, identity: row.data.providerIdentity }, context11);
+        if (object14(data3) && data3.type === "completed") return yield* complete6(prepared, token, { value: outcome.outcome.value, identity: row.data.providerIdentity }, context11);
       }
       return yield* Effect_exports.fail(pelFailure("journal-corrupt", "A successful task lacks durable observed provider identity."));
     }),
@@ -118796,11 +118996,11 @@ function cancelPelRun(runId2) {
 
 // packages/orchestration/src/pel-lifecycle-services.ts
 import { randomUUID as randomUUID5 } from "node:crypto";
-import { join as join35 } from "node:path";
+import { join as join36 } from "node:path";
 
 // packages/orchestration/src/pel-delivery-result.ts
 init_esm();
-import { join as join34 } from "node:path";
+import { join as join35 } from "node:path";
 init_pel_journal();
 init_pel_run_result();
 var provider3 = (identity8) => ({ kind: identity8.kind, provider: identity8.provider, profileId: identity8.profileId, transportId: identity8.transportId, ...identity8.model === void 0 ? {} : { model: identity8.model } });
@@ -118865,7 +119065,7 @@ function projectPelDeliveryResult(result4, context11) {
   });
 }
 var formatPelDeliveryResultJson = (result4) => JSON.stringify(result4, null, 2) + "\n";
-function formatPelDeliveryResultText(result4, artifactPath = (ref3) => join34("runs", result4.runId, "artifacts", ref3.artifactId)) {
+function formatPelDeliveryResultText(result4, artifactPath = (ref3) => join35("runs", result4.runId, "artifacts", ref3.artifactId)) {
   const link = (ref3) => `[${ref3.artifactId}](${artifactPath(ref3)})`;
   const lines = [`Run ${result4.runId}: ${result4.state} (${result4.evidenceKind})`];
   if (result4.candidate) lines.push(`Candidate ${result4.candidate.value.commit}: ${link(result4.candidate.ref)}`);
@@ -118884,7 +119084,7 @@ init_pel();
 init_pel_run_contract();
 init_pel_journal();
 init_pel_runner();
-var failure14 = (error) => authoringFailure(error.code, error.diagnostic.message, error.code === "binding-mismatch" || error.code === "owner-busy" || error.code === "terminal-run" || error.code === "continuation-incompatible" ? 2 : 1);
+var failure15 = (error) => authoringFailure(error.code, error.diagnostic.message, error.code === "binding-mismatch" || error.code === "owner-busy" || error.code === "terminal-run" || error.code === "continuation-incompatible" ? 2 : 1);
 function checkedSource(source2, snapshot) {
   const checked2 = checkPel({ source: source2, snapshot });
   return checked2.tag === "ok" ? Effect_exports.succeed(checked2.checked) : Effect_exports.fail({ ...authoringFailure("binding-mismatch", "The program does not satisfy the configured admission envelope."), diagnostics: checked2.diagnostics });
@@ -118910,8 +119110,8 @@ function makePelLifecycleServices(backend) {
         const binding = yield* readPelExecutionBinding(result4.runId);
         if (binding.resultContract.classification !== "delivery-v1") return null;
         const delivery2 = yield* projectPelDeliveryResult(result4, { binding });
-        return format6 === "json" ? formatPelDeliveryResultJson(delivery2) : formatPelDeliveryResultText(delivery2, (ref3) => join35(binding.stateRoot, "runs", binding.runId, "artifacts", ref3.artifactId));
-      }).pipe(Effect_exports.mapError(failure14), Effect_exports.provide(services));
+        return format6 === "json" ? formatPelDeliveryResultJson(delivery2) : formatPelDeliveryResultText(delivery2, (ref3) => join36(binding.stateRoot, "runs", binding.runId, "artifacts", ref3.artifactId));
+      }).pipe(Effect_exports.mapError(failure15), Effect_exports.provide(services));
     }),
     configuredSnapshot: (base, explicit) => Effect_exports.gen(function* () {
       const loaded = yield* backend.configured();
@@ -118962,7 +119162,7 @@ function makePelLifecycleServices(backend) {
         const context11 = yield* runtime4.admission ? runtime4.admission(admit) : admit;
         yield* input.started(runId2).pipe(Effect_exports.mapError(() => pelFailure("journal-write-failed", "The run ID could not be written to the operator stream.")));
         return yield* drivePelRun({ kind: "fresh", checked: checked2, binding }, context11);
-      })).pipe(Effect_exports.mapError(failure14), Effect_exports.provide(backend.services(loaded, input.outputMode)));
+      })).pipe(Effect_exports.mapError(failure15), Effect_exports.provide(backend.services(loaded, input.outputMode)));
     }),
     resume: (input) => Effect_exports.gen(function* () {
       yield* refuseLegacy(input.runId, input.stateRoot);
@@ -118970,7 +119170,7 @@ function makePelLifecycleServices(backend) {
       let options2 = {};
       let unsigned2;
       if (input.decision) {
-        const parsed = yield* parsePelInputJson(input.decision).pipe(Effect_exports.mapError(failure14));
+        const parsed = yield* parsePelInputJson(input.decision).pipe(Effect_exports.mapError(failure15));
         if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) && !Object.hasOwn(parsed, "authorityReceipt")) unsigned2 = parsed;
       }
       if (unsigned2 !== void 0) {
@@ -119003,18 +119203,18 @@ function makePelLifecycleServices(backend) {
           yield* input.started(input.runId).pipe(Effect_exports.mapError(() => pelFailure("journal-write-failed", "The run ID could not be written.")));
           return yield* resumeProgram(input.runId, { ...context11, owner }, options2);
         }));
-      }).pipe(Effect_exports.mapError(failure14), Effect_exports.provide(services));
+      }).pipe(Effect_exports.mapError(failure15), Effect_exports.provide(services));
     }),
     status: (runId2, stateRoot) => Effect_exports.gen(function* () {
       const legacy = backend.legacyStatus ? yield* backend.legacyStatus(runId2, stateRoot) : null;
       if (legacy) return legacy;
       const services = yield* backend.servicesForRun(runId2, stateRoot);
-      return yield* pelStatus(runId2).pipe(Effect_exports.mapError(failure14), Effect_exports.provide(services));
+      return yield* pelStatus(runId2).pipe(Effect_exports.mapError(failure15), Effect_exports.provide(services));
     }),
     cancel: (runId2, stateRoot) => Effect_exports.gen(function* () {
       yield* refuseLegacy(runId2, stateRoot);
       const services = yield* backend.servicesForRun(runId2, stateRoot);
-      return yield* cancelPelRun(runId2).pipe(Effect_exports.mapError(failure14), Effect_exports.provide(services));
+      return yield* cancelPelRun(runId2).pipe(Effect_exports.mapError(failure15), Effect_exports.provide(services));
     })
   };
 }
@@ -119070,7 +119270,7 @@ function makeLivePelLifecycleBackend(options2) {
         if ("byteLength" in locator) ref3 = locator;
         else {
           if (!/^[a-f0-9]{64}$/.test(locator.sha256)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Invalid authority input hash."));
-          const byteLength = yield* Effect_exports.try({ try: () => lstatSync14(join36(root.stateRoot, "runs", runId2, "artifacts", `sha256-${locator.sha256}`)).size, catch: () => pelFailure("binding-mismatch", "The original authority input is missing.") });
+          const byteLength = yield* Effect_exports.try({ try: () => lstatSync14(join37(root.stateRoot, "runs", runId2, "artifacts", `sha256-${locator.sha256}`)).size, catch: () => pelFailure("binding-mismatch", "The original authority input is missing.") });
           ref3 = { artifactId: `sha256-${locator.sha256}`, sha256: locator.sha256, byteLength };
         }
         return yield* artifacts.get(runId2, ref3, max6);
@@ -119188,7 +119388,7 @@ function makeLivePelLifecycleBackend(options2) {
     configured: () => Effect_exports.gen(function* () {
       const location = yield* Effect_exports.either(resolvePelRepository(options2.cwd));
       if (location._tag === "Left") return null;
-      if (!existsSync4(join36(location.right.repository.gitCommonDir, "foreman", "project.json"))) return null;
+      if (!existsSync4(join37(location.right.repository.gitCommonDir, "foreman", "project.json"))) return null;
       return yield* loadProject();
     }),
     preflight: (checked2, loaded) => preflight(checked2, loaded)
@@ -119223,7 +119423,7 @@ function makeLivePelLifecycleServices(options2) {
   return makePelLifecycleServices(makeLivePelLifecycleBackend(options2));
 }
 function defaultPelLifecycleOptions(output) {
-  return { cwd: process.cwd(), foremanHome: process.env.FOREMAN_HOME ?? join36(homedir2(), ".foreman"), userHome: homedir2(), environment: process.env, output };
+  return { cwd: process.cwd(), foremanHome: process.env.FOREMAN_HOME ?? join37(homedir2(), ".foreman"), userHome: homedir2(), environment: process.env, output };
 }
 
 // packages/orchestration/src/pel-adoption.ts
@@ -119231,8 +119431,8 @@ init_esm();
 init_pel();
 init_src();
 init_src2();
-import { constants as constants13, openSync as openSync16, closeSync as closeSync16, fstatSync as fstatSync13, lstatSync as lstatSync15, realpathSync as realpathSync10, readFileSync as readFileSync4, readdirSync as readdirSync5, writeFileSync as writeFileSync7, fsyncSync as fsyncSync11, rmSync as rmSync2, linkSync as linkSync3, unlinkSync as unlinkSync9 } from "node:fs";
-import { dirname as dirname19, isAbsolute as isAbsolute30, join as join37, normalize as normalize13, resolve as resolve12, basename as basename8 } from "node:path";
+import { constants as constants14, openSync as openSync16, closeSync as closeSync16, fstatSync as fstatSync13, lstatSync as lstatSync15, realpathSync as realpathSync10, readFileSync as readFileSync4, readdirSync as readdirSync5, writeFileSync as writeFileSync7, fsyncSync as fsyncSync11, rmSync as rmSync2, linkSync as linkSync3, unlinkSync as unlinkSync9 } from "node:fs";
+import { dirname as dirname19, isAbsolute as isAbsolute31, join as join38, normalize as normalize13, resolve as resolve12, basename as basename8 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { randomUUID as randomUUID6 } from "node:crypto";
 
@@ -119240,7 +119440,7 @@ import { randomUUID as randomUUID6 } from "node:crypto";
 init_src();
 init_providers();
 init_pel_run_contract();
-var object14 = (v2) => v2 !== null && typeof v2 === "object" && !Array.isArray(v2);
+var object15 = (v2) => v2 !== null && typeof v2 === "object" && !Array.isArray(v2);
 var providerCodes = ["ModelUnavailable", "ModelMismatch", "UnsupportedCapability", "CapabilityUnverified", "PromptChannelUnsupported", "AuthenticationRequired", "ProbeUnknown", "OutputInvalid", "OutputIncomplete", "MalformedEvent", "ContinuationMismatch", "ResumeUnavailable", "OutcomeUnknown", "RateLimited", "TransportDisconnected"];
 var safeCodes = /* @__PURE__ */ new Set([...runFailureCodes, ...hostEffectFailureCodes, ...providerCodes]);
 function projectPelSupportBundle(input) {
@@ -119252,10 +119452,10 @@ function projectPelSupportBundle(input) {
   for (const event of input.events) {
     if (!Number.isSafeInteger(event.seq) || event.seq < 0) continue;
     eventIds.push(event.seq);
-    const data3 = object14(event.payload.data) ? event.payload.data : void 0;
+    const data3 = object15(event.payload.data) ? event.payload.data : void 0;
     if (!data3) continue;
     const identity8 = data3.providerIdentity;
-    if (object14(identity8) && typeof identity8.profileId === "string") {
+    if (object15(identity8) && typeof identity8.profileId === "string") {
       const profile = resolveProfile(identity8.profileId);
       if (profile.ok && identity8.provider === profile.value.provider && typeof identity8.transportId === "string" && profile.value.transports.some((t) => t === identity8.transportId)) {
         const row = { provider: profile.value.provider, profileId: profile.value.id, transportId: identity8.transportId, model: identity8.model === profile.value.exactModel ? profile.value.exactModel : null, protocolVersion: typeof identity8.protocolVersion === "string" && /^(?:v?\d+(?:\.\d+){0,3}(?:\/v\d+)?|v1beta|\d{4}-\d{2}-\d{2}|fixture-v1)$/.test(identity8.protocolVersion) ? identity8.protocolVersion : null };
@@ -119263,12 +119463,12 @@ function projectPelSupportBundle(input) {
       }
     }
     code(data3.code);
-    if (object14(data3.failure)) code(data3.failure._tag);
+    if (object15(data3.failure)) code(data3.failure._tag);
   }
-  if (object14(input.result) && Array.isArray(input.result.diagnostics)) for (const diagnostic4 of input.result.diagnostics.slice(0, 1e3)) {
-    if (!object14(diagnostic4)) continue;
+  if (object15(input.result) && Array.isArray(input.result.diagnostics)) for (const diagnostic4 of input.result.diagnostics.slice(0, 1e3)) {
+    if (!object15(diagnostic4)) continue;
     code(diagnostic4.code);
-    if (object14(diagnostic4.cause) && object14(diagnostic4.cause.providerFailure)) code(diagnostic4.cause.providerFailure._tag);
+    if (object15(diagnostic4.cause) && object15(diagnostic4.cause.providerFailure)) code(diagnostic4.cause.providerFailure._tag);
   }
   const platform = { platform: ["linux", "darwin", "win32", "freebsd"].includes(input.platform.platform) ? input.platform.platform : "unknown", arch: ["x64", "arm64", "ia32", "arm"].includes(input.platform.arch) ? input.platform.arch : "unknown", nodeVersion: /^\d+\.\d+\.\d+$/.test(input.platform.nodeVersion) ? input.platform.nodeVersion : "unknown" };
   return { schemaVersion: 1, evidenceKind: input.evidenceKind === "product" || input.evidenceKind === "test-fixture" ? input.evidenceKind : "unknown", version: { releaseName: input.version.releaseName, version: input.version.version, buildId: input.version.buildId }, platform, runId: input.runId, providers: [...providers].sort(([a], [b2]) => a < b2 ? -1 : a > b2 ? 1 : 0).map(([, row]) => row), failures: [...failures4].sort(), eventIds: [...new Set(eventIds)].sort((a, b2) => a - b2), reproductionCommand: `foreman status ${input.runId} --json` };
@@ -119279,15 +119479,15 @@ init_pel_journal();
 init_pel_run_result();
 init_pel_run_contract();
 var pelAdoptionFailure = (code, message, exitCode) => ({ _tag: "PelAdoptionFailure", code, message, exitCode });
-var packageError = (failure15) => pelAdoptionFailure(failure15._tag, failure15.message, failure15._tag === "RollbackIncompatible" ? 3 : failure15._tag === "InstallIoFailure" ? 1 : 2);
+var packageError = (failure16) => pelAdoptionFailure(failure16._tag, failure16.message, failure16._tag === "RollbackIncompatible" ? 3 : failure16._tag === "InstallIoFailure" ? 1 : 2);
 var checked = (f2, code, message, exitCode = 1) => Effect_exports.try({ try: f2, catch: () => pelAdoptionFailure(code, message, exitCode) });
-var object15 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
+var object16 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
 function ordinary(path4) {
   const st2 = lstatSync15(path4);
-  if (!isAbsolute30(path4) || normalize13(path4) !== path4 || realpathSync10(path4) !== path4 || !st2.isDirectory() || st2.isSymbolicLink()) throw Error("directory");
+  if (!isAbsolute31(path4) || normalize13(path4) !== path4 || realpathSync10(path4) !== path4 || !st2.isDirectory() || st2.isSymbolicLink()) throw Error("directory");
 }
 function readBounded2(path4, max6) {
-  const fd = openSync16(path4, constants13.O_RDONLY | constants13.O_NOFOLLOW);
+  const fd = openSync16(path4, constants14.O_RDONLY | constants14.O_NOFOLLOW);
   try {
     const before2 = fstatSync13(fd);
     if (!before2.isFile() || before2.nlink !== 1 || before2.size > max6) throw Error("file");
@@ -119301,9 +119501,9 @@ function readBounded2(path4, max6) {
 }
 function eventsAt(root, runId2) {
   ordinary(root);
-  ordinary(join37(root, "runs"));
-  ordinary(join37(root, "runs", runId2));
-  const bytes3 = readBounded2(join37(root, "runs", runId2, "events.ndjson"), 64 * 1024 * 1024);
+  ordinary(join38(root, "runs"));
+  ordinary(join38(root, "runs", runId2));
+  const bytes3 = readBounded2(join38(root, "runs", runId2, "events.ndjson"), 64 * 1024 * 1024);
   if (bytes3.length && !bytes3.subarray(-1).equals(Buffer.from("\n"))) throw Error("partial");
   const events = [];
   for (const line of new TextDecoder("utf-8", { fatal: true }).decode(bytes3).split("\n")) {
@@ -119316,7 +119516,7 @@ function eventsAt(root, runId2) {
   return events;
 }
 function registeredRoots(home) {
-  if (!isAbsolute30(home) || normalize13(home) !== home) throw Error("home");
+  if (!isAbsolute31(home) || normalize13(home) !== home) throw Error("home");
   let ancestor = home;
   for (; ; ) {
     try {
@@ -119329,13 +119529,13 @@ function registeredRoots(home) {
       ancestor = parent2;
     }
   }
-  const loaded = loadProjectRegistryFileV1(join37(home, "projects.json"));
+  const loaded = loadProjectRegistryFileV1(join38(home, "projects.json"));
   if (loaded._tag !== "Valid") throw Error("registry");
   return [...new Set(loaded.value.projects.map((project4) => project4.store_location))].sort();
 }
 function runIds(root) {
   ordinary(root);
-  const path4 = join37(root, "runs");
+  const path4 = join38(root, "runs");
   try {
     ordinary(path4);
   } catch (error) {
@@ -119377,7 +119577,7 @@ function checkPelRollbackRoots(roots4, manifest, targetSnapshot) {
         }
         if (!replay.value.bindingRef) return yield* Effect_exports.fail(pelAdoptionFailure("RollbackIncompatible", "An active run has no immutable binding.", 3));
         const binding = decodeExecutionBindingV1(yield* artifactJson(root, runId2, replay.value.bindingRef));
-        if (!binding.ok || !object15(targetSnapshot) || binding.value.registryDigest !== targetSnapshot.registryDigest || !object15(targetSnapshot.registry) || binding.value.languageProfileDigest !== targetSnapshot.registry.profileDigest || binding.value.runtimeVersion !== manifest.runtimeCompatibility.runtimeVersion || binding.value.runtimeHandlerVersion !== manifest.runtimeCompatibility.runtimeHandlerVersion) return yield* Effect_exports.fail(pelAdoptionFailure("RollbackIncompatible", "The selected build cannot interpret an active bound program. Retain its original package for resume.", 3));
+        if (!binding.ok || !object16(targetSnapshot) || binding.value.registryDigest !== targetSnapshot.registryDigest || !object16(targetSnapshot.registry) || binding.value.languageProfileDigest !== targetSnapshot.registry.profileDigest || binding.value.runtimeVersion !== manifest.runtimeCompatibility.runtimeVersion || binding.value.runtimeHandlerVersion !== manifest.runtimeCompatibility.runtimeHandlerVersion) return yield* Effect_exports.fail(pelAdoptionFailure("RollbackIncompatible", "The selected build cannot interpret an active bound program. Retain its original package for resume.", 3));
         const bindings = [binding.value];
         for (const record12 of replay.value.records) {
           if (record12.type !== "pel.revision.v1") continue;
@@ -119389,7 +119589,7 @@ function checkPelRollbackRoots(roots4, manifest, targetSnapshot) {
         const refs = [];
         if (replay.value.suspensionRef) {
           const suspension = yield* artifactJson(root, runId2, replay.value.suspensionRef);
-          if (!object15(suspension) || !object15(suspension.continuationRef)) return yield* Effect_exports.fail(pelAdoptionFailure("RollbackIncompatible", "An active suspension is invalid.", 3));
+          if (!object16(suspension) || !object16(suspension.continuationRef)) return yield* Effect_exports.fail(pelAdoptionFailure("RollbackIncompatible", "An active suspension is invalid.", 3));
           refs.push(suspension.continuationRef);
         }
         for (const record12 of replay.value.records) {
@@ -119399,14 +119599,14 @@ function checkPelRollbackRoots(roots4, manifest, targetSnapshot) {
           }
           if (record12.type === "pel.child-suspension.v1") {
             const child2 = yield* artifactJson(root, runId2, record12.data.childRef);
-            if (!object15(child2) || !object15(child2.continuationRef)) return yield* Effect_exports.fail(pelAdoptionFailure("RollbackIncompatible", "An active child checkpoint is invalid.", 3));
+            if (!object16(child2) || !object16(child2.continuationRef)) return yield* Effect_exports.fail(pelAdoptionFailure("RollbackIncompatible", "An active child checkpoint is invalid.", 3));
             refs.push(child2.continuationRef);
           }
         }
         for (const ref3 of refs) {
           const continuation = yield* artifactJson(root, runId2, ref3);
-          const matching = object15(continuation) && object15(continuation.payload) ? bindings.find((candidate3) => candidate3.sourceDigest === continuation.payload.sourceDigest && candidate3.optionsDigest === continuation.payload.optionsDigest) : void 0;
-          if (!object15(continuation) || !matching || !inRange(continuation.schemaVersion, manifest.runtimeSchemas.pelContinuation) || !decodePelContinuation(Buffer.from(canonicalize(continuation)), { sourceDigest: matching.sourceDigest, profileDigest: matching.languageProfileDigest, registryDigest: matching.registryDigest, optionsDigest: matching.optionsDigest }).ok) return yield* Effect_exports.fail(pelAdoptionFailure("RollbackIncompatible", "The selected build cannot read an active Pel continuation.", 3));
+          const matching = object16(continuation) && object16(continuation.payload) ? bindings.find((candidate3) => candidate3.sourceDigest === continuation.payload.sourceDigest && candidate3.optionsDigest === continuation.payload.optionsDigest) : void 0;
+          if (!object16(continuation) || !matching || !inRange(continuation.schemaVersion, manifest.runtimeSchemas.pelContinuation) || !decodePelContinuation(Buffer.from(canonicalize(continuation)), { sourceDigest: matching.sourceDigest, profileDigest: matching.languageProfileDigest, registryDigest: matching.registryDigest, optionsDigest: matching.optionsDigest }).ok) return yield* Effect_exports.fail(pelAdoptionFailure("RollbackIncompatible", "The selected build cannot read an active Pel continuation.", 3));
         }
       }
     }
@@ -119458,7 +119658,7 @@ function makeLivePelAdoptionServices(options2) {
     const prefix2 = current3.prefix;
     return yield* withPelRegistryTransaction(options2.foremanHome, withInstalledPrefix(prefix2, false, (anchor) => Effect_exports.gen(function* () {
       const previous3 = yield* readInstalledCurrent(anchor).pipe(Effect_exports.mapError(packageError));
-      const target = yield* verifyPelPackage(join37(anchor, "versions", buildId)).pipe(Effect_exports.mapError(packageError));
+      const target = yield* verifyPelPackage(join38(anchor, "versions", buildId)).pipe(Effect_exports.mapError(packageError));
       if (target.manifest.buildId !== buildId) return yield* Effect_exports.fail(pelAdoptionFailure("PackageIntegrityMismatch", "The retained build identity differs.", 2));
       const roots4 = yield* loadRoots();
       const snapshotFile = target.files.find((file2) => file2.record.path === target.manifest.defaultAuthoringSnapshot.path);
@@ -119469,7 +119669,7 @@ function makeLivePelAdoptionServices(options2) {
     })).pipe(Effect_exports.either)).pipe(Effect_exports.mapError((error) => pelAdoptionFailure("InstallIoFailure", error.diagnostic.message, 1)), Effect_exports.flatMap((result4) => result4._tag === "Left" ? Effect_exports.fail(result4.left._tag === "PelAdoptionFailure" ? result4.left : packageError(result4.left)) : Effect_exports.succeed(result4.right)));
   }), support: (runId2, requestedOut) => Effect_exports.scoped(Effect_exports.gen(function* () {
     const out = resolve12(requestedOut);
-    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(runId2) || !isAbsolute30(out) || normalize13(out) !== out) return yield* Effect_exports.fail(pelAdoptionFailure("SupportInvalid", "Use a valid run ID and an absolute output path.", 2));
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(runId2) || !isAbsolute31(out) || normalize13(out) !== out) return yield* Effect_exports.fail(pelAdoptionFailure("SupportInvalid", "Use a valid run ID and an absolute output path.", 2));
     const identity8 = yield* version(), run6 = yield* loadRun(runId2), bytes3 = Buffer.from(canonicalize(projectPelSupportBundle({ version: identity8, platform: { platform: process.platform, arch: process.arch, nodeVersion: process.versions.node }, runId: runId2, ...run6 })) + "\n");
     const temporary = yield* Effect_exports.acquireRelease(checked(() => {
       ordinary(dirname19(out));
@@ -119479,7 +119679,7 @@ function makeLivePelAdoptionServices(options2) {
       } catch (error) {
         if (error.code !== "ENOENT") throw error;
       }
-      const path4 = join37(dirname19(out), `.support-${randomUUID6()}`), fd = openSync16(path4, constants13.O_WRONLY | constants13.O_CREAT | constants13.O_EXCL | constants13.O_NOFOLLOW, 384);
+      const path4 = join38(dirname19(out), `.support-${randomUUID6()}`), fd = openSync16(path4, constants14.O_WRONLY | constants14.O_CREAT | constants14.O_EXCL | constants14.O_NOFOLLOW, 384);
       try {
         writeFileSync7(fd, bytes3);
         fsyncSync11(fd);
@@ -119498,7 +119698,7 @@ function makeLivePelAdoptionServices(options2) {
       }
       linkSync3(temporary, out);
       unlinkSync9(temporary);
-      const fd = openSync16(dirname19(out), constants13.O_RDONLY | constants13.O_DIRECTORY | constants13.O_NOFOLLOW);
+      const fd = openSync16(dirname19(out), constants14.O_RDONLY | constants14.O_DIRECTORY | constants14.O_NOFOLLOW);
       try {
         fsyncSync11(fd);
       } finally {
@@ -119513,7 +119713,7 @@ function makeLivePelAdoptionServices(options2) {
 init_esm();
 init_src();
 import { dirname as dirname22, basename as basename9, resolve as resolve15 } from "node:path";
-import { rm as rm6, realpath as realpath9, lstat as lstat9 } from "node:fs/promises";
+import { rm as rm7, realpath as realpath10, lstat as lstat10 } from "node:fs/promises";
 
 // packages/orchestration/src/fm-session-main.ts
 init_esm();
@@ -119522,7 +119722,7 @@ import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 import { createHash as createHash11, randomBytes as randomBytes9, randomUUID as randomUUID7 } from "node:crypto";
 import { homedir as homedir3 } from "node:os";
-import { isAbsolute as isAbsolute31, join as join40, dirname as dirname21, resolve as resolve14 } from "node:path";
+import { isAbsolute as isAbsolute32, join as join41, dirname as dirname21, resolve as resolve14 } from "node:path";
 import {
   existsSync as existsSync7,
   mkdirSync as mkdirSync14,
@@ -119536,7 +119736,7 @@ import {
   lstatSync as lstatSync16,
   realpathSync as realpathSync11,
   accessSync as accessSync4,
-  constants as constants14
+  constants as constants15
 } from "node:fs";
 
 // packages/session-store/src/entities.ts
@@ -119700,10 +119900,10 @@ function isSessionStoreFailure(v2) {
 }
 var SessionStoreError = class extends Error {
   failure;
-  constructor(failure15) {
-    super(failure15.message);
+  constructor(failure16) {
+    super(failure16.message);
     this.name = "SessionStoreError";
-    this.failure = failure15;
+    this.failure = failure16;
   }
 };
 function raise(reason, message, extra) {
@@ -121812,7 +122012,7 @@ import {
   unlinkSync as unlinkSync10,
   writeSync as writeSync7
 } from "node:fs";
-import { join as join38 } from "node:path";
+import { join as join39 } from "node:path";
 var CURRENT = "CURRENT";
 var GENERATIONS = "generations";
 var OUTBOX_GENERATIONS = "outbox-generations";
@@ -121848,7 +122048,7 @@ function genNumberFromToken(name3) {
 }
 var counter7 = 0;
 function writeFileAtomic(dir, name3, text12) {
-  const tmp = join38(dir, `.tmp-${name3}-${process.pid}-${counter7++}`);
+  const tmp = join39(dir, `.tmp-${name3}-${process.pid}-${counter7++}`);
   const fd = openSync17(tmp, "wx", 420);
   try {
     writeSync7(fd, text12);
@@ -121857,7 +122057,7 @@ function writeFileAtomic(dir, name3, text12) {
     closeSync17(fd);
   }
   try {
-    renameSync9(tmp, join38(dir, name3));
+    renameSync9(tmp, join39(dir, name3));
   } catch (e) {
     try {
       unlinkSync10(tmp);
@@ -122138,7 +122338,7 @@ function processStartIdentity(pid) {
   }
 }
 function claimsDir(dir) {
-  return join38(dir, WRITER_CLAIMS_DIR);
+  return join39(dir, WRITER_CLAIMS_DIR);
 }
 function encodeClaim(body) {
   return `${JSON.stringify(body)}
@@ -122182,7 +122382,7 @@ function acquireWriterLock(dir) {
   const token = randomBytes8(16).toString("hex");
   const startIdentity = processStartIdentity(process.pid);
   const claimName = `claim-${Date.now().toString().padStart(15, "0")}-${token}.json`;
-  const claimPath = join38(dirPath, claimName);
+  const claimPath = join39(dirPath, claimName);
   const body = {
     pid: process.pid,
     startIdentity,
@@ -122210,7 +122410,7 @@ function acquireWriterLock(dir) {
       const live = [];
       for (const name3 of readdirSync6(dirPath)) {
         if (!name3.startsWith("claim-") || !name3.endsWith(".json")) continue;
-        const path4 = join38(dirPath, name3);
+        const path4 = join39(dirPath, name3);
         let raw;
         try {
           raw = readFileSync5(path4, "utf8");
@@ -122336,8 +122536,8 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
   #closed = false;
   constructor(dir, snap, outbox, nextReceipt, projectId, projectionVersions, gen9, readOnly, writerClaim) {
     this.#dir = dir;
-    this.#genDir = join38(dir, GENERATIONS);
-    this.#outboxDir = join38(dir, OUTBOX_GENERATIONS);
+    this.#genDir = join39(dir, GENERATIONS);
+    this.#outboxDir = join39(dir, OUTBOX_GENERATIONS);
     this.#readOnly = readOnly;
     this.#writerClaim = writerClaim;
     this.#snap = snap;
@@ -122354,8 +122554,8 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
       return _FilesOnlySessionStore.#openReadOnly(dir);
     }
     mkdirSync13(dir, { recursive: true });
-    mkdirSync13(join38(dir, GENERATIONS), { recursive: true });
-    mkdirSync13(join38(dir, OUTBOX_GENERATIONS), { recursive: true });
+    mkdirSync13(join39(dir, GENERATIONS), { recursive: true });
+    mkdirSync13(join39(dir, OUTBOX_GENERATIONS), { recursive: true });
     let claim2 = null;
     try {
       claim2 = acquireWriterLock(dir);
@@ -122372,7 +122572,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
         `files-only store directory does not exist: ${JSON.stringify(dir)}`
       );
     }
-    const loaded = _FilesOnlySessionStore.#loadLive(dir, join38(dir, GENERATIONS));
+    const loaded = _FilesOnlySessionStore.#loadLive(dir, join39(dir, GENERATIONS));
     if (loaded.needsProjectionMigration) {
       raise(
         "sidecar_malformed",
@@ -122392,7 +122592,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
     );
   }
   static #openWritable(dir, claim2) {
-    const currentPath = join38(dir, CURRENT);
+    const currentPath = join39(dir, CURRENT);
     if (!existsSync5(currentPath)) {
       const store2 = new _FilesOnlySessionStore(
         dir,
@@ -122408,7 +122608,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
       store2.#publish(store2.#snap, [], 1);
       return store2;
     }
-    const loaded = _FilesOnlySessionStore.#loadLive(dir, join38(dir, GENERATIONS));
+    const loaded = _FilesOnlySessionStore.#loadLive(dir, join39(dir, GENERATIONS));
     const store = new _FilesOnlySessionStore(
       dir,
       loaded.snap,
@@ -122430,7 +122630,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
     return store;
   }
   static #loadLive(dir, genDir) {
-    const currentPath = join38(dir, CURRENT);
+    const currentPath = join39(dir, CURRENT);
     if (!existsSync5(currentPath)) {
       raise(
         "sidecar_malformed",
@@ -122447,7 +122647,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
         `${CURRENT} names unsupported generation token ${JSON.stringify(name3)}`
       );
     }
-    const genPath = join38(genDir, name3);
+    const genPath = join39(genDir, name3);
     if (!existsSync5(genPath)) {
       raise(
         "sidecar_malformed",
@@ -122464,7 +122664,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
     const parsedGen = genNumberFromToken(name3);
     const gen9 = parsedGen !== null ? parsedGen : latestGeneration(genDir);
     if (isLegacyToken(name3)) {
-      const outboxPath2 = join38(dir, OUTBOX_GENERATIONS, name3);
+      const outboxPath2 = join39(dir, OUTBOX_GENERATIONS, name3);
       if (existsSync5(outboxPath2)) {
         const decoded2 = decodeOutbox(readFileSync5(outboxPath2, "utf8"));
         return {
@@ -122488,7 +122688,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
         gen: gen9
       };
     }
-    const outboxPath = join38(dir, OUTBOX_GENERATIONS, name3);
+    const outboxPath = join39(dir, OUTBOX_GENERATIONS, name3);
     if (!existsSync5(outboxPath)) {
       raise(
         "sidecar_malformed",
@@ -123107,8 +123307,8 @@ import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
 // packages/session-store/src/sqlite-migration.ts
 import { DatabaseSync as DatabaseSync3 } from "node:sqlite";
 import fs2, { copyFileSync, mkdtempSync, rmSync as rmSync3 } from "node:fs";
-import { tmpdir as tmpdir6 } from "node:os";
-import { join as join39 } from "node:path";
+import { tmpdir as tmpdir7 } from "node:os";
+import { join as join40 } from "node:path";
 var SQLITE_BUSY = 5;
 var SQLITE_READONLY = 8;
 var SQLITE_CORRUPT = 11;
@@ -123226,8 +123426,8 @@ function classifySqliteStore(path4) {
   }
 }
 function dumpLegacySqliteAsV1(path4) {
-  const snapshotDir = mkdtempSync(join39(tmpdir6(), "foreman-legacy-dump-"));
-  const snapshotPath = join39(snapshotDir, "session.db");
+  const snapshotDir = mkdtempSync(join40(tmpdir7(), "foreman-legacy-dump-"));
+  const snapshotPath = join40(snapshotDir, "session.db");
   try {
     copyFileSync(path4, snapshotPath);
     if (fs2.existsSync(`${path4}-wal`)) {
@@ -125029,14 +125229,14 @@ function warnOrphanStore(chosen) {
 }
 function dbPath() {
   if (process.env["FOREMAN_SESSION_DB"]) return process.env["FOREMAN_SESSION_DB"];
-  const chosen = join40(repoRoot(), ".foreman", "session.db");
+  const chosen = join41(repoRoot(), ".foreman", "session.db");
   warnOrphanStore(chosen);
   return chosen;
 }
 function projectRegistryPath() {
   const configured = process.env["FOREMAN_HOME"];
-  const home = configured && configured.length > 0 ? configured : join40(homedir3(), ".foreman");
-  return isAbsolute31(home) ? join40(home, "projects.json") : null;
+  const home = configured && configured.length > 0 ? configured : join41(homedir3(), ".foreman");
+  return isAbsolute32(home) ? join41(home, "projects.json") : null;
 }
 function ensureProjectRegistryParent(path4) {
   const parent2 = dirname21(path4);
@@ -125059,7 +125259,7 @@ function gitProjectIdentityAt(cwd) {
       cwd,
       encoding: "utf8"
     }).trim();
-    if (!isAbsolute31(common2) || !isAbsolute31(worktree)) return null;
+    if (!isAbsolute32(common2) || !isAbsolute32(worktree)) return null;
     return {
       gitCommonDir: realpathSync11(common2),
       worktreePath: realpathSync11(worktree)
@@ -125107,7 +125307,7 @@ function errorMessage2(e) {
 }
 function defaultSidecarPath(selection2) {
   if (selection2.locationKind === "file") return sidecarPathFor(selection2.location);
-  return join40(selection2.location, "session.ndjson");
+  return join41(selection2.location, "session.ndjson");
 }
 function openCliStore(opts = {}) {
   const readOnly = opts.readOnly === true;
@@ -125220,7 +125420,7 @@ function isSqliteOperationalError(e) {
 }
 function parentDirNotWritable(dbFile) {
   try {
-    accessSync4(dirname21(dbFile), constants14.W_OK);
+    accessSync4(dirname21(dbFile), constants15.W_OK);
     return false;
   } catch (e) {
     const code = typeof e === "object" && e !== null ? e.code : void 0;
@@ -125229,7 +125429,7 @@ function parentDirNotWritable(dbFile) {
 }
 function pathNotReadable(file2) {
   try {
-    accessSync4(file2, constants14.R_OK);
+    accessSync4(file2, constants15.R_OK);
     return false;
   } catch (e) {
     const code = typeof e === "object" && e !== null ? e.code : void 0;
@@ -126421,15 +126621,15 @@ function refreshPelResearchBundle(input, ports = {}) {
   const reader = ports.reader ?? liveResearchReadPort, write4 = ports.write ?? ((path4, bytes3) => Effect_exports.try({ try: () => writeAtomic(path4, new TextDecoder("utf-8", { fatal: true }).decode(bytes3)), catch: () => researchFailure("failed", "write-failed", "The derived research snapshot could not be published.") }));
   return Effect_exports.uninterruptibleMask((restore) => Effect_exports.gen(function* () {
     const loaded = yield* restore(loadResearchBundle(input.bundleRoot, reader).pipe(Effect_exports.mapError((error) => error.code === "bundle-missing" ? researchFailure("invalid", "bundle-missing", "The explicitly selected captured bundle has no manifest.") : error)));
-    const snapshotPath = resolve15(input.snapshotPath), root = yield* restore(Effect_exports.tryPromise({ try: () => realpath9(input.bundleRoot), catch: () => researchFailure("invalid", "invalid-bundle", "The captured bundle root is unavailable.") }));
+    const snapshotPath = resolve15(input.snapshotPath), root = yield* restore(Effect_exports.tryPromise({ try: () => realpath10(input.bundleRoot), catch: () => researchFailure("invalid", "invalid-bundle", "The captured bundle root is unavailable.") }));
     const outputs = [snapshotPath, snapshotPath + ".incomplete"];
     if (outputs.some((output) => output === resolve15(root, "research-bundle.json") || loaded.bundle.sources.some((source2) => [source2.raw.path, source2.clean.path].some((name3) => output === resolve15(root, name3))))) return yield* Effect_exports.fail(researchFailure("invalid", "unsafe-output", "Derived output cannot replace captured source bytes or their manifest."));
     yield* restore(Effect_exports.tryPromise({ try: async () => {
-      const parent2 = await realpath9(dirname22(snapshotPath));
+      const parent2 = await realpath10(dirname22(snapshotPath));
       if (parent2 !== dirname22(snapshotPath)) throw Error("Symlink output");
       for (const output of outputs) {
         try {
-          const info = await lstat9(output);
+          const info = await lstat10(output);
           if (!info.isFile() || info.isSymbolicLink()) throw Error("Unsafe output");
         } catch (e) {
           if (e.code !== "ENOENT") throw e;
@@ -126444,7 +126644,7 @@ function refreshPelResearchBundle(input, ports = {}) {
     yield* write4(snapshotPath + ".incomplete", researchBytes({ schemaVersion: 1, previousSnapshotSha256: previous3 ? sha256Hex(previous3) : null }));
     if (ports.beforePublish) yield* restore(ports.beforePublish());
     yield* write4(snapshotPath, bytes3);
-    yield* Effect_exports.tryPromise({ try: () => rm6(snapshotPath + ".incomplete", { force: true }), catch: () => researchFailure("failed", "cleanup-failed", "The derived snapshot is complete but refresh metadata cleanup failed.") });
+    yield* Effect_exports.tryPromise({ try: () => rm7(snapshotPath + ".incomplete", { force: true }), catch: () => researchFailure("failed", "cleanup-failed", "The derived snapshot is complete but refresh metadata cleanup failed.") });
     return { schemaVersion: 1, snapshotSha256: sha256Hex(bytes3), sourceCount: rows.length };
   })).pipe(Effect_exports.scoped);
 }
@@ -126465,12 +126665,12 @@ function makePelResearchCliServices(options2) {
   });
   return { query: (input) => Effect_exports.flatMap(context11, (service4) => service4.query({ text: input.query, limit: input.limit, ...input.vault ? { vault: input.vault } : {} })), status: (input) => Effect_exports.flatMap(context11, (service4) => service4.status(input)), refresh: (input) => Effect_exports.gen(function* () {
     if (!input.bundle || !input.bundle.isWellFormed() || Buffer.byteLength(input.bundle) > 4096 || input.bundle.includes("\0")) return yield* Effect_exports.fail(researchFailure("invalid", "invalid-bundle", "The captured bundle path is invalid."));
-    const bundleRoot = yield* Effect_exports.tryPromise({ try: () => realpath9(input.bundle), catch: () => researchFailure("invalid", "invalid-bundle", "The selected captured bundle does not exist.") });
+    const bundleRoot = yield* Effect_exports.tryPromise({ try: () => realpath10(input.bundle), catch: () => researchFailure("invalid", "invalid-bundle", "The selected captured bundle does not exist.") });
     yield* loadResearchBundle(bundleRoot).pipe(Effect_exports.mapError((error) => error.code === "bundle-missing" ? researchFailure("invalid", "bundle-missing", "The explicitly selected captured bundle has no manifest.") : error));
     yield* Effect_exports.tryPromise({ try: async () => {
       const { mkdir: mkdir2 } = await import("node:fs/promises");
       await mkdir2(dirname22(snapshotPath), { recursive: true, mode: 448 });
-      if (await realpath9(dirname22(snapshotPath)) !== dirname22(snapshotPath)) throw Error("Symlink cache");
+      if (await realpath10(dirname22(snapshotPath)) !== dirname22(snapshotPath)) throw Error("Symlink cache");
     }, catch: () => researchFailure("failed", "cache-unavailable", "The advisory research cache is unavailable.") });
     return yield* refreshPelResearchBundle({ bundleRoot, snapshotPath });
   }) };
@@ -126484,20 +126684,20 @@ init_pel();
 init_round_contract();
 init_execution_contract();
 init_execution_ledger();
-import { constants as constants15, openSync as openSync19, closeSync as closeSync19, fstatSync as fstatSync14, readSync as readSync12, writeSync as writeSync8, fsyncSync as fsyncSync14, linkSync as linkSync4, unlinkSync as unlinkSync11, lstatSync as lstatSync17, realpathSync as realpathSync12 } from "node:fs";
-import { basename as basename10, dirname as dirname23, join as join41, resolve as resolve16, parse as parse4, relative as relative8 } from "node:path";
+import { constants as constants16, openSync as openSync19, closeSync as closeSync19, fstatSync as fstatSync14, readSync as readSync12, writeSync as writeSync8, fsyncSync as fsyncSync14, linkSync as linkSync4, unlinkSync as unlinkSync11, lstatSync as lstatSync17, realpathSync as realpathSync12 } from "node:fs";
+import { basename as basename10, dirname as dirname23, join as join42, resolve as resolve16, parse as parse4, relative as relative8 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 import { randomUUID as randomUUID8 } from "node:crypto";
 var diagnostic3 = (code, locator, message) => ({ code, exitCode: code === "MigrationIO" ? 1 : code === "ActiveLegacyRun" ? 3 : 2, locator, field: "$", message });
-var object16 = (v2) => v2 !== null && typeof v2 === "object" && !Array.isArray(v2);
+var object17 = (v2) => v2 !== null && typeof v2 === "object" && !Array.isArray(v2);
 var hash11 = (v2) => sha256Hex(canonicalize(v2));
 var bad6 = (locator, message) => diagnostic3("UnsupportedLegacyConstruct", locator, message);
 function parent(path4) {
   const full = resolve16(path4), dir = dirname23(full), root = parse4(full).root;
-  let fd = openSync19(root, constants15.O_RDONLY | constants15.O_DIRECTORY | constants15.O_NOFOLLOW);
+  let fd = openSync19(root, constants16.O_RDONLY | constants16.O_DIRECTORY | constants16.O_NOFOLLOW);
   try {
     for (const component of relative8(root, dir).split("/").filter(Boolean)) {
-      const next = openSync19(`/proc/self/fd/${fd}/${component}`, constants15.O_RDONLY | constants15.O_DIRECTORY | constants15.O_NOFOLLOW);
+      const next = openSync19(`/proc/self/fd/${fd}/${component}`, constants16.O_RDONLY | constants16.O_DIRECTORY | constants16.O_NOFOLLOW);
       closeSync19(fd);
       fd = next;
     }
@@ -126511,7 +126711,7 @@ function parent(path4) {
 function boundedRead(path4, max6 = 1048576) {
   const p2 = parent(path4);
   try {
-    const fd = openSync19(join41(p2.anchor, p2.name), constants15.O_RDONLY | constants15.O_NOFOLLOW);
+    const fd = openSync19(join42(p2.anchor, p2.name), constants16.O_RDONLY | constants16.O_NOFOLLOW);
     try {
       const before2 = fstatSync14(fd);
       if (!before2.isFile() || before2.nlink !== 1 || before2.size > max6) throw Error("Unsafe or oversized file");
@@ -126537,14 +126737,14 @@ function json4(bytes3) {
   if (isCoreFailure(value4)) throw Error("Invalid JSON");
   return value4;
 }
-var read = (path4) => Effect_exports.try({ try: () => boundedRead(path4), catch: (error) => object16(error) && typeof error.code === "string" && ["ENOENT", "EACCES", "EPERM", "EIO", "EMFILE", "ENFILE"].includes(error.code) ? diagnostic3("MigrationIO", path4, "The migration input could not be read.") : bad6(path4, "The input must be a bounded regular file with no symlink ancestors.") });
+var read = (path4) => Effect_exports.try({ try: () => boundedRead(path4), catch: (error) => object17(error) && typeof error.code === "string" && ["ENOENT", "EACCES", "EPERM", "EIO", "EMFILE", "ENFILE"].includes(error.code) ? diagnostic3("MigrationIO", path4, "The migration input could not be read.") : bad6(path4, "The input must be a bounded regular file with no symlink ancestors.") });
 function publish4(out, result4) {
   if (!out.endsWith(".pel")) throw bad6(out, "Migration output must have a .pel suffix.");
   const p2 = parent(out), parityName = `${p2.name}.parity.json`, temps = [], published = [];
   try {
     for (const name3 of [p2.name, parityName]) {
       try {
-        lstatSync17(join41(p2.anchor, name3));
+        lstatSync17(join42(p2.anchor, name3));
         throw bad6(out, "Migration output already exists.");
       } catch (error) {
         if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
@@ -126553,14 +126753,14 @@ function publish4(out, result4) {
     const pairs = [[parityName, Buffer.from(canonicalize(result4) + "\n")], [p2.name, Buffer.from(result4.source)]];
     for (const [name3, bytes3] of pairs) {
       if (bytes3.length > 1048576) throw bad6(out, "Migration output exceeds its byte bound.");
-      const temp = join41(p2.anchor, `.pel-migrate-${randomUUID8()}`);
+      const temp = join42(p2.anchor, `.pel-migrate-${randomUUID8()}`);
       temps.push(temp);
-      const fd = openSync19(temp, constants15.O_CREAT | constants15.O_EXCL | constants15.O_WRONLY | constants15.O_NOFOLLOW, 384);
+      const fd = openSync19(temp, constants16.O_CREAT | constants16.O_EXCL | constants16.O_WRONLY | constants16.O_NOFOLLOW, 384);
       try {
         let offset = 0;
         while (offset < bytes3.length) offset += writeSync8(fd, bytes3, offset, bytes3.length - offset);
         fsyncSync14(fd);
-        const info = fstatSync14(fd), final = join41(p2.anchor, name3);
+        const info = fstatSync14(fd), final = join42(p2.anchor, name3);
         linkSync4(temp, final);
         published.push({ path: final, ino: info.ino, dev: info.dev });
       } finally {
@@ -126568,7 +126768,7 @@ function publish4(out, result4) {
       }
     }
     fsyncSync14(p2.fd);
-    return { result: result4, outputPath: p2.full, parityPath: join41(p2.dir, parityName) };
+    return { result: result4, outputPath: p2.full, parityPath: join42(p2.dir, parityName) };
   } catch (error) {
     for (const entry of published.reverse()) {
       try {
@@ -126601,7 +126801,7 @@ function makePelMigrationServices(options2) {
     }
     const resolved = yield* options2.resolve({ round: decoded.round, contract: decoded.contract, roundPath: resolve16(request3.input) }), result4 = importLegacyWorkflow({ round: { locator: request3.input, bytes: roundBytes }, contract: { locator: request3.contract, bytes: contractBytes }, ...resolved });
     if (Either_exports.isLeft(result4)) return yield* Effect_exports.fail(result4.left);
-    return yield* Effect_exports.try({ try: () => publish4(request3.out, result4.right), catch: (error) => object16(error) && "exitCode" in error ? error : diagnostic3("MigrationIO", request3.out, "The new migration output pair could not be published.") });
+    return yield* Effect_exports.try({ try: () => publish4(request3.out, result4.right), catch: (error) => object17(error) && "exitCode" in error ? error : diagnostic3("MigrationIO", request3.out, "The new migration output pair could not be published.") });
   }) };
 }
 function makeLivePelMigrationServices(options2) {
@@ -126622,13 +126822,13 @@ function makeLivePelMigrationServices(options2) {
     const spec = snapshot.value.artifactDescriptors.find((a) => a.id === "artifact:approved-spec");
     if (typeof spec?.content !== "string") return yield* Effect_exports.fail(bad6(input.roundPath, "The closed import requires a registered immutable text specification."));
     const templates = yield* Effect_exports.try({ try: () => {
-      const manifest = decodeInstallManifest(boundedRead(join41(runtimeRoot, "manifest.json"), 4 * 1048576));
+      const manifest = decodeInstallManifest(boundedRead(join42(runtimeRoot, "manifest.json"), 4 * 1048576));
       if (!manifest.ok) throw Error("manifest");
       const entries2 = manifest.value.files;
       return ["implement-verify-review", "bounded-rework"].map((template2) => {
-        const relativePath2 = `runtime/assets/pel/migration/${template2}/registered-command-bindings.json`, entry = entries2.find((a) => object16(a) && a.path === relativePath2);
-        const bytes3 = boundedRead(join41(runtimeRoot, relativePath2));
-        if (!object16(entry) || entry.byteLength !== bytes3.length || entry.sha256 !== sha256Hex(bytes3)) throw Error("asset integrity");
+        const relativePath2 = `runtime/assets/pel/migration/${template2}/registered-command-bindings.json`, entry = entries2.find((a) => object17(a) && a.path === relativePath2);
+        const bytes3 = boundedRead(join42(runtimeRoot, relativePath2));
+        if (!object17(entry) || entry.byteLength !== bytes3.length || entry.sha256 !== sha256Hex(bytes3)) throw Error("asset integrity");
         const decoded = decodePelLegacyCommandBindingV1(json4(bytes3));
         if (Either_exports.isLeft(decoded)) throw Error("template");
         return decoded.right;
@@ -126652,7 +126852,7 @@ var nodeAuthoringInput = {
     Effect_exports.gen(function* () {
       const handle = yield* Effect_exports.acquireRelease(
         Effect_exports.tryPromise({
-          try: () => open6(path4, "r"),
+          try: () => open7(path4, "r"),
           catch: (e) => authoringFailure("PEL_INPUT", String(e), 2, path4)
         }),
         (handle2) => Effect_exports.promise(() => handle2.close())

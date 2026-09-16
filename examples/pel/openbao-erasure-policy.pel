@@ -1,0 +1,60 @@
+; Inputs are normalized, untrusted observation descriptions only.
+; "active-match" describes exact proposal, identity, generation, and material confirmation.
+; Classifications grant no authority and prove neither readiness nor credential delivery.
+(def valid-control
+  (lambda [:value]
+    (if (eq value "intact") #t
+      (if (eq value "missing") #t
+        (if (eq value "inconsistent") #t
+          (eq value "unavailable"))))))
+
+(def valid-account
+  (lambda [:value]
+    (if (eq value "new") #t
+      (if (eq value "active") #t
+        (if (eq value "pending") #t
+          (if (eq value "tombstoned") #t
+            (eq value "quarantined")))))))
+
+(def valid-material
+  (lambda [:value]
+    (if (eq value "absent") #t
+      (if (eq value "active-match") #t
+        (if (eq value "tombstone-match") #t
+          (if (eq value "mismatch") #t
+            (if (eq value "invalid") #t
+              (eq value "unavailable"))))))))
+
+(def erasure-policy
+  (lambda [:control :account :material]
+    (if (valid-control control)
+      (if (valid-account account)
+        (if (valid-material material)
+          (if (eq control "unavailable")
+            [:classification "backend-blocked" :reason "authority-unavailable"]
+            (if (eq control "missing")
+              [:classification "backend-blocked" :reason "provisioning-required"]
+              (if (eq control "inconsistent")
+                [:classification "backend-blocked" :reason "control-reconciliation-required"]
+                (if (eq material "unavailable")
+                  [:classification "account-blocked" :reason "observation-unavailable"]
+                  (if (eq account "pending")
+                    [:classification "account-blocked" :reason "operation-reconciliation-required"]
+                    (if (eq account "tombstoned")
+                      [:classification "account-blocked" :reason "recovery-required"]
+                      (if (eq account "quarantined")
+                        [:classification "account-blocked" :reason "account-reconciliation-required"]
+                        (if (eq account "new")
+                          (if (eq material "absent")
+                            [:classification "import-candidate" :reason "reservation-required"]
+                            [:classification "account-blocked" :reason "orphan-or-invalid-material"])
+                          (if (eq material "active-match")
+                            [:classification "active-candidate" :reason "current-authority-required"]
+                            (if (eq material "absent")
+                              [:classification "account-blocked" :reason "known-account-erased"]
+                              [:classification "account-blocked" :reason "account-reconciliation-required"]))))))))))
+          [:classification "blocked" :reason "invalid-observation"])
+        [:classification "blocked" :reason "invalid-observation"])
+      [:classification "blocked" :reason "invalid-observation"])))
+
+"policy-specification-only"

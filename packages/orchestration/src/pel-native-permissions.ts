@@ -9,7 +9,7 @@ import {canonicalWorkspacePath} from './pel-resource-scope.js';
 import type {PelToolExecutorV1} from './pel-provider-tools.js';
 const denied=():ProviderFailure=>({_tag:'UnsupportedCapability',retryClass:'never',message:'The native permission request is outside its original effect, provider, writable paths or finite method set.'});
 const inside=(root:string,path:string)=>path===root||path.startsWith(root+sep);
-const paths=new Set(['path','file_path','filePath','cwd','workingDirectory','working_directory','sourcePath','destinationPath','old_path','new_path','grantRoot']);
+const paths=new Set(['path','file_path','filePath','target_directory','cwd','workingDirectory','working_directory','sourcePath','destinationPath','old_path','new_path','grantRoot']);
 const method=(transport:string,name:string)=>transport==='codex-app-server'?['item/fileChange/requestApproval','item/commandExecution/requestApproval'].includes(name):transport==='grok-acp'&&['read','edit','delete','move','search','execute'].includes(name);
 const writes=(name:string)=>['edit','delete','move','item/fileChange/requestApproval'].includes(name);
 /** Registration and the enforcing launcher supply this callback. Pel and provider data cannot install it. */

@@ -7,6 +7,10 @@
     ".": {
       "types": "./src/index.ts",
       "import": "./dist/providers.js"
+    },
+    "./testing": {
+      "types": "./src/testing.ts",
+      "import": "./dist/testing.js"
     }
   },
   "dependencies": {
@@ -16,6 +20,6 @@
     "effect": "3.22.1"
   },
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/providers.js"
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/providers.js && esbuild src/testing.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/testing.js"
   }
 }

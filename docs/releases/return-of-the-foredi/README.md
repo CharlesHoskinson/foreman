@@ -22,6 +22,20 @@ Each row delivers an observable capability. Its OpenSpec contains the feature re
 
 M2 owns the minimal provider package and generation port. M3 extends that package. Adapter implementation can start after this M2 contract task. M3 completion depends on M2's shared CLI and authoring contract. Production integration uses M4. Each stage first demonstrates its behavior with deterministic fixtures. Provider claims require the additional live tests defined in M3.
 
+## OpenBao release addition
+
+The 2026-09-15 addition requires a shared credential interface for AGY, Codex, Claude, and Grok.
+It does not change the historical M1–M6 evidence or the planned M7 scope.
+OpenBao KV v2 is required when its backend is selected.
+
+- [Interface and commands](../../guides/pel/openbao-credentials.md)
+- [EARS requirements and scenarios](../../../openspec/changes/openbao-credential-pilot/specs/openbao-credential-pilot/spec.md)
+- [Release integration gates](../../../openspec/changes/openbao-credential-pilot/release-integration.md)
+- [Dependency inventory](../../../dependencies/README.md#openbao-credential-backend)
+
+Storage support does not establish native login or refresh support.
+Final acceptance requires separate provider qualification and fresh candidate evidence.
+
 ## Feature and test catalog
 
 - [EARS catalog](EARS-CATALOG.md): every feature and its numbered requirements.

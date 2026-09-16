@@ -24,3 +24,6 @@ export * from './transports/codex-app-server.js';
 export * from './transports/grok-acp.js';
 export * from './transports/claude-code.js';
 export * from './transports/gemini-cli.js';
+export * from './credential-store.js';
+export { makeOpenBaoCredentialStore } from './openbao-credential-store.js';
+export * from './credential-backend-identity.js';

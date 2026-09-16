@@ -74,6 +74,27 @@ worker's vendor.
 Authentication is **not** provisioned by bootstrap and must be done once per
 host: `codex login`, `grok login --device-code`, `claude` then `/login`.
 
+## OpenBao credential backend
+
+This conditional dependency belongs to the Return of the ForeDi candidate.
+The OpenBao binary version was checked separately on 2026-09-15, not during the August inventory probe.
+
+| Component | Required when | Without it | Baseline |
+|---|---|---|---|
+| OpenBao service with KV v2 | The framework selects the OpenBao backend | OpenBao credential operations are unavailable | 2.6.2 binary checked on WSL/Linux amd64 |
+| `bao` executable | Local server fixtures or CLI administration | Those local operations cannot run | Same 2.6.2 binary |
+| Trusted HTTPS and a host token source | Production framework access | The backend rejects the connection or authentication fails | Deployment qualification remains open |
+
+A remote OpenBao service does not require a local `bao` executable for framework requests.
+The manifest therefore lists `bao` as optional for general Foreman profiles.
+Bootstrap does not install it or create a service.
+The general readiness check does not qualify this backend.
+
+Use the [official installation instructions](https://openbao.org/docs/install/).
+Verify the release checksum and signature before execution.
+Version 2.6.2 is the pilot baseline, not a demonstrated minimum compatibility version.
+See the [interface and command guide](../docs/guides/pel/openbao-credentials.md).
+
 ## Gate and development tooling
 
 Needed to run the gate (`tools/ci-local.sh`) and therefore to commit safely.

@@ -5,12 +5,58 @@ The same program describes implementation, host checks, independent review, boun
 
 **Status: unversioned release candidate, not an accepted final release.**
 The numerical version remains `null`.
+See the [remaining release roadmap](REMAINING-ROADMAP.md) for the integration sequence and required evidence.
 The [implementation PR #59](https://github.com/CharlesHoskinson/foreman/pull/59), does not assign a version or authorize publication.
 
-These notes describe C2 source candidate `bb0c1e9f3868d6bf36a91f78ceec55800192fc5c`.
+Except for the dated amendment below, these notes describe C2 source candidate `bb0c1e9f3868d6bf36a91f78ceec55800192fc5c`.
 C3 metadata commit `c830fd5` records its evidence and remaining obligations.
 That metadata commit does not replace the tested production candidate.
 See the [candidate acceptance record](m6-instruction-acceptance.json) for exact identities and evidence hashes.
+
+## 2026-09-15 amendment: OpenBao credential storage
+
+This candidate addition is not covered by the historical C2 acceptance evidence.
+It does not assign a release version or authorize live credential migration.
+
+The shared `CredentialStorePort` supports AGY (Antigravity CLI), Codex, Claude, and Grok.
+The OpenBao backend provides reads, compare-and-set writes, account listing, and explicit-version soft deletion.
+References use `bao:<provider>:<account>`.
+Production connections require HTTPS with certificate verification.
+The host supplies an OpenBao token through a callback for each operation.
+
+The release design makes OpenBao the sole durable credential authority for managed accounts.
+Setup, qualification, and execution must share the selected account and revalidate its current generation.
+No managed consumer may fall back to native profiles or environment credentials.
+This consumer integration remains a release gate, not a delivered capability.
+
+OpenBao KV v2 is a dependency when this backend is selected.
+The local `bao` executable is required for local fixtures and CLI administration, not remote framework access.
+The pilot binary baseline is OpenBao 2.6.2 on WSL/Linux amd64.
+This baseline does not establish a minimum supported version or production qualification.
+
+See the [interface and command guide](../../guides/pel/openbao-credentials.md)
+and [dependency inventory](../../../dependencies/README.md#openbao-credential-backend).
+The framework API exists in source. No `foreman credentials` or `foreman openbao` command is implemented.
+Native login, refresh coordination, and default live-provider integration require separate qualification for each provider.
+Soft deletion in OpenBao does not revoke a provider token.
+It retains account metadata: reads return NotFound, listing retains the name, and create-only
+re-import conflicts. Recovery requires separately authorized new material and the recorded generation.
+The production package excludes the synthetic factory; tests use `@foreman/providers/testing`.
+The [audit correction evidence](fable-corrections-2026-09-15.md) records source-bound builds,
+external integrity receipt binding, backend configuration identity, and remaining integration gates.
+
+The [release integration record](../../../openspec/changes/openbao-credential-pilot/release-integration.md)
+tracks the remaining gates. Synthetic evidence cannot establish live account readiness.
+
+### Administrative erasure policy
+
+The [policy decision](../../superpowers/specs/2026-09-15-openbao-erasure-policy-decision.md) records independent GPT, Fable, and Grok advice and preserved disagreements.
+CM09 through CM14 add provisioned control authority, evidence-bounded quarantine, explicit reconciliation, and exact confirmation requirements.
+The [pure PEL specification](../../../examples/pel/openbao-erasure-policy.pel) has executable classification tests.
+It grants no credential, readiness, or publication authority.
+Account-only quarantine requires intact OpenBao evidence. Missing control authority blocks the backend.
+OpenBao remains the sole durable credential and lifecycle authority.
+These requirements do not implement the control store, manager, operator CLI, or provider migration.
 
 ## What users can do
 

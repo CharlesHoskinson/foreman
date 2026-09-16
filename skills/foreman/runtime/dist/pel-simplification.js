@@ -32601,25 +32601,25 @@ var array22 = (arr) => {
 var cached4 = function() {
   if (arguments.length === 1) {
     const self2 = arguments[0];
-    return function(hash5) {
+    return function(hash6) {
       Object.defineProperty(self2, symbol3, {
         value() {
-          return hash5;
+          return hash6;
         },
         enumerable: false
       });
-      return hash5;
+      return hash6;
     };
   }
   const self = arguments[0];
-  const hash4 = arguments[1];
+  const hash5 = arguments[1];
   Object.defineProperty(self, symbol3, {
     value() {
-      return hash4;
+      return hash5;
     },
     enumerable: false
   });
-  return hash4;
+  return hash5;
 };
 var symbol22 = /* @__PURE__ */ Symbol.for("effect/Equal");
 function equals3() {
@@ -34385,11 +34385,11 @@ function arraySpliceIn2(mutate42, at, v, arr) {
 }
 var EmptyNode2 = class _EmptyNode {
   _tag = "EmptyNode";
-  modify(edit, _shift, f, hash4, key, size15) {
+  modify(edit, _shift, f, hash5, key, size15) {
     const v = f(none22());
     if (isNone22(v)) return new _EmptyNode();
     ++size15.value;
-    return new LeafNode2(edit, hash4, key, v);
+    return new LeafNode2(edit, hash5, key, v);
   }
 };
 function isEmptyNode2(a) {
@@ -34407,13 +34407,13 @@ var LeafNode2 = class _LeafNode {
   key;
   value;
   _tag = "LeafNode";
-  constructor(edit, hash4, key, value3) {
+  constructor(edit, hash5, key, value3) {
     this.edit = edit;
-    this.hash = hash4;
+    this.hash = hash5;
     this.key = key;
     this.value = value3;
   }
-  modify(edit, shift22, f, hash4, key, size15) {
+  modify(edit, shift22, f, hash5, key, size15) {
     if (equals3(key, this.key)) {
       const v2 = f(this.value);
       if (v2 === this.value) return this;
@@ -34425,12 +34425,12 @@ var LeafNode2 = class _LeafNode {
         this.value = v2;
         return this;
       }
-      return new _LeafNode(edit, hash4, key, v2);
+      return new _LeafNode(edit, hash5, key, v2);
     }
     const v = f(none22());
     if (isNone22(v)) return this;
     ++size15.value;
-    return mergeLeaves2(edit, shift22, this.hash, this, hash4, new _LeafNode(edit, hash4, key, v));
+    return mergeLeaves2(edit, shift22, this.hash, this, hash5, new _LeafNode(edit, hash5, key, v));
   }
 };
 var CollisionNode2 = class _CollisionNode {
@@ -34438,13 +34438,13 @@ var CollisionNode2 = class _CollisionNode {
   hash;
   children;
   _tag = "CollisionNode";
-  constructor(edit, hash4, children3) {
+  constructor(edit, hash5, children3) {
     this.edit = edit;
-    this.hash = hash4;
+    this.hash = hash5;
     this.children = children3;
   }
-  modify(edit, shift22, f, hash4, key, size15) {
-    if (hash4 === this.hash) {
+  modify(edit, shift22, f, hash5, key, size15) {
+    if (hash5 === this.hash) {
       const canEdit = canEditNode2(this, edit);
       const list = this.updateCollisionList(canEdit, edit, this.hash, this.children, f, key, size15);
       if (list === this.children) return this;
@@ -34453,9 +34453,9 @@ var CollisionNode2 = class _CollisionNode {
     const v = f(none22());
     if (isNone22(v)) return this;
     ++size15.value;
-    return mergeLeaves2(edit, shift22, this.hash, this, hash4, new LeafNode2(edit, hash4, key, v));
+    return mergeLeaves2(edit, shift22, this.hash, this, hash5, new LeafNode2(edit, hash5, key, v));
   }
-  updateCollisionList(mutate42, edit, hash4, list, f, key, size15) {
+  updateCollisionList(mutate42, edit, hash5, list, f, key, size15) {
     const len = list.length;
     for (let i = 0; i < len; ++i) {
       const child = list[i];
@@ -34467,13 +34467,13 @@ var CollisionNode2 = class _CollisionNode {
           --size15.value;
           return arraySpliceOut2(mutate42, i, list);
         }
-        return arrayUpdate2(mutate42, i, new LeafNode2(edit, hash4, key, newValue2), list);
+        return arrayUpdate2(mutate42, i, new LeafNode2(edit, hash5, key, newValue2), list);
       }
     }
     const newValue = f(none22());
     if (isNone22(newValue)) return list;
     ++size15.value;
-    return arrayUpdate2(mutate42, len, new LeafNode2(edit, hash4, key, newValue), list);
+    return arrayUpdate2(mutate42, len, new LeafNode2(edit, hash5, key, newValue), list);
   }
 };
 var IndexedNode2 = class _IndexedNode {
@@ -34486,21 +34486,21 @@ var IndexedNode2 = class _IndexedNode {
     this.mask = mask;
     this.children = children3;
   }
-  modify(edit, shift22, f, hash4, key, size15) {
+  modify(edit, shift22, f, hash5, key, size15) {
     const mask = this.mask;
     const children3 = this.children;
-    const frag = hashFragment2(shift22, hash4);
+    const frag = hashFragment2(shift22, hash5);
     const bit = toBitmap2(frag);
     const indx = fromBitmap2(mask, bit);
     const exists32 = mask & bit;
     const canEdit = canEditNode2(this, edit);
     if (!exists32) {
-      const _newChild = new EmptyNode2().modify(edit, shift22 + SIZE2, f, hash4, key, size15);
+      const _newChild = new EmptyNode2().modify(edit, shift22 + SIZE2, f, hash5, key, size15);
       if (!_newChild) return this;
       return children3.length >= MAX_INDEX_NODE2 ? expand2(edit, frag, _newChild, mask, children3) : new _IndexedNode(edit, mask | bit, arraySpliceIn2(canEdit, indx, _newChild, children3));
     }
     const current2 = children3[indx];
-    const child = current2.modify(edit, shift22 + SIZE2, f, hash4, key, size15);
+    const child = current2.modify(edit, shift22 + SIZE2, f, hash5, key, size15);
     if (current2 === child) return this;
     let bitmap = mask;
     let newChildren;
@@ -34532,12 +34532,12 @@ var ArrayNode2 = class _ArrayNode {
     this.size = size15;
     this.children = children3;
   }
-  modify(edit, shift22, f, hash4, key, size15) {
+  modify(edit, shift22, f, hash5, key, size15) {
     let count3 = this.size;
     const children3 = this.children;
-    const frag = hashFragment2(shift22, hash4);
+    const frag = hashFragment2(shift22, hash5);
     const child = children3[frag];
-    const newChild = (child || new EmptyNode2()).modify(edit, shift22 + SIZE2, f, hash4, key, size15);
+    const newChild = (child || new EmptyNode2()).modify(edit, shift22 + SIZE2, f, hash5, key, size15);
     if (child === newChild) return this;
     const canEdit = canEditNode2(this, edit);
     let newChildren;
@@ -34624,11 +34624,11 @@ var HashMapProto2 = {
     return new HashMapIterator2(this, (k, v) => [k, v]);
   },
   [symbol3]() {
-    let hash4 = hash3(HashMapSymbolKey2);
+    let hash5 = hash3(HashMapSymbolKey2);
     for (const item of this) {
-      hash4 ^= pipe2(hash3(item[0]), combine9(hash3(item[1])));
+      hash5 ^= pipe2(hash3(item[0]), combine9(hash3(item[1])));
     }
-    return cached4(this, hash4);
+    return cached4(this, hash5);
   },
   [symbol22](that) {
     if (isHashMap2(that)) {
@@ -34744,7 +34744,7 @@ var fromIterable32 = (entries2) => {
 var isHashMap2 = (u) => hasProperty2(u, HashMapTypeId2);
 var isEmpty22 = (self) => self && isEmptyNode2(self._root);
 var get52 = /* @__PURE__ */ dual2(2, (self, key) => getHash2(self, key, hash3(key)));
-var getHash2 = /* @__PURE__ */ dual2(3, (self, key, hash4) => {
+var getHash2 = /* @__PURE__ */ dual2(3, (self, key, hash5) => {
   let node = self._root;
   let shift22 = 0;
   while (true) {
@@ -34753,7 +34753,7 @@ var getHash2 = /* @__PURE__ */ dual2(3, (self, key, hash4) => {
         return equals3(key, node.key) ? node.value : none22();
       }
       case "CollisionNode": {
-        if (hash4 === node.hash) {
+        if (hash5 === node.hash) {
           const children3 = node.children;
           for (let i = 0, len = children3.length; i < len; ++i) {
             const child = children3[i];
@@ -34765,7 +34765,7 @@ var getHash2 = /* @__PURE__ */ dual2(3, (self, key, hash4) => {
         return none22();
       }
       case "IndexedNode": {
-        const frag = hashFragment2(shift22, hash4);
+        const frag = hashFragment2(shift22, hash5);
         const bit = toBitmap2(frag);
         if (node.mask & bit) {
           node = node.children[fromBitmap2(node.mask, bit)];
@@ -34775,7 +34775,7 @@ var getHash2 = /* @__PURE__ */ dual2(3, (self, key, hash4) => {
         return none22();
       }
       case "ArrayNode": {
-        node = node.children[hashFragment2(shift22, hash4)];
+        node = node.children[hashFragment2(shift22, hash5)];
         if (node) {
           shift22 += SIZE2;
           break;
@@ -34812,11 +34812,11 @@ var mutate4 = /* @__PURE__ */ dual2(2, (self, f) => {
   return endMutation3(transient);
 });
 var modifyAt3 = /* @__PURE__ */ dual2(3, (self, key, f) => modifyHash2(self, key, hash3(key), f));
-var modifyHash2 = /* @__PURE__ */ dual2(4, (self, key, hash4, f) => {
+var modifyHash2 = /* @__PURE__ */ dual2(4, (self, key, hash5, f) => {
   const size15 = {
     value: self._size
   };
-  const newRoot = self._root.modify(self._editable ? self._edit : NaN, 0, f, hash4, key, size15);
+  const newRoot = self._root.modify(self._editable ? self._edit : NaN, 0, f, hash5, key, size15);
   return pipe2(self, setTree2(newRoot, size15.value));
 });
 var remove22 = /* @__PURE__ */ dual2(2, (self, key) => modifyAt3(self, key, none22));
@@ -36071,7 +36071,7 @@ var keepDefects2 = (self) => match42(self, {
 });
 var keepDefectsAndElectFailures2 = (self) => match42(self, {
   onEmpty: none22(),
-  onFail: (failure4) => some22(die7(failure4)),
+  onFail: (failure5) => some22(die7(failure5)),
   onDie: (defect) => some22(die7(defect)),
   onInterrupt: () => none22(),
   onSequential: mergeWith2(sequential4),
@@ -37787,8 +37787,8 @@ var get82 = /* @__PURE__ */ dual2(2, (self, key) => {
   if (isEqual2(key) === false) {
     return self.referential.has(key) ? some22(self.referential.get(key)) : none22();
   }
-  const hash4 = key[symbol3]();
-  const bucket = self.buckets.get(hash4);
+  const hash5 = key[symbol3]();
+  const bucket = self.buckets.get(hash5);
   if (bucket === void 0) {
     return none22();
   }
@@ -37813,10 +37813,10 @@ var set42 = /* @__PURE__ */ dual2(3, (self, key, value3) => {
     self.referential.set(key, value3);
     return self;
   }
-  const hash4 = key[symbol3]();
-  const bucket = self.buckets.get(hash4);
+  const hash5 = key[symbol3]();
+  const bucket = self.buckets.get(hash5);
   if (bucket === void 0) {
-    self.buckets.set(hash4, [[key, value3]]);
+    self.buckets.set(hash5, [[key, value3]]);
     self.bucketsSize++;
     return self;
   }
@@ -37839,14 +37839,14 @@ var remove52 = /* @__PURE__ */ dual2(2, (self, key) => {
     self.referential.delete(key);
     return self;
   }
-  const hash4 = key[symbol3]();
-  const bucket = self.buckets.get(hash4);
+  const hash5 = key[symbol3]();
+  const bucket = self.buckets.get(hash5);
   if (bucket === void 0) {
     return self;
   }
   removeFromBucket2(self, bucket, key);
   if (bucket.length === 0) {
-    self.buckets.delete(hash4);
+    self.buckets.delete(hash5);
   }
   return self;
 });
@@ -38763,8 +38763,8 @@ var FixedRandomImpl2 = class {
       if (typeof value3 === "number" && Number.isFinite(value3)) {
         return Math.max(min3, Math.min(max5 - 1, Math.round(value3)));
       }
-      const hash4 = Math.abs(hash3(value3));
-      return min3 + hash4 % (max5 - min3);
+      const hash5 = Math.abs(hash3(value3));
+      return min3 + hash5 % (max5 - min3);
     });
   }
   shuffle(elements) {
@@ -42334,11 +42334,11 @@ var redBlackTreeVariance2 = {
 var RedBlackTreeProto2 = {
   [RedBlackTreeTypeId2]: redBlackTreeVariance2,
   [symbol3]() {
-    let hash4 = hash3(RedBlackTreeSymbolKey2);
+    let hash5 = hash3(RedBlackTreeSymbolKey2);
     for (const item of this) {
-      hash4 ^= pipe2(hash3(item[0]), combine9(hash3(item[1])));
+      hash5 ^= pipe2(hash3(item[0]), combine9(hash3(item[1])));
     }
-    return cached4(this, hash4);
+    return cached4(this, hash5);
   },
   [symbol22](that) {
     if (isRedBlackTree2(that)) {
@@ -58970,6 +58970,9 @@ if (isMain) {
     exitWhenStreamsFlushed(EXIT_LAUNCHER_ERROR);
   });
 }
+var CredentialStorePort = class extends Context_exports2.Tag("@foreman/providers/CredentialStorePort")() {
+};
+var MAX_BYTES2 = 64 * 1024;
 
 // packages/orchestration/src/pel-provider-cli.ts
 function commandExitCode(command, outcome) {

@@ -1,0 +1,1528 @@
+diff --git a/crates/codegen/xai-grok-pager/src/app/error_display.rs b/crates/codegen/xai-grok-pager/src/app/error_display.rs
+index 9b180a8ee41e2bb6768f2d7c7daf40dc7c8ec1a7..504d937890207607f66fc175823b0dbbf5226a2f 100644
+--- a/crates/codegen/xai-grok-pager/src/app/error_display.rs
++++ b/crates/codegen/xai-grok-pager/src/app/error_display.rs
+@@ -7,6 +7,7 @@
+ /// Unknown strings map to [`WireErrorType::Other`] rather than being matched as raw `&str` at call sites.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ pub(crate) enum WireErrorType {
++    RequestAdmissionDenied,
+     Auth,
+     AuthTransient,
+     LegacyAuth,
+@@ -59,6 +60,7 @@ impl From<xai_grok_shell::sampling::error::SamplingErrorKind> for WireErrorType
+     fn from(kind: xai_grok_shell::sampling::error::SamplingErrorKind) -> Self {
+         use xai_grok_shell::sampling::error::SamplingErrorKind as K;
+         match kind {
++            K::RequestAdmissionDenied(_) => Self::RequestAdmissionDenied,
+             K::Auth => Self::Auth,
+             K::Http => Self::Http,
+             K::Api => Self::Api,
+@@ -167,11 +169,18 @@ pub(crate) fn format_request_failure(
+     };
+     // A sniffed status must not demote a dedicated wire-type headline to generic status copy
+     // An `auth_transient` message contains "Unauthorized (401)", so only `Api` and `Other` recover a status from the text
+-    let status = status.or_else(|| {
+-        matches!(wire, WireErrorType::Api | WireErrorType::Other)
+-            .then(|| parse_http_status(raw))
+-            .flatten()
+-    });
++    // A typed admission refusal is local and terminal. Ignore a contradictory
++    // status supplied by an older or malformed peer so HTTP copy cannot suggest
++    // retrying, compacting, or changing authentication.
++    let status = if wire == WireErrorType::RequestAdmissionDenied {
++        None
++    } else {
++        status.or_else(|| {
++            matches!(wire, WireErrorType::Api | WireErrorType::Other)
++                .then(|| parse_http_status(raw))
++                .flatten()
++        })
++    };
+     let wire = refine_untyped_wire(wire, untyped, status, raw);
+     let extracted = extract_error_detail(raw);
+     let class = classify(status, wire);
+@@ -291,6 +300,11 @@ fn classify(status: Option<u16>, wire: WireErrorType) -> Classified {
+         };
+     }
+     let (headline, action, default_why) = match wire {
++        WireErrorType::RequestAdmissionDenied => (
++            "Request not sent",
++            None,
++            Some("A local request admission check refused this request."),
++        ),
+         WireErrorType::IdleTimeout => (
+             "No response from the model",
+             Some("Try sending again."),
+@@ -963,6 +977,44 @@ mod tests {
+         assert_eq!(WireErrorType::parse(None), WireErrorType::Other);
+     }
+ 
++    #[test]
++    fn admission_denials_are_terminal_and_keep_the_closed_reason() {
++        use xai_grok_shell::sampling::error::{
++            RequestAdmissionDenial, SamplingError, SamplingErrorKind,
++        };
++
++        for reason in [
++            RequestAdmissionDenial::UnsupportedHardLimits,
++            RequestAdmissionDenial::ResourceExhausted,
++            RequestAdmissionDenial::AuthorityUnavailable,
++        ] {
++            let kind = SamplingErrorKind::RequestAdmissionDenied(reason);
++            assert_eq!(
++                WireErrorType::from(kind),
++                WireErrorType::RequestAdmissionDenied
++            );
++            assert_eq!(
++                wire_error_kind(Some(kind.as_ref())),
++                Some(WireErrorType::RequestAdmissionDenied)
++            );
++
++            let raw = SamplingError::RequestAdmissionDenied(reason).to_string();
++            for contradictory_status in [None, Some(503), Some(413)] {
++                let formatted = format_request_failure(
++                    contradictory_status,
++                    Some(WireErrorType::RequestAdmissionDenied),
++                    &raw,
++                );
++                assert_eq!(formatted.status, None);
++                assert_eq!(formatted.headline, "Request not sent");
++                assert_eq!(formatted.detail, raw);
++                assert_eq!(formatted.message(), format!("Request not sent: {raw}"));
++                assert!(!formatted.message().contains("Try sending again"));
++                assert!(!formatted.message().contains("run /compact"));
++            }
++        }
++    }
++
+     #[test]
+     fn parse_http_status_from_common_shapes() {
+         assert_eq!(
+diff --git a/crates/codegen/xai-grok-sampler/src/actor/request_task.rs b/crates/codegen/xai-grok-sampler/src/actor/request_task.rs
+index 5fe7aca329cf6840017be9b256a054f337c8d852..023257759135519fec13c4e462d61b397af9ae56 100644
+--- a/crates/codegen/xai-grok-sampler/src/actor/request_task.rs
++++ b/crates/codegen/xai-grok-sampler/src/actor/request_task.rs
+@@ -789,6 +789,9 @@ fn retag(event: SamplingEvent, _request_id: &RequestId) -> SamplingEvent {
+ /// The L2 transform fires synthesised Failed events for idle timeouts, `ResponseFailed`, and server error events.
+ fn synthesize_from_info(info: &SamplingErrorInfo) -> SamplingError {
+     match info.kind {
++        SamplingErrorKind::RequestAdmissionDenied(reason) => {
++            SamplingError::RequestAdmissionDenied(reason)
++        }
+         SamplingErrorKind::IdleTimeout => SamplingError::IdleTimeout {
+             elapsed_secs: info
+                 .message
+@@ -934,6 +937,7 @@ fn strip_reason_for_image_error(err: &SamplingError) -> StripReason {
+         | SamplingError::Auth { .. }
+         | SamplingError::InvalidConfiguration(_)
+         | SamplingError::MtlsConfiguration(_)
++        | SamplingError::RequestAdmissionDenied(_)
+         | SamplingError::Http(_)
+         | SamplingError::Serialization(_)
+         | SamplingError::EventStreamError(_)
+diff --git a/crates/codegen/xai-grok-sampler/src/client.rs b/crates/codegen/xai-grok-sampler/src/client.rs
+index 7cd1fa6727c567dd353d387c3b3cfbfaaf1b1e45..802a8d5ff29527642066da47af157e4e9656d443 100644
+--- a/crates/codegen/xai-grok-sampler/src/client.rs
++++ b/crates/codegen/xai-grok-sampler/src/client.rs
+@@ -42,6 +42,10 @@ use crate::span_timing::{ERROR, STATUS_CODE, SUCCESS, StreamSpanTiming};
+ use crate::stream_classify::{chat_chunk_class, message_event_class, responses_event_class};
+ use xai_grok_auth::bearer_suffix;
+ 
++#[cfg(test)]
++#[path = "request_admission_tests.rs"]
++mod request_admission_tests;
++
+ pub use xai_grok_sampling_types::ApiBackend;
+ 
+ /// Process-level fallback for the `x-grok-client-identifier` header.
+@@ -318,6 +322,7 @@ pub struct SamplingClient {
+     bearer_resolver: Option<crate::config::SharedBearerResolver>,
+     /// Per-request header injection (OTel traceparent).
+     header_injector: Option<crate::config::SharedHeaderInjector>,
++    request_admission: Option<crate::admission::SharedRequestAdmission>,
+     /// Endpoint URL builder, resolved once from `base_url` and `query_params`.
+     endpoint: EndpointTemplate,
+     first_use_noted: Arc<AtomicBool>,
+@@ -669,6 +674,7 @@ impl SamplingClient {
+             attribution_callback: config.attribution_callback,
+             bearer_resolver: config.bearer_resolver,
+             header_injector: config.header_injector,
++            request_admission: config.request_admission,
+             endpoint,
+             first_use_noted: Arc::new(AtomicBool::new(false)),
+         })
+@@ -1008,7 +1014,27 @@ impl SamplingClient {
+         Ok(request)
+     }
+ 
++    fn admit_request(
++        &self,
++        request: &reqwest::Request,
++        transport: crate::admission::RequestTransport,
++    ) -> Result<()> {
++        let Some(admission) = &self.request_admission else {
++            return Ok(());
++        };
++        let bytes = request.body().and_then(reqwest::Body::as_bytes);
++        let descriptor = crate::admission::RequestAdmissionDescriptor {
++            transport,
++            encoded_body_bytes: bytes.map(<[u8]>::len),
++            body_blake3: bytes.map(|bytes| *blake3::hash(bytes).as_bytes()),
++        };
++        admission
++            .admit(&descriptor)
++            .map_err(SamplingError::RequestAdmissionDenied)
++    }
++
+     async fn send(&self, request: reqwest::Request) -> Result<reqwest::Response> {
++        self.admit_request(&request, crate::admission::RequestTransport::NonStreaming)?;
+         self.http
+             .execute(request)
+             .await
+@@ -1022,6 +1048,10 @@ impl SamplingClient {
+         span_timing: &mut StreamSpanTiming,
+     ) -> Result<reqwest::Response> {
+         span_timing.record_request_build();
++        self.admit_request(
++            &built_request,
++            crate::admission::RequestTransport::Streaming,
++        )?;
+         let response = self.http.execute(built_request).await.map_err(|e| {
+             tracing::debug!("HTTP request failed: {}", e);
+             span_timing.record_transport_failure(&e.to_string());
+@@ -2224,8 +2254,12 @@ pub(crate) fn apply_length_policy(
+     }
+ }
+ 
+-/// Rebuild `Api` from stream-collected info, preserving status, `Retry-After`, and `x-should-retry` (kind is lost on this path).
++/// Preserve local admission refusals; otherwise rebuild `Api` from collected
++/// info, retaining status, `Retry-After`, and `x-should-retry`.
+ fn stream_collect_error(info: SamplingErrorInfo) -> SamplingError {
++    if let crate::events::SamplingErrorKind::RequestAdmissionDenied(reason) = info.kind {
++        return SamplingError::RequestAdmissionDenied(reason);
++    }
+     SamplingError::Api {
+         status: info
+             .status_code
+diff --git a/crates/codegen/xai-grok-sampler/src/config.rs b/crates/codegen/xai-grok-sampler/src/config.rs
+index 3864462b3714ce78739d9e7999f8fa5c267d0cc1..40080eff6378f15f7cb2326c52fe32fa58930794 100644
+--- a/crates/codegen/xai-grok-sampler/src/config.rs
++++ b/crates/codegen/xai-grok-sampler/src/config.rs
+@@ -118,6 +118,13 @@ pub struct SamplerConfig {
+     /// Per-request header injector (e.g. OTel traceparent). Called in `post()`.
+     #[serde(skip)]
+     pub header_injector: Option<SharedHeaderInjector>,
++
++    /// Trusted local veto at both HTTP execution points. In-memory clones retain
++    /// the same authority; serialization drops it. Hosts reconstructing config
++    /// must explicitly reattach it. `None` preserves ordinary upstream behavior
++    /// and does not advertise hard resource enforcement.
++    #[serde(skip)]
++    pub request_admission: Option<crate::admission::SharedRequestAdmission>,
+ }
+ 
+ impl Default for SamplerConfig {
+@@ -159,6 +166,7 @@ impl Default for SamplerConfig {
+             compaction_at_tokens: None,
+             doom_loop_recovery: None,
+             header_injector: None,
++            request_admission: None,
+         }
+     }
+ }
+diff --git a/crates/codegen/xai-grok-sampler/src/events.rs b/crates/codegen/xai-grok-sampler/src/events.rs
+index ac2856bc83e2c373ad67735e85e83861f245c0c3..6d8c378904ce63250a132f264e2ecf3de163b625 100644
+--- a/crates/codegen/xai-grok-sampler/src/events.rs
++++ b/crates/codegen/xai-grok-sampler/src/events.rs
+@@ -219,6 +219,7 @@ pub struct SamplingErrorInfo {
+ )]
+ #[strum(serialize_all = "snake_case")]
+ pub enum SamplingErrorKind {
++    RequestAdmissionDenied(xai_grok_sampling_types::RequestAdmissionDenial),
+     Auth,
+     Http,
+     Api,
+@@ -233,12 +234,18 @@ pub enum SamplingErrorKind {
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ pub struct UnknownSamplingErrorKind;
+ 
+-/// Inverse of [`SamplingErrorKind::as_str`]; the round-trip test exercises both maps for every listed variant.
++/// Parse the coarse text classification. Admission reasons survive serde, while
++/// this text-only form conservatively reconstructs `AuthorityUnavailable`.
+ impl std::str::FromStr for SamplingErrorKind {
+     type Err = UnknownSamplingErrorKind;
+ 
+     fn from_str(s: &str) -> Result<Self, Self::Err> {
+         Ok(match s {
++            // The coarse text form lacks a reason. Reconstruct a closed denial,
++            // never a retryable error or an inferred permission to send.
++            "request_admission_denied" => Self::RequestAdmissionDenied(
++                xai_grok_sampling_types::RequestAdmissionDenial::AuthorityUnavailable,
++            ),
+             "auth" => Self::Auth,
+             "http" => Self::Http,
+             "api" => Self::Api,
+@@ -259,6 +266,12 @@ impl From<&SamplingError> for SamplingErrorInfo {
+         let message = err.to_string();
+ 
+         let (kind, status_code, retry_after_secs, model_metadata) = match err {
++            SamplingError::RequestAdmissionDenied(reason) => (
++                SamplingErrorKind::RequestAdmissionDenied(*reason),
++                None,
++                None,
++                None,
++            ),
+             SamplingError::Auth { .. } => (SamplingErrorKind::Auth, None, None, None),
+             SamplingError::InvalidConfiguration(_) | SamplingError::MtlsConfiguration(_) => {
+                 (SamplingErrorKind::Api, None, None, None)
+@@ -533,14 +546,25 @@ mod tests {
+             EmptyResponse,
+             MaxTokensTruncation,
+             DoomLoopDetected,
++            RequestAdmissionDenied(
++                xai_grok_sampling_types::RequestAdmissionDenial::AuthorityUnavailable,
++            ),
+         ];
+         for kind in all {
+             // Exhaustive match, no `_` arm: a new variant refuses to compile this test until an arm is added
+             // That failure is the reminder to also extend `all` and `from_str`
+             // Only variants listed in `all` are round-trip-checked; the compiler cannot force those two edits
+             match kind {
+-                Auth | Http | Api | Serialization | IdleTimeout | RateLimited | EmptyResponse
+-                | MaxTokensTruncation | DoomLoopDetected => {}
++                Auth
++                | Http
++                | Api
++                | Serialization
++                | IdleTimeout
++                | RateLimited
++                | EmptyResponse
++                | MaxTokensTruncation
++                | DoomLoopDetected
++                | RequestAdmissionDenied(_) => {}
+             }
+             assert_eq!(kind.as_ref().parse(), Ok(kind));
+         }
+diff --git a/crates/codegen/xai-grok-sampler/src/lib.rs b/crates/codegen/xai-grok-sampler/src/lib.rs
+index 037bf6a0e5b3eb9dffe8ccd23db285f4d122625d..bcefe2b46e10b271d6d2ae9ff28bb53b43b9ecab 100644
+--- a/crates/codegen/xai-grok-sampler/src/lib.rs
++++ b/crates/codegen/xai-grok-sampler/src/lib.rs
+@@ -12,6 +12,7 @@
+ #![deny(clippy::indexing_slicing)]
+ 
+ pub mod actor;
++pub mod admission;
+ pub mod attribution;
+ pub mod client;
+ pub mod commands;
+@@ -34,6 +35,10 @@ pub mod types;
+ // Public re-exports: the API consumers see
+ pub use actor::SamplerActor;
+ pub use actor::request_task::CompletionResult;
++pub use admission::{
++    RequestAdmission, RequestAdmissionDenial, RequestAdmissionDescriptor, RequestTransport,
++    SharedRequestAdmission,
++};
+ pub use attribution::{
+     Auth401AttributionCallback, BEARER_SUFFIX_LEN, SamplingConsumer, SharedAttributionCallback,
+ };
+diff --git a/crates/codegen/xai-grok-sampler/src/retry.rs b/crates/codegen/xai-grok-sampler/src/retry.rs
+index dd80a3df18960e4512da077732e7c097687bcf7d..eaef1d531cc52a1fac5711a65443e74b8e4f2fe2 100644
+--- a/crates/codegen/xai-grok-sampler/src/retry.rs
++++ b/crates/codegen/xai-grok-sampler/src/retry.rs
+@@ -169,6 +169,9 @@ pub fn format_sampling_error(err: &SamplingError, retry_count: Option<u32>) -> S
+     };
+ 
+     match err {
++        SamplingError::RequestAdmissionDenied(reason) => {
++            format!("Request admission denied: {reason}")
++        }
+         SamplingError::Auth { message, .. } => {
+             format!(
+                 "{}Authentication failed: {}. Please check your API key configuration.",
+@@ -299,6 +302,9 @@ pub(crate) fn clone_error(err: &SamplingError) -> SamplingError {
+         },
+         SamplingError::InvalidConfiguration(msg) => SamplingError::InvalidConfiguration(msg),
+         SamplingError::MtlsConfiguration(msg) => SamplingError::MtlsConfiguration(msg.clone()),
++        SamplingError::RequestAdmissionDenied(reason) => {
++            SamplingError::RequestAdmissionDenied(*reason)
++        }
+         SamplingError::Http(e) => SamplingError::EventStreamError(e.to_string()),
+         SamplingError::Serialization(e) => SamplingError::serialization_message(e),
+         SamplingError::Api {
+diff --git a/crates/codegen/xai-grok-sampling-types/src/error.rs b/crates/codegen/xai-grok-sampling-types/src/error.rs
+index d4b44718622216dfaed7ebbae7c6973b399a768f..a60552144e898c4927357080babafaa90535cce1 100644
+--- a/crates/codegen/xai-grok-sampling-types/src/error.rs
++++ b/crates/codegen/xai-grok-sampling-types/src/error.rs
+@@ -130,8 +130,25 @@ const SERIALIZATION_DISPLAY_PREFIX: &str = "serialization error: ";
+ /// Sharing the const with the `#[error(...)]` template prevents drift.
+ pub const MAX_TOKENS_TRUNCATION_MESSAGE: &str = "response truncated by max_tokens";
+ 
++/// Closed local refusal reasons. No caller-supplied text or credential material
++/// can enter this error through the admission interface.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Error)]
++#[serde(rename_all = "snake_case")]
++pub enum RequestAdmissionDenial {
++    #[error("hard resource limits are unsupported")]
++    UnsupportedHardLimits,
++    #[error("resource allowance is exhausted")]
++    ResourceExhausted,
++    #[error("request admission authority is unavailable")]
++    AuthorityUnavailable,
++}
++
+ #[derive(Debug, Error)]
+ pub enum SamplingError {
++    /// Refused locally before HTTP execution. Always terminal; no auth recovery,
++    /// image stripping, compaction or automatic retry can remedy this refusal.
++    #[error("request admission denied: {0}")]
++    RequestAdmissionDenied(RequestAdmissionDenial),
+     #[error("{message}")]
+     Auth {
+         message: String,
+@@ -397,6 +414,7 @@ impl SamplingError {
+             | SamplingError::Auth { .. }
+             | SamplingError::InvalidConfiguration(_)
+             | SamplingError::MtlsConfiguration(_)
++            | SamplingError::RequestAdmissionDenied(_)
+             | SamplingError::Http(_)
+             | SamplingError::Serialization(_)
+             | SamplingError::EventStreamError(_)
+@@ -412,6 +430,7 @@ impl SamplingError {
+             SamplingError::Auth { .. } => false,
+             SamplingError::InvalidConfiguration(_) => false,
+             SamplingError::MtlsConfiguration(_) => false,
++            SamplingError::RequestAdmissionDenied(_) => false,
+             SamplingError::Http(err) => is_retryable_reqwest(err),
+             SamplingError::Serialization(_) => false,
+             SamplingError::Api { status, .. } => is_retryable_api_status(*status),
+@@ -479,6 +498,7 @@ impl SamplingError {
+             SamplingError::Auth { .. }
+             | SamplingError::InvalidConfiguration(_)
+             | SamplingError::MtlsConfiguration(_)
++            | SamplingError::RequestAdmissionDenied(_)
+             | SamplingError::Http(_)
+             | SamplingError::Serialization(_)
+             | SamplingError::EventStreamError(_)
+@@ -502,6 +522,7 @@ impl SamplingError {
+             SamplingError::Auth { .. }
+             | SamplingError::InvalidConfiguration(_)
+             | SamplingError::MtlsConfiguration(_)
++            | SamplingError::RequestAdmissionDenied(_)
+             | SamplingError::Http(_)
+             | SamplingError::Serialization(_)
+             | SamplingError::EventStreamError(_)
+@@ -537,7 +558,9 @@ impl SamplingError {
+     /// `x-should-retry: false`: the server says the request content caused the failure, not something transient;
+     /// Context-length overflow: deterministic; re-sending the same payload always fails.
+     pub fn is_retry_vetoed(&self) -> bool {
+-        self.should_retry_header() == Some(false) || self.is_context_length_error()
++        matches!(self, Self::RequestAdmissionDenied(_))
++            || self.should_retry_header() == Some(false)
++            || self.is_context_length_error()
+     }
+ }
+ 
+diff --git a/crates/codegen/xai-grok-sampling-types/src/lib.rs b/crates/codegen/xai-grok-sampling-types/src/lib.rs
+index 2d9a7946bb0378dcd536f6fd5231cd43e46bd520..ebdae2260790519ede0774a4ad3b7b566cf886cb 100644
+--- a/crates/codegen/xai-grok-sampling-types/src/lib.rs
++++ b/crates/codegen/xai-grok-sampling-types/src/lib.rs
+@@ -23,9 +23,9 @@ pub use self::doom_loop::{
+ };
+ pub use self::error::{
+     ApiErrorCode, EmptyReason, EmptyResponseContext, INVALID_IMAGE_ERROR_CODE,
+-    ResponseModelMetadata, Result, SamplingError, SentCredential, is_context_length_error,
+-    is_retryable_api_status, is_size_overflow_error_code, parse_error_code, status_user_message,
+-    user_facing_api_error_message,
++    RequestAdmissionDenial, ResponseModelMetadata, Result, SamplingError, SentCredential,
++    is_context_length_error, is_retryable_api_status, is_size_overflow_error_code,
++    parse_error_code, status_user_message, user_facing_api_error_message,
+ };
+ pub use self::tool_overrides::{
+     ClearableField, MAX_WEB_SEARCH_DOMAINS, SearchDateBound, SearchDateBoundError, ToolOverrides,
+diff --git a/crates/codegen/xai-grok-shell/src/agent/config.rs b/crates/codegen/xai-grok-shell/src/agent/config.rs
+index cadd350125b028e8a12ee3695262a397ca4cbee4..bea516e088e476d7967e09beb0f42b8576d01835 100644
+--- a/crates/codegen/xai-grok-shell/src/agent/config.rs
++++ b/crates/codegen/xai-grok-shell/src/agent/config.rs
+@@ -4927,6 +4927,7 @@ pub(crate) fn stamp_session_local_sampler_fields(
+     cfg.client_identifier = client_identifier;
+     cfg.conversation_group_id = active_session_config.conversation_group_id.clone();
+     cfg.attribution_callback = active_session_config.attribution_callback.clone();
++    cfg.request_admission = active_session_config.request_admission.clone();
+     if crate::util::is_xai_api_bearer_url(&cfg.base_url) {
+         cfg.bearer_resolver = active_session_config.bearer_resolver.clone();
+     }
+@@ -5048,6 +5049,7 @@ pub(crate) fn sampling_config_for_model(
+         compaction_at_tokens: info.compaction_at_tokens,
+         doom_loop_recovery: None,
+         header_injector: None,
++        request_admission: None,
+     }
+ }
+ /// Fold URL-derived headers into `extra_headers`. The sampler crate is intentionally URL-agnostic: it does not inspect `base_url` to decide which auth or staging headers to add.
+diff --git a/crates/codegen/xai-grok-shell/src/agent/config_tests.rs b/crates/codegen/xai-grok-shell/src/agent/config_tests.rs
+index 756a96915086c7c1fd7445e0af2ccf3d1ec34f7e..9bdc3eea1a600703e471183da32cfae64314dc5d 100644
+--- a/crates/codegen/xai-grok-shell/src/agent/config_tests.rs
++++ b/crates/codegen/xai-grok-shell/src/agent/config_tests.rs
+@@ -459,6 +459,29 @@ fn finalize_image_describe_sampler_some_stamps_session_fields() {
+     assert_eq!(cfg.client_identifier.as_deref(), Some("cli"));
+     assert_eq!(cfg.max_retries, Some(7));
+ }
++
++#[test]
++fn session_local_sampler_stamping_preserves_request_admission() {
++    let (hook, probe) = crate::test_support::denying_request_admission(
++        xai_grok_sampling_types::RequestAdmissionDenial::ResourceExhausted,
++    );
++    let mut active = SamplerConfig {
++        request_admission: Some(hook),
++        ..Default::default()
++    };
++    let mut aux = SamplerConfig::default();
++
++    stamp_session_local_sampler_fields(&mut aux, &active, None, None);
++    active.request_admission = None;
++
++    let retained = aux
++        .request_admission
++        .take()
++        .expect("auxiliary sampler must retain the trusted admission authority");
++    probe.assert_retained();
++    drop(retained);
++    probe.assert_released();
++}
+ #[test]
+ fn resolve_aux_model_honors_grok_build_override() {
+     let endpoints = EndpointsConfig::default();
+diff --git a/crates/codegen/xai-grok-shell/src/agent/mvp_agent/agent_ops.rs b/crates/codegen/xai-grok-shell/src/agent/mvp_agent/agent_ops.rs
+index 772a6e0a0f00d9b59ebba022be0620acc9a99599..9b210f733c0ceea51843aa225c8e4027f89a411c 100644
+--- a/crates/codegen/xai-grok-shell/src/agent/mvp_agent/agent_ops.rs
++++ b/crates/codegen/xai-grok-shell/src/agent/mvp_agent/agent_ops.rs
+@@ -2153,6 +2153,11 @@ impl MvpAgent {
+             deployment_id,
+             user_id,
+         );
++        config.request_admission = self
++            .sampling_config
++            .borrow()
++            .request_admission
++            .clone();
+         config.origin_client = origin_client;
+         config
+     }
+diff --git a/crates/codegen/xai-grok-shell/src/agent/mvp_agent/tests.rs b/crates/codegen/xai-grok-shell/src/agent/mvp_agent/tests.rs
+index c39b38da720f66663c93f884a76c3bd2abbdff04..6a9d7bd5177a0a57f861c678ce996a42a9fc35f2 100644
+--- a/crates/codegen/xai-grok-shell/src/agent/mvp_agent/tests.rs
++++ b/crates/codegen/xai-grok-shell/src/agent/mvp_agent/tests.rs
+@@ -1401,6 +1401,29 @@ async fn apply_supported_effort_assigns_only_when_supported() {
+     );
+     assert_eq!(none_cfg.reasoning_effort, Some(ReasoningEffort::Low));
+ }
++
++#[tokio::test]
++async fn model_rebuild_preserves_request_admission() {
++    use crate::agent::config::{EndpointsConfig, ModelEntry};
++
++    let agent = build_minimal_agent_for_tests();
++    let model = ModelEntry::fallback("rebuilt-model", &EndpointsConfig::default());
++    let (hook, probe) = crate::test_support::denying_request_admission(
++        xai_grok_sampling_types::RequestAdmissionDenial::UnsupportedHardLimits,
++    );
++    agent.sampling_config.borrow_mut().request_admission = Some(hook);
++
++    let mut rebuilt = agent.prepare_sampling_config_for_model(&model, None);
++    agent.sampling_config.borrow_mut().request_admission = None;
++
++    let retained = rebuilt
++        .request_admission
++        .take()
++        .expect("model rebuild must retain the trusted admission authority");
++    probe.assert_retained();
++    drop(retained);
++    probe.assert_released();
++}
+ /// Setting `reasoning_effort` without switching the id runs, and bills, whatever the entry opened on.
+ /// The status line would still read `low`.
+ #[tokio::test]
+diff --git a/crates/codegen/xai-grok-shell/src/agent/subagent/mod.rs b/crates/codegen/xai-grok-shell/src/agent/subagent/mod.rs
+index 2d21bcffef6ee90ccfabe966454e36c6f6011c3d..fb208187e39bcb2c8faa95cbff42cd10c6e98869 100644
+--- a/crates/codegen/xai-grok-shell/src/agent/subagent/mod.rs
++++ b/crates/codegen/xai-grok-shell/src/agent/subagent/mod.rs
+@@ -814,6 +814,7 @@ async fn read_parent_sampling_config(
+                     .model_compaction_at_tokens(catalog_model_id.0.as_ref()),
+                 doom_loop_recovery: ctx.sampling_config.doom_loop_recovery,
+                 header_injector: ctx.sampling_config.header_injector.clone(),
++                request_admission: ctx.sampling_config.request_admission.clone(),
+             };
+             let model_id = ctx.model_id.clone();
+             let global_model_id = ctx.models_manager.current_model_id();
+@@ -917,6 +918,7 @@ fn resolve_model_override_to_config(
+         ctx.sampling_config.deployment_id.clone(),
+         ctx.sampling_config.user_id.clone(),
+     );
++    config.request_admission = ctx.sampling_config.request_admission.clone();
+     config.bearer_resolver = if !ctx.would_strip_fallback_key(config.api_key.as_deref())
+         && resolved_auth_type == xai_chat_state::AuthType::SessionToken
+     {
+diff --git a/crates/codegen/xai-grok-shell/src/agent/subagent/tests/rest.rs b/crates/codegen/xai-grok-shell/src/agent/subagent/tests/rest.rs
+index 5c886d2c866745c69820e40daab3c9d2152d5a12..53337464c6ac8a73950a18d271468a5bbcb36ef6 100644
+--- a/crates/codegen/xai-grok-shell/src/agent/subagent/tests/rest.rs
++++ b/crates/codegen/xai-grok-shell/src/agent/subagent/tests/rest.rs
+@@ -2364,6 +2364,27 @@ fn resolve_model_override_to_config_no_resolver_for_byok_model() {
+     assert!(config.bearer_resolver.is_none());
+     assert_eq!(config.api_key.as_deref(), Some("sk-byok"));
+ }
++#[test]
++fn subagent_model_override_preserves_request_admission() {
++    let mut ctx = ctx_with_toggle(HashMap::new());
++    ctx.available_models
++        .insert("grok-4.5".to_string(), test_model_entry("grok-4.5"));
++    let (hook, probe) = crate::test_support::denying_request_admission(
++        xai_grok_sampling_types::RequestAdmissionDenial::AuthorityUnavailable,
++    );
++    ctx.sampling_config.request_admission = Some(hook);
++
++    let (mut config, _) = resolve_model_override_to_config("grok-4.5", &ctx).unwrap();
++    ctx.sampling_config.request_admission = None;
++
++    let retained = config
++        .request_admission
++        .take()
++        .expect("subagent model override must retain the trusted admission authority");
++    probe.assert_retained();
++    drop(retained);
++    probe.assert_released();
++}
+ #[tokio::test]
+ async fn read_parent_sampling_config_resolves_backend_search_from_catalog() {
+     let mut entry = test_model_entry("grok-4.5");
+diff --git a/crates/codegen/xai-grok-shell/src/sampling/error.rs b/crates/codegen/xai-grok-shell/src/sampling/error.rs
+index 622618730a875aad1202082ca336fcac56ef4cb5..2e5607474845ad5c931b6e2ac19892f9b70defe2 100644
+--- a/crates/codegen/xai-grok-shell/src/sampling/error.rs
++++ b/crates/codegen/xai-grok-shell/src/sampling/error.rs
+@@ -104,6 +104,9 @@ pub(crate) fn map_sampling_err_to_acp(err: SamplingError) -> acp::Error {
+         SamplingError::Auth { message, .. } => acp::Error::auth_required().data(message),
+         SamplingError::InvalidConfiguration(msg) => acp::Error::invalid_params().data(msg),
+         SamplingError::MtlsConfiguration(msg) => acp::Error::invalid_params().data(msg),
++        SamplingError::RequestAdmissionDenied(reason) => {
++            acp::Error::invalid_params().data(request_admission_error_data(reason))
++        }
+         SamplingError::Http(e) => {
+             acp::Error::internal_error().data(format!("http client init failed: {e}"))
+         }
+@@ -193,6 +196,23 @@ pub(crate) fn local_error(code: &str, message: impl Into<String>) -> acp::Error
+ /// The notification paths carry the kind under their own keys/fields (see `extensions::notification::PROMPT_COMPLETE_ERROR_KIND_KEY`).
+ const ERROR_KIND_DATA_KEY: &str = "error_kind";
+ 
++fn request_admission_error_data(
++    reason: xai_grok_sampling_types::RequestAdmissionDenial,
++) -> serde_json::Value {
++    let kind = SamplingErrorKind::RequestAdmissionDenied(reason);
++    let mut data = serde_json::json!({
++        "message": SamplingError::RequestAdmissionDenied(reason).to_string(),
++        "reason": reason,
++    });
++    if let Some(obj) = data.as_object_mut() {
++        obj.insert(
++            ERROR_KIND_DATA_KEY.to_string(),
++            serde_json::json!(kind.as_ref()),
++        );
++    }
++    data
++}
++
+ /// `acp::Error.data` key for a local failure's stable `code`; shared by [`local_error`], [`error_code_from_data`], and `session::persistence::io_error_to_acp`.
+ pub(crate) const ERROR_CODE_DATA_KEY: &str = "code";
+ 
+@@ -204,8 +224,11 @@ pub(crate) const SALVAGE_CAUSE_EMPTY: &str = "empty_continuation";
+ pub(crate) const SALVAGE_CAUSE_OVERFLOW: &str = "context_overflow";
+ 
+ /// Terminal-failure `acp::Error.data`.
+-/// Only max-tokens truncation opts into the object shape with an `error_kind` marker.
+-/// Every other kind keeps the legacy string/status shape because old clients render `data` via `Display` and would show the raw JSON object.
++/// In this generic helper, only max-tokens truncation opts into the object shape
++/// with an `error_kind` marker. Admission refusals use their dedicated
++/// reason-bearing object above. Every other kind keeps the legacy string/status
++/// shape because old clients render `data` via `Display` and would show the raw
++/// JSON object.
+ pub(crate) fn terminal_error_data(
+     message: String,
+     http_status: Option<u16>,
+@@ -237,9 +260,21 @@ pub fn error_code_from_data(err: &acp::Error) -> Option<&str> {
+     err.data.as_ref()?.get(ERROR_CODE_DATA_KEY)?.as_str()
+ }
+ 
+-/// Typed view of [`error_kind_str_from_error`] for the shell's own classification, where an unknown kind degrading to `None` (generic) is correct.
++/// Typed view of [`error_kind_str_from_error`] for the shell's own classification,
++/// preserving an admission denial's adjacent closed reason. An unknown kind
++/// degrading to `None` (generic) is correct.
+ pub fn error_kind_from_error(err: &acp::Error) -> Option<SamplingErrorKind> {
+-    error_kind_str_from_error(err)?.parse().ok()
++    let kind: SamplingErrorKind = error_kind_str_from_error(err)?.parse().ok()?;
++    let SamplingErrorKind::RequestAdmissionDenied(_) = kind else {
++        return Some(kind);
++    };
++    let reason = err
++        .data
++        .as_ref()
++        .and_then(|data| data.get("reason"))
++        .and_then(|value| serde_json::from_value(value.clone()).ok())
++        .unwrap_or(xai_grok_sampling_types::RequestAdmissionDenial::AuthorityUnavailable);
++    Some(SamplingErrorKind::RequestAdmissionDenied(reason))
+ }
+ 
+ /// Whether a mapped turn error carries the max-tokens truncation marker.
+@@ -486,6 +521,35 @@ mod tests {
+         assert_eq!(back.num_turns, 1);
+     }
+ 
++    #[test]
++    fn admission_denial_completion_preserves_reason_kind_and_readable_message() {
++        for reason in [
++            xai_grok_sampling_types::RequestAdmissionDenial::UnsupportedHardLimits,
++            xai_grok_sampling_types::RequestAdmissionDenial::ResourceExhausted,
++            xai_grok_sampling_types::RequestAdmissionDenial::AuthorityUnavailable,
++        ] {
++            let sampling_error = SamplingError::RequestAdmissionDenied(reason);
++            let expected_message = sampling_error.to_string();
++            let mapped = map_sampling_err_to_acp(sampling_error);
++
++            assert_eq!(
++                mapped.data.as_ref().and_then(|data| data.get("reason")),
++                Some(&serde_json::json!(reason)),
++                "the closed denial reason must survive the ACP mapping"
++            );
++
++            let result: std::result::Result<acp::StopReason, acp::Error> = Err(mapped);
++            let (stop, agent_result, error_kind) = prompt_complete_fields(&result);
++
++            assert_eq!(stop, serde_json::json!("error"));
++            assert_eq!(agent_result, serde_json::json!(expected_message));
++            assert_eq!(
++                error_kind,
++                Some(SamplingErrorKind::RequestAdmissionDenied(reason))
++            );
++        }
++    }
++
+     #[test]
+     fn attach_prompt_usage_keeps_string_message_readable() {
+         let usage = crate::extensions::notification::PromptUsage {
+diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session.rs b/crates/codegen/xai-grok-shell/src/session/acp_session.rs
+index ad9cbdcebed63f6416d70df10aae618a7740fc50..ec291cacde72bc4b92489c0cd0f07a2b2ba719a7 100644
+--- a/crates/codegen/xai-grok-shell/src/session/acp_session.rs
++++ b/crates/codegen/xai-grok-shell/src/session/acp_session.rs
+@@ -738,6 +738,9 @@ pub(crate) struct SessionActor {
+     /// Threaded into every `SamplerConfig` reconstructed by `reconstruct_full_config`.
+     /// `None` when the session was spawned without an `AuthManager` (BYOK direct mode, test fixtures).
+     pub(crate) attribution_callback: Option<xai_grok_sampler::SharedAttributionCallback>,
++    /// Trusted, in-memory request authority captured at spawn. Never persisted or
++    /// reconstructed from serialized/catalog configuration.
++    pub(crate) request_admission: Option<xai_grok_sampler::SharedRequestAdmission>,
+     /// Owns the token refresher (`configure_refresher()`) and non-sampler 401 attribution. Sampler path uses `attribution_callback`.
+     /// Idle-resume refresh calls `record_auth_401` directly with this handle.
+     /// `None` for tests / BYOK that don't need refresh or the attribution emit.
+diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session_impl/sampler_turn.rs b/crates/codegen/xai-grok-shell/src/session/acp_session_impl/sampler_turn.rs
+index 814c24742babdd63e5de569d75c3caa6b9e4a146..fdbdd00839ac5ec74b7905c4f467b48b9a36cece 100644
+--- a/crates/codegen/xai-grok-shell/src/session/acp_session_impl/sampler_turn.rs
++++ b/crates/codegen/xai-grok-shell/src/session/acp_session_impl/sampler_turn.rs
+@@ -104,6 +104,7 @@ pub(super) fn transient_retry_eligible(error: &xai_grok_sampler::SamplingErrorIn
+         }),
+         SamplingErrorKind::Auth
+         | SamplingErrorKind::Serialization
++        | SamplingErrorKind::RequestAdmissionDenied(_)
+         | SamplingErrorKind::RateLimited
+         | SamplingErrorKind::EmptyResponse
+         | SamplingErrorKind::MaxTokensTruncation
+@@ -777,6 +778,7 @@ impl SessionActor {
+             // The sampler sends the opt-in header itself when this is set.
+             doom_loop_recovery: self.doom_loop_recovery,
+             header_injector: Some(std::sync::Arc::new(TraceContextInjector)),
++            request_admission: self.request_admission.clone(),
+         }
+     }
+ 
+@@ -1176,6 +1178,14 @@ impl SessionActor {
+     ) -> Result<SamplerFailureRecovery, acp::Error> {
+         use xai_grok_sampler::SamplingErrorKind;
+ 
++        // A local refusal precedes HTTP execution. Never reinterpret it as an
++        // overflow, salvage opportunity or authentication problem.
++        if let SamplingErrorKind::RequestAdmissionDenied(reason) = error.kind {
++            return Err(crate::sampling::error::map_sampling_err_to_acp(
++                xai_grok_sampling_types::SamplingError::RequestAdmissionDenied(reason),
++            ));
++        }
++
+         // On an in-flight salvage continuation, a max-tokens failure or a probable context overflow is not terminal.
+         // Return before the budgeted-child rewrites so the marker survives for workflow children.
+         // The request's usage never arrived; account for it fail-closed.
+diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session_impl/spawn.rs b/crates/codegen/xai-grok-shell/src/session/acp_session_impl/spawn.rs
+index 128cff4a89a0fa967bb18998187335d6201e8e2c..21b5f10d2ae149aec7f95b69e8928f6ca3aa20ed 100644
+--- a/crates/codegen/xai-grok-shell/src/session/acp_session_impl/spawn.rs
++++ b/crates/codegen/xai-grok-shell/src/session/acp_session_impl/spawn.rs
+@@ -1787,6 +1787,7 @@ pub(crate) async fn spawn_session_actor(
+         auth_method_id,
+         model_auth_memo: std::cell::RefCell::new(None),
+         attribution_callback,
++        request_admission: sampling_config.request_admission.clone(),
+         auth_manager,
+         is_chat_kind,
+         state,
+diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/auth_error_no_retry_tests.rs b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/auth_error_no_retry_tests.rs
+index 0df399f6e87fb47bf28f9a9b836b3bab6e570f4d..0f74ae4ee077095c9d5b6cf20e4a6fc06fc67b77 100644
+--- a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/auth_error_no_retry_tests.rs
++++ b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/auth_error_no_retry_tests.rs
+@@ -1267,6 +1267,31 @@ async fn reconstruct_full_config_wires_bearer_resolver_for_session_method_despit
+         .await;
+ }
+ 
++#[tokio::test(flavor = "current_thread")]
++async fn reconstruct_full_config_preserves_request_admission() {
++    let local = tokio::task::LocalSet::new();
++    local
++        .run_until(async {
++            let mut actor = plain_actor().await;
++            let (hook, probe) = crate::test_support::denying_request_admission(
++                xai_grok_sampling_types::RequestAdmissionDenial::ResourceExhausted,
++            );
++            actor.request_admission = Some(hook);
++
++            let mut reconstructed = actor.reconstruct_full_config().await;
++            actor.request_admission = None;
++
++            let retained = reconstructed
++                .request_admission
++                .take()
++                .expect("reconstructed config must retain the trusted admission authority");
++            probe.assert_retained();
++            drop(retained);
++            probe.assert_released();
++        })
++        .await;
++}
++
+ /// Negative: a genuine `xai.api_key` method keeps its configured key on the wire (no live resolver).
+ #[tokio::test(flavor = "current_thread")]
+ async fn reconstruct_full_config_no_bearer_resolver_for_api_key_method() {
+diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/cancel_running_task_tests.rs b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/cancel_running_task_tests.rs
+index 6ece43e65ace56dc4fd4e832b20277fb2b477e7d..af3454b36dd253e5de4221b579b0c093cb9aca57 100644
+--- a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/cancel_running_task_tests.rs
++++ b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/cancel_running_task_tests.rs
+@@ -93,6 +93,7 @@ async fn persist_ack_waits_for_disk_flush_before_success() {
+                 auth_method_id: test_auth_method_id("test-auth"),
+                 model_auth_memo: std::cell::RefCell::new(None),
+                 attribution_callback: None,
++                request_admission: None,
+                 auth_manager: None,
+                 is_chat_kind: false,
+                 state: TokioMutex::new(State {
+@@ -631,6 +632,7 @@ async fn first_turn_memory_injection_disabled_does_not_persist_to_chat_history()
+                 auth_method_id: test_auth_method_id("test-auth"),
+                 model_auth_memo: std::cell::RefCell::new(None),
+                 attribution_callback: None,
++                request_admission: None,
+                 auth_manager: None,
+                 is_chat_kind: false,
+                 state: TokioMutex::new(State {
+@@ -973,6 +975,7 @@ async fn cancel_running_task_teardown_clears_running_and_pending_work() {
+                 auth_method_id: test_auth_method_id("test-auth"),
+                 model_auth_memo: std::cell::RefCell::new(None),
+                 attribution_callback: None,
++                request_admission: None,
+                 auth_manager: None,
+                 is_chat_kind: false,
+                 state,
+@@ -2536,6 +2539,7 @@ async fn cancel_propagates_to_sampler_handle_so_no_further_emission() {
+                 auth_method_id: test_auth_method_id("test-auth"),
+                 model_auth_memo: std::cell::RefCell::new(None),
+                 attribution_callback: None,
++                request_admission: None,
+                 auth_manager: None,
+                 is_chat_kind: false,
+                 state,
+diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/idle_resume_tests.rs b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/idle_resume_tests.rs
+index fb26f71bb03a9b06c5d32c556e43dca95ea52e78..1be2d4b8f07ce39fb9a0b5fa3aeb05c9edfbc65d 100644
+--- a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/idle_resume_tests.rs
++++ b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/idle_resume_tests.rs
+@@ -132,6 +132,7 @@ async fn test_e2e_idle_resume_refreshes_model_metadata() {
+                     cwd: cwd.as_str().to_string(),
+                 },
+                 attribution_callback: None,
++                request_admission: None,
+                 auth_method_id: test_auth_method_id("cached_token"),
+                 model_auth_memo: std::cell::RefCell::new(None),
+                 auth_manager: {
+diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/inline_auto_compact_flow_tests.rs b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/inline_auto_compact_flow_tests.rs
+index 54faecbb0305eed5474ba75a6b0cfb223fe335a0..7c4ddaccdfb593fb1f54c92f136dd764148ae0af 100644
+--- a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/inline_auto_compact_flow_tests.rs
++++ b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/inline_auto_compact_flow_tests.rs
+@@ -78,6 +78,7 @@ async fn create_test_actor(
+         auth_method_id: test_auth_method_id("test-auth"),
+         model_auth_memo: std::cell::RefCell::new(None),
+         attribution_callback: None,
++        request_admission: None,
+         auth_manager: None,
+         is_chat_kind: false,
+         state,
+@@ -501,6 +502,7 @@ async fn create_test_actor_with_memory(
+         auth_method_id: test_auth_method_id("test-auth"),
+         model_auth_memo: std::cell::RefCell::new(None),
+         attribution_callback: None,
++        request_admission: None,
+         auth_manager: None,
+         is_chat_kind: false,
+         state,
+diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/memory_config_tests.rs b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/memory_config_tests.rs
+index c6e720942bbc437aa3d04a1eb43c375b4ad64537..c8cd69b011dcd203b8184d960f3c8b88f89a1174 100644
+--- a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/memory_config_tests.rs
++++ b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/memory_config_tests.rs
+@@ -155,6 +155,7 @@ pub(super) async fn create_test_actor_with_memory(
+         auth_method_id: test_auth_method_id("test-auth"),
+         model_auth_memo: std::cell::RefCell::new(None),
+         attribution_callback: None,
++        request_admission: None,
+         auth_manager: None,
+         is_chat_kind: false,
+         state,
+diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/replay_buffer_send_update_tests.rs b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/replay_buffer_send_update_tests.rs
+index 8cb9494c96a2e26990766a214c2d995b1998b917..7105180dc887c5f6ec317bd05d0b3ee462ffd365 100644
+--- a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/replay_buffer_send_update_tests.rs
++++ b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/replay_buffer_send_update_tests.rs
+@@ -90,6 +90,7 @@ pub(super) async fn make_replay_send_update_fixture() -> ReplaySendUpdateFixture
+         auth_method_id: test_auth_method_id("test-auth"),
+         model_auth_memo: std::cell::RefCell::new(None),
+         attribution_callback: None,
++        request_admission: None,
+         auth_manager: None,
+         is_chat_kind: false,
+         state,
+diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/support.rs b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/support.rs
+index 41d8ed67efa7c209823814a0c01e4565bf619ec4..1027a08af720957c6b30055d39cd6f7a4d11b8b8 100644
+--- a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/support.rs
++++ b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/support.rs
+@@ -345,6 +345,7 @@ async fn create_test_actor_inner(
+         auth_method_id: test_auth_method_id("test-auth"),
+         model_auth_memo: std::cell::RefCell::new(None),
+         attribution_callback: None,
++        request_admission: None,
+         auth_manager: None,
+         is_chat_kind: false,
+         state,
+diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/tool_layer_images_bridge_tests.rs b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/tool_layer_images_bridge_tests.rs
+index 63c41fc05d8905c201fafd30c276c43055ff6fd6..7dd350ea3e7bd172297e26a5b8e549958096fcc0 100644
+--- a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/tool_layer_images_bridge_tests.rs
++++ b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/tool_layer_images_bridge_tests.rs
+@@ -1,6 +1,7 @@
+ //! Wiring tests for MCP tool-layer images through `handle_bridge_tool_success`.
+ use super::support::*;
+ use super::*;
++use base64::Engine as _;
+ use xai_grok_sampling_types::{ContentPart, ConversationItem};
+ use xai_grok_tools::types::output::{MCPOutput, ToolOutput, ToolRunResult};
+ use xai_grok_tools::util::base64_images::{ExtractedImage, IMAGE_CONTENT_PLACEHOLDER};
+diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/transient_retry_tests.rs b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/transient_retry_tests.rs
+index 42ec27f598c466afac87ba167adb98975fa42742..5ced1f158827175e478833bcb27054a8c99483fe 100644
+--- a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/transient_retry_tests.rs
++++ b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/transient_retry_tests.rs
+@@ -33,6 +33,53 @@ async fn make_actor() -> (Arc<SessionActor>, mpsc::UnboundedReceiver<Persistence
+     (Arc::new(actor), persistence_rx)
+ }
+ 
++/// Admission refusal must outrank context-overflow guesses and every shell
++/// retry path, including a request already in length-salvage continuation.
++#[tokio::test(flavor = "current_thread")]
++async fn admission_denial_stays_terminal_before_compaction_and_salvage() {
++    tokio::task::LocalSet::new()
++        .run_until(async {
++            let (actor, _rx) = make_actor().await;
++            for reason in [
++                xai_grok_sampling_types::RequestAdmissionDenial::UnsupportedHardLimits,
++                xai_grok_sampling_types::RequestAdmissionDenial::ResourceExhausted,
++                xai_grok_sampling_types::RequestAdmissionDenial::AuthorityUnavailable,
++            ] {
++                for mid_salvage in [false, true] {
++                    let mut info = xai_grok_sampler::SamplingErrorInfo::from(
++                        &xai_grok_sampling_types::SamplingError::RequestAdmissionDenied(reason),
++                    );
++                    info.model_metadata = Some(xai_grok_sampling_types::ResponseModelMetadata {
++                        context_window: Some(1),
++                        ..Default::default()
++                    });
++                    assert!(!transient_retry_eligible(&info));
++                    let result = actor
++                        .handle_sampling_failure(
++                            info,
++                            0,
++                            transient_state(0, true),
++                            mid_salvage,
++                            TurnParkState::Fresh,
++                        )
++                        .await;
++                    let Err(error) = result else {
++                        panic!("admission refusal must never recover")
++                    };
++                    assert_eq!(
++                        error.data,
++                        Some(serde_json::json!({
++                            "message": xai_grok_sampling_types::SamplingError::RequestAdmissionDenied(reason).to_string(),
++                            "error_kind": "request_admission_denied",
++                            "reason": reason,
++                        }))
++                    );
++                }
++            }
++        })
++        .await;
++}
++
+ /// The eligibility classifier is a closed set: transient infrastructure kinds retry, everything with its own recovery or UX stays terminal.
+ #[test]
+ fn transient_retry_eligibility_truth_table() {
+diff --git a/crates/codegen/xai-grok-shell/src/session/compaction_inline_auto_compact_flow_tests.rs b/crates/codegen/xai-grok-shell/src/session/compaction_inline_auto_compact_flow_tests.rs
+index 23580d558562bf8b5c32f54ff45517ae041586a6..0608ee472c0b71429c4836ea672bd8ac717646fb 100644
+--- a/crates/codegen/xai-grok-shell/src/session/compaction_inline_auto_compact_flow_tests.rs
++++ b/crates/codegen/xai-grok-shell/src/session/compaction_inline_auto_compact_flow_tests.rs
+@@ -88,6 +88,7 @@ async fn create_test_actor(
+         auth_method_id: test_auth_method_id("test-auth"),
+         model_auth_memo: std::cell::RefCell::new(None),
+         attribution_callback: None,
++        request_admission: None,
+         auth_manager: None,
+         is_chat_kind: false,
+         state,
+diff --git a/crates/codegen/xai-grok-shell/src/session/helpers/session_compact.rs b/crates/codegen/xai-grok-shell/src/session/helpers/session_compact.rs
+index d8b1c44287db6dca4b168bc885bfa2b3b214dd3f..11d0e20f05f0ab3844e2d0140220d206508ee296 100644
+--- a/crates/codegen/xai-grok-shell/src/session/helpers/session_compact.rs
++++ b/crates/codegen/xai-grok-shell/src/session/helpers/session_compact.rs
+@@ -132,6 +132,7 @@ fn classify_sampling_error(err: SamplingError) -> CompactFailure {
+         SamplingError::Auth { .. }
+         | SamplingError::InvalidConfiguration(_)
+         | SamplingError::MtlsConfiguration(_)
++        | SamplingError::RequestAdmissionDenied(_)
+         | SamplingError::Serialization(_)
+         | SamplingError::IdleTimeout { .. } => true,
+         SamplingError::Api { status, .. } => {
+diff --git a/crates/codegen/xai-grok-shell/src/test_support/mod.rs b/crates/codegen/xai-grok-shell/src/test_support/mod.rs
+index 2bd279a4862f9794008eefc329c540b392658790..7f22b797099d1be30499fcbd872e16b6a140c1ea 100644
+--- a/crates/codegen/xai-grok-shell/src/test_support/mod.rs
++++ b/crates/codegen/xai-grok-shell/src/test_support/mod.rs
+@@ -2,6 +2,61 @@ pub(crate) mod lsp_runtime;
+ 
+ pub(crate) const TEST_MODEL: &str = "test-model";
+ 
++struct DenyingRequestAdmission {
++    reason: xai_grok_sampling_types::RequestAdmissionDenial,
++}
++
++impl xai_grok_sampler::RequestAdmission for DenyingRequestAdmission {
++    fn admit(
++        &self,
++        _request: &xai_grok_sampler::RequestAdmissionDescriptor,
++    ) -> Result<(), xai_grok_sampling_types::RequestAdmissionDenial> {
++        Err(self.reason)
++    }
++}
++
++/// Test-only proof that a propagated hook retains the same opaque authority.
++/// The production wrapper intentionally exposes no pointer or decision accessors.
++pub(crate) struct RequestAdmissionProbe(std::sync::Weak<DenyingRequestAdmission>);
++
++impl RequestAdmissionProbe {
++    pub(crate) fn assert_retained(&self) {
++        assert!(
++            self.0.upgrade().is_some(),
++            "admission authority was dropped"
++        );
++    }
++
++    pub(crate) fn assert_released(&self) {
++        assert!(
++            self.0.upgrade().is_none(),
++            "an unexpected admission authority clone remains"
++        );
++    }
++}
++
++pub(crate) fn denying_request_admission(
++    reason: xai_grok_sampling_types::RequestAdmissionDenial,
++) -> (
++    xai_grok_sampler::SharedRequestAdmission,
++    RequestAdmissionProbe,
++) {
++    use xai_grok_sampler::RequestAdmission as _;
++
++    let authority = std::sync::Arc::new(DenyingRequestAdmission { reason });
++    let descriptor = xai_grok_sampler::RequestAdmissionDescriptor {
++        transport: xai_grok_sampler::RequestTransport::NonStreaming,
++        encoded_body_bytes: Some(3),
++        body_blake3: Some([7; 32]),
++    };
++    assert_eq!(authority.admit(&descriptor), Err(reason));
++    let probe = RequestAdmissionProbe(std::sync::Arc::downgrade(&authority));
++    (
++        xai_grok_sampler::SharedRequestAdmission::new(authority),
++        probe,
++    )
++}
++
+ /// Permission bits (`mode & 0o777`) of `path`, for owner-only assertions.
+ #[cfg(unix)]
+ pub(crate) fn unix_mode(path: &std::path::Path) -> u32 {
+diff --git a/crates/codegen/xai-grok-shell/src/tools/config.rs b/crates/codegen/xai-grok-shell/src/tools/config.rs
+index 4fd77aae735ba9a9a60d340483f641679a77981f..f5f1a61180b9e521dec206da2a313d078c86de18 100644
+--- a/crates/codegen/xai-grok-shell/src/tools/config.rs
++++ b/crates/codegen/xai-grok-shell/src/tools/config.rs
+@@ -232,6 +232,7 @@ impl ShellToolsetConfig {
+             compaction_at_tokens: None,
+             doom_loop_recovery: None,
+             header_injector: None,
++            request_admission: None,
+         };
+         let mut toolset = base.unwrap_or_else(|| Self {
+             bash: BashToolConfig::default(),
+diff --git a/crates/codegen/xai-grok-sampler/src/admission.rs b/crates/codegen/xai-grok-sampler/src/admission.rs
+new file mode 100644
+index 0000000..8fc80bf
+--- /dev/null
++++ b/crates/codegen/xai-grok-sampler/src/admission.rs
+@@ -0,0 +1,58 @@
++//! Optional trusted request veto at the sampler HTTP boundary.
++//!
++//! This is not a token or monetary budget implementation. An allow decision does
++//! not establish one physical transmission: redirects, transport replays, and
++//! server-side work need separate qualification. A denial prevents this call to
++//! the HTTP executor. Startup/authentication work before this boundary is outside
++//! its scope. Hosts must install the hook on every client they intend to govern.
++
++use std::{fmt, sync::Arc};
++
++pub use xai_grok_sampling_types::RequestAdmissionDenial;
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum RequestTransport {
++    Streaming,
++    NonStreaming,
++}
++
++/// Safe evidence about the final outgoing body, after any compression.
++/// No URL, headers, credentials or body contents are exposed.
++/// Both body fields are `None` when the body is not available as buffered bytes;
++/// neither absence nor a byte count is a token estimate or billing guarantee.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct RequestAdmissionDescriptor {
++    pub transport: RequestTransport,
++    pub encoded_body_bytes: Option<usize>,
++    pub body_blake3: Option<[u8; 32]>,
++}
++
++/// A trusted host's bounded, synchronous local admission decision.
++/// Implementations must not perform blocking or network I/O. A future remote
++/// authority requires separately qualified asynchronous wiring and permits.
++pub trait RequestAdmission: Send + Sync {
++    fn admit(&self, request: &RequestAdmissionDescriptor) -> Result<(), RequestAdmissionDenial>;
++}
++
++/// In-memory clones share the same authority. Debug never formats the authority.
++#[derive(Clone)]
++pub struct SharedRequestAdmission(Arc<dyn RequestAdmission>);
++
++impl SharedRequestAdmission {
++    pub fn new(admission: Arc<dyn RequestAdmission>) -> Self {
++        Self(admission)
++    }
++
++    pub(crate) fn admit(
++        &self,
++        request: &RequestAdmissionDescriptor,
++    ) -> Result<(), RequestAdmissionDenial> {
++        self.0.admit(request)
++    }
++}
++
++impl fmt::Debug for SharedRequestAdmission {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        f.write_str("SharedRequestAdmission(<opaque>)")
++    }
++}
+diff --git a/crates/codegen/xai-grok-sampler/src/request_admission_tests.rs b/crates/codegen/xai-grok-sampler/src/request_admission_tests.rs
+new file mode 100644
+index 0000000..d0786a2
+--- /dev/null
++++ b/crates/codegen/xai-grok-sampler/src/request_admission_tests.rs
+@@ -0,0 +1,295 @@
++use std::sync::{
++    Arc, Mutex,
++    atomic::{AtomicUsize, Ordering},
++};
++
++use super::*;
++use crate::admission::{
++    RequestAdmission, RequestAdmissionDescriptor, RequestTransport, SharedRequestAdmission,
++};
++use axum::Router;
++use xai_grok_sampling_types::RequestAdmissionDenial;
++
++struct RecordingAdmission {
++    observed: Arc<Mutex<Vec<RequestAdmissionDescriptor>>>,
++    denial: Option<RequestAdmissionDenial>,
++}
++
++impl RequestAdmission for RecordingAdmission {
++    fn admit(
++        &self,
++        request: &RequestAdmissionDescriptor,
++    ) -> std::result::Result<(), RequestAdmissionDenial> {
++        self.observed.lock().unwrap().push(request.clone());
++        self.denial.map_or(Ok(()), Err)
++    }
++}
++
++struct Fixture {
++    url: String,
++    received: Arc<AtomicUsize>,
++    server: tokio::task::JoinHandle<()>,
++}
++
++impl Fixture {
++    async fn start() -> Self {
++        let received = Arc::new(AtomicUsize::new(0));
++        let count = received.clone();
++        let app = Router::new().fallback(move || {
++            let count = count.clone();
++            async move {
++                count.fetch_add(1, Ordering::SeqCst);
++                "ok"
++            }
++        });
++        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
++        let url = format!("http://{}/sample", listener.local_addr().unwrap());
++        let server = tokio::spawn(async move {
++            axum::serve(listener, app).await.unwrap();
++        });
++        Self {
++            url,
++            received,
++            server,
++        }
++    }
++}
++
++impl Drop for Fixture {
++    fn drop(&mut self) {
++        self.server.abort();
++    }
++}
++
++fn config(hook: Option<SharedRequestAdmission>) -> SamplerConfig {
++    SamplerConfig {
++        request_admission: hook,
++        ..Default::default()
++    }
++}
++
++fn hook(
++    denial: Option<RequestAdmissionDenial>,
++) -> (
++    SharedRequestAdmission,
++    Arc<Mutex<Vec<RequestAdmissionDescriptor>>>,
++) {
++    let observed = Arc::new(Mutex::new(Vec::new()));
++    (
++        SharedRequestAdmission::new(Arc::new(RecordingAdmission {
++            observed: observed.clone(),
++            denial,
++        })),
++        observed,
++    )
++}
++
++async fn dispatch(
++    client: &SamplingClient,
++    fixture: &Fixture,
++    transport: RequestTransport,
++    body: reqwest::Body,
++) -> Result<reqwest::Response> {
++    let request = reqwest::Client::new()
++        .post(&fixture.url)
++        .header(AUTHORIZATION, "Bearer synthetic-secret-never-disclose")
++        .body(body)
++        .build()
++        .unwrap();
++    match transport {
++        RequestTransport::NonStreaming => client.send(request).await,
++        RequestTransport::Streaming => {
++            let mut timing = StreamSpanTiming::start(crate::span_timing::Region::from_span(
++                tracing::Span::none(),
++            ));
++            client.execute_stream_request(request, &mut timing).await
++        }
++    }
++}
++
++#[tokio::test]
++async fn admission_denial_sends_zero_http_for_both_execution_paths() {
++    let fixture = Fixture::start().await;
++    let (hook, observed) = hook(Some(RequestAdmissionDenial::UnsupportedHardLimits));
++    let cfg = config(Some(hook));
++    for transport in [RequestTransport::NonStreaming, RequestTransport::Streaming] {
++        for force_http1 in [false, true] {
++            let mut reconstructed = cfg.clone();
++            reconstructed.force_http1 = force_http1;
++            let client = SamplingClient::new(reconstructed).unwrap().clone();
++            let result = dispatch(&client, &fixture, transport, "secret-prompt".into()).await;
++            assert!(
++                matches!(
++                    result,
++                    Err(SamplingError::RequestAdmissionDenied(
++                        RequestAdmissionDenial::UnsupportedHardLimits
++                    ))
++                ),
++                "request must be refused before HTTP execution"
++            );
++        }
++    }
++    assert_eq!(fixture.received.load(Ordering::SeqCst), 0);
++    assert_eq!(
++        observed.lock().unwrap().len(),
++        4,
++        "clones must share the same authority"
++    );
++}
++
++#[tokio::test]
++async fn admission_absent_or_allowing_preserves_both_http_paths() {
++    let fixture = Fixture::start().await;
++    let (hook, observed) = hook(None);
++    for configured in [None, Some(hook)] {
++        let client = SamplingClient::new(config(configured)).unwrap();
++        for transport in [RequestTransport::NonStreaming, RequestTransport::Streaming] {
++            assert!(
++                dispatch(&client, &fixture, transport, "payload".into())
++                    .await
++                    .unwrap()
++                    .status()
++                    .is_success()
++            );
++        }
++    }
++    assert_eq!(fixture.received.load(Ordering::SeqCst), 4);
++    assert_eq!(observed.lock().unwrap().len(), 2);
++}
++
++#[tokio::test]
++async fn admission_descriptor_binds_exact_body_without_disclosing_content() {
++    let fixture = Fixture::start().await;
++    let (hook, observed) = hook(Some(RequestAdmissionDenial::ResourceExhausted));
++    let client = SamplingClient::new(config(Some(hook.clone()))).unwrap();
++    for body in ["secret-a", "secret-b"] {
++        let error = dispatch(
++            &client,
++            &fixture,
++            RequestTransport::NonStreaming,
++            body.into(),
++        )
++        .await
++        .unwrap_err();
++        assert!(!format!("{error:?} {error}").contains("secret"));
++    }
++    let observed = observed.lock().unwrap();
++    let [first, second] = observed.as_slice() else {
++        panic!("two descriptors expected")
++    };
++    assert_eq!(first.encoded_body_bytes, Some(8));
++    assert_eq!(second.encoded_body_bytes, Some(8));
++    assert_eq!(
++        first.body_blake3,
++        Some(*blake3::hash(b"secret-a").as_bytes())
++    );
++    assert_ne!(first.body_blake3, second.body_blake3);
++    assert!(!format!("{observed:?} {hook:?}").contains("secret"));
++}
++
++#[tokio::test]
++async fn admission_streamed_body_has_no_invented_length_or_digest() {
++    let fixture = Fixture::start().await;
++    let (hook, observed) = hook(Some(RequestAdmissionDenial::AuthorityUnavailable));
++    let client = SamplingClient::new(config(Some(hook))).unwrap();
++    let body = reqwest::Body::wrap_stream(futures_util::stream::iter([Ok::<_, std::io::Error>(
++        "body",
++    )]));
++    assert!(
++        dispatch(&client, &fixture, RequestTransport::Streaming, body)
++            .await
++            .is_err()
++    );
++    let observed = observed.lock().unwrap();
++    let [descriptor] = observed.as_slice() else {
++        panic!("one descriptor expected")
++    };
++    assert_eq!(descriptor.transport, RequestTransport::Streaming);
++    assert_eq!(descriptor.encoded_body_bytes, None);
++    assert_eq!(descriptor.body_blake3, None);
++    assert_eq!(fixture.received.load(Ordering::SeqCst), 0);
++}
++
++#[test]
++fn admission_hook_is_not_serialized_or_recovered_from_untrusted_config() {
++    let (hook, _) = hook(Some(RequestAdmissionDenial::UnsupportedHardLimits));
++    let mut value = serde_json::to_value(config(Some(hook))).unwrap();
++    assert!(value.get("request_admission").is_none());
++    value["request_admission"] = serde_json::json!({"allow": true});
++    let recovered: SamplerConfig = serde_json::from_value(value).unwrap();
++    assert!(recovered.request_admission.is_none());
++}
++
++#[test]
++fn admission_denial_remains_typed_nonretryable_and_roundtrips() {
++    for reason in [
++        RequestAdmissionDenial::UnsupportedHardLimits,
++        RequestAdmissionDenial::ResourceExhausted,
++        RequestAdmissionDenial::AuthorityUnavailable,
++    ] {
++        let error = SamplingError::RequestAdmissionDenied(reason);
++        assert!(!error.is_retryable());
++        assert!(error.is_retry_vetoed());
++        assert!(
++            matches!(crate::classify_error(&error, 0, 15, 2), crate::RetryDecision::Fatal(SamplingError::RequestAdmissionDenied(actual)) if actual == reason)
++        );
++        let info = crate::SamplingErrorInfo::from(&error);
++        assert!(!info.is_retryable);
++        assert_eq!(
++            info.kind,
++            crate::SamplingErrorKind::RequestAdmissionDenied(reason)
++        );
++        let decoded: crate::SamplingErrorInfo =
++            serde_json::from_value(serde_json::to_value(info).unwrap()).unwrap();
++        assert_eq!(
++            decoded.kind,
++            crate::SamplingErrorKind::RequestAdmissionDenied(reason)
++        );
++        assert!(
++            matches!(stream_collect_error(decoded), SamplingError::RequestAdmissionDenied(actual) if actual == reason)
++        );
++    }
++}
++
++#[tokio::test]
++async fn admission_actor_denial_is_terminal_despite_retry_allowance() {
++    let fixture = Fixture::start().await;
++    let (hook, observed) = hook(Some(RequestAdmissionDenial::UnsupportedHardLimits));
++    let mut cfg = config(Some(hook));
++    cfg.base_url = fixture.url.clone();
++    cfg.model = "local-fixture-model".into();
++    cfg.max_retries = Some(15);
++    let (events, mut receiver) = tokio::sync::mpsc::unbounded_channel();
++    let handle = crate::SamplerActor::spawn(cfg, crate::RetryPolicy::default(), events);
++    let result = tokio::time::timeout(
++        std::time::Duration::from_secs(2),
++        handle.submit_and_collect(
++            crate::RequestId::from("admission-fixture"),
++            ConversationRequest::default(),
++        ),
++    )
++    .await
++    .expect("admission denial must not enter retry backoff");
++    assert!(matches!(
++        result,
++        Err(SamplingError::RequestAdmissionDenied(
++            RequestAdmissionDenial::UnsupportedHardLimits
++        ))
++    ));
++    assert_eq!(observed.lock().unwrap().len(), 1);
++    assert_eq!(fixture.received.load(Ordering::SeqCst), 0);
++    while let Ok(event) = receiver.try_recv() {
++        assert!(!matches!(event, crate::SamplingEvent::Retrying { .. }));
++    }
++}
++
++#[test]
++fn admission_coarse_error_kind_remains_a_closed_denial() {
++    let parsed: crate::SamplingErrorKind = "request_admission_denied".parse().unwrap();
++    assert_eq!(
++        parsed,
++        crate::SamplingErrorKind::RequestAdmissionDenied(
++            RequestAdmissionDenial::AuthorityUnavailable
++        )
++    );
++}
+diff --git a/docs/request-admission-plan.md b/docs/request-admission-plan.md
+new file mode 100644
+index 0000000..696be6b
+--- /dev/null
++++ b/docs/request-admission-plan.md
+@@ -0,0 +1,73 @@
++# Sampler request admission hook
++
++Scope: add an optional trusted, nonserialized request veto immediately before
++both sampler HTTP execution calls. This does not qualify native hard token or
++USD limits, enable Foreman dispatch, or introduce a resource ledger.
++
++1. Add deterministic local HTTP tests for streaming and nonstreaming denial,
++   absent-hook behavior, config/client clones, retry classification, safe
++   descriptors, and reason serialization.
++2. Add the inert public interface and closed error types needed to compile the
++   tests. Observe behavioral failure before adding execution checks.
++3. Invoke the hook at both HTTP execution points; preserve typed refusal across
++   error mirrors and classify it as terminal in sampler and shell recovery.
++4. Run targeted tests and the sampler suite, format the touched Rust files, and
++   inspect the diff. Report any wider workspace compilation limits separately.
++
++The descriptor contains only transport kind and optional exact encoded body
++length/BLAKE3 digest. It contains no headers, URL, credentials, or body content.
++The synchronous hook must make a bounded local decision without blocking or
++network I/O. Its opaque shared wrapper does not call the implementer's Debug.
++
++Config/client cloning preserves the same hook. Serialization deliberately drops
++it. Hosts must attach it again after deserialization. The shell preserves an
++existing hook during in-memory configuration reconstruction. CLI and ACP startup
++do not install a trusted authority. Startup, auxiliary clients, account identity,
++redirects, replays, exact tokenization, server-side work, billing reservations,
++and cross-process totals remain unqualified.
++
++Approval: host reviewed this scope and interface before implementation.
++
++## Initial sampler verification
++
++The tests were added before the execution checks. After adding inert interface
++types, the targeted run completed with 3 passed and 5 failed: both HTTP paths
++still sent requests, no descriptors reached the hook, and the actor entered
++retry backoff. After adding the checks, all 8 admission tests passed.
++
++`cargo +1.94.0 test -p xai-grok-sampler --locked --offline -j4` passed:
++255 unit tests and 41 integration tests. This result predates the shell
++propagation changes below. It does not establish whole-workspace acceptance.
++
++## Shell and pager corrections
++
++The shell completion payload preserves `message`, `error_kind`, and the closed
++denial `reason`. Admission denial remains terminal before compaction or salvage.
++The pager displays a terminal refusal even when an unrelated HTTP status suggests
++retry or compaction. The host verified these regressions before propagation work.
++
++## In-memory propagation candidate
++
++SessionActor captures the existing hook at spawn and preserves it during config
++reconstruction. Model rebuilds, subagent overrides, and session-local auxiliary
++sampler configurations clone the same authority. Catalog configurations retain
++`None`. Serialization cannot create authority or reset its resource allowance.
++
++Sol observed four missing-hook regression failures before wiring the clones.
++Sol then reported four passing regressions and a successful full CLI compilation
++check. The host independently ran the shell `admission` test filter: 18 tests
++passed, including all four propagation tests and both denial regressions.
++The host also completed `cargo +1.94.0 check -p xai-grok-pager-bin --locked --offline -j4` successfully.
++The host reran the full sampler suite after propagation: 255 unit tests and
++41 integration tests passed. All native checks used Rust 1.94.0 and pinned
++Protobuf 29.3 with locked, offline dependencies.
++The tests use a weak reference to distinguish preserved authority from
++a replacement object.
++
++## Remaining coverage gaps
++
++Context metrics call `/tokenize-text` through a direct HTTP client. Those counts
++exclude complete request serialization and do not establish exact token bounds.
++Web-search clients call `/responses` outside the sampler. These paths need
++qualified resource boundaries before live dispatch. Hook propagation alone does
++not establish coverage of every native request. Foreman must remain closed.

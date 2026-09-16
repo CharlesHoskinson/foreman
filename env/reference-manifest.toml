@@ -98,6 +98,16 @@ where = ["windows", "wsl"]
 check = "npm --version"
 required = false
 
+# Conditional ForeDi credential backend. Not installed or gated by general profiles.
+[[tools]]
+id = "bao"
+profile = ["soft", "hard", "full", "durable"]
+where = ["wsl"]
+check = "bao version"
+required = false
+install_hint = "Install a verified OpenBao release manually: https://openbao.org/docs/install/. See docs/guides/pel/openbao-credentials.md."
+notes = "OpenBao KV v2 is required when its backend is selected. The local bao executable is required only for local fixtures and CLI administration, not remote framework HTTP access. Binary baseline: 2.6.2, checked 2026-09-15 on WSL/Linux amd64. Production and other-platform qualification remain open. Bootstrap does not install or start OpenBao."
+
 # --- Hard mode (WSL bash harness) ---
 [[tools]]
 id = "docker"

@@ -100,6 +100,32 @@ receipts. `foreman status` inspects the run, and `foreman resume` continues
 under its original identity, retaining host evidence and reusing completed
 receipts. The program declares bounds for retries and correction rounds.
 
+### OpenBao credential storage
+
+The ForeDi candidate adds a shared OpenBao credential store for AGY, Codex,
+Claude, and Grok. AGY means Antigravity CLI, not Gemini CLI.
+The framework interface provides `read`, `write`, `list`, and `remove` operations
+through `CredentialStorePort` in `@foreman/providers`.
+References have the form `bao:<provider>:<account>`.
+
+The release design requires OpenBao as the sole durable credential authority for managed accounts.
+Setup and execution must share that selection without native-profile or environment fallback.
+This integration remains incomplete.
+
+OpenBao with KV v2 is required when this backend is selected.
+The local `bao` executable is needed for local server fixtures and CLI administration,
+not for framework access to a remote HTTPS service.
+See the [dependency inventory](dependencies/README.md#openbao-credential-backend).
+
+The [OpenBao interface guide](docs/guides/pel/openbao-credentials.md)
+contains API calls, operator commands, and verification commands.
+No `foreman credentials` or `foreman openbao` command is implemented.
+Default live-provider integration, native refresh ownership, and live account migration remain release gates.
+Synthetic tests do not qualify native login for any provider.
+The synthetic store factory uses the explicit `@foreman/providers/testing` entry.
+The [audit corrections](docs/releases/return-of-the-foredi/fable-corrections-2026-09-15.md)
+bind current evidence to source and bundle hashes, external binary receipt pins, and separate build/runtime identities.
+
 ### Improvements and open questions
 
 The aim is to make workflows easier to author, inspect, combine, and

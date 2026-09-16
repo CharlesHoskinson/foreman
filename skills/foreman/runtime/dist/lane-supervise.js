@@ -3779,7 +3779,7 @@ var init_RunExecution = __esm({
         this.currentLevelExecutionTrees.push(currentTree);
         return currentTree;
       }
-      fail(value4, id5, failure11) {
+      fail(value4, id5, failure12) {
         if (this.verbosity >= VerbosityLevel.Verbose) {
           const currentTree = this.appendExecutionTree(ExecutionStatus.Failure, value4);
           this.currentLevelExecutionTrees = currentTree.children;
@@ -3789,7 +3789,7 @@ var init_RunExecution = __esm({
         else
           this.pathToFailure += `:${id5}`;
         this.value = value4;
-        this.failure = failure11;
+        this.failure = failure12;
       }
       skip(value4) {
         if (this.verbosity >= VerbosityLevel.VeryVerbose) {
@@ -10778,7 +10778,7 @@ var init_cause2 = __esm({
     });
     keepDefectsAndElectFailures = (self) => match5(self, {
       onEmpty: none2(),
-      onFail: (failure11) => some2(die(failure11)),
+      onFail: (failure12) => some2(die(failure12)),
       onDie: (defect) => some2(die(defect)),
       onInterrupt: () => none2(),
       onSequential: mergeWith(sequential),
@@ -21598,8 +21598,8 @@ var init_circular = __esm({
         return zipRight2(this.await, self);
       };
     };
-    unsafeMakeLatch = (open6) => new Latch(open6 ?? false);
-    makeLatch = (open6) => sync(() => unsafeMakeLatch(open6));
+    unsafeMakeLatch = (open7) => new Latch(open7 ?? false);
+    makeLatch = (open7) => sync(() => unsafeMakeLatch(open7));
     awaitAllChildren = (self) => ensuringChildren(self, fiberAwaitAll);
     cached2 = /* @__PURE__ */ dual(2, (self, timeToLive) => map11(cachedInvalidateWithTTL(self, timeToLive), (tuple4) => tuple4[0]));
     cachedInvalidateWithTTL = /* @__PURE__ */ dual(2, (self, timeToLive) => {
@@ -37897,8 +37897,8 @@ var init_sha256 = __esm({
 });
 
 // packages/core/src/canonical-json.ts
-function parseFail(failure11) {
-  return { [PARSE_FAIL]: true, failure: failure11 };
+function parseFail(failure12) {
+  return { [PARSE_FAIL]: true, failure: failure12 };
 }
 function isParseFail(v2) {
   return typeof v2 === "object" && v2 !== null && v2[PARSE_FAIL] === true;
@@ -42642,62 +42642,62 @@ function jsonSnapshot(value4, code, ancestors = /* @__PURE__ */ new Set(), depth
 function record22(value4, keys33, code, message) {
   if (value4 === null || typeof value4 !== "object" || Array.isArray(value4))
     invalid(code, message);
-  const object12 = value4;
-  const actual = Object.keys(object12);
-  if (actual.length !== keys33.length || keys33.some((key) => !Object.hasOwn(object12, key)))
+  const object13 = value4;
+  const actual = Object.keys(object13);
+  if (actual.length !== keys33.length || keys33.some((key) => !Object.hasOwn(object13, key)))
     invalid(code, message);
-  return object12;
+  return object13;
 }
 function counters(value4) {
-  const object12 = record22(
+  const object13 = record22(
     value4,
     counterKeys,
     "PEL_CONTINUATION_MISMATCH",
     "Replay counters must have the exact counter fields"
   );
   for (const key of counterKeys)
-    if (!safeNatural(object12[key]))
+    if (!safeNatural(object13[key]))
       invalid(
         "PEL_CONTINUATION_MISMATCH",
         "Replay counters must be nonnegative safe integers"
       );
-  return object12;
+  return object13;
 }
 function validateLimits(limits22) {
   try {
-    const object12 = record22(
+    const object13 = record22(
       jsonSnapshot(limits22, "PEL_LIMIT"),
       limitKeys,
       "PEL_LIMIT",
       "Limits must have the exact finite bound fields"
     );
     for (const key of limitKeys)
-      if (!safeNatural(object12[key]))
+      if (!safeNatural(object13[key]))
         invalid("PEL_LIMIT", "Limits must be nonnegative safe integers", key);
-    return { ok: true, value: object12 };
+    return { ok: true, value: object13 };
   } catch (error) {
     return errorResult(error, "PEL_LIMIT");
   }
 }
 function validateRunOptions(options2) {
   try {
-    const object12 = record22(
+    const object13 = record22(
       jsonSnapshot(options2, "PEL_REGISTRY"),
       optionKeys,
       "PEL_REGISTRY",
       "Execution options must have the exact option fields"
     );
-    if (object12.dependencyMode !== "ordered" && object12.dependencyMode !== "automatic")
+    if (object13.dependencyMode !== "ordered" && object13.dependencyMode !== "automatic")
       invalid("PEL_REGISTRY", "Unknown dependency mode");
-    if (object12.nlConditionProfile === null) {
-      if (object12.nlConditionProfileDigest !== null)
+    if (object13.nlConditionProfile === null) {
+      if (object13.nlConditionProfileDigest !== null)
         invalid(
           "PEL_REGISTRY",
           "An absent predicate selection requires an absent digest"
         );
     } else {
       const selection2 = record22(
-        object12.nlConditionProfile,
+        object13.nlConditionProfile,
         selectionKeys,
         "PEL_REGISTRY",
         "Predicate selection must have the exact selection fields"
@@ -42717,13 +42717,13 @@ function validateRunOptions(options2) {
           "PEL_REGISTRY",
           "Predicate selection must use the Boolean result schema"
         );
-      if (!validDigest(object12.nlConditionProfileDigest) || sha256Hex2(canonicalize2(selection2)) !== object12.nlConditionProfileDigest)
+      if (!validDigest(object13.nlConditionProfileDigest) || sha256Hex2(canonicalize2(selection2)) !== object13.nlConditionProfileDigest)
         invalid(
           "PEL_REGISTRY",
           "Predicate selection digest does not match the canonical selection"
         );
     }
-    const replay = object12.replay;
+    const replay = object13.replay;
     if (replay === null || typeof replay !== "object" || Array.isArray(replay))
       invalid(
         "PEL_CONTINUATION_MISMATCH",
@@ -42758,7 +42758,7 @@ function validateRunOptions(options2) {
             "Committed counters cannot be below recorded counters"
           );
     } else invalid("PEL_CONTINUATION_MISMATCH", "Unknown replay mode");
-    return { ok: true, value: object12 };
+    return { ok: true, value: object13 };
   } catch (error) {
     return errorResult(error, "PEL_REGISTRY");
   }
@@ -47933,11 +47933,11 @@ var require_lib = __commonJS({
     var {
       defineProperty
     } = Object;
-    var toUnenumerable = (object12, key) => {
-      if (object12) {
-        defineProperty(object12, key, {
+    var toUnenumerable = (object13, key) => {
+      if (object13) {
+        defineProperty(object13, key, {
           enumerable: false,
-          value: object12[key]
+          value: object13[key]
         });
       }
     };
@@ -51887,20 +51887,20 @@ var require_lib = __commonJS({
       UnterminatedJsxContent: "Unterminated JSX contents.",
       UnwrappedAdjacentJSXElements: "Adjacent JSX elements must be wrapped in an enclosing tag. Did you want a JSX fragment <>...</>?"
     });
-    function isFragment(object12) {
-      return object12 ? object12.type === "JSXOpeningFragment" || object12.type === "JSXClosingFragment" : false;
+    function isFragment(object13) {
+      return object13 ? object13.type === "JSXOpeningFragment" || object13.type === "JSXClosingFragment" : false;
     }
-    function getQualifiedJSXName(object12) {
-      if (object12.type === "JSXIdentifier") {
-        return object12.name;
+    function getQualifiedJSXName(object13) {
+      if (object13.type === "JSXIdentifier") {
+        return object13.name;
       }
-      if (object12.type === "JSXNamespacedName") {
-        return object12.namespace.name + ":" + object12.name.name;
+      if (object13.type === "JSXNamespacedName") {
+        return object13.namespace.name + ":" + object13.name.name;
       }
-      if (object12.type === "JSXMemberExpression") {
-        return getQualifiedJSXName(object12.object) + "." + getQualifiedJSXName(object12.property);
+      if (object13.type === "JSXMemberExpression") {
+        return getQualifiedJSXName(object13.object) + "." + getQualifiedJSXName(object13.property);
       }
-      throw new Error("Node had unexpected type: " + object12.type);
+      throw new Error("Node had unexpected type: " + object13.type);
     }
     var jsx = (superClass) => class JSXParserMixin extends superClass {
       jsxReadToken() {
@@ -66259,13 +66259,13 @@ function diagnostic2(code, span322, message, extra = {}) {
   };
 }
 function sha256Hex3(data22) {
-  const hash42 = createHash32("sha256");
+  const hash52 = createHash32("sha256");
   if (typeof data22 === "string") {
-    hash42.update(data22, "utf8");
+    hash52.update(data22, "utf8");
   } else {
-    hash42.update(data22);
+    hash52.update(data22);
   }
-  return hash42.digest("hex");
+  return hash52.digest("hex");
 }
 function canonicalize3(value32) {
   if (value32 === null) return "null";
@@ -66883,16 +66883,16 @@ function isCoreFailure3(v2) {
   return typeof v2 === "object" && v2 !== null && v2[CORE_FAILURE_BRAND22] === true;
 }
 function sha256Hex22(data3) {
-  const hash42 = createHash42("sha256");
+  const hash52 = createHash42("sha256");
   if (typeof data3 === "string") {
-    hash42.update(data3, "utf8");
+    hash52.update(data3, "utf8");
   } else {
-    hash42.update(data3);
+    hash52.update(data3);
   }
-  return hash42.digest("hex");
+  return hash52.digest("hex");
 }
-function parseFail3(failure42) {
-  return { [PARSE_FAIL22]: true, failure: failure42 };
+function parseFail3(failure52) {
+  return { [PARSE_FAIL22]: true, failure: failure52 };
 }
 function isParseFail3(v2) {
   return typeof v2 === "object" && v2 !== null && v2[PARSE_FAIL22] === true;
@@ -67219,8 +67219,8 @@ function lowerProviderSchema(output, subset = providerSchemaSubset("openai-respo
     };
     if (subset.enforceOpenAIComplexity) checkOpenAIComplexity(output.content);
     const root = lower(output.content, "outputSchema.content");
-    const object42 = output.content.type === "association" || output.content.type === "pair";
-    return { jsonSchema: object42 ? root : { type: "object", properties: { value: root }, required: ["value"], additionalProperties: false }, originalSchemaSha256: digest5, wireCodec: object42 ? "pel-object-v1" : "pel-value-envelope-v1" };
+    const object52 = output.content.type === "association" || output.content.type === "pair";
+    return { jsonSchema: object52 ? root : { type: "object", properties: { value: root }, required: ["value"], additionalProperties: false }, originalSchemaSha256: digest5, wireCodec: object52 ? "pel-object-v1" : "pel-value-envelope-v1" };
   });
 }
 function decodeProviderOutput(raw, output, maxBytes = 8 * 1024 * 1024) {
@@ -67238,7 +67238,7 @@ function decodeProviderOutput(raw, output, maxBytes = 8 * 1024 * 1024) {
         return bad6(path3);
       return v2;
     };
-    const decode22 = (v2, s3, path3) => {
+    const decode32 = (v2, s3, path3) => {
       let result4;
       switch (s3.type) {
         case "data":
@@ -67271,31 +67271,31 @@ function decodeProviderOutput(raw, output, maxBytes = 8 * 1024 * 1024) {
         case "list":
           if (!Array.isArray(v2) || v2.length < s3.minItems || v2.length > s3.maxItems)
             return bad6(path3);
-          result4 = { tag: "list", items: v2.map((item, i) => decode22(item, s3.items, `${path3}[${i}]`)) };
+          result4 = { tag: "list", items: v2.map((item, i) => decode32(item, s3.items, `${path3}[${i}]`)) };
           break;
         case "pair": {
-          const object42 = record42(v2, path3);
-          if (!Object.hasOwn(object42, s3.key))
+          const object52 = record42(v2, path3);
+          if (!Object.hasOwn(object52, s3.key))
             return bad6(`${path3}.${s3.key}`);
-          for (const key of Object.keys(object42))
+          for (const key of Object.keys(object52))
             if (key !== s3.key)
               return bad6(`${path3}.${key}`);
-          result4 = { tag: "pair", key: s3.key, value: decode22(object42[s3.key], s3.value, `${path3}.${s3.key}`) };
+          result4 = { tag: "pair", key: s3.key, value: decode32(object52[s3.key], s3.value, `${path3}.${s3.key}`) };
           break;
         }
         case "association": {
-          const object42 = record42(v2, path3);
-          for (const key of Object.keys(object42))
+          const object52 = record42(v2, path3);
+          for (const key of Object.keys(object52))
             if (!s3.fields.some((f2) => f2.key === key))
               return bad6(`${path3}.${key}`);
           const items = [];
           for (const field of s3.fields) {
-            if (!Object.hasOwn(object42, field.key)) {
+            if (!Object.hasOwn(object52, field.key)) {
               if (field.required)
                 return bad6(`${path3}.${field.key}`);
               continue;
             }
-            items.push({ tag: "pair", key: field.key, value: decode22(object42[field.key], field.schema, `${path3}.${field.key}`) });
+            items.push({ tag: "pair", key: field.key, value: decode32(object52[field.key], field.schema, `${path3}.${field.key}`) });
           }
           result4 = { tag: "list", items };
           break;
@@ -67303,7 +67303,7 @@ function decodeProviderOutput(raw, output, maxBytes = 8 * 1024 * 1024) {
         case "union":
           for (const variant of s3.variants) {
             try {
-              return decode22(v2, variant, path3);
+              return decode32(v2, variant, path3);
             } catch {
             }
           }
@@ -67323,7 +67323,7 @@ function decodeProviderOutput(raw, output, maxBytes = 8 * 1024 * 1024) {
           return bad6(`$.${key}`);
       value32 = envelope.value;
     }
-    return decode22(value32, output.content, "$");
+    return decode32(value32, output.content, "$");
   });
 }
 function decodeProviderResult(raw, output, maxBytes) {
@@ -69368,17 +69368,17 @@ function selfScriptArgvPrefix() {
 function buildSelfScriptArgvPrefix(execArgv, script) {
   return script ? [...execArgv, script] : [...execArgv];
 }
-function runMain(argv = process.argv, io7 = defaultIo, layer = LiveLauncherLayer) {
+function runMain(argv = process.argv, io8 = defaultIo, layer = LiveLauncherLayer) {
   const raw = stripNodeArgv(argv);
   const parsed = parseArgs(raw);
   if (parsed._tag === "Version") {
-    io7.writeStdout(formatVersionLine() + "\n");
+    io8.writeStdout(formatVersionLine() + "\n");
     return Promise.resolve(0);
   }
   if (parsed._tag === "UsageError") {
-    io7.writeStderr(`foreman-launch: ${parsed.message}
+    io8.writeStderr(`foreman-launch: ${parsed.message}
 `);
-    io7.writeStderr(usage22() + "\n");
+    io8.writeStderr(usage22() + "\n");
     return Promise.resolve(EXIT_LAUNCHER_ERROR);
   }
   const args22 = parsed.value;
@@ -69496,6 +69496,8 @@ function runMain(argv = process.argv, io7 = defaultIo, layer = LiveLauncherLayer
 }
 function createNativeProcessPort(now = Date.now) {
   return { open: (launch32) => Effect_exports2.gen(function* () {
+    if (launch32.grokAuthJson !== void 0)
+      return yield* Effect_exports2.fail(failure22("PromptChannelUnsupported", "Private login snapshot requires the enforcing native boundary"));
     if (!Number.isFinite(launch32.deadline) || launch32.deadline <= now() || !Number.isSafeInteger(launch32.maxOutputBytes) || launch32.maxOutputBytes < 1 || launch32.maxOutputBytes > 64 * 1024 * 1024)
       return yield* Effect_exports2.fail(failure22("PromptChannelUnsupported", "Native process limits are invalid"));
     const ready = yield* Deferred_exports2.make();
@@ -69922,7 +69924,7 @@ function observedModel(value32) {
 function jsonValue2(value32, depth = 0) {
   return depth <= 64 && (value32 === null || typeof value32 === "boolean" || typeof value32 === "string" || typeof value32 === "number" && Number.isFinite(value32) || Array.isArray(value32) && value32.every((v2) => jsonValue2(v2, depth + 1)) || record33(value32) && Object.values(value32).every((v2) => jsonValue2(v2, depth + 1)));
 }
-function createGrokAcpTransport(options2) {
+function createGrokAcpProtocol(options2) {
   const now = options2.now ?? Date.now;
   const version = options2.version ?? "1";
   let installedVersion = options2.installedVersion ?? (/^\d+\.\d+\.\d+/.test(version) ? version : void 0);
@@ -69995,6 +69997,14 @@ function createGrokAcpTransport(options2) {
     for (const [name22, value32] of Object.entries(material.environment ?? {}))
       environment22[name22] = Redacted_exports2.value(value32);
     const nativeProfileDirectory = material.nativeProfileDirectory;
+    if (material.grokLogin && (nativeProfileDirectory || material.environment))
+      return yield* Effect_exports2.fail(problem("AuthenticationRequired", "credential.ambiguous"));
+    const grokAuthJson = material.grokLogin ? yield* material.grokLogin.snapshot({ deadline: request22.limits.deadline }) : void 0;
+    if (grokAuthJson !== void 0) {
+      if (!host.environment.HOME || !isAbsolute22(host.environment.HOME))
+        return yield* unsupported2("credential.workerHome");
+      environment22.GROK_HOME = `${host.environment.HOME}/.grok`;
+    }
     if (nativeProfileDirectory !== void 0) {
       if (!isAbsolute22(nativeProfileDirectory) || resolve3(nativeProfileDirectory) !== nativeProfileDirectory)
         return yield* unsupported2("credential.nativeProfileDirectory");
@@ -70017,12 +70027,14 @@ function createGrokAcpTransport(options2) {
     ];
     if (request22.toolPolicy.mode === "none")
       cmd.push("--tools", "", "--deny", "*");
+    else cmd.push("--permission-mode", "default");
     if (host.sandboxProfile) cmd.push("--sandbox", host.sandboxProfile);
     cmd.push("agent", "stdio");
-    const connection = yield* (options2.process ?? host.process ?? createNativeProcessPort(now)).open({
+    const connection = yield* options2.process.open({
       cmd,
       cwd: host.cwd,
       environment: environment22,
+      ...grokAuthJson === void 0 ? {} : { grokAuthJson },
       deadline: request22.limits.deadline,
       maxOutputBytes: Math.min(
         67108864,
@@ -70032,6 +70044,10 @@ function createGrokAcpTransport(options2) {
     const queue = yield* Queue_exports2.unbounded();
     yield* Effect_exports2.addFinalizer(() => Queue_exports2.shutdown(queue));
     let session;
+    let creatingSession = false;
+    const earlyCommandSessions = [];
+    let earlyCommandBytes = 0;
+    let terminalFailure;
     let sequence = 0;
     let output = "";
     let nextId = 1;
@@ -70058,15 +70074,17 @@ function createGrokAcpTransport(options2) {
       ended = true;
       yield* Queue_exports2.offer(queue, { type: "end" });
     });
-    const fail222 = (failure42) => Effect_exports2.gen(function* () {
-      for (const d of pending32.values()) yield* Deferred_exports2.fail(d, failure42);
+    const fail222 = (failure52) => Effect_exports2.gen(function* () {
+      terminalFailure ??= failure52;
+      for (const d of pending32.values()) yield* Deferred_exports2.fail(d, failure52);
       pending32.clear();
       if (!ended) {
-        yield* Queue_exports2.offer(queue, { type: "failure", failure: failure42 });
+        yield* Queue_exports2.offer(queue, { type: "failure", failure: failure52 });
         yield* finish();
       }
     });
     const rpc = (method2, params) => Effect_exports2.gen(function* () {
+      if (terminalFailure) return yield* Effect_exports2.fail(terminalFailure);
       const id42 = nextId++;
       const deferred = yield* Deferred_exports2.make();
       pending32.set(id42, deferred);
@@ -70095,6 +70113,7 @@ function createGrokAcpTransport(options2) {
         (c) => c.kind === "allow_once" && typeof c.optionId === "string"
       );
       let selected = reject4;
+      let denialReason = "shape";
       const call = params.toolCall;
       if (request22.toolPolicy.mode === "native-coding" && host.permissions && record33(call) && typeof call.toolCallId === "string" && typeof call.kind === "string" && jsonValue2(call.rawInput) && !session.cancelRequested) {
         if (!seenCalls.has(call.toolCallId)) {
@@ -70107,7 +70126,9 @@ function createGrokAcpTransport(options2) {
           );
         const tool = {
           callId: call.toolCallId,
-          name: call.kind,
+          // ACP's display category is "other" for Grok's typed ListDir.
+          // Preserve its original arguments for host path checks and receipts.
+          name: call.kind === "other" && record33(call.rawInput) && call.rawInput.variant === "ListDir" && typeof call.rawInput.target_directory === "string" && call.rawInput.target_directory.length > 0 ? "read" : call.kind,
           arguments: call.rawInput,
           authorizationBinding: request22.toolPolicy.hostPermissionPortRef
         };
@@ -70118,6 +70139,7 @@ function createGrokAcpTransport(options2) {
             request22.toolPolicy
           )
         );
+        denialReason = authorization._tag === "Left" ? "authorization" : "allow_once_missing";
         if (authorization._tag === "Right" && !session.cancelRequested && authorization.right && allow) {
           selected = allow;
           if (session.permissionResults.has(call.toolCallId)) return yield* unsupported2("duplicate permission call");
@@ -70139,6 +70161,15 @@ function createGrokAcpTransport(options2) {
       const outcome = session.cancelRequested || !selected ? { outcome: "cancelled" } : { outcome: "selected", optionId: selected.optionId };
       session.pendingPermissions.delete(id42);
       yield* connection.send({ jsonrpc: "2.0", id: id42, result: { outcome } });
+      if (request22.toolPolicy.mode === "native-coding" && !session.cancelRequested) {
+        const kind = record33(call) && ["read", "edit", "delete", "move", "search", "execute", "think", "fetch", "other"].includes(String(call.kind)) ? String(call.kind) : "unknown";
+        const raw = record33(call) && record33(call.rawInput) ? call.rawInput : {};
+        const variant = ["ListDir", "ReadFile", "Bash", "Write", "SearchReplace", "TodoWrite", "Dynamic", "UseTool", "ApplyPatch", "Grep"].includes(String(raw.variant)) ? String(raw.variant) : "unknown";
+        return yield* Effect_exports2.fail({
+          ...problem("UnsupportedCapability", "permission.request"),
+          message: `Grok ACP permission declined: reason=${denialReason}, kind=${kind}, variant=${variant}`
+        });
+      }
     });
     yield* Effect_exports2.forkScoped(
       connection.events.pipe(
@@ -70178,6 +70209,13 @@ function createGrokAcpTransport(options2) {
               return;
             }
             if (message.method !== "session/update") return;
+            if (!session && creatingSession && record33(message.params) && typeof message.params.sessionId === "string" && message.params.sessionId.length > 0 && message.params.sessionId.length <= 4096 && record33(message.params.update) && message.params.update.sessionUpdate === "available_commands_update" && Array.isArray(message.params.update.availableCommands)) {
+              earlyCommandBytes += Buffer.byteLength(JSON.stringify(message.params));
+              if (earlyCommandSessions.length >= 64 || earlyCommandBytes > 65536)
+                return yield* Effect_exports2.fail(problem("MalformedEvent", "session.earlyUpdates"));
+              earlyCommandSessions.push(message.params.sessionId);
+              return;
+            }
             if (!session || !record33(message.params) || message.params.sessionId !== (session.identity.kind === "native" ? session.identity.sessionId : void 0) || !record33(message.params.update))
               return yield* Effect_exports2.fail(
                 problem("MalformedEvent", "session.update")
@@ -70227,10 +70265,10 @@ function createGrokAcpTransport(options2) {
                 String(update52.status)
               ) && !session?.permissionResults.get(update52.toolCallId)?.granted)
                 return yield* Effect_exports2.fail(
-                  problem(
+                  { ...problem(
                     "UnsupportedCapability",
                     "toolPolicy.permissionBoundary"
-                  )
+                  ), message: `Grok ACP refused unapproved tool progress: permission=${!session.permissionResults.has(update52.toolCallId) ? "absent" : session.permissionResults.get(update52.toolCallId)?.resultDigest === void 0 ? "pending" : "denied"}, status=${update52.status === "completed" ? "completed" : "in_progress"}` }
                 );
             }
           })
@@ -70254,7 +70292,7 @@ function createGrokAcpTransport(options2) {
     if (init.protocolVersion !== 1)
       return yield* unsupported2("protocolVersion");
     const methods = Array.isArray(init.authMethods) ? init.authMethods.filter(record33) : [];
-    const authMethod = material.environment?.XAI_API_KEY && methods.some((m2) => m2.id === "xai.api_key") ? "xai.api_key" : nativeProfileDirectory && methods.some((m2) => m2.id === "cached_token") ? "cached_token" : void 0;
+    const authMethod = material.environment?.XAI_API_KEY && methods.some((m2) => m2.id === "xai.api_key") ? "xai.api_key" : (nativeProfileDirectory || grokAuthJson !== void 0) && methods.some((m2) => m2.id === "cached_token") ? "cached_token" : void 0;
     if (!authMethod)
       return yield* Effect_exports2.fail(
         problem("AuthenticationRequired", "credentialProfileRef")
@@ -70263,12 +70301,19 @@ function createGrokAcpTransport(options2) {
       methodId: authMethod,
       _meta: { headless: true }
     });
+    creatingSession = true;
     const created = yield* rpc("session/new", {
       cwd: host.cwd,
-      mcpServers: []
+      mcpServers: [],
+      _meta: { systemPromptOverride: request22.trustedInstructions }
     });
+    creatingSession = false;
+    if (terminalFailure) return yield* Effect_exports2.fail(terminalFailure);
     if (typeof created.sessionId !== "string" || !created.sessionId || created.sessionId.length > 4096)
       return yield* Effect_exports2.fail(problem("MalformedEvent", "sessionId"));
+    if (earlyCommandSessions.some((id42) => id42 !== created.sessionId))
+      return yield* Effect_exports2.fail(problem("MalformedEvent", "session.earlyUpdates.sessionId"));
+    earlyCommandSessions.length = 0;
     const model = observedModel(created);
     if (!model)
       return yield* Effect_exports2.fail(
@@ -70311,13 +70356,27 @@ function createGrokAcpTransport(options2) {
     );
     yield* emit22({ type: "started" }, `session:${created.sessionId}`);
     yield* Effect_exports2.forkScoped(
-      rpc("session/prompt", { sessionId: created.sessionId, prompt }).pipe(
+      rpc("session/prompt", { sessionId: created.sessionId, prompt, _meta: { outputSchema: lowered.value.jsonSchema } }).pipe(
         Effect_exports2.flatMap(
           (result4) => Effect_exports2.gen(function* () {
             if (!session) return;
             if (result4.stopReason === "end_turn") {
+              const meta = result4._meta;
+              if (!record33(meta))
+                return yield* Effect_exports2.fail(problem("MalformedEvent", "prompt.structuredOutput"));
+              if (Object.hasOwn(meta, "structuredOutputError"))
+                return yield* Effect_exports2.fail(problem("MalformedEvent", "prompt.structuredOutputError"));
+              if (!Object.hasOwn(meta, "structuredOutput"))
+                return yield* Effect_exports2.fail(problem("MalformedEvent", "prompt.structuredOutput"));
+              if (meta.sessionId !== created.sessionId || meta.modelId !== model)
+                return yield* Effect_exports2.fail(problem("MalformedEvent", "prompt.structuredOutput.identity"));
+              if (!jsonValue2(meta.structuredOutput))
+                return yield* Effect_exports2.fail(problem("MalformedEvent", "prompt.structuredOutput"));
+              const finalOutput = canonicalize22(meta.structuredOutput);
+              if (Buffer.byteLength(output) + Buffer.byteLength(finalOutput) > request22.limits.maxOutputBytes)
+                return yield* Effect_exports2.fail(problem("OutputIncomplete", "limits.maxOutputBytes"));
               const decoded = decodeProviderResult(
-                output,
+                finalOutput,
                 request22.outputSchema,
                 request22.limits.maxOutputBytes
               );
@@ -70415,9 +70474,13 @@ function createGrokAcpTransport(options2) {
         if (session.cancelRequested || !session.pendingPermissions.has(pending32.rpcId)) return yield* unsupported2("cancelled permission request");
         const selected = content.decision === "accept" ? pending32.allowId : content.decision === "decline" ? pending32.rejectId : void 0;
         const outcome = selected ? { outcome: "selected", optionId: selected } : { outcome: "cancelled" };
-        yield* session.connection.send({ jsonrpc: "2.0", id: pending32.rpcId, result: { outcome } });
-        pending32.resultDigest = digest5;
         pending32.granted = content.decision === "accept";
+        yield* session.connection.send({ jsonrpc: "2.0", id: pending32.rpcId, result: { outcome } }).pipe(
+          Effect_exports2.onError(() => Effect_exports2.sync(() => {
+            pending32.granted = false;
+          }))
+        );
+        pending32.resultDigest = digest5;
         session.pendingPermissions.delete(pending32.rpcId);
       }));
     }),
@@ -70466,6 +70529,24 @@ function createGrokAcpTransport(options2) {
         "qualified ACP continuation and cursor replay"
       )
     )
+  };
+}
+function createGrokAcpTransport(options2) {
+  const protocol = createGrokAcpProtocol({
+    ...options2,
+    process: options2.process ?? options2.host?.process ?? createNativeProcessPort(options2.now)
+  });
+  return {
+    ...protocol,
+    get installedVersion() {
+      return protocol.installedVersion;
+    },
+    start: () => Effect_exports2.fail({
+      _tag: "UnsupportedCapability",
+      retryClass: "never",
+      fieldPath: "limits.hardBudgetEnforcement",
+      message: "Grok ACP cannot enforce aggregate maxInputTokens, maxOutputTokens, or maxCostUsd before native requests"
+    })
   };
 }
 function assistantFailure(error) {
@@ -71110,7 +71191,7 @@ function createGeminiCliTransport(options2) {
     )
   };
 }
-var __defProp2, __export2, isFunction3, dual2, identity5, constant3, constTrue2, constFalse2, constUndefined2, constVoid2, make62, mapInput4, array6, let_9, bindTo9, bind9, globalStoreId2, globalStore2, globalValue2, isString2, isNumber2, isBoolean2, isBigInt2, isFunction22, isRecordOrArray2, isObject2, hasProperty2, isTagged2, isNullable2, isIterable2, isPromiseLike2, getBugErrorMessage2, GenKindTypeId2, GenKindImpl2, SingleShotGen3, defaultIncHi2, defaultIncLo2, MUL_HI2, MUL_LO2, BIT_532, BIT_272, PCGRandom2, YieldWrapTypeId2, YieldWrap2, structuralRegionState2, standard2, forced2, isNotOptimizedAway2, internalCall2, genConstructor2, isGeneratorFunction2, randomHashCache2, symbol3, hash4, random4, combine11, optimize2, isHash2, number4, string3, structureKeys2, structure2, array22, cached4, symbol22, isEqual2, equivalence2, NodeInspectSymbol2, toJSON2, format5, BaseProto2, Class5, toStringUnknown2, stringifyCircular2, symbolRedactable2, isRedactable2, redactableState2, withRedactableContext2, redact2, pipeArguments2, OP_ASYNC2, OP_COMMIT2, OP_FAILURE2, OP_ON_FAILURE3, OP_ON_SUCCESS3, OP_ON_SUCCESS_AND_FAILURE2, OP_SUCCESS2, OP_SYNC3, OP_TAG2, OP_UPDATE_RUNTIME_FLAGS2, OP_WHILE2, OP_ITERATOR2, OP_WITH_RUNTIME2, OP_YIELD3, OP_REVERT_FLAGS2, moduleVersion2, getCurrentVersion2, EffectTypeId4, StreamTypeId4, SinkTypeId3, ChannelTypeId3, effectVariance2, sinkVariance3, channelVariance3, EffectPrototype3, StructuralPrototype2, CommitPrototype3, StructuralCommitPrototype2, Base3, TypeId32, CommonProto3, SomeProto2, NoneHash2, NoneProto2, isOption3, isNone4, isSome3, none12, some9, TypeId210, CommonProto22, RightProto2, LeftProto2, isEither5, isLeft4, isRight4, left3, right3, right22, left22, isLeft22, isRight22, match21, merge14, isNonEmptyArray3, make210, number22, mapInput22, all9, tuple3, greaterThan4, none22, some22, isNone22, isSome22, match22, getOrElse7, orElse14, orElseSome2, fromNullable4, getOrUndefined2, getOrThrowWith3, getOrThrow3, map28, flatMap21, containsWith3, _equivalence5, contains4, mergeWith5, make310, findFirst8, allocate2, makeBy3, fromIterable14, ensure2, prepend6, append4, appendAll4, isEmptyArray2, isEmptyReadonlyArray2, isNonEmptyArray22, isNonEmptyReadonlyArray2, isOutOfBounds2, clamp3, get19, unsafeGet10, head8, headNonEmpty3, last5, lastNonEmpty2, tailNonEmpty3, spanIndex2, span5, drop5, findFirst22, reverse4, sort3, zip12, zipWith16, _equivalence22, splitAt3, splitNonEmptyAt2, copy4, unionWith3, union10, empty36, of6, map29, flatMap22, flatten17, filterMap9, filterMapWhile5, partitionMap4, getSomes2, filter15, reduce15, reduceRight7, every9, unfold5, getEquivalence6, dedupeWith2, dedupe2, join8, mapAccum7, Order5, nextPow22, escape2, not2, Context_exports2, TagTypeId3, ReferenceTypeId3, STMSymbolKey3, STMTypeId4, TagProto2, ReferenceProto2, makeGenericTag2, Tag4, Reference3, TypeId33, ContextProto2, makeContext2, serviceNotFoundError2, isContext3, isTag3, isReference3, _empty8, empty210, make410, add6, defaultValueCache2, getDefaultValue2, unsafeGetReference2, unsafeGet22, get22, getOrElse22, getOption3, merge22, mergeAll12, pick4, omit4, TagTypeId22, ReferenceTypeId22, GenericTag2, unsafeMake11, isContext22, isTag22, isReference22, empty37, make510, add22, get32, getOrElse32, unsafeGet32, getOption22, merge32, mergeAll22, pick22, omit22, Tag22, Reference22, Deferred_exports2, TypeId42, emptyArray2, getEquivalence22, _equivalence32, ChunkProto2, makeChunk2, isChunk2, _empty22, empty42, make63, of22, fromIterable22, copyToArray2, toReadonlyArray_2, toReadonlyArray2, reverseChunk2, reverse22, get42, unsafeFromArray2, unsafeFromNonEmptyArray2, unsafeGet42, append22, prepend22, take9, drop22, dropWhile6, appendAll22, filterMap22, filter22, filterMapWhile22, flatMap32, flatten22, isEmpty15, isNonEmpty6, head22, unsafeHead4, headNonEmpty22, last22, unsafeLast2, map32, mapAccum22, splitAt22, splitWhere2, tailNonEmpty22, takeRight4, takeWhile6, zipWith22, makeBy22, range4, findFirst32, reduce22, reduceRight22, TypeId52, bigint05, bigint242, bigint602, bigint1e32, bigint1e62, bigint1e92, DURATION_REGEX2, decode2, zeroValue2, infinityValue2, DurationProto2, make72, isDuration2, isFinite3, isZero3, zero4, infinity2, nanos2, micros2, millis2, seconds2, minutes2, hours2, days2, weeks2, toMillis2, unsafeToNanos2, toHrTime2, match32, matchWith2, Equivalence4, sum3, lessThanOrEqualTo22, greaterThan22, greaterThanOrEqualTo22, equals22, parts2, format22, SIZE2, BUCKET_SIZE2, MASK3, MAX_INDEX_NODE2, MIN_ARRAY_NODE2, make82, EmptyNode2, LeafNode2, CollisionNode2, IndexedNode2, ArrayNode2, HashMapSymbolKey2, HashMapTypeId2, HashMapProto2, makeImpl4, HashMapIterator2, applyCont2, visitLazy2, visitLazyChildren2, _empty32, empty52, fromIterable32, isHashMap2, isEmpty22, get52, getHash2, has8, set9, setTree2, keys7, size15, beginMutation3, endMutation3, mutate4, modifyAt3, modifyHash2, remove22, map42, forEach13, reduce32, HashSetSymbolKey2, HashSetTypeId2, HashSetProto2, makeImpl22, isHashSet2, _empty42, empty62, fromIterable42, make92, has22, some32, every22, size22, beginMutation22, endMutation22, mutate22, add32, remove32, difference22, union22, forEach22, reduce42, empty72, fromIterable52, make102, has32, every32, size32, add42, remove42, difference32, union32, forEach32, reduce52, TypeId62, MutableRefProto2, make112, compareAndSet2, get62, set22, FiberIdSymbolKey2, FiberIdTypeId2, OP_NONE2, OP_RUNTIME2, OP_COMPOSITE2, emptyHash2, None4, Runtime2, Composite3, none32, isFiberId2, isNone32, combine22, combineAll3, getOrElse42, ids3, _fiberCounter2, threadName3, toSet3, unsafeMake22, none42, combine32, combineAll22, getOrElse52, ids22, threadName22, unsafeMake32, empty82, fromIterable62, isEmpty32, get72, set32, keys23, mutate32, modifyAt22, map62, forEach42, reduce62, TypeId72, toArray22, getEquivalence32, _equivalence42, ConsProto2, makeCons2, NilHash2, NilProto2, _Nil2, isList2, isNil2, isCons2, nil3, cons2, empty92, of32, appendAll32, prepend32, prependAll2, reduce72, reverse32, ArrayProto2, Structural2, struct2, ContextPatchTypeId2, PatchProto4, EmptyProto4, _empty52, empty102, AndThenProto4, makeAndThen4, AddServiceProto2, makeAddService2, RemoveServiceProto2, makeRemoveService2, UpdateServiceProto2, makeUpdateService2, diff8, combine42, patch9, HashSetPatchTypeId2, PatchProto22, EmptyProto22, _empty62, empty112, AndThenProto22, makeAndThen22, AddProto2, makeAdd2, RemoveProto2, makeRemove2, diff22, combine52, patch22, ReadonlyArrayPatchTypeId2, PatchProto32, EmptyProto32, _empty72, empty122, AndThenProto32, makeAndThen32, AppendProto2, makeAppend2, SliceProto2, makeSlice2, UpdateProto2, makeUpdate2, diff32, combine62, patch32, DifferTypeId2, DifferProto2, make142, environment2, hashSet2, readonlyArray2, update8, updateWith2, BIT_MASK2, BIT_SHIFT2, active2, enabled2, make152, empty132, enable4, disable4, exclude3, andThen7, invert2, None22, Interruption2, OpSupervision2, RuntimeMetrics2, WindDown2, CooperativeYielding2, cooperativeYielding2, disable22, enable22, interruptible5, interruption2, isEnabled3, make162, none52, runtimeMetrics2, windDown2, diff42, patch42, differ3, empty142, enable32, disable32, exclude22, empty152, par2, seq2, single2, flatten32, step4, merge42, EntryTypeId2, EntryImpl2, blockedRequestVariance2, makeEntry2, RequestBlockParallelTypeId2, parallelVariance2, ParallelImpl2, parallelCollectionEmpty2, parallelCollectionAdd2, parallelCollectionCombine2, parallelCollectionIsEmpty2, parallelCollectionKeys2, parallelCollectionToSequentialCollection2, SequentialCollectionTypeId2, sequentialVariance2, SequentialImpl2, sequentialCollectionMake2, sequentialCollectionCombine2, sequentialCollectionKeys2, sequentialCollectionToChunk2, OP_DIE4, OP_EMPTY4, OP_FAIL6, OP_INTERRUPT4, OP_PARALLEL3, OP_SEQUENTIAL3, CauseSymbolKey2, CauseTypeId2, variance42, proto13, empty162, fail21, die14, interrupt11, parallel5, sequential4, isCause2, isEmptyType2, isDieType3, isEmpty52, isInterrupted4, isInterruptedOnly3, failures2, defects2, interruptors3, failureOption2, failureOrCause3, flipCauseOption3, interruptOption2, keepDefects2, keepDefectsAndElectFailures2, stripFailures2, electFailures2, map82, flatMap72, flatten42, causeEquals2, flattenCause2, flattenCauseLoop2, find4, evaluateCause2, IsInterruptedOnlyCauseReducer2, OP_SEQUENTIAL_CASE2, OP_PARALLEL_CASE2, match42, reduce82, reduceWithContext3, pretty5, renderErrorCause2, makePrettyError2, prettyErrorMessage2, locationRegex2, spanToTrace2, prettyErrorStack2, spanSymbol2, prettyErrors2, OP_STATE_PENDING2, OP_STATE_DONE3, DeferredSymbolKey2, DeferredTypeId3, deferredVariance2, pending6, done14, SingleShotGen22, blocked3, runRequestBlock3, EffectTypeId22, RevertFlags2, EffectPrimitive2, EffectPrimitiveFailure2, EffectPrimitiveSuccess2, isEffect3, withFiberRuntime3, acquireUseRelease6, as14, asVoid8, custom3, unsafeAsync2, asyncInterrupt2, async_2, catchAllCause8, catchAll10, catchIf3, catchSome7, checkInterruptible3, originalSymbol2, capture3, die22, dieMessage7, dieSync10, either22, exit4, fail23, failSync11, failCause16, failCauseSync9, fiberId5, fiberIdWith3, flatMap82, andThen22, step22, flatten52, flip5, matchCause6, matchCauseEffect4, matchEffect4, forEachSequential2, forEachSequentialDiscard2, if_5, interrupt22, interruptWith4, interruptible22, interruptibleMask3, intoDeferred3, map92, mapBoth11, mapError12, onError5, onExit4, onInterrupt3, orElse22, orDie9, orDieWith8, partitionMap22, runtimeFlags2, succeed19, suspend13, sync13, tap10, transplant3, attemptOrElse2, uninterruptible3, uninterruptibleMask4, void_12, updateRuntimeFlags3, whenEffect5, whileLoop4, fromIterator2, gen7, fnUntraced3, withConcurrency3, withRequestBatching3, withRuntimeFlags2, withTracerEnabled3, withTracerTiming3, yieldNow5, zip22, zipLeft12, zipRight13, zipWith32, never7, interruptFiber2, interruptAsFiber2, logLevelAll2, logLevelFatal2, logLevelError2, logLevelWarning2, logLevelInfo2, logLevelDebug2, logLevelTrace2, logLevelNone2, FiberRefSymbolKey2, FiberRefTypeId2, fiberRefVariance2, fiberRefGet2, fiberRefGetWith2, fiberRefSet2, fiberRefModify2, RequestResolverSymbolKey2, RequestResolverTypeId2, requestResolverVariance2, RequestResolverImpl2, isRequestResolver2, fiberRefLocally3, fiberRefLocallyWith3, fiberRefUnsafeMake2, fiberRefUnsafeMakeHashSet2, fiberRefUnsafeMakeReadonlyArray2, fiberRefUnsafeMakeContext2, fiberRefUnsafeMakePatch2, fiberRefUnsafeMakeRuntimeFlags2, currentContext3, currentSchedulingPriority3, currentMaxOpsBeforeYield2, currentLogAnnotations2, currentLogLevel2, currentLogSpan2, withSchedulingPriority3, withMaxOpsBeforeYield3, currentConcurrency2, currentRequestBatching2, currentUnhandledErrorLogLevel2, currentVersionMismatchErrorLogLevel2, withUnhandledErrorLogLevel3, currentMetricLabels2, metricLabels3, currentForkScopeOverride2, currentInterruptedCause2, currentTracerEnabled2, currentTracerTimingEnabled3, currentTracerSpanAnnotations2, currentTracerSpanLinks2, ScopeTypeId2, CloseableScopeTypeId2, scopeAddFinalizer2, scopeAddFinalizerExit2, scopeClose2, scopeFork2, causeSquash2, causeSquashWith2, YieldableError2, makeException2, RuntimeExceptionTypeId2, RuntimeException3, isRuntimeException3, InterruptedExceptionTypeId2, InterruptedException2, isInterruptedException2, IllegalArgumentExceptionTypeId2, IllegalArgumentException3, NoSuchElementExceptionTypeId2, NoSuchElementException3, isNoSuchElementException2, InvalidPubSubCapacityExceptionTypeId2, InvalidPubSubCapacityException2, ExceededCapacityExceptionTypeId2, ExceededCapacityException2, TimeoutExceptionTypeId2, TimeoutException2, timeoutExceptionFromDuration2, UnknownExceptionTypeId2, UnknownException2, exitIsExit2, exitIsFailure2, exitIsSuccess2, exitAs2, exitAsVoid2, exitCollectAll2, exitDie3, exitFail2, exitFailCause3, exitFlatMap2, exitFlatten2, exitForEachEffect2, exitInterrupt3, exitMap2, exitMapBoth2, exitMatch2, exitMatchEffect2, exitSucceed3, exitVoid3, exitZip2, exitZipRight2, exitZipWith2, exitCollectAllInternal2, deferredUnsafeMake2, deferredMake2, deferredMakeAs2, deferredAwait2, deferredComplete2, deferredCompleteWith2, deferredDone2, deferredFail2, deferredFailSync2, deferredFailCause2, deferredFailCauseSync2, deferredDie2, deferredDieSync2, deferredInterrupt2, deferredInterruptWith2, deferredIsDone2, deferredPoll2, deferredSucceed2, deferredSync2, deferredUnsafeDone2, deferredInterruptJoiner2, constContext2, context10, contextWithEffect5, provideContext9, provideSomeContext6, mapInputContext8, filterEffectOrElse3, filterEffectOrFail3, currentSpanFromFiber2, NoopSpanProto2, noopSpan2, DeferredTypeId22, make182, makeAs2, _await4, complete5, completeWith2, done22, fail32, failSync22, failCause22, failCauseSync22, die32, dieSync22, interrupt32, interruptWith22, isDone7, poll8, succeed22, sync22, unsafeMake42, unsafeDone2, isFailure7, isSuccess7, all22, die42, fail42, failCause32, flatten62, forEachEffect2, interrupt42, map102, mapBoth22, match52, succeed32, void_22, zip32, zipRight22, zipWith42, TypeId82, MutableHashMapProto2, MutableHashMapIterator2, BucketIterator2, empty172, get82, getFromBucket2, has42, set42, removeFromBucket2, remove52, size42, TypeId92, MutableListProto2, makeNode3, empty182, isEmpty62, length3, append32, shift2, remove62, TypeId102, EmptyMutableQueue2, MutableQueueProto2, make192, bounded8, unbounded8, length22, isEmpty72, capacity7, offer6, offerAll5, poll22, pollUpTo2, ClockSymbolKey2, ClockTypeId2, clockTag2, MAX_TIMER_MILLIS2, globalClockScheduler2, performanceNowNanos2, processOrPerformanceNow2, ClockImpl2, make202, OP_AND2, OP_OR2, OP_INVALID_DATA2, OP_MISSING_DATA2, OP_SOURCE_UNAVAILABLE2, OP_UNSUPPORTED2, ConfigErrorSymbolKey2, ConfigErrorTypeId2, proto22, And2, Or3, InvalidData2, MissingData2, SourceUnavailable2, Unsupported2, prefixed2, reduceWithContext22, empty192, patch52, OP_CONSTANT2, OP_FAIL22, OP_FALLBACK2, OP_DESCRIBED2, OP_LAZY2, OP_MAP_OR_FAIL2, OP_NESTED2, OP_PRIMITIVE2, OP_REDACTED2, OP_SEQUENCE2, OP_HASHMAP2, OP_ZIP_WITH3, concat4, ConfigProviderSymbolKey2, ConfigProviderTypeId2, configProviderTag2, FlatConfigProviderSymbolKey2, FlatConfigProviderTypeId2, make222, makeFlat2, fromFlat2, fromEnv2, extend3, appendConfigPath2, RedactedConfigErrorReducer2, redactConfigError2, fromFlatLoop2, fromFlatLoopFail2, splitPathString2, parsePrimitive2, transpose2, indicesFrom2, QUOTED_INDEX_REGEX2, parseQuotedIndex2, parseInteger2, TypeId112, consoleTag2, defaultConsole2, RandomSymbolKey2, RandomTypeId2, randomTag2, RandomImpl2, shuffleWith2, swap3, make232, FixedRandomImpl2, fixed5, TracerTypeId2, make242, tracerTag2, spanTag2, randomHexString2, NativeSpan2, nativeTracer2, addSpanStackTrace2, DisablePropagation2, liveServices2, currentServices2, sleep5, defaultServicesWith2, clockWith5, currentTimeMillis3, currentTimeNanos3, withClock3, withConfigProvider3, configProviderWith3, randomWith3, withRandom3, tracerWith5, withTracer3, sleep22, currentTimeMillis22, currentTimeNanos22, clockWith22, Clock3, FiberRefsSym2, FiberRefsImpl2, findAncestor2, joinAs3, forkAs2, unsafeForkAs2, fiberRefs3, setAll3, delete_3, get92, getOrDefault3, updateAs3, unsafeUpdateAs2, updateManyAs3, get102, getOrDefault22, joinAs22, setAll22, updateManyAs22, empty212, All2, Fatal2, Error22, Warning2, Info2, Debug2, Trace2, None32, Order22, greaterThan32, fromLiteral2, make252, formatLabel2, render2, make262, Ref_exports2, EffectPrototype22, CommitPrototype22, Base22, Class22, TypeId122, Proto8, RefTypeId3, refVariance2, RefImpl2, unsafeMake62, make272, get112, set52, getAndSet5, getAndUpdate5, getAndUpdateSome5, setAndGet5, modify32, modifySome5, update22, updateAndGet5, updateSome5, updateSomeAndGet5, RefTypeId22, make282, get122, getAndSet22, getAndUpdate22, getAndUpdateSome22, modify42, modifySome22, set62, setAndGet22, update32, updateAndGet22, updateSome22, updateSomeAndGet22, unsafeMake72, tracerWith22, OP_EMPTY22, OP_ADD2, OP_REMOVE2, OP_UPDATE2, OP_AND_THEN3, empty222, diff52, combine72, patch62, MetricLabelSymbolKey2, MetricLabelTypeId2, MetricLabelImpl2, make292, isMetricLabel2, annotateLogs5, asSome5, asSomeError5, try_6, _catch3, catchAllDefect3, catchSomeCause5, catchSomeDefect3, catchTag7, catchTags7, cause3, clockWith32, clock3, delay3, descriptorWith3, allowInterrupt3, descriptor3, diffFiberRefs3, diffFiberRefsAndRuntimeFlags2, Do7, bind22, bindTo22, let_22, dropUntil5, dropWhile22, contextWith7, eventually5, filterMap42, filterOrDie5, filterOrDieMessage5, filterOrElse5, liftPredicate4, filterOrFail5, findFirst52, findLoop2, firstSuccessOf4, flipWith5, match72, every52, forAllLoop2, forever7, fiberRefs22, head32, ignore5, ignoreLogged3, inheritFiberRefs3, isFailure22, isSuccess22, iterate7, logWithLevel3, log3, logTrace3, logDebug3, logInfo3, logWarning3, logError3, logFatal3, withLogSpan3, logAnnotations3, loop5, loopInternal2, loopDiscard2, mapAccum32, mapErrorCause7, memoize4, merge52, negate5, none62, once4, option6, orElseFail7, orElseSucceed7, parallelErrors3, patchFiberRefs3, promise3, provideService9, provideServiceEffect5, random22, reduce92, reduceRight32, reduceWhile3, reduceWhileLoop2, repeatN3, repeatNLoop2, sandbox3, setFiberRefs3, sleep32, succeedNone5, succeedSome5, summarized5, tagMetrics3, labelMetrics3, takeUntil5, takeWhile22, tapBoth7, tapDefect3, tapError9, tapErrorTag3, tapErrorCause7, timed3, timedWith3, tracerWith32, tracer3, tryPromise3, tryMap3, tryMapPromise3, unless5, unlessEffect3, unsandbox3, updateFiberRefs4, updateService6, when7, whenFiberRef3, whenRef3, withMetric3, serviceFunctionEffect3, serviceFunction3, serviceFunctions3, serviceConstants3, serviceMembers3, serviceOption3, serviceOptional3, annotateCurrentSpan3, linkSpanCurrent3, annotateSpans5, currentParentSpan3, currentSpan3, currentPropagatedSpan3, linkSpans3, bigint022, filterDisablePropagation2, unsafeMakeSpan2, makeSpan3, spanAnnotations3, spanLinks3, endSpan2, useSpan3, withParentSpan5, withSpan8, functionWithSpan3, fromNullable22, optionFromOptional3, OP_SEQUENTIAL22, OP_PARALLEL22, OP_PARALLEL_N2, sequential22, parallel22, parallelN3, isSequential2, isParallel2, sequential32, parallel32, parallelN22, diff62, patch72, FiberStatusSymbolKey2, FiberStatusTypeId2, OP_DONE7, OP_RUNNING3, OP_SUSPENDED2, DoneHash2, Done5, Running2, Suspended2, done32, running4, suspended3, isFiberStatus2, isDone22, isRunning4, isSuspended3, done42, running22, suspended22, isDone32, isRunning22, isSuspended22, TypeId132, MicroExitTypeId2, MicroCauseTypeId2, microCauseVariance2, MicroCauseImpl2, Die2, causeDie2, Interrupt2, causeInterrupt2, causeIsInterrupt2, MicroFiberTypeId2, fiberVariance3, MicroFiberImpl2, fiberMiddleware2, fiberInterruptAll2, identifier2, args2, evaluate3, successCont2, failureCont2, ensureCont2, Yield2, microVariance2, MicroProto2, makePrimitiveProto2, makePrimitive2, makeExit2, succeed42, failCause42, sync32, suspend22, yieldNowWith2, yieldNow22, void_32, withMicroFiber2, asyncOptions2, asyncFinalizer2, async3, as22, exit22, flatMap92, OnSuccessProto2, map112, isMicroExit2, exitSucceed22, exitFailCause22, exitInterrupt22, exitDie22, exitVoid22, exitVoidAll2, setImmediate22, MicroSchedulerDefault2, updateContext3, provideContext22, MaxOpsBeforeYield2, CurrentConcurrency2, CurrentScheduler2, matchCauseEffect22, OnSuccessAndFailureProto2, matchCause22, MicroScopeTypeId2, MicroScopeImpl2, onExit22, setInterruptible2, interruptible32, uninterruptibleMask22, whileLoop22, forEach52, unsafeFork4, runFork4, SchedulerRunner2, PriorityBuckets2, MixedScheduler2, defaultScheduler2, SyncScheduler2, currentScheduler3, withScheduler3, currentRequestMap2, match92, matchSimple2, OP_INTERRUPT_SIGNAL2, OP_STATEFUL2, OP_RESUME2, OP_YIELD_NOW2, interruptSignal2, stateful2, resume2, yieldNow32, FiberScopeSymbolKey2, FiberScopeTypeId2, Global2, Local2, unsafeMake82, globalScope2, FiberSymbolKey2, FiberTypeId3, fiberVariance22, fiberProto2, RuntimeFiberSymbolKey2, RuntimeFiberTypeId3, Order32, isFiber3, isRuntimeFiber3, _await22, children3, done52, dump3, dumpAll3, fail52, failCause52, fromEffect10, id4, inheritAll3, interrupted4, interruptAll3, interruptAllAs3, interruptAsFork3, join22, map122, mapEffect6, mapFiber3, match102, _never2, never22, orElse32, orElseEither9, poll32, parseMs2, renderStatus2, pretty22, unsafeRoots3, roots3, status3, succeed52, void_42, currentFiberURI2, getCurrentFiber3, LoggerSymbolKey2, LoggerTypeId2, loggerVariance2, makeLogger2, none72, textOnly2, format32, escapeDoubleQuotes2, stringLogger2, colors2, logLevelColors2, hasProcessStdout2, processStdoutIsTTY2, hasProcessStdoutOrDeno2, MetricBoundariesSymbolKey2, MetricBoundariesTypeId2, MetricBoundariesImpl2, isMetricBoundaries2, fromIterable72, exponential3, MetricKeyTypeSymbolKey2, MetricKeyTypeTypeId2, CounterKeyTypeSymbolKey2, CounterKeyTypeTypeId2, FrequencyKeyTypeSymbolKey2, FrequencyKeyTypeTypeId2, GaugeKeyTypeSymbolKey2, GaugeKeyTypeTypeId2, HistogramKeyTypeSymbolKey2, HistogramKeyTypeTypeId2, SummaryKeyTypeSymbolKey2, SummaryKeyTypeTypeId2, metricKeyTypeVariance2, CounterKeyType2, FrequencyKeyTypeHash2, FrequencyKeyType2, GaugeKeyTypeHash2, GaugeKeyType2, HistogramKeyType2, SummaryKeyType2, counter6, histogram6, isCounterKey2, isFrequencyKey2, isGaugeKey2, isHistogramKey2, isSummaryKey2, MetricKeySymbolKey2, MetricKeyTypeId2, metricKeyVariance2, arrayEquivilence2, MetricKeyImpl2, isMetricKey2, counter22, histogram22, taggedWithLabels3, MetricStateSymbolKey2, MetricStateTypeId2, CounterStateSymbolKey2, CounterStateTypeId2, FrequencyStateSymbolKey2, FrequencyStateTypeId2, GaugeStateSymbolKey2, GaugeStateTypeId2, HistogramStateSymbolKey2, HistogramStateTypeId2, SummaryStateSymbolKey2, SummaryStateTypeId2, metricStateVariance2, CounterState2, arrayEquals2, FrequencyState2, GaugeState2, HistogramState2, SummaryState2, counter32, frequency22, gauge22, histogram32, summary22, isCounterState2, isFrequencyState2, isGaugeState2, isHistogramState2, isSummaryState2, MetricHookSymbolKey2, MetricHookTypeId2, metricHookVariance2, make302, bigint032, counter42, frequency32, gauge32, histogram42, summary32, calculateQuantiles2, resolveQuantile2, MetricPairSymbolKey2, MetricPairTypeId2, metricPairVariance2, unsafeMake92, MetricRegistrySymbolKey2, MetricRegistryTypeId2, MetricRegistryImpl2, make312, MetricSymbolKey2, MetricTypeId2, metricVariance2, globalMetricRegistry2, make322, counter52, fromMetricKey2, histogram52, tagged3, taggedWithLabels22, update42, RequestSymbolKey2, RequestTypeId2, requestVariance2, RequestPrototype2, isRequest3, complete22, Listeners2, Direction2, RedBlackTreeIterator2, Color2, clone3, repaint2, recount2, RedBlackTreeSymbolKey2, RedBlackTreeTypeId2, redBlackTreeVariance2, RedBlackTreeProto2, makeImpl32, isRedBlackTree2, findFirst62, has52, insert3, keysForward2, keys32, removeFirst3, fixDoubleBlack2, has62, insert22, keys42, removeFirst22, TypeId142, SortedSetProto2, fromTree2, isSortedSet2, add52, remove72, SupervisorSymbolKey2, SupervisorTypeId3, supervisorVariance2, ProxySupervisor2, Zip2, isZip2, Track2, Const2, FibersIn2, unsafeTrack2, track2, fromEffect22, none82, make342, OP_EMPTY32, OP_ADD_SUPERVISOR2, OP_REMOVE_SUPERVISOR2, OP_AND_THEN22, empty252, combine82, patch82, patchLoop2, removeSupervisor2, toSet22, diff72, differ22, fiberStarted2, fiberActive2, fiberSuccesses2, fiberFailures2, fiberLifetimes2, EvaluationSignalContinue2, EvaluationSignalDone2, EvaluationSignalYieldNow2, runtimeFiberVariance2, absurd2, YieldedOp2, yieldedOpChannel2, contOpSuccess2, drainQueueWhileRunningTable2, runBlockedRequests2, _version2, FiberRuntime2, currentMinimumLogLevel2, loggerWithConsoleLog2, defaultLogger2, tracerLogger2, currentLoggers2, annotateLogsScoped3, whenLogLevel3, acquireRelease5, acquireReleaseInterruptible3, addFinalizer4, daemonChildren3, _existsParFound2, exists7, existsLoop2, filter52, allResolveInput2, allValidate2, allEither2, all42, allWith3, allSuccesses3, replicate5, replicateEffect3, forEach82, forEachParUnbounded2, forEachConcurrentDiscard2, forEachParN2, fork4, forkDaemon3, forkWithErrorHandler3, unsafeFork22, unsafeForkUnstarted2, unsafeMakeChildFiber2, forkWithScopeOverride2, mergeAll32, partition32, validateAll5, raceAll5, reduceEffect4, parallelFinalizers3, parallelNFinalizers2, finalizersMask3, finalizersMaskInternal2, scopeWith3, scopedWith6, scopedEffect2, sequentialFinalizers3, tagMetricsScoped3, labelMetricsScoped3, using3, validate4, validateWith3, validateFirst5, withClockScoped3, withRandomScoped3, withConfigProviderScoped3, withEarlyRelease3, zipOptions2, zipLeftOptions2, zipRightOptions2, zipWithOptions2, withRuntimeFlagsScoped2, scopeTag2, scope5, scopeUnsafeAddFinalizer2, ScopeImplProto2, scopeUnsafeMake2, scopeMake2, scopeExtend2, scopeUse2, fiberRefUnsafeMakeSupervisor2, fiberRefLocallyScoped3, fiberRefLocallyScopedWith4, currentRuntimeFlags2, currentSupervisor2, fiberAwaitAll2, fiberAll2, fiberInterruptFork2, fiberJoinAll2, fiberScoped2, raceWith4, disconnect3, race5, raceFibersWith2, completeRace2, ensuring9, invokeWithInterrupt2, makeSpanScoped3, withTracerScoped3, withSpanScoped3, complete32, pending22, refreshing2, MapKeyTypeId2, MapKeyImpl2, makeMapKey2, isMapKey2, KeySetImpl2, makeKeySet2, makeCacheState2, initialCacheState2, CacheSymbolKey2, CacheTypeId2, cacheVariance2, ConsumerCacheSymbolKey2, ConsumerCacheTypeId2, consumerCacheVariance2, makeCacheStats2, makeEntryStats2, CacheImpl2, unsafeMakeWith2, fail62, die52, interrupt52, isDieType22, isInterrupted22, isInterruptedOnly22, interruptors22, failureOrCause22, flipCauseOption22, map132, squash2, IllegalArgumentException22, NoSuchElementException22, RuntimeException22, isRuntimeException22, Effect_exports2, IntervalSymbolKey2, IntervalTypeId2, empty262, make352, lessThan22, min22, isEmpty82, intersect6, size82, after3, make362, empty272, lessThan32, isEmpty92, intersect22, size92, after22, IntervalsSymbolKey2, IntervalsTypeId2, make372, intersect32, intersectLoop2, start5, end6, lessThan42, isNonEmpty32, make382, intersect42, start22, end22, lessThan52, isNonEmpty42, OP_CONTINUE3, OP_DONE22, _continue3, continueWith3, done62, isContinue3, isDone42, _continue22, continueWith22, done72, isContinue22, isDone52, Scope2, addFinalizer22, addFinalizerExit2, close2, extend22, fork22, make392, Semaphore2, unsafeMakeSemaphore3, makeSemaphore3, Latch2, unsafeMakeLatch3, makeLatch3, awaitAllChildren3, cached22, cachedInvalidateWithTTL3, computeCachedValue2, getCachedValue2, invalidateCache2, ensuringChild3, ensuringChildren3, forkAll3, forkIn3, forkScoped3, fromFiber3, fromFiberEffect3, memoKeySymbol2, Key2, cachedFunction3, raceFirst3, supervised3, timeout5, timeoutFail5, timeoutFailCause5, timeoutOption3, timeoutTo5, SynchronizedSymbolKey2, SynchronizedTypeId2, synchronizedVariance2, SynchronizedImpl2, makeSynchronized2, unsafeMakeSynchronized2, updateSomeAndGetEffectSynchronized2, zipFiber2, zipLeftFiber2, zipRightFiber2, zipWithFiber2, bindAll3, TypeId152, OP_EXTEND_SCOPE2, OP_FOLD3, OP_FRESH2, OP_FROM_EFFECT4, OP_SCOPED2, OP_SUSPEND4, OP_PROVIDE4, OP_PROVIDE_MERGE2, OP_MERGE_ALL2, OP_ZIP_WITH22, Fiber_exports2, FiberTypeId22, RuntimeFiberTypeId22, Order42, isFiber22, isRuntimeFiber22, id22, _await32, awaitAll2, children22, all52, done82, dump22, dumpAll22, fail72, failCause62, fromEffect32, getCurrentFiber22, inheritAll22, interrupt62, interrupted22, interruptAs4, interruptAsFork22, interruptAll22, interruptAllAs22, interruptFork2, join32, joinAll2, map142, mapEffect22, mapFiber22, match112, never32, orElse42, orElseEither32, poll42, pretty32, roots22, unsafeRoots22, scoped8, status22, succeed62, void_52, zip52, zipLeft22, zipRight32, zipWith52, makeDual2, unsafeFork32, unsafeRunCallback2, unsafeRunSync2, AsyncFiberExceptionImpl2, asyncFiberException2, FiberFailureId2, FiberFailureCauseId2, FiberFailureImpl2, fiberFailure2, fastPath2, unsafeRunSyncExit2, unsafeRunPromise2, unsafeRunPromiseExit2, RuntimeImpl2, make402, runtime22, defaultRuntimeFlags2, defaultRuntime3, unsafeRunEffect2, unsafeForkEffect2, unsafeRunPromiseEffect2, unsafeRunPromiseExitEffect2, unsafeRunSyncEffect2, unsafeRunSyncExitEffect2, asyncEffect5, modifyEffect2, LayerSymbolKey2, LayerTypeId3, layerVariance2, proto32, MemoMapTypeIdKey2, MemoMapTypeId3, CurrentMemoMap3, isLayer3, isFresh3, MemoMapImpl2, makeMemoMap3, unsafeMakeMemoMap2, build3, buildWithScope3, buildWithMemoMap3, makeBuilder2, catchAll22, catchAllCause22, die62, dieSync32, discard3, context22, extendScope3, fail82, failSync32, failCause72, failCauseSync32, flatMap102, flatten72, fresh3, fromEffect42, fromEffectDiscard2, fiberRefLocally22, locallyEffect3, fiberRefLocallyWith22, fiberRefLocallyScoped22, fiberRefLocallyScopedWith22, fromFunction4, launch3, mock3, mockImpl2, makeUnimplemented2, map152, mapError22, matchCause32, match122, memoize22, merge62, mergeAll42, orDie22, orElse52, passthrough4, project3, retry9, retryLoop2, retryUpdate2, scoped22, scopedDiscard3, scopedContext3, scope22, service3, succeed72, succeedContext3, empty292, suspend32, sync42, syncContext3, tap22, tapError22, tapErrorCause22, toRuntime3, toRuntimeWithMemoMap3, provide4, provideMerge3, zipWith62, unwrapEffect3, unwrapScoped6, annotateLogs22, annotateSpans22, withSpan22, withParentSpan22, provideSomeLayer4, provideSomeRuntime2, effect_provide2, console22, consoleWith3, withConsole3, withConsoleScoped3, fixed22, ScheduleSymbolKey2, ScheduleTypeId2, isSchedule2, ScheduleDriverSymbolKey2, ScheduleDriverTypeId2, defaultIterationMetadata2, CurrentIterationMetadata3, scheduleVariance2, scheduleDriverVariance2, ScheduleImpl2, updateInfo2, ScheduleDriverImpl2, makeWithState2, addDelay2, addDelayEffect2, asVoid22, check5, checkEffect2, driver3, intersect52, intersectWith2, intersectWithLoop2, map162, mapEffect32, modifyDelayEffect2, passthrough22, recurs2, spaced3, unfold22, untilInputEffect2, whileInputEffect2, whileOutput2, ScheduleDefectTypeId2, ScheduleDefect2, isScheduleDefect2, scheduleDefectWrap2, scheduleDefectRefailCause2, scheduleDefectRefail3, repeat_Effect2, repeat_combined2, repeatOrElse_Effect2, repeatOrElseEffectLoop2, retry_Effect2, retry_combined2, fromRetryOptions2, retryOrElse_Effect2, retryOrElse_EffectLoop2, schedule_Effect2, scheduleFrom_Effect2, scheduleFrom_EffectLoop2, forever22, once22, scheduleForked3, withExecutionPlan5, scheduleFromStep2, currentCache2, currentCacheEnabled2, fromRequest2, cacheRequest2, withRequestCaching3, withRequestCache3, isRequest22, EffectTypeId32, isEffect22, cachedWithTTL2, cachedInvalidateWithTTL22, cached32, cachedFunction22, once32, all62, allWith22, allSuccesses22, dropUntil22, dropWhile32, takeUntil22, takeWhile32, every62, exists22, filter72, filterMap52, findFirst72, forEach92, head42, mergeAll52, partition42, reduce112, reduceWhile22, reduceRight42, reduceEffect22, replicate22, replicateEffect22, validateAll22, validateFirst22, async22, asyncEffect22, custom22, withFiberRuntime22, fail102, failSync42, failCause92, failCauseSync42, die72, dieMessage22, dieSync42, gen22, never42, none92, promise22, succeed92, succeedNone22, succeedSome22, suspend42, sync52, _void2, yieldNow42, _catch22, catchAll32, catchAllCause32, catchAllDefect22, catchIf22, catchSome22, catchSomeCause22, catchSomeDefect22, catchTag22, catchTags22, cause22, eventually22, ignore22, ignoreLogged22, parallelErrors22, sandbox22, retry22, withExecutionPlan22, retryOrElse2, try_22, tryMap22, tryMapPromise22, tryPromise22, unsandbox22, allowInterrupt22, checkInterruptible22, disconnect22, interrupt72, interruptWith32, interruptible42, interruptibleMask22, onInterrupt22, uninterruptible22, uninterruptibleMask32, liftPredicate22, as42, asSome22, asSomeError22, asVoid32, flip22, flipWith22, map172, mapAccum42, mapBoth32, mapError32, mapErrorCause22, merge72, negate22, acquireRelease22, acquireReleaseInterruptible22, acquireUseRelease22, addFinalizer32, ensuring22, onError22, onExit32, parallelFinalizers22, sequentialFinalizers22, finalizersMask22, scope32, scopeWith22, scopedWith22, scoped32, using22, withEarlyRelease22, awaitAllChildren22, daemonChildren22, descriptor22, descriptorWith22, diffFiberRefs22, ensuringChild22, ensuringChildren22, fiberId22, fiberIdWith22, fork32, forkDaemon22, forkAll22, forkIn22, forkScoped22, forkWithErrorHandler22, fromFiber22, fromFiberEffect22, supervised22, transplant22, withConcurrency22, withScheduler22, withSchedulingPriority22, withMaxOpsBeforeYield22, clock22, clockWith42, withClockScoped22, withClock22, console32, consoleWith22, withConsoleScoped22, withConsole22, delay22, sleep42, timed22, timedWith22, timeout22, timeoutOption22, timeoutFail22, timeoutFailCause22, timeoutTo22, configProviderWith22, withConfigProvider22, withConfigProviderScoped22, context32, contextWith22, contextWithEffect22, mapInputContext22, provide22, provideService22, provideServiceEffect22, serviceFunction22, serviceFunctionEffect22, serviceFunctions22, serviceConstants22, serviceMembers22, serviceOption22, serviceOptional22, updateService22, Do22, bind32, bindAll22, bindTo32, let_32, option22, either32, exit32, intoDeferred22, if_22, filterOrDie22, filterOrDieMessage22, filterOrElse22, filterOrFail22, filterEffectOrElse22, filterEffectOrFail22, unless22, unlessEffect22, when22, whenEffect22, whenFiberRef22, whenRef22, flatMap112, andThen42, flatten82, race22, raceAll22, raceFirst22, raceWith22, summarized22, tap32, tapBoth22, tapDefect22, tapError32, tapErrorTag22, tapErrorCause32, forever32, iterate22, loop22, repeat4, repeatN22, repeatOrElse2, schedule4, scheduleForked22, scheduleFrom2, whileLoop32, getFiberRefs2, inheritFiberRefs22, locally3, locallyWith3, locallyScoped3, locallyScopedWith2, patchFiberRefs22, setFiberRefs22, updateFiberRefs22, isFailure42, isSuccess32, match132, matchCause42, matchCauseEffect32, matchEffect22, log22, logWithLevel22, logTrace22, logDebug22, logInfo22, logWarning22, logError22, logFatal22, withLogSpan22, annotateLogs32, annotateLogsScoped22, logAnnotations22, withUnhandledErrorLogLevel22, whenLogLevel22, orDie32, orDieWith22, orElse62, orElseFail22, orElseSucceed22, firstSuccessOf22, random32, randomWith22, withRandom22, withRandomFixed2, withRandomScoped22, runtime32, getRuntimeFlags2, patchRuntimeFlags2, withRuntimeFlagsPatch2, withRuntimeFlagsPatchScoped2, tagMetrics22, labelMetrics22, tagMetricsScoped22, labelMetricsScoped22, metricLabels22, withMetric22, unsafeMakeSemaphore22, makeSemaphore22, unsafeMakeLatch22, makeLatch22, runFork22, runCallback2, runPromise2, runPromiseExit3, runSync2, runSyncExit2, validate22, validateWith22, zip62, zipLeft32, zipRight42, zipWith72, ap3, blocked22, runRequestBlock22, step32, request2, cacheRequestResult2, withRequestBatching22, withRequestCaching22, withRequestCache22, tracer22, tracerWith42, withTracer22, withTracerScoped22, withTracerEnabled22, withTracerTiming22, annotateSpans32, annotateCurrentSpan22, currentSpan22, currentPropagatedSpan22, currentParentSpan22, spanAnnotations22, spanLinks22, linkSpans22, linkSpanCurrent22, makeSpan22, makeSpanScoped22, useSpan22, withSpan32, functionWithSpan22, withSpanScoped22, withParentSpan32, fromNullable32, optionFromOptional22, transposeOption2, transposeMapOption2, makeTagProxy2, Tag32, Service2, fn2, fnUntraced22, ensureSuccessType3, ensureErrorType3, ensureRequirementsType3, get132, currentContext22, currentSchedulingPriority22, currentScheduler22, currentTracerTimingEnabled22, Layer_exports2, setConfigProvider3, parentSpan3, span23, setTracer3, LayerTypeId22, MemoMapTypeId22, CurrentMemoMap22, isLayer22, isFresh22, annotateLogs42, annotateSpans42, build22, buildWithScope22, catchAll42, catchAllCause42, context42, die82, dieSync52, discard22, effect5, effectDiscard2, effectContext2, empty302, extendScope22, fail112, failSync52, failCause102, failCauseSync52, flatMap122, flatten92, fresh22, mock22, fromFunction22, launch22, map182, mapError42, match142, matchCause52, memoize32, merge82, mergeAll62, orDie42, orElse72, passthrough32, project22, locallyEffect22, locally22, locallyWith22, locallyScoped22, fiberRefLocallyScopedWith32, retry32, scope42, scoped42, scopedDiscard22, scopedContext22, service22, succeed102, succeedContext22, suspend52, sync62, syncContext22, tap42, tapError42, tapErrorCause42, toRuntime22, toRuntimeWithMemoMap22, provide32, provideMerge22, zipWith82, unwrapEffect22, unwrapScoped22, setClock2, setConfigProvider22, parentSpan22, setRandom2, setRequestBatching2, setRequestCaching2, setRequestCache2, setScheduler2, span32, setTracer22, setTracerEnabled2, setTracerTiming2, setUnhandledErrorLogLevel2, setVersionMismatchErrorLogLevel2, withSpan42, withParentSpan42, makeMemoMap22, buildWithMemoMap22, updateService32, ensureSuccessType22, ensureErrorType22, ensureRequirementsType22, EnqueueSymbolKey2, EnqueueTypeId3, DequeueSymbolKey2, DequeueTypeId3, QueueStrategySymbolKey2, QueueStrategyTypeId3, BackingQueueSymbolKey2, BackingQueueTypeId3, queueStrategyVariance2, backingQueueVariance2, enqueueVariance2, dequeueVariance2, QueueImpl2, takeRemainderLoop3, isQueue3, isEnqueue3, isDequeue3, bounded22, dropping7, sliding9, unbounded22, unsafeMake102, make412, BackingQueueFromMutableQueue2, backingQueueFromMutableQueue2, capacity22, size102, isFull6, isEmpty102, isShutdown7, awaitShutdown6, shutdown7, offer22, unsafeOffer3, offerAll22, poll52, take22, takeAll4, takeUpTo4, takeBetween4, takeN4, backPressureStrategy3, droppingStrategy3, slidingStrategy3, BackPressureStrategy3, DroppingStrategy3, SlidingStrategy3, unsafeCompleteDeferred3, unsafeOfferAll3, unsafePollAll2, unsafePollN3, unsafeRemove3, unsafeCompleteTakers2, AbsentValue3, addSubscribers2, removeSubscribers2, bounded32, dropping22, sliding22, unbounded32, shutdown22, subscribe4, makeBoundedPubSub2, makeUnboundedPubSub2, makeSubscription3, unsafeMakeSubscription2, BoundedPubSubArb2, BoundedPubSubArbSubscription2, BoundedPubSubPow22, BoundedPubSubPow2Subscription2, BoundedPubSubSingle2, BoundedPubSubSingleSubscription2, UnboundedPubSub2, UnboundedPubSubSubscription2, SubscriptionImpl2, takeRemainderLoop22, PubSubImpl2, makePubSub2, unsafeMakePubSub2, ensureCapacity2, unsafeCompleteDeferred22, unsafeOfferAll22, unsafePollAllQueue2, unsafePollAllSubscription2, unsafePollN22, unsafePublishAll2, unsafeRemove22, BackPressureStrategy22, DroppingStrategy22, SlidingStrategy22, unsafeStrategyCompletePollers2, unsafeStrategyCompleteSubscribers2, ReplayBuffer2, ReplayWindowImpl2, emptyReplayWindow2, bounded42, dropping32, sliding32, unbounded42, shutdown32, subscribe22, Queue_exports2, EnqueueTypeId22, DequeueTypeId22, QueueStrategyTypeId22, BackingQueueTypeId22, isQueue22, isDequeue22, isEnqueue22, backPressureStrategy22, droppingStrategy22, slidingStrategy22, make422, bounded52, dropping42, sliding42, unbounded52, capacity42, size122, isEmpty122, isFull32, isShutdown32, awaitShutdown32, shutdown42, offer32, unsafeOffer22, offerAll32, poll62, take32, takeAll22, takeUpTo22, takeBetween22, takeN22, OP_CONTINUE22, OP_CLOSE2, OP_YIELD22, ChildExecutorDecisionSymbolKey2, ChildExecutorDecisionTypeId2, proto42, Continue2, OP_CONTINUATION_K2, OP_CONTINUATION_FINALIZER2, ContinuationTypeId2, continuationVariance2, ContinuationKImpl2, ContinuationFinalizerImpl2, OP_PULL_AFTER_NEXT2, OP_PULL_AFTER_ALL_ENQUEUED2, UpstreamPullStrategySymbolKey2, UpstreamPullStrategyTypeId2, upstreamPullStrategyVariance2, proto52, PullAfterNext2, OP_BRACKET_OUT2, OP_BRIDGE2, OP_CONCAT_ALL2, OP_EMIT5, OP_ENSURING2, OP_FAIL32, OP_FOLD22, OP_FROM_EFFECT22, OP_PIPE_TO2, OP_PROVIDE22, OP_READ3, OP_SUCCEED4, OP_SUCCEED_NOW2, OP_SUSPEND22, ChannelSymbolKey2, ChannelTypeId22, channelVariance22, proto62, isChannel2, acquireReleaseOut2, catchAllCause52, collectElements2, collectElementsReader2, concatAllWith2, concatMapWith2, embedInput2, ensuringWith4, fail122, failCause112, failCauseSync62, flatMap132, foldCauseChannel2, fromEffect52, pipeTo2, provideContext32, readWith2, readWithCause2, succeed112, succeedNow2, suspend62, sync72, void_62, write2, OP_DONE32, OP_EMIT22, OP_FROM_EFFECT32, OP_READ22, ChannelStateTypeId2, channelStateVariance2, proto72, Done22, Emit3, fromEffect62, Read2, isFromEffect2, effect22, effectOrUndefinedIgnored2, OP_PULL_FROM_CHILD2, OP_PULL_FROM_UPSTREAM2, OP_DRAIN_CHILD_EXECUTORS2, OP_EMIT32, PullFromChild2, PullFromUpstream2, DrainChildExecutors2, Emit22, OP_PULLED2, OP_NO_UPSTREAM2, UpstreamPullRequestSymbolKey2, UpstreamPullRequestTypeId2, upstreamPullRequestVariance2, proto82, Pulled2, NoUpstream2, ChannelExecutor2, ifNotNull2, runFinalizers2, readUpstream2, runIn2, runScopedInterpret2, OP_DONE42, OP_AWAIT2, MergeDecisionSymbolKey2, MergeDecisionTypeId2, proto92, Done32, Await3, OP_BOTH_RUNNING2, OP_LEFT_DONE2, OP_RIGHT_DONE2, MergeStateSymbolKey2, MergeStateTypeId2, proto102, BothRunning2, LeftDone2, RightDone2, OP_BACK_PRESSURE2, OP_BUFFER_SLIDING2, MergeStrategySymbolKey2, MergeStrategyTypeId2, proto112, BackPressure3, BufferSliding2, match152, OP_STATE_EMPTY2, OP_STATE_EMIT2, OP_STATE_ERROR2, OP_STATE_DONE22, stateEmpty3, stateEmit2, stateError2, stateDone2, SingleProducerAsyncInputImpl2, make432, acquireUseRelease32, as52, catchAll52, concatMap2, drain5, ensuring32, flatten102, foldChannel2, fromInput3, fromQueue4, fromQueueInternal2, identityChannel2, interruptWhen4, interruptWhenDeferred4, map192, mapError52, mapErrorCause32, mapOut2, mapOutEffect2, mapOutEffectPar2, mergeAll72, mergeAllWith2, mergeMap2, mergeWith22, orDieWith32, orElse82, pipeToOrFail2, repeated2, run5, runDrain4, runScoped4, scoped52, scopedWith32, splitLines4, toPubSub4, toPull4, toPullIn2, interpretToPull2, toQueue4, toQueueInternal2, unwrap4, unwrapScoped32, unwrapScopedWith5, withSpan52, writeAll2, writeChunk2, writeChunkWriter2, zip72, zipLeft42, zipRight52, ChannelExceptionTypeId2, ChannelException2, isChannelException2, SinkTypeId22, sinkVariance22, SinkImpl2, isSink2, suspend72, collectAll2, collectAllLoop2, collectAllN2, collectAllNLoop2, collectLeftover2, drain22, fail132, fold2, foldReader2, foldChunkSplit2, foldSink2, foldChunks2, foldChunksReader2, foldEffect2, foldEffectReader2, foldChunkSplitEffect2, foldChunkSplitEffectInternal2, foldLeftChunks2, flatMap142, forEach102, forEachChunk2, forEachWhile2, forEachWhileReader2, fromChannel4, fromEffect72, head52, last42, map202, raceWith32, sum22, toChannel5, unwrapScopedWith22, zipRight62, zipWith92, count3, mkString4, Done42, Await22, TypeId162, stateEmpty22, stateClosed2, variance52, RcRefImpl2, make442, get142, make452, get152, runFork32, runPromiseExit22, defaultRuntime22, driver22, forever42, spaced22, CurrentIterationMetadata22, OP_LEFT2, OP_RIGHT2, OP_BOTH2, OP_EITHER2, Left2, Right2, Both3, Either2, fromInput22, Both22, Versioned2, make462, unsafeGet62, unsafeSet3, commit4, isInvalid2, isChanged2, JournalAnalysisInvalid2, JournalAnalysisReadWrite2, JournalAnalysisReadOnly2, commitJournal2, analyzeJournal2, collectTodos2, execTodos2, addTodo2, OP_WITH_STM_RUNTIME2, OP_ON_FAILURE22, OP_ON_RETRY2, OP_ON_SUCCESS22, OP_PROVIDE32, OP_SYNC22, OP_SUCCEED22, OP_RETRY3, OP_FAIL42, OP_DIE22, OP_INTERRUPT22, OP_FAIL52, OP_DIE32, OP_INTERRUPT32, OP_SUCCEED32, OP_RETRY22, OP_DONE52, OP_SUSPEND32, OP_DONE62, OP_INTERRUPTED2, OP_RUNNING22, STMStateSymbolKey2, STMStateTypeId2, isSTMState2, isRunning32, isDone62, done92, interruptedHash2, interrupted32, runningHash2, running32, fromTExit2, TExitSymbolKey2, TExitTypeId2, variance62, isExit3, isSuccess42, isRetry2, fail142, die92, interrupt82, succeed132, retryHash2, retry42, done102, suspend82, txnCounter2, make472, STMSymbolKey22, STMTypeId22, stmVariance2, STMPrimitive2, unsafeAtomically2, tryCommit2, tryCommitSync2, tryCommitAsync2, completeTodos2, completeTryCommit2, STMDriver2, catchAll62, die102, dieSync62, effect32, ensuring52, fail152, failSync72, flatMap152, matchSTM3, withSTMRuntime2, interruptAs22, map212, retry52, succeed142, sync92, zipRight82, zipWith112, OP_BACKPRESSURE_STRATEGY2, OP_DROPPING_STRATEGY2, OP_SLIDING_STRATEGY2, as72, flatten112, forEach112, all72, suspend92, tap52, void_72, TRefSymbolKey2, TRefTypeId3, tRefVariance2, TRefImpl2, make482, get162, set72, getOrMakeEntry2, unsafeGet72, unsafeSet22, TEnqueueSymbolKey2, TEnqueueTypeId2, TDequeueSymbolKey2, TDequeueTypeId2, tDequeueVariance2, tEnqueueVariance2, TQueueImpl2, isShutdown42, shutdown52, take42, TPubSubSymbolKey2, TPubSubTypeId2, AbsentValue22, makeNode22, TPubSubImpl2, TPubSubSubscriptionImpl2, makeSubscription22, subscribe32, subscribeScoped3, subscribeScoped22, isShutdown62, take52, TypeId172, ReadonlyTypeId2, empty312, exitEmpty2, exitFalse2, exitTrue2, constDone2, MailboxImpl2, make492, toChannel22, RingBuffer2, OP_NOT_STARTED2, OP_PREVIOUS2, OP_CURRENT2, notStarted2, previous2, current2, make502, makePush2, HandoffTypeId2, OP_HANDOFF_STATE_EMPTY2, OP_HANDOFF_STATE_FULL2, handoffStateEmpty2, handoffStateFull2, handoffStateMatch2, handoffVariance2, make512, offer52, take62, OP_EMIT42, OP_HALT2, OP_END2, emit2, halt2, end32, TakeSymbolKey2, TakeTypeId2, takeVariance2, TakeImpl2, chunk22, done112, end42, failCause122, fromPull4, match182, of52, end52, failCause132, OP_SCHEDULE_END2, OP_UPSTREAM_END2, ScheduleEnd2, UpstreamEnd2, OP_DRAIN_LEFT2, OP_DRAIN_RIGHT2, OP_PULL_BOTH3, OP_PULL_LEFT3, OP_PULL_RIGHT3, DrainLeft2, DrainRight2, PullBoth3, PullLeft3, PullRight3, OP_PULL_BOTH22, OP_PULL_LEFT22, OP_PULL_RIGHT22, PullBoth22, PullLeft22, PullRight22, StreamSymbolKey2, StreamTypeId22, streamVariance3, StreamImpl2, isStream2, DefaultChunkSize3, accumulate3, accumulateChunks3, acquireRelease32, aggregate3, aggregateWithin3, aggregateWithinEither3, as82, queueFromBufferOptions2, _async3, asyncEffect32, mailboxFromBufferOptionsPush2, asyncPush3, asyncScoped3, branchAfter3, broadcast3, broadcastDynamic3, share3, broadcastedQueues3, broadcastedQueuesDynamic3, buffer3, bufferChunks3, bufferChunksDropping2, bufferChunksSliding2, bufferDropping2, bufferSliding2, bufferUnbounded2, bufferSignal2, catchAll72, catchAllCause62, catchSome32, catchSomeCause32, catchTag32, catchTags32, changes3, changesWith3, changesWithEffect3, chunks3, chunksWith3, unsome4, combine92, combineChunks3, concat22, concatAll22, cross3, crossLeft3, crossRight3, crossWith3, debounce3, die112, dieSync72, dieMessage42, distributedWith3, distributedWithDynamicId2, newDistributedWithDynamicId2, distributedWithDynamic3, distributedWithDynamicCallback2, drain32, drainFork3, drop32, dropRight3, dropUntil32, dropUntilEffect3, dropWhile42, dropWhileEffect3, either52, empty322, ensuring62, ensuringWith22, context52, contextWith32, contextWithEffect32, contextWithStream3, execute3, fail162, failSync82, failCause142, failCauseSync72, filter82, filterEffect3, filterMap62, filterMapEffect3, filterMapWhile32, filterMapWhileEffect3, finalizer3, find22, findEffect3, flatMap162, matchConcurrency2, flatMapParSwitchBuffer2, flatten122, flattenChunks3, flattenEffect3, flattenExitOption3, flattenIterables3, flattenTake3, forever52, fromAsyncIterable3, fromChannel22, toChannel32, mailboxToStream2, fromChunk3, fromChunkPubSub3, fromChunkQueue3, fromChunks3, fromEffect82, fromEffectOption3, fromPubSub3, fromTPubSub3, fromIterable112, fromIterableEffect3, fromIteratorSucceed3, fromPull22, fromQueue22, fromTQueue3, fromSchedule3, fromReadableStream3, fromReadableStreamByob3, EOF2, readChunkStreamByobReader2, groupAdjacentBy3, grouped3, groupedWithin3, haltWhen3, haltAfter3, haltWhenDeferred3, identityStream2, interleave3, interleaveWith3, intersperse3, intersperseAffixes3, interruptAfter3, interruptWhen22, interruptWhenDeferred22, iterate32, make522, map222, mapAccum52, mapAccumEffect3, mapBoth52, mapChunks3, mapChunksEffect3, mapConcat3, mapConcatChunk3, mapConcatChunkEffect3, mapConcatEffect3, mapEffectSequential2, mapEffectPar2, mapError62, mapErrorCause42, merge92, mergeAll82, mergeWithTag3, mergeEither3, mergeLeft3, mergeRight3, mergeWith32, mkString22, never52, onEnd3, onError32, onDone3, onStart3, orDie52, orDieWith42, orElse92, orElseEither42, orElseFail32, orElseIfEmpty3, orElseIfEmptyChunk3, orElseIfEmptyStream3, orElseSucceed32, paginate3, paginateChunk3, paginateChunkEffect3, paginateEffect3, peel3, partition52, partitionEither3, pipeThrough3, pipeThroughChannel3, pipeThroughChannelOrFail3, prepend42, provideContext52, provideSomeContext22, provideLayer3, provideService52, provideServiceEffect32, provideServiceStream3, mapInputContext52, provideSomeLayer22, range22, race32, raceAll32, rechunk3, rechunkProcess2, StreamRechunker2, refineOrDie5, refineOrDieWith5, repeat22, repeatEffect3, repeatEffectChunk3, repeatEffectChunkOption3, repeatEffectOption3, repeatEither3, repeatElements3, repeatElementsWith3, repeatValue3, repeatWith3, repeatWithSchedule2, repeatEffectWithSchedule3, retry62, withExecutionPlan32, scheduleDefectRefail22, run32, runCollect3, runCount3, runDrain22, runFold3, runFoldEffect3, runFoldScoped3, runFoldScopedEffect3, runFoldWhile3, runFoldWhileEffect3, runFoldWhileScoped3, runFoldWhileScopedEffect3, runForEach3, runForEachChunk3, runForEachChunkScoped3, runForEachScoped3, runForEachWhile3, runForEachWhileScoped3, runHead3, runIntoPubSub3, runIntoPubSubScoped3, runIntoQueue3, runIntoQueueElementsScoped3, runIntoQueueScoped3, runLast3, runScoped22, runSum3, scan3, scanReduce3, scanReduceEffect3, schedule22, scheduleWith3, scanEffect3, scoped62, scopedWith42, some52, someOrElse3, someOrFail3, sliding72, slidingSize3, split3, splitOnChunk3, splitLines22, succeed152, sync102, suspend102, take72, takeRight22, takeUntil32, takeUntilEffect3, takeWhile42, tap62, tapBoth32, tapError52, tapErrorCause52, tapSink3, throttle3, throttleEffect3, throttleEnforceEffect2, throttleShapeEffect2, tick3, timeout32, timeoutFail32, timeoutFailCause32, timeoutTo32, pubsubFromOptions2, toPubSub22, toPull22, toQueue22, toQueueOfElements3, toReadableStream3, toReadableStreamEffect3, toReadableStreamRuntime3, transduce3, toAsyncIterableRuntime3, toAsyncIterable3, toAsyncIterableEffect3, unfold32, unfoldChunk3, unfoldChunkEffect3, unfoldEffect3, void_82, unwrap22, unwrapScoped42, unwrapScopedWith32, updateService42, when32, whenCase3, whenCaseEffect3, whenEffect32, withSpan62, zip82, zipFlatten3, zipAll3, zipAllLeft3, zipAllRight3, zipAllSortedByKey3, zipAllSortedByKeyLeft3, zipAllSortedByKeyRight3, zipAllSortedByKeyWith3, zipAllWith3, zipLatest3, zipLatestAll3, zipLatestWith3, zipLeft62, zipRight92, zipWith122, zipWithChunks3, zipWithIndex3, zipWithNext3, zipWithPrevious3, zipWithPreviousAndNext3, zipChunks2, Do32, bind42, bindTo42, let_42, decodeText3, encodeText3, fromEventListener3, RedactedSymbolKey2, redactedRegistry2, RedactedTypeId3, proto122, isRedacted3, make532, value3, unsafeWipe3, GroupBySymbolKey2, GroupByTypeId2, groupByVariance2, isGroupBy2, evaluate22, make542, groupBy3, mapEffectOptions2, bindEffect3, mapDequeue2, MapDequeue2, groupByKey3, groupByIterable2, Redacted_exports2, RedactedTypeId22, isRedacted22, make552, value22, unsafeWipe22, getEquivalence42, Stream_exports2, StreamTypeId32, DefaultChunkSize22, accumulate22, accumulateChunks22, acquireRelease42, aggregate22, aggregateWithin22, aggregateWithinEither22, as92, _async22, asyncEffect42, asyncPush22, asyncScoped22, branchAfter22, broadcast22, share22, broadcastDynamic22, broadcastedQueues22, broadcastedQueuesDynamic22, buffer22, bufferChunks22, catchAll82, catchAllCause72, catchSome42, catchTag42, catchTags42, catchSomeCause42, changes22, changesWith22, changesWithEffect22, chunks22, chunksWith22, combine102, combineChunks22, concat32, concatAll32, cross22, crossLeft22, crossRight22, crossWith22, debounce22, die122, dieSync82, dieMessage52, distributedWith22, distributedWithDynamic22, drain42, drainFork22, drop42, dropRight22, dropUntil42, dropUntilEffect22, dropWhile52, dropWhileEffect22, either62, empty332, ensuring72, ensuringWith32, context62, contextWith42, contextWithEffect42, contextWithStream22, execute22, fail172, failSync92, failCause152, failCauseSync82, filter92, filterEffect22, filterMap72, filterMapEffect22, filterMapWhile42, filterMapWhileEffect22, finalizer22, find32, findEffect22, flatMap172, flatten132, flattenChunks22, flattenEffect22, flattenExitOption22, flattenIterables22, flattenTake22, forever62, fromAsyncIterable22, fromChannel32, toChannel42, fromChunk22, fromChunkPubSub22, fromChunkQueue22, fromChunks22, fromEffect92, fromEffectOption22, fromPubSub22, fromTPubSub22, fromIterable122, fromIterableEffect22, fromIteratorSucceed22, fromPull32, fromQueue32, fromTQueue22, fromReadableStream22, fromReadableStreamByob22, fromSchedule22, groupAdjacentBy22, groupBy22, groupByKey22, grouped22, groupedWithin22, haltAfter22, haltWhen22, haltWhenDeferred22, identity32, interleave22, interleaveWith22, intersperse22, intersperseAffixes22, interruptAfter22, interruptWhen32, interruptWhenDeferred32, iterate42, make562, map232, mapAccum62, mapAccumEffect22, mapBoth62, mapChunks22, mapChunksEffect22, mapConcat22, mapConcatChunk22, mapConcatChunkEffect22, mapConcatEffect22, mapEffect52, mapError72, mapErrorCause52, merge102, mergeAll92, mergeWithTag22, mergeWith42, mergeEither22, mergeLeft22, mergeRight22, mkString32, never62, onEnd22, onError42, onDone22, onStart22, orDie62, orDieWith52, orElse102, orElseEither52, orElseFail42, orElseIfEmpty22, orElseIfEmptyChunk22, orElseIfEmptyStream22, orElseSucceed42, paginate22, paginateChunk22, paginateChunkEffect22, paginateEffect22, partition62, partitionEither22, peel22, pipeThrough22, pipeThroughChannel22, pipeThroughChannelOrFail22, prepend52, provideContext62, provideSomeContext32, provideLayer22, provideService62, provideServiceEffect42, provideServiceStream22, mapInputContext62, provideSomeLayer32, race42, raceAll42, range32, rechunk22, refineOrDie22, refineOrDieWith22, repeat32, repeatEffect22, repeatEffectChunk22, repeatEffectChunkOption22, repeatEffectOption22, repeatEffectWithSchedule22, repeatEither22, repeatElements22, repeatElementsWith22, repeatValue22, repeatWith22, retry72, withExecutionPlan42, run42, runCollect22, runCount22, runDrain32, runFold22, runFoldEffect22, runFoldScoped22, runFoldScopedEffect22, runFoldWhile22, runFoldWhileEffect22, runFoldWhileScoped22, runFoldWhileScopedEffect22, runForEach22, runForEachChunk22, runForEachChunkScoped22, runForEachScoped22, runForEachWhile22, runForEachWhileScoped22, runHead22, runIntoPubSub22, runIntoPubSubScoped22, runIntoQueue22, runIntoQueueElementsScoped22, runIntoQueueScoped22, runLast22, runScoped32, runSum22, scan22, scanEffect22, scanReduce22, scanReduceEffect22, schedule32, scheduleWith22, scoped72, scopedWith52, sliding82, slidingSize22, some62, someOrElse22, someOrFail22, split22, splitOnChunk22, splitLines32, succeed162, sync112, suspend112, take82, takeRight32, takeUntil42, takeUntilEffect22, takeWhile52, tap72, tapBoth42, tapError62, tapErrorCause62, tapSink22, throttle22, throttleEffect22, tick22, timeout42, timeoutFail42, timeoutFailCause42, timeoutTo42, toPubSub32, toPull32, toQueue32, toQueueOfElements22, toReadableStream22, toReadableStreamEffect22, toReadableStreamRuntime22, toAsyncIterableRuntime22, toAsyncIterableEffect22, toAsyncIterable22, transduce22, unfold42, unfoldChunk22, unfoldChunkEffect22, unfoldEffect22, void_92, unwrap32, unwrapScoped52, unwrapScopedWith42, updateService52, when42, whenCase22, whenCaseEffect22, whenEffect42, withSpan72, zip92, zipFlatten22, zipAll22, zipAllLeft22, zipAllRight22, zipAllSortedByKey22, zipAllSortedByKeyLeft22, zipAllSortedByKeyRight22, zipAllSortedByKeyWith22, zipAllWith22, zipLatest22, zipLatestAll22, zipLatestWith22, zipLeft72, zipRight102, zipWith132, zipWithChunks22, zipWithNext22, zipWithPrevious22, zipWithPreviousAndNext22, zipWithIndex22, Do42, bind52, bindEffect22, bindTo52, let_52, decodeText22, encodeText22, fromEventListener22, ProviderGenerationPort, CredentialPort, record5, SOURCE_MANIFEST_HASH, facts, PROVIDER_PROFILES, fail182, DEFAULT_LIMITS2, id32, PEL_PROFILE2, CORE_FAILURE_BRAND3, PARSE_FAIL3, dataSpan2, maximumDataDepth2, syntheticSpan2, binaryStrict2, unaryXStrict2, builtinArgSpecs2, DESCRIPTOR_BRAND2, REGISTRY_BRAND2, ZERO_SPAN2, MAX_BYTES2, MAX_ENTRIES2, BASE_FAILURE_ID2, registries2, byteSize2, text4, name2, natural4, CODEC_MAX_BYTES2, DEFAULT_RUN_OPTIONS2, CORE_FAILURE_BRAND22, PARSE_FAIL22, BUILTIN_PROVIDER_SCHEMAS, hash22, fail192, apiFailure, disconnected, object2, objects, string22, initialState, noTool, unknownOutput, inertResponseItems, responseToolItems, classifyResponseItem, inertResponseParts, classifyResponsePart, toolSurfaceKeys, hash32, apiPrefixHash, identityKey, unwrap42, statusFailure, xaiResponsesDialect, createXaiResponsesTransport, inertBlocks, toolBlocks, classifyBlock, inertDeltas, toolDeltas, classifyDelta, anthropicMessagesDialect, createAnthropicMessagesTransport, openaiResponsesDialect, createOpenaiResponsesTransport, inertSteps, toolSteps, classifyStep, inertContent, toolContent, classifyContent, googleInteractionsDialect, createGoogleInteractionsTransport, FOREMAN_LAUNCH_VERSION, EXIT_TIMEOUT, EXIT_LAUNCHER_ERROR, HEARTBEAT_KEYS, DETACH_HANDOFF_BOUND_MS, PIDNS_INNER_ENV, HOST_PID_ENV, PIDNS_KIND_ENV, UNSHARE_USERNS_PIDNS_FLAGS, UNSHARE_PIDNS_FLAGS, UNSHARE_PROBE_LADDER, ChildSpawner, ProcessGroupTerminator, WindowsTreeTerminator, ExecveService, UnshareProbeService, HeartbeatWriter, CapabilityWriter, ByteSink, LauncherClock, DetachSpawner, StderrLog, liveClock2, LiveClockLayer, liveChildSpawner, liveProcessGroupTerminator, liveWindowsTreeTerminator, liveExecve, liveUnshareProbe, liveCapabilityWriter, liveHeartbeatWriter, liveByteSink, liveStderrLog, liveDetachSpawner, LiveLauncherLayer, defaultIo, isMain, failure22, fail212, object22, text22, record33, problem, failure32, object3, sha, unwrap5;
+var __defProp2, __export2, isFunction3, dual2, identity5, constant3, constTrue2, constFalse2, constUndefined2, constVoid2, make62, mapInput4, array6, let_9, bindTo9, bind9, globalStoreId2, globalStore2, globalValue2, isString2, isNumber2, isBoolean2, isBigInt2, isFunction22, isRecordOrArray2, isObject2, hasProperty2, isTagged2, isNullable2, isIterable2, isPromiseLike2, getBugErrorMessage2, GenKindTypeId2, GenKindImpl2, SingleShotGen3, defaultIncHi2, defaultIncLo2, MUL_HI2, MUL_LO2, BIT_532, BIT_272, PCGRandom2, YieldWrapTypeId2, YieldWrap2, structuralRegionState2, standard2, forced2, isNotOptimizedAway2, internalCall2, genConstructor2, isGeneratorFunction2, randomHashCache2, symbol3, hash4, random4, combine11, optimize2, isHash2, number4, string3, structureKeys2, structure2, array22, cached4, symbol22, isEqual2, equivalence2, NodeInspectSymbol2, toJSON2, format5, BaseProto2, Class5, toStringUnknown2, stringifyCircular2, symbolRedactable2, isRedactable2, redactableState2, withRedactableContext2, redact2, pipeArguments2, OP_ASYNC2, OP_COMMIT2, OP_FAILURE2, OP_ON_FAILURE3, OP_ON_SUCCESS3, OP_ON_SUCCESS_AND_FAILURE2, OP_SUCCESS2, OP_SYNC3, OP_TAG2, OP_UPDATE_RUNTIME_FLAGS2, OP_WHILE2, OP_ITERATOR2, OP_WITH_RUNTIME2, OP_YIELD3, OP_REVERT_FLAGS2, moduleVersion2, getCurrentVersion2, EffectTypeId4, StreamTypeId4, SinkTypeId3, ChannelTypeId3, effectVariance2, sinkVariance3, channelVariance3, EffectPrototype3, StructuralPrototype2, CommitPrototype3, StructuralCommitPrototype2, Base3, TypeId32, CommonProto3, SomeProto2, NoneHash2, NoneProto2, isOption3, isNone4, isSome3, none12, some9, TypeId210, CommonProto22, RightProto2, LeftProto2, isEither5, isLeft4, isRight4, left3, right3, right22, left22, isLeft22, isRight22, match21, merge14, isNonEmptyArray3, make210, number22, mapInput22, all9, tuple3, greaterThan4, none22, some22, isNone22, isSome22, match22, getOrElse7, orElse14, orElseSome2, fromNullable4, getOrUndefined2, getOrThrowWith3, getOrThrow3, map28, flatMap21, containsWith3, _equivalence5, contains4, mergeWith5, make310, findFirst8, allocate2, makeBy3, fromIterable14, ensure2, prepend6, append4, appendAll4, isEmptyArray2, isEmptyReadonlyArray2, isNonEmptyArray22, isNonEmptyReadonlyArray2, isOutOfBounds2, clamp3, get19, unsafeGet10, head8, headNonEmpty3, last5, lastNonEmpty2, tailNonEmpty3, spanIndex2, span5, drop5, findFirst22, reverse4, sort3, zip12, zipWith16, _equivalence22, splitAt3, splitNonEmptyAt2, copy4, unionWith3, union10, empty36, of6, map29, flatMap22, flatten17, filterMap9, filterMapWhile5, partitionMap4, getSomes2, filter15, reduce15, reduceRight7, every9, unfold5, getEquivalence6, dedupeWith2, dedupe2, join8, mapAccum7, Order5, nextPow22, escape2, not2, Context_exports2, TagTypeId3, ReferenceTypeId3, STMSymbolKey3, STMTypeId4, TagProto2, ReferenceProto2, makeGenericTag2, Tag4, Reference3, TypeId33, ContextProto2, makeContext2, serviceNotFoundError2, isContext3, isTag3, isReference3, _empty8, empty210, make410, add6, defaultValueCache2, getDefaultValue2, unsafeGetReference2, unsafeGet22, get22, getOrElse22, getOption3, merge22, mergeAll12, pick4, omit4, TagTypeId22, ReferenceTypeId22, GenericTag2, unsafeMake11, isContext22, isTag22, isReference22, empty37, make510, add22, get32, getOrElse32, unsafeGet32, getOption22, merge32, mergeAll22, pick22, omit22, Tag22, Reference22, Deferred_exports2, TypeId42, emptyArray2, getEquivalence22, _equivalence32, ChunkProto2, makeChunk2, isChunk2, _empty22, empty42, make63, of22, fromIterable22, copyToArray2, toReadonlyArray_2, toReadonlyArray2, reverseChunk2, reverse22, get42, unsafeFromArray2, unsafeFromNonEmptyArray2, unsafeGet42, append22, prepend22, take9, drop22, dropWhile6, appendAll22, filterMap22, filter22, filterMapWhile22, flatMap32, flatten22, isEmpty15, isNonEmpty6, head22, unsafeHead4, headNonEmpty22, last22, unsafeLast2, map32, mapAccum22, splitAt22, splitWhere2, tailNonEmpty22, takeRight4, takeWhile6, zipWith22, makeBy22, range4, findFirst32, reduce22, reduceRight22, TypeId52, bigint05, bigint242, bigint602, bigint1e32, bigint1e62, bigint1e92, DURATION_REGEX2, decode2, zeroValue2, infinityValue2, DurationProto2, make72, isDuration2, isFinite3, isZero3, zero4, infinity2, nanos2, micros2, millis2, seconds2, minutes2, hours2, days2, weeks2, toMillis2, unsafeToNanos2, toHrTime2, match32, matchWith2, Equivalence4, sum3, lessThanOrEqualTo22, greaterThan22, greaterThanOrEqualTo22, equals22, parts2, format22, SIZE2, BUCKET_SIZE2, MASK3, MAX_INDEX_NODE2, MIN_ARRAY_NODE2, make82, EmptyNode2, LeafNode2, CollisionNode2, IndexedNode2, ArrayNode2, HashMapSymbolKey2, HashMapTypeId2, HashMapProto2, makeImpl4, HashMapIterator2, applyCont2, visitLazy2, visitLazyChildren2, _empty32, empty52, fromIterable32, isHashMap2, isEmpty22, get52, getHash2, has8, set9, setTree2, keys7, size15, beginMutation3, endMutation3, mutate4, modifyAt3, modifyHash2, remove22, map42, forEach13, reduce32, HashSetSymbolKey2, HashSetTypeId2, HashSetProto2, makeImpl22, isHashSet2, _empty42, empty62, fromIterable42, make92, has22, some32, every22, size22, beginMutation22, endMutation22, mutate22, add32, remove32, difference22, union22, forEach22, reduce42, empty72, fromIterable52, make102, has32, every32, size32, add42, remove42, difference32, union32, forEach32, reduce52, TypeId62, MutableRefProto2, make112, compareAndSet2, get62, set22, FiberIdSymbolKey2, FiberIdTypeId2, OP_NONE2, OP_RUNTIME2, OP_COMPOSITE2, emptyHash2, None4, Runtime2, Composite3, none32, isFiberId2, isNone32, combine22, combineAll3, getOrElse42, ids3, _fiberCounter2, threadName3, toSet3, unsafeMake22, none42, combine32, combineAll22, getOrElse52, ids22, threadName22, unsafeMake32, empty82, fromIterable62, isEmpty32, get72, set32, keys23, mutate32, modifyAt22, map62, forEach42, reduce62, TypeId72, toArray22, getEquivalence32, _equivalence42, ConsProto2, makeCons2, NilHash2, NilProto2, _Nil2, isList2, isNil2, isCons2, nil3, cons2, empty92, of32, appendAll32, prepend32, prependAll2, reduce72, reverse32, ArrayProto2, Structural2, struct2, ContextPatchTypeId2, PatchProto4, EmptyProto4, _empty52, empty102, AndThenProto4, makeAndThen4, AddServiceProto2, makeAddService2, RemoveServiceProto2, makeRemoveService2, UpdateServiceProto2, makeUpdateService2, diff8, combine42, patch9, HashSetPatchTypeId2, PatchProto22, EmptyProto22, _empty62, empty112, AndThenProto22, makeAndThen22, AddProto2, makeAdd2, RemoveProto2, makeRemove2, diff22, combine52, patch22, ReadonlyArrayPatchTypeId2, PatchProto32, EmptyProto32, _empty72, empty122, AndThenProto32, makeAndThen32, AppendProto2, makeAppend2, SliceProto2, makeSlice2, UpdateProto2, makeUpdate2, diff32, combine62, patch32, DifferTypeId2, DifferProto2, make142, environment2, hashSet2, readonlyArray2, update8, updateWith2, BIT_MASK2, BIT_SHIFT2, active2, enabled2, make152, empty132, enable4, disable4, exclude3, andThen7, invert2, None22, Interruption2, OpSupervision2, RuntimeMetrics2, WindDown2, CooperativeYielding2, cooperativeYielding2, disable22, enable22, interruptible5, interruption2, isEnabled3, make162, none52, runtimeMetrics2, windDown2, diff42, patch42, differ3, empty142, enable32, disable32, exclude22, empty152, par2, seq2, single2, flatten32, step4, merge42, EntryTypeId2, EntryImpl2, blockedRequestVariance2, makeEntry2, RequestBlockParallelTypeId2, parallelVariance2, ParallelImpl2, parallelCollectionEmpty2, parallelCollectionAdd2, parallelCollectionCombine2, parallelCollectionIsEmpty2, parallelCollectionKeys2, parallelCollectionToSequentialCollection2, SequentialCollectionTypeId2, sequentialVariance2, SequentialImpl2, sequentialCollectionMake2, sequentialCollectionCombine2, sequentialCollectionKeys2, sequentialCollectionToChunk2, OP_DIE4, OP_EMPTY4, OP_FAIL6, OP_INTERRUPT4, OP_PARALLEL3, OP_SEQUENTIAL3, CauseSymbolKey2, CauseTypeId2, variance42, proto13, empty162, fail21, die14, interrupt11, parallel5, sequential4, isCause2, isEmptyType2, isDieType3, isEmpty52, isInterrupted4, isInterruptedOnly3, failures2, defects2, interruptors3, failureOption2, failureOrCause3, flipCauseOption3, interruptOption2, keepDefects2, keepDefectsAndElectFailures2, stripFailures2, electFailures2, map82, flatMap72, flatten42, causeEquals2, flattenCause2, flattenCauseLoop2, find4, evaluateCause2, IsInterruptedOnlyCauseReducer2, OP_SEQUENTIAL_CASE2, OP_PARALLEL_CASE2, match42, reduce82, reduceWithContext3, pretty5, renderErrorCause2, makePrettyError2, prettyErrorMessage2, locationRegex2, spanToTrace2, prettyErrorStack2, spanSymbol2, prettyErrors2, OP_STATE_PENDING2, OP_STATE_DONE3, DeferredSymbolKey2, DeferredTypeId3, deferredVariance2, pending6, done14, SingleShotGen22, blocked3, runRequestBlock3, EffectTypeId22, RevertFlags2, EffectPrimitive2, EffectPrimitiveFailure2, EffectPrimitiveSuccess2, isEffect3, withFiberRuntime3, acquireUseRelease6, as14, asVoid8, custom3, unsafeAsync2, asyncInterrupt2, async_2, catchAllCause8, catchAll10, catchIf3, catchSome7, checkInterruptible3, originalSymbol2, capture3, die22, dieMessage7, dieSync10, either22, exit4, fail23, failSync11, failCause16, failCauseSync9, fiberId5, fiberIdWith3, flatMap82, andThen22, step22, flatten52, flip5, matchCause6, matchCauseEffect4, matchEffect4, forEachSequential2, forEachSequentialDiscard2, if_5, interrupt22, interruptWith4, interruptible22, interruptibleMask3, intoDeferred3, map92, mapBoth11, mapError12, onError5, onExit4, onInterrupt3, orElse22, orDie9, orDieWith8, partitionMap22, runtimeFlags2, succeed19, suspend13, sync13, tap10, transplant3, attemptOrElse2, uninterruptible3, uninterruptibleMask4, void_12, updateRuntimeFlags3, whenEffect5, whileLoop4, fromIterator2, gen7, fnUntraced3, withConcurrency3, withRequestBatching3, withRuntimeFlags2, withTracerEnabled3, withTracerTiming3, yieldNow5, zip22, zipLeft12, zipRight13, zipWith32, never7, interruptFiber2, interruptAsFiber2, logLevelAll2, logLevelFatal2, logLevelError2, logLevelWarning2, logLevelInfo2, logLevelDebug2, logLevelTrace2, logLevelNone2, FiberRefSymbolKey2, FiberRefTypeId2, fiberRefVariance2, fiberRefGet2, fiberRefGetWith2, fiberRefSet2, fiberRefModify2, RequestResolverSymbolKey2, RequestResolverTypeId2, requestResolverVariance2, RequestResolverImpl2, isRequestResolver2, fiberRefLocally3, fiberRefLocallyWith3, fiberRefUnsafeMake2, fiberRefUnsafeMakeHashSet2, fiberRefUnsafeMakeReadonlyArray2, fiberRefUnsafeMakeContext2, fiberRefUnsafeMakePatch2, fiberRefUnsafeMakeRuntimeFlags2, currentContext3, currentSchedulingPriority3, currentMaxOpsBeforeYield2, currentLogAnnotations2, currentLogLevel2, currentLogSpan2, withSchedulingPriority3, withMaxOpsBeforeYield3, currentConcurrency2, currentRequestBatching2, currentUnhandledErrorLogLevel2, currentVersionMismatchErrorLogLevel2, withUnhandledErrorLogLevel3, currentMetricLabels2, metricLabels3, currentForkScopeOverride2, currentInterruptedCause2, currentTracerEnabled2, currentTracerTimingEnabled3, currentTracerSpanAnnotations2, currentTracerSpanLinks2, ScopeTypeId2, CloseableScopeTypeId2, scopeAddFinalizer2, scopeAddFinalizerExit2, scopeClose2, scopeFork2, causeSquash2, causeSquashWith2, YieldableError2, makeException2, RuntimeExceptionTypeId2, RuntimeException3, isRuntimeException3, InterruptedExceptionTypeId2, InterruptedException2, isInterruptedException2, IllegalArgumentExceptionTypeId2, IllegalArgumentException3, NoSuchElementExceptionTypeId2, NoSuchElementException3, isNoSuchElementException2, InvalidPubSubCapacityExceptionTypeId2, InvalidPubSubCapacityException2, ExceededCapacityExceptionTypeId2, ExceededCapacityException2, TimeoutExceptionTypeId2, TimeoutException2, timeoutExceptionFromDuration2, UnknownExceptionTypeId2, UnknownException2, exitIsExit2, exitIsFailure2, exitIsSuccess2, exitAs2, exitAsVoid2, exitCollectAll2, exitDie3, exitFail2, exitFailCause3, exitFlatMap2, exitFlatten2, exitForEachEffect2, exitInterrupt3, exitMap2, exitMapBoth2, exitMatch2, exitMatchEffect2, exitSucceed3, exitVoid3, exitZip2, exitZipRight2, exitZipWith2, exitCollectAllInternal2, deferredUnsafeMake2, deferredMake2, deferredMakeAs2, deferredAwait2, deferredComplete2, deferredCompleteWith2, deferredDone2, deferredFail2, deferredFailSync2, deferredFailCause2, deferredFailCauseSync2, deferredDie2, deferredDieSync2, deferredInterrupt2, deferredInterruptWith2, deferredIsDone2, deferredPoll2, deferredSucceed2, deferredSync2, deferredUnsafeDone2, deferredInterruptJoiner2, constContext2, context10, contextWithEffect5, provideContext9, provideSomeContext6, mapInputContext8, filterEffectOrElse3, filterEffectOrFail3, currentSpanFromFiber2, NoopSpanProto2, noopSpan2, DeferredTypeId22, make182, makeAs2, _await4, complete5, completeWith2, done22, fail32, failSync22, failCause22, failCauseSync22, die32, dieSync22, interrupt32, interruptWith22, isDone7, poll8, succeed22, sync22, unsafeMake42, unsafeDone2, isFailure7, isSuccess7, all22, die42, fail42, failCause32, flatten62, forEachEffect2, interrupt42, map102, mapBoth22, match52, succeed32, void_22, zip32, zipRight22, zipWith42, TypeId82, MutableHashMapProto2, MutableHashMapIterator2, BucketIterator2, empty172, get82, getFromBucket2, has42, set42, removeFromBucket2, remove52, size42, TypeId92, MutableListProto2, makeNode3, empty182, isEmpty62, length3, append32, shift2, remove62, TypeId102, EmptyMutableQueue2, MutableQueueProto2, make192, bounded8, unbounded8, length22, isEmpty72, capacity7, offer6, offerAll5, poll22, pollUpTo2, ClockSymbolKey2, ClockTypeId2, clockTag2, MAX_TIMER_MILLIS2, globalClockScheduler2, performanceNowNanos2, processOrPerformanceNow2, ClockImpl2, make202, OP_AND2, OP_OR2, OP_INVALID_DATA2, OP_MISSING_DATA2, OP_SOURCE_UNAVAILABLE2, OP_UNSUPPORTED2, ConfigErrorSymbolKey2, ConfigErrorTypeId2, proto22, And2, Or3, InvalidData2, MissingData2, SourceUnavailable2, Unsupported2, prefixed2, reduceWithContext22, empty192, patch52, OP_CONSTANT2, OP_FAIL22, OP_FALLBACK2, OP_DESCRIBED2, OP_LAZY2, OP_MAP_OR_FAIL2, OP_NESTED2, OP_PRIMITIVE2, OP_REDACTED2, OP_SEQUENCE2, OP_HASHMAP2, OP_ZIP_WITH3, concat4, ConfigProviderSymbolKey2, ConfigProviderTypeId2, configProviderTag2, FlatConfigProviderSymbolKey2, FlatConfigProviderTypeId2, make222, makeFlat2, fromFlat2, fromEnv2, extend3, appendConfigPath2, RedactedConfigErrorReducer2, redactConfigError2, fromFlatLoop2, fromFlatLoopFail2, splitPathString2, parsePrimitive2, transpose2, indicesFrom2, QUOTED_INDEX_REGEX2, parseQuotedIndex2, parseInteger2, TypeId112, consoleTag2, defaultConsole2, RandomSymbolKey2, RandomTypeId2, randomTag2, RandomImpl2, shuffleWith2, swap3, make232, FixedRandomImpl2, fixed5, TracerTypeId2, make242, tracerTag2, spanTag2, randomHexString2, NativeSpan2, nativeTracer2, addSpanStackTrace2, DisablePropagation2, liveServices2, currentServices2, sleep5, defaultServicesWith2, clockWith5, currentTimeMillis3, currentTimeNanos3, withClock3, withConfigProvider3, configProviderWith3, randomWith3, withRandom3, tracerWith5, withTracer3, sleep22, currentTimeMillis22, currentTimeNanos22, clockWith22, Clock3, FiberRefsSym2, FiberRefsImpl2, findAncestor2, joinAs3, forkAs2, unsafeForkAs2, fiberRefs3, setAll3, delete_3, get92, getOrDefault3, updateAs3, unsafeUpdateAs2, updateManyAs3, get102, getOrDefault22, joinAs22, setAll22, updateManyAs22, empty212, All2, Fatal2, Error22, Warning2, Info2, Debug2, Trace2, None32, Order22, greaterThan32, fromLiteral2, make252, formatLabel2, render2, make262, Ref_exports2, EffectPrototype22, CommitPrototype22, Base22, Class22, TypeId122, Proto8, RefTypeId3, refVariance2, RefImpl2, unsafeMake62, make272, get112, set52, getAndSet5, getAndUpdate5, getAndUpdateSome5, setAndGet5, modify32, modifySome5, update22, updateAndGet5, updateSome5, updateSomeAndGet5, RefTypeId22, make282, get122, getAndSet22, getAndUpdate22, getAndUpdateSome22, modify42, modifySome22, set62, setAndGet22, update32, updateAndGet22, updateSome22, updateSomeAndGet22, unsafeMake72, tracerWith22, OP_EMPTY22, OP_ADD2, OP_REMOVE2, OP_UPDATE2, OP_AND_THEN3, empty222, diff52, combine72, patch62, MetricLabelSymbolKey2, MetricLabelTypeId2, MetricLabelImpl2, make292, isMetricLabel2, annotateLogs5, asSome5, asSomeError5, try_6, _catch3, catchAllDefect3, catchSomeCause5, catchSomeDefect3, catchTag7, catchTags7, cause3, clockWith32, clock3, delay3, descriptorWith3, allowInterrupt3, descriptor3, diffFiberRefs3, diffFiberRefsAndRuntimeFlags2, Do7, bind22, bindTo22, let_22, dropUntil5, dropWhile22, contextWith7, eventually5, filterMap42, filterOrDie5, filterOrDieMessage5, filterOrElse5, liftPredicate4, filterOrFail5, findFirst52, findLoop2, firstSuccessOf4, flipWith5, match72, every52, forAllLoop2, forever7, fiberRefs22, head32, ignore5, ignoreLogged3, inheritFiberRefs3, isFailure22, isSuccess22, iterate7, logWithLevel3, log3, logTrace3, logDebug3, logInfo3, logWarning3, logError3, logFatal3, withLogSpan3, logAnnotations3, loop5, loopInternal2, loopDiscard2, mapAccum32, mapErrorCause7, memoize4, merge52, negate5, none62, once4, option6, orElseFail7, orElseSucceed7, parallelErrors3, patchFiberRefs3, promise3, provideService9, provideServiceEffect5, random22, reduce92, reduceRight32, reduceWhile3, reduceWhileLoop2, repeatN3, repeatNLoop2, sandbox3, setFiberRefs3, sleep32, succeedNone5, succeedSome5, summarized5, tagMetrics3, labelMetrics3, takeUntil5, takeWhile22, tapBoth7, tapDefect3, tapError9, tapErrorTag3, tapErrorCause7, timed3, timedWith3, tracerWith32, tracer3, tryPromise3, tryMap3, tryMapPromise3, unless5, unlessEffect3, unsandbox3, updateFiberRefs4, updateService6, when7, whenFiberRef3, whenRef3, withMetric3, serviceFunctionEffect3, serviceFunction3, serviceFunctions3, serviceConstants3, serviceMembers3, serviceOption3, serviceOptional3, annotateCurrentSpan3, linkSpanCurrent3, annotateSpans5, currentParentSpan3, currentSpan3, currentPropagatedSpan3, linkSpans3, bigint022, filterDisablePropagation2, unsafeMakeSpan2, makeSpan3, spanAnnotations3, spanLinks3, endSpan2, useSpan3, withParentSpan5, withSpan8, functionWithSpan3, fromNullable22, optionFromOptional3, OP_SEQUENTIAL22, OP_PARALLEL22, OP_PARALLEL_N2, sequential22, parallel22, parallelN3, isSequential2, isParallel2, sequential32, parallel32, parallelN22, diff62, patch72, FiberStatusSymbolKey2, FiberStatusTypeId2, OP_DONE7, OP_RUNNING3, OP_SUSPENDED2, DoneHash2, Done5, Running2, Suspended2, done32, running4, suspended3, isFiberStatus2, isDone22, isRunning4, isSuspended3, done42, running22, suspended22, isDone32, isRunning22, isSuspended22, TypeId132, MicroExitTypeId2, MicroCauseTypeId2, microCauseVariance2, MicroCauseImpl2, Die2, causeDie2, Interrupt2, causeInterrupt2, causeIsInterrupt2, MicroFiberTypeId2, fiberVariance3, MicroFiberImpl2, fiberMiddleware2, fiberInterruptAll2, identifier2, args2, evaluate3, successCont2, failureCont2, ensureCont2, Yield2, microVariance2, MicroProto2, makePrimitiveProto2, makePrimitive2, makeExit2, succeed42, failCause42, sync32, suspend22, yieldNowWith2, yieldNow22, void_32, withMicroFiber2, asyncOptions2, asyncFinalizer2, async3, as22, exit22, flatMap92, OnSuccessProto2, map112, isMicroExit2, exitSucceed22, exitFailCause22, exitInterrupt22, exitDie22, exitVoid22, exitVoidAll2, setImmediate22, MicroSchedulerDefault2, updateContext3, provideContext22, MaxOpsBeforeYield2, CurrentConcurrency2, CurrentScheduler2, matchCauseEffect22, OnSuccessAndFailureProto2, matchCause22, MicroScopeTypeId2, MicroScopeImpl2, onExit22, setInterruptible2, interruptible32, uninterruptibleMask22, whileLoop22, forEach52, unsafeFork4, runFork4, SchedulerRunner2, PriorityBuckets2, MixedScheduler2, defaultScheduler2, SyncScheduler2, currentScheduler3, withScheduler3, currentRequestMap2, match92, matchSimple2, OP_INTERRUPT_SIGNAL2, OP_STATEFUL2, OP_RESUME2, OP_YIELD_NOW2, interruptSignal2, stateful2, resume2, yieldNow32, FiberScopeSymbolKey2, FiberScopeTypeId2, Global2, Local2, unsafeMake82, globalScope2, FiberSymbolKey2, FiberTypeId3, fiberVariance22, fiberProto2, RuntimeFiberSymbolKey2, RuntimeFiberTypeId3, Order32, isFiber3, isRuntimeFiber3, _await22, children3, done52, dump3, dumpAll3, fail52, failCause52, fromEffect10, id4, inheritAll3, interrupted4, interruptAll3, interruptAllAs3, interruptAsFork3, join22, map122, mapEffect6, mapFiber3, match102, _never2, never22, orElse32, orElseEither9, poll32, parseMs2, renderStatus2, pretty22, unsafeRoots3, roots3, status3, succeed52, void_42, currentFiberURI2, getCurrentFiber3, LoggerSymbolKey2, LoggerTypeId2, loggerVariance2, makeLogger2, none72, textOnly2, format32, escapeDoubleQuotes2, stringLogger2, colors2, logLevelColors2, hasProcessStdout2, processStdoutIsTTY2, hasProcessStdoutOrDeno2, MetricBoundariesSymbolKey2, MetricBoundariesTypeId2, MetricBoundariesImpl2, isMetricBoundaries2, fromIterable72, exponential3, MetricKeyTypeSymbolKey2, MetricKeyTypeTypeId2, CounterKeyTypeSymbolKey2, CounterKeyTypeTypeId2, FrequencyKeyTypeSymbolKey2, FrequencyKeyTypeTypeId2, GaugeKeyTypeSymbolKey2, GaugeKeyTypeTypeId2, HistogramKeyTypeSymbolKey2, HistogramKeyTypeTypeId2, SummaryKeyTypeSymbolKey2, SummaryKeyTypeTypeId2, metricKeyTypeVariance2, CounterKeyType2, FrequencyKeyTypeHash2, FrequencyKeyType2, GaugeKeyTypeHash2, GaugeKeyType2, HistogramKeyType2, SummaryKeyType2, counter6, histogram6, isCounterKey2, isFrequencyKey2, isGaugeKey2, isHistogramKey2, isSummaryKey2, MetricKeySymbolKey2, MetricKeyTypeId2, metricKeyVariance2, arrayEquivilence2, MetricKeyImpl2, isMetricKey2, counter22, histogram22, taggedWithLabels3, MetricStateSymbolKey2, MetricStateTypeId2, CounterStateSymbolKey2, CounterStateTypeId2, FrequencyStateSymbolKey2, FrequencyStateTypeId2, GaugeStateSymbolKey2, GaugeStateTypeId2, HistogramStateSymbolKey2, HistogramStateTypeId2, SummaryStateSymbolKey2, SummaryStateTypeId2, metricStateVariance2, CounterState2, arrayEquals2, FrequencyState2, GaugeState2, HistogramState2, SummaryState2, counter32, frequency22, gauge22, histogram32, summary22, isCounterState2, isFrequencyState2, isGaugeState2, isHistogramState2, isSummaryState2, MetricHookSymbolKey2, MetricHookTypeId2, metricHookVariance2, make302, bigint032, counter42, frequency32, gauge32, histogram42, summary32, calculateQuantiles2, resolveQuantile2, MetricPairSymbolKey2, MetricPairTypeId2, metricPairVariance2, unsafeMake92, MetricRegistrySymbolKey2, MetricRegistryTypeId2, MetricRegistryImpl2, make312, MetricSymbolKey2, MetricTypeId2, metricVariance2, globalMetricRegistry2, make322, counter52, fromMetricKey2, histogram52, tagged3, taggedWithLabels22, update42, RequestSymbolKey2, RequestTypeId2, requestVariance2, RequestPrototype2, isRequest3, complete22, Listeners2, Direction2, RedBlackTreeIterator2, Color2, clone3, repaint2, recount2, RedBlackTreeSymbolKey2, RedBlackTreeTypeId2, redBlackTreeVariance2, RedBlackTreeProto2, makeImpl32, isRedBlackTree2, findFirst62, has52, insert3, keysForward2, keys32, removeFirst3, fixDoubleBlack2, has62, insert22, keys42, removeFirst22, TypeId142, SortedSetProto2, fromTree2, isSortedSet2, add52, remove72, SupervisorSymbolKey2, SupervisorTypeId3, supervisorVariance2, ProxySupervisor2, Zip2, isZip2, Track2, Const2, FibersIn2, unsafeTrack2, track2, fromEffect22, none82, make342, OP_EMPTY32, OP_ADD_SUPERVISOR2, OP_REMOVE_SUPERVISOR2, OP_AND_THEN22, empty252, combine82, patch82, patchLoop2, removeSupervisor2, toSet22, diff72, differ22, fiberStarted2, fiberActive2, fiberSuccesses2, fiberFailures2, fiberLifetimes2, EvaluationSignalContinue2, EvaluationSignalDone2, EvaluationSignalYieldNow2, runtimeFiberVariance2, absurd2, YieldedOp2, yieldedOpChannel2, contOpSuccess2, drainQueueWhileRunningTable2, runBlockedRequests2, _version2, FiberRuntime2, currentMinimumLogLevel2, loggerWithConsoleLog2, defaultLogger2, tracerLogger2, currentLoggers2, annotateLogsScoped3, whenLogLevel3, acquireRelease5, acquireReleaseInterruptible3, addFinalizer4, daemonChildren3, _existsParFound2, exists7, existsLoop2, filter52, allResolveInput2, allValidate2, allEither2, all42, allWith3, allSuccesses3, replicate5, replicateEffect3, forEach82, forEachParUnbounded2, forEachConcurrentDiscard2, forEachParN2, fork4, forkDaemon3, forkWithErrorHandler3, unsafeFork22, unsafeForkUnstarted2, unsafeMakeChildFiber2, forkWithScopeOverride2, mergeAll32, partition32, validateAll5, raceAll5, reduceEffect4, parallelFinalizers3, parallelNFinalizers2, finalizersMask3, finalizersMaskInternal2, scopeWith3, scopedWith6, scopedEffect2, sequentialFinalizers3, tagMetricsScoped3, labelMetricsScoped3, using3, validate4, validateWith3, validateFirst5, withClockScoped3, withRandomScoped3, withConfigProviderScoped3, withEarlyRelease3, zipOptions2, zipLeftOptions2, zipRightOptions2, zipWithOptions2, withRuntimeFlagsScoped2, scopeTag2, scope5, scopeUnsafeAddFinalizer2, ScopeImplProto2, scopeUnsafeMake2, scopeMake2, scopeExtend2, scopeUse2, fiberRefUnsafeMakeSupervisor2, fiberRefLocallyScoped3, fiberRefLocallyScopedWith4, currentRuntimeFlags2, currentSupervisor2, fiberAwaitAll2, fiberAll2, fiberInterruptFork2, fiberJoinAll2, fiberScoped2, raceWith4, disconnect3, race5, raceFibersWith2, completeRace2, ensuring9, invokeWithInterrupt2, makeSpanScoped3, withTracerScoped3, withSpanScoped3, complete32, pending22, refreshing2, MapKeyTypeId2, MapKeyImpl2, makeMapKey2, isMapKey2, KeySetImpl2, makeKeySet2, makeCacheState2, initialCacheState2, CacheSymbolKey2, CacheTypeId2, cacheVariance2, ConsumerCacheSymbolKey2, ConsumerCacheTypeId2, consumerCacheVariance2, makeCacheStats2, makeEntryStats2, CacheImpl2, unsafeMakeWith2, fail62, die52, interrupt52, isDieType22, isInterrupted22, isInterruptedOnly22, interruptors22, failureOrCause22, flipCauseOption22, map132, squash2, IllegalArgumentException22, NoSuchElementException22, RuntimeException22, isRuntimeException22, Effect_exports2, IntervalSymbolKey2, IntervalTypeId2, empty262, make352, lessThan22, min22, isEmpty82, intersect6, size82, after3, make362, empty272, lessThan32, isEmpty92, intersect22, size92, after22, IntervalsSymbolKey2, IntervalsTypeId2, make372, intersect32, intersectLoop2, start5, end6, lessThan42, isNonEmpty32, make382, intersect42, start22, end22, lessThan52, isNonEmpty42, OP_CONTINUE3, OP_DONE22, _continue3, continueWith3, done62, isContinue3, isDone42, _continue22, continueWith22, done72, isContinue22, isDone52, Scope2, addFinalizer22, addFinalizerExit2, close2, extend22, fork22, make392, Semaphore2, unsafeMakeSemaphore3, makeSemaphore3, Latch2, unsafeMakeLatch3, makeLatch3, awaitAllChildren3, cached22, cachedInvalidateWithTTL3, computeCachedValue2, getCachedValue2, invalidateCache2, ensuringChild3, ensuringChildren3, forkAll3, forkIn3, forkScoped3, fromFiber3, fromFiberEffect3, memoKeySymbol2, Key2, cachedFunction3, raceFirst3, supervised3, timeout5, timeoutFail5, timeoutFailCause5, timeoutOption3, timeoutTo5, SynchronizedSymbolKey2, SynchronizedTypeId2, synchronizedVariance2, SynchronizedImpl2, makeSynchronized2, unsafeMakeSynchronized2, updateSomeAndGetEffectSynchronized2, zipFiber2, zipLeftFiber2, zipRightFiber2, zipWithFiber2, bindAll3, TypeId152, OP_EXTEND_SCOPE2, OP_FOLD3, OP_FRESH2, OP_FROM_EFFECT4, OP_SCOPED2, OP_SUSPEND4, OP_PROVIDE4, OP_PROVIDE_MERGE2, OP_MERGE_ALL2, OP_ZIP_WITH22, Fiber_exports2, FiberTypeId22, RuntimeFiberTypeId22, Order42, isFiber22, isRuntimeFiber22, id22, _await32, awaitAll2, children22, all52, done82, dump22, dumpAll22, fail72, failCause62, fromEffect32, getCurrentFiber22, inheritAll22, interrupt62, interrupted22, interruptAs4, interruptAsFork22, interruptAll22, interruptAllAs22, interruptFork2, join32, joinAll2, map142, mapEffect22, mapFiber22, match112, never32, orElse42, orElseEither32, poll42, pretty32, roots22, unsafeRoots22, scoped8, status22, succeed62, void_52, zip52, zipLeft22, zipRight32, zipWith52, makeDual2, unsafeFork32, unsafeRunCallback2, unsafeRunSync2, AsyncFiberExceptionImpl2, asyncFiberException2, FiberFailureId2, FiberFailureCauseId2, FiberFailureImpl2, fiberFailure2, fastPath2, unsafeRunSyncExit2, unsafeRunPromise2, unsafeRunPromiseExit2, RuntimeImpl2, make402, runtime22, defaultRuntimeFlags2, defaultRuntime3, unsafeRunEffect2, unsafeForkEffect2, unsafeRunPromiseEffect2, unsafeRunPromiseExitEffect2, unsafeRunSyncEffect2, unsafeRunSyncExitEffect2, asyncEffect5, modifyEffect2, LayerSymbolKey2, LayerTypeId3, layerVariance2, proto32, MemoMapTypeIdKey2, MemoMapTypeId3, CurrentMemoMap3, isLayer3, isFresh3, MemoMapImpl2, makeMemoMap3, unsafeMakeMemoMap2, build3, buildWithScope3, buildWithMemoMap3, makeBuilder2, catchAll22, catchAllCause22, die62, dieSync32, discard3, context22, extendScope3, fail82, failSync32, failCause72, failCauseSync32, flatMap102, flatten72, fresh3, fromEffect42, fromEffectDiscard2, fiberRefLocally22, locallyEffect3, fiberRefLocallyWith22, fiberRefLocallyScoped22, fiberRefLocallyScopedWith22, fromFunction4, launch3, mock3, mockImpl2, makeUnimplemented2, map152, mapError22, matchCause32, match122, memoize22, merge62, mergeAll42, orDie22, orElse52, passthrough4, project3, retry9, retryLoop2, retryUpdate2, scoped22, scopedDiscard3, scopedContext3, scope22, service3, succeed72, succeedContext3, empty292, suspend32, sync42, syncContext3, tap22, tapError22, tapErrorCause22, toRuntime3, toRuntimeWithMemoMap3, provide4, provideMerge3, zipWith62, unwrapEffect3, unwrapScoped6, annotateLogs22, annotateSpans22, withSpan22, withParentSpan22, provideSomeLayer4, provideSomeRuntime2, effect_provide2, console22, consoleWith3, withConsole3, withConsoleScoped3, fixed22, ScheduleSymbolKey2, ScheduleTypeId2, isSchedule2, ScheduleDriverSymbolKey2, ScheduleDriverTypeId2, defaultIterationMetadata2, CurrentIterationMetadata3, scheduleVariance2, scheduleDriverVariance2, ScheduleImpl2, updateInfo2, ScheduleDriverImpl2, makeWithState2, addDelay2, addDelayEffect2, asVoid22, check5, checkEffect2, driver3, intersect52, intersectWith2, intersectWithLoop2, map162, mapEffect32, modifyDelayEffect2, passthrough22, recurs2, spaced3, unfold22, untilInputEffect2, whileInputEffect2, whileOutput2, ScheduleDefectTypeId2, ScheduleDefect2, isScheduleDefect2, scheduleDefectWrap2, scheduleDefectRefailCause2, scheduleDefectRefail3, repeat_Effect2, repeat_combined2, repeatOrElse_Effect2, repeatOrElseEffectLoop2, retry_Effect2, retry_combined2, fromRetryOptions2, retryOrElse_Effect2, retryOrElse_EffectLoop2, schedule_Effect2, scheduleFrom_Effect2, scheduleFrom_EffectLoop2, forever22, once22, scheduleForked3, withExecutionPlan5, scheduleFromStep2, currentCache2, currentCacheEnabled2, fromRequest2, cacheRequest2, withRequestCaching3, withRequestCache3, isRequest22, EffectTypeId32, isEffect22, cachedWithTTL2, cachedInvalidateWithTTL22, cached32, cachedFunction22, once32, all62, allWith22, allSuccesses22, dropUntil22, dropWhile32, takeUntil22, takeWhile32, every62, exists22, filter72, filterMap52, findFirst72, forEach92, head42, mergeAll52, partition42, reduce112, reduceWhile22, reduceRight42, reduceEffect22, replicate22, replicateEffect22, validateAll22, validateFirst22, async22, asyncEffect22, custom22, withFiberRuntime22, fail102, failSync42, failCause92, failCauseSync42, die72, dieMessage22, dieSync42, gen22, never42, none92, promise22, succeed92, succeedNone22, succeedSome22, suspend42, sync52, _void2, yieldNow42, _catch22, catchAll32, catchAllCause32, catchAllDefect22, catchIf22, catchSome22, catchSomeCause22, catchSomeDefect22, catchTag22, catchTags22, cause22, eventually22, ignore22, ignoreLogged22, parallelErrors22, sandbox22, retry22, withExecutionPlan22, retryOrElse2, try_22, tryMap22, tryMapPromise22, tryPromise22, unsandbox22, allowInterrupt22, checkInterruptible22, disconnect22, interrupt72, interruptWith32, interruptible42, interruptibleMask22, onInterrupt22, uninterruptible22, uninterruptibleMask32, liftPredicate22, as42, asSome22, asSomeError22, asVoid32, flip22, flipWith22, map172, mapAccum42, mapBoth32, mapError32, mapErrorCause22, merge72, negate22, acquireRelease22, acquireReleaseInterruptible22, acquireUseRelease22, addFinalizer32, ensuring22, onError22, onExit32, parallelFinalizers22, sequentialFinalizers22, finalizersMask22, scope32, scopeWith22, scopedWith22, scoped32, using22, withEarlyRelease22, awaitAllChildren22, daemonChildren22, descriptor22, descriptorWith22, diffFiberRefs22, ensuringChild22, ensuringChildren22, fiberId22, fiberIdWith22, fork32, forkDaemon22, forkAll22, forkIn22, forkScoped22, forkWithErrorHandler22, fromFiber22, fromFiberEffect22, supervised22, transplant22, withConcurrency22, withScheduler22, withSchedulingPriority22, withMaxOpsBeforeYield22, clock22, clockWith42, withClockScoped22, withClock22, console32, consoleWith22, withConsoleScoped22, withConsole22, delay22, sleep42, timed22, timedWith22, timeout22, timeoutOption22, timeoutFail22, timeoutFailCause22, timeoutTo22, configProviderWith22, withConfigProvider22, withConfigProviderScoped22, context32, contextWith22, contextWithEffect22, mapInputContext22, provide22, provideService22, provideServiceEffect22, serviceFunction22, serviceFunctionEffect22, serviceFunctions22, serviceConstants22, serviceMembers22, serviceOption22, serviceOptional22, updateService22, Do22, bind32, bindAll22, bindTo32, let_32, option22, either32, exit32, intoDeferred22, if_22, filterOrDie22, filterOrDieMessage22, filterOrElse22, filterOrFail22, filterEffectOrElse22, filterEffectOrFail22, unless22, unlessEffect22, when22, whenEffect22, whenFiberRef22, whenRef22, flatMap112, andThen42, flatten82, race22, raceAll22, raceFirst22, raceWith22, summarized22, tap32, tapBoth22, tapDefect22, tapError32, tapErrorTag22, tapErrorCause32, forever32, iterate22, loop22, repeat4, repeatN22, repeatOrElse2, schedule4, scheduleForked22, scheduleFrom2, whileLoop32, getFiberRefs2, inheritFiberRefs22, locally3, locallyWith3, locallyScoped3, locallyScopedWith2, patchFiberRefs22, setFiberRefs22, updateFiberRefs22, isFailure42, isSuccess32, match132, matchCause42, matchCauseEffect32, matchEffect22, log22, logWithLevel22, logTrace22, logDebug22, logInfo22, logWarning22, logError22, logFatal22, withLogSpan22, annotateLogs32, annotateLogsScoped22, logAnnotations22, withUnhandledErrorLogLevel22, whenLogLevel22, orDie32, orDieWith22, orElse62, orElseFail22, orElseSucceed22, firstSuccessOf22, random32, randomWith22, withRandom22, withRandomFixed2, withRandomScoped22, runtime32, getRuntimeFlags2, patchRuntimeFlags2, withRuntimeFlagsPatch2, withRuntimeFlagsPatchScoped2, tagMetrics22, labelMetrics22, tagMetricsScoped22, labelMetricsScoped22, metricLabels22, withMetric22, unsafeMakeSemaphore22, makeSemaphore22, unsafeMakeLatch22, makeLatch22, runFork22, runCallback2, runPromise2, runPromiseExit3, runSync2, runSyncExit2, validate22, validateWith22, zip62, zipLeft32, zipRight42, zipWith72, ap3, blocked22, runRequestBlock22, step32, request2, cacheRequestResult2, withRequestBatching22, withRequestCaching22, withRequestCache22, tracer22, tracerWith42, withTracer22, withTracerScoped22, withTracerEnabled22, withTracerTiming22, annotateSpans32, annotateCurrentSpan22, currentSpan22, currentPropagatedSpan22, currentParentSpan22, spanAnnotations22, spanLinks22, linkSpans22, linkSpanCurrent22, makeSpan22, makeSpanScoped22, useSpan22, withSpan32, functionWithSpan22, withSpanScoped22, withParentSpan32, fromNullable32, optionFromOptional22, transposeOption2, transposeMapOption2, makeTagProxy2, Tag32, Service2, fn2, fnUntraced22, ensureSuccessType3, ensureErrorType3, ensureRequirementsType3, get132, currentContext22, currentSchedulingPriority22, currentScheduler22, currentTracerTimingEnabled22, Layer_exports2, setConfigProvider3, parentSpan3, span23, setTracer3, LayerTypeId22, MemoMapTypeId22, CurrentMemoMap22, isLayer22, isFresh22, annotateLogs42, annotateSpans42, build22, buildWithScope22, catchAll42, catchAllCause42, context42, die82, dieSync52, discard22, effect5, effectDiscard2, effectContext2, empty302, extendScope22, fail112, failSync52, failCause102, failCauseSync52, flatMap122, flatten92, fresh22, mock22, fromFunction22, launch22, map182, mapError42, match142, matchCause52, memoize32, merge82, mergeAll62, orDie42, orElse72, passthrough32, project22, locallyEffect22, locally22, locallyWith22, locallyScoped22, fiberRefLocallyScopedWith32, retry32, scope42, scoped42, scopedDiscard22, scopedContext22, service22, succeed102, succeedContext22, suspend52, sync62, syncContext22, tap42, tapError42, tapErrorCause42, toRuntime22, toRuntimeWithMemoMap22, provide32, provideMerge22, zipWith82, unwrapEffect22, unwrapScoped22, setClock2, setConfigProvider22, parentSpan22, setRandom2, setRequestBatching2, setRequestCaching2, setRequestCache2, setScheduler2, span32, setTracer22, setTracerEnabled2, setTracerTiming2, setUnhandledErrorLogLevel2, setVersionMismatchErrorLogLevel2, withSpan42, withParentSpan42, makeMemoMap22, buildWithMemoMap22, updateService32, ensureSuccessType22, ensureErrorType22, ensureRequirementsType22, EnqueueSymbolKey2, EnqueueTypeId3, DequeueSymbolKey2, DequeueTypeId3, QueueStrategySymbolKey2, QueueStrategyTypeId3, BackingQueueSymbolKey2, BackingQueueTypeId3, queueStrategyVariance2, backingQueueVariance2, enqueueVariance2, dequeueVariance2, QueueImpl2, takeRemainderLoop3, isQueue3, isEnqueue3, isDequeue3, bounded22, dropping7, sliding9, unbounded22, unsafeMake102, make412, BackingQueueFromMutableQueue2, backingQueueFromMutableQueue2, capacity22, size102, isFull6, isEmpty102, isShutdown7, awaitShutdown6, shutdown7, offer22, unsafeOffer3, offerAll22, poll52, take22, takeAll4, takeUpTo4, takeBetween4, takeN4, backPressureStrategy3, droppingStrategy3, slidingStrategy3, BackPressureStrategy3, DroppingStrategy3, SlidingStrategy3, unsafeCompleteDeferred3, unsafeOfferAll3, unsafePollAll2, unsafePollN3, unsafeRemove3, unsafeCompleteTakers2, AbsentValue3, addSubscribers2, removeSubscribers2, bounded32, dropping22, sliding22, unbounded32, shutdown22, subscribe4, makeBoundedPubSub2, makeUnboundedPubSub2, makeSubscription3, unsafeMakeSubscription2, BoundedPubSubArb2, BoundedPubSubArbSubscription2, BoundedPubSubPow22, BoundedPubSubPow2Subscription2, BoundedPubSubSingle2, BoundedPubSubSingleSubscription2, UnboundedPubSub2, UnboundedPubSubSubscription2, SubscriptionImpl2, takeRemainderLoop22, PubSubImpl2, makePubSub2, unsafeMakePubSub2, ensureCapacity2, unsafeCompleteDeferred22, unsafeOfferAll22, unsafePollAllQueue2, unsafePollAllSubscription2, unsafePollN22, unsafePublishAll2, unsafeRemove22, BackPressureStrategy22, DroppingStrategy22, SlidingStrategy22, unsafeStrategyCompletePollers2, unsafeStrategyCompleteSubscribers2, ReplayBuffer2, ReplayWindowImpl2, emptyReplayWindow2, bounded42, dropping32, sliding32, unbounded42, shutdown32, subscribe22, Queue_exports2, EnqueueTypeId22, DequeueTypeId22, QueueStrategyTypeId22, BackingQueueTypeId22, isQueue22, isDequeue22, isEnqueue22, backPressureStrategy22, droppingStrategy22, slidingStrategy22, make422, bounded52, dropping42, sliding42, unbounded52, capacity42, size122, isEmpty122, isFull32, isShutdown32, awaitShutdown32, shutdown42, offer32, unsafeOffer22, offerAll32, poll62, take32, takeAll22, takeUpTo22, takeBetween22, takeN22, OP_CONTINUE22, OP_CLOSE2, OP_YIELD22, ChildExecutorDecisionSymbolKey2, ChildExecutorDecisionTypeId2, proto42, Continue2, OP_CONTINUATION_K2, OP_CONTINUATION_FINALIZER2, ContinuationTypeId2, continuationVariance2, ContinuationKImpl2, ContinuationFinalizerImpl2, OP_PULL_AFTER_NEXT2, OP_PULL_AFTER_ALL_ENQUEUED2, UpstreamPullStrategySymbolKey2, UpstreamPullStrategyTypeId2, upstreamPullStrategyVariance2, proto52, PullAfterNext2, OP_BRACKET_OUT2, OP_BRIDGE2, OP_CONCAT_ALL2, OP_EMIT5, OP_ENSURING2, OP_FAIL32, OP_FOLD22, OP_FROM_EFFECT22, OP_PIPE_TO2, OP_PROVIDE22, OP_READ3, OP_SUCCEED4, OP_SUCCEED_NOW2, OP_SUSPEND22, ChannelSymbolKey2, ChannelTypeId22, channelVariance22, proto62, isChannel2, acquireReleaseOut2, catchAllCause52, collectElements2, collectElementsReader2, concatAllWith2, concatMapWith2, embedInput2, ensuringWith4, fail122, failCause112, failCauseSync62, flatMap132, foldCauseChannel2, fromEffect52, pipeTo2, provideContext32, readWith2, readWithCause2, succeed112, succeedNow2, suspend62, sync72, void_62, write2, OP_DONE32, OP_EMIT22, OP_FROM_EFFECT32, OP_READ22, ChannelStateTypeId2, channelStateVariance2, proto72, Done22, Emit3, fromEffect62, Read2, isFromEffect2, effect22, effectOrUndefinedIgnored2, OP_PULL_FROM_CHILD2, OP_PULL_FROM_UPSTREAM2, OP_DRAIN_CHILD_EXECUTORS2, OP_EMIT32, PullFromChild2, PullFromUpstream2, DrainChildExecutors2, Emit22, OP_PULLED2, OP_NO_UPSTREAM2, UpstreamPullRequestSymbolKey2, UpstreamPullRequestTypeId2, upstreamPullRequestVariance2, proto82, Pulled2, NoUpstream2, ChannelExecutor2, ifNotNull2, runFinalizers2, readUpstream2, runIn2, runScopedInterpret2, OP_DONE42, OP_AWAIT2, MergeDecisionSymbolKey2, MergeDecisionTypeId2, proto92, Done32, Await3, OP_BOTH_RUNNING2, OP_LEFT_DONE2, OP_RIGHT_DONE2, MergeStateSymbolKey2, MergeStateTypeId2, proto102, BothRunning2, LeftDone2, RightDone2, OP_BACK_PRESSURE2, OP_BUFFER_SLIDING2, MergeStrategySymbolKey2, MergeStrategyTypeId2, proto112, BackPressure3, BufferSliding2, match152, OP_STATE_EMPTY2, OP_STATE_EMIT2, OP_STATE_ERROR2, OP_STATE_DONE22, stateEmpty3, stateEmit2, stateError2, stateDone2, SingleProducerAsyncInputImpl2, make432, acquireUseRelease32, as52, catchAll52, concatMap2, drain5, ensuring32, flatten102, foldChannel2, fromInput3, fromQueue4, fromQueueInternal2, identityChannel2, interruptWhen4, interruptWhenDeferred4, map192, mapError52, mapErrorCause32, mapOut2, mapOutEffect2, mapOutEffectPar2, mergeAll72, mergeAllWith2, mergeMap2, mergeWith22, orDieWith32, orElse82, pipeToOrFail2, repeated2, run5, runDrain4, runScoped4, scoped52, scopedWith32, splitLines4, toPubSub4, toPull4, toPullIn2, interpretToPull2, toQueue4, toQueueInternal2, unwrap4, unwrapScoped32, unwrapScopedWith5, withSpan52, writeAll2, writeChunk2, writeChunkWriter2, zip72, zipLeft42, zipRight52, ChannelExceptionTypeId2, ChannelException2, isChannelException2, SinkTypeId22, sinkVariance22, SinkImpl2, isSink2, suspend72, collectAll2, collectAllLoop2, collectAllN2, collectAllNLoop2, collectLeftover2, drain22, fail132, fold2, foldReader2, foldChunkSplit2, foldSink2, foldChunks2, foldChunksReader2, foldEffect2, foldEffectReader2, foldChunkSplitEffect2, foldChunkSplitEffectInternal2, foldLeftChunks2, flatMap142, forEach102, forEachChunk2, forEachWhile2, forEachWhileReader2, fromChannel4, fromEffect72, head52, last42, map202, raceWith32, sum22, toChannel5, unwrapScopedWith22, zipRight62, zipWith92, count3, mkString4, Done42, Await22, TypeId162, stateEmpty22, stateClosed2, variance52, RcRefImpl2, make442, get142, make452, get152, runFork32, runPromiseExit22, defaultRuntime22, driver22, forever42, spaced22, CurrentIterationMetadata22, OP_LEFT2, OP_RIGHT2, OP_BOTH2, OP_EITHER2, Left2, Right2, Both3, Either2, fromInput22, Both22, Versioned2, make462, unsafeGet62, unsafeSet3, commit4, isInvalid2, isChanged2, JournalAnalysisInvalid2, JournalAnalysisReadWrite2, JournalAnalysisReadOnly2, commitJournal2, analyzeJournal2, collectTodos2, execTodos2, addTodo2, OP_WITH_STM_RUNTIME2, OP_ON_FAILURE22, OP_ON_RETRY2, OP_ON_SUCCESS22, OP_PROVIDE32, OP_SYNC22, OP_SUCCEED22, OP_RETRY3, OP_FAIL42, OP_DIE22, OP_INTERRUPT22, OP_FAIL52, OP_DIE32, OP_INTERRUPT32, OP_SUCCEED32, OP_RETRY22, OP_DONE52, OP_SUSPEND32, OP_DONE62, OP_INTERRUPTED2, OP_RUNNING22, STMStateSymbolKey2, STMStateTypeId2, isSTMState2, isRunning32, isDone62, done92, interruptedHash2, interrupted32, runningHash2, running32, fromTExit2, TExitSymbolKey2, TExitTypeId2, variance62, isExit3, isSuccess42, isRetry2, fail142, die92, interrupt82, succeed132, retryHash2, retry42, done102, suspend82, txnCounter2, make472, STMSymbolKey22, STMTypeId22, stmVariance2, STMPrimitive2, unsafeAtomically2, tryCommit2, tryCommitSync2, tryCommitAsync2, completeTodos2, completeTryCommit2, STMDriver2, catchAll62, die102, dieSync62, effect32, ensuring52, fail152, failSync72, flatMap152, matchSTM3, withSTMRuntime2, interruptAs22, map212, retry52, succeed142, sync92, zipRight82, zipWith112, OP_BACKPRESSURE_STRATEGY2, OP_DROPPING_STRATEGY2, OP_SLIDING_STRATEGY2, as72, flatten112, forEach112, all72, suspend92, tap52, void_72, TRefSymbolKey2, TRefTypeId3, tRefVariance2, TRefImpl2, make482, get162, set72, getOrMakeEntry2, unsafeGet72, unsafeSet22, TEnqueueSymbolKey2, TEnqueueTypeId2, TDequeueSymbolKey2, TDequeueTypeId2, tDequeueVariance2, tEnqueueVariance2, TQueueImpl2, isShutdown42, shutdown52, take42, TPubSubSymbolKey2, TPubSubTypeId2, AbsentValue22, makeNode22, TPubSubImpl2, TPubSubSubscriptionImpl2, makeSubscription22, subscribe32, subscribeScoped3, subscribeScoped22, isShutdown62, take52, TypeId172, ReadonlyTypeId2, empty312, exitEmpty2, exitFalse2, exitTrue2, constDone2, MailboxImpl2, make492, toChannel22, RingBuffer2, OP_NOT_STARTED2, OP_PREVIOUS2, OP_CURRENT2, notStarted2, previous2, current2, make502, makePush2, HandoffTypeId2, OP_HANDOFF_STATE_EMPTY2, OP_HANDOFF_STATE_FULL2, handoffStateEmpty2, handoffStateFull2, handoffStateMatch2, handoffVariance2, make512, offer52, take62, OP_EMIT42, OP_HALT2, OP_END2, emit2, halt2, end32, TakeSymbolKey2, TakeTypeId2, takeVariance2, TakeImpl2, chunk22, done112, end42, failCause122, fromPull4, match182, of52, end52, failCause132, OP_SCHEDULE_END2, OP_UPSTREAM_END2, ScheduleEnd2, UpstreamEnd2, OP_DRAIN_LEFT2, OP_DRAIN_RIGHT2, OP_PULL_BOTH3, OP_PULL_LEFT3, OP_PULL_RIGHT3, DrainLeft2, DrainRight2, PullBoth3, PullLeft3, PullRight3, OP_PULL_BOTH22, OP_PULL_LEFT22, OP_PULL_RIGHT22, PullBoth22, PullLeft22, PullRight22, StreamSymbolKey2, StreamTypeId22, streamVariance3, StreamImpl2, isStream2, DefaultChunkSize3, accumulate3, accumulateChunks3, acquireRelease32, aggregate3, aggregateWithin3, aggregateWithinEither3, as82, queueFromBufferOptions2, _async3, asyncEffect32, mailboxFromBufferOptionsPush2, asyncPush3, asyncScoped3, branchAfter3, broadcast3, broadcastDynamic3, share3, broadcastedQueues3, broadcastedQueuesDynamic3, buffer3, bufferChunks3, bufferChunksDropping2, bufferChunksSliding2, bufferDropping2, bufferSliding2, bufferUnbounded2, bufferSignal2, catchAll72, catchAllCause62, catchSome32, catchSomeCause32, catchTag32, catchTags32, changes3, changesWith3, changesWithEffect3, chunks3, chunksWith3, unsome4, combine92, combineChunks3, concat22, concatAll22, cross3, crossLeft3, crossRight3, crossWith3, debounce3, die112, dieSync72, dieMessage42, distributedWith3, distributedWithDynamicId2, newDistributedWithDynamicId2, distributedWithDynamic3, distributedWithDynamicCallback2, drain32, drainFork3, drop32, dropRight3, dropUntil32, dropUntilEffect3, dropWhile42, dropWhileEffect3, either52, empty322, ensuring62, ensuringWith22, context52, contextWith32, contextWithEffect32, contextWithStream3, execute3, fail162, failSync82, failCause142, failCauseSync72, filter82, filterEffect3, filterMap62, filterMapEffect3, filterMapWhile32, filterMapWhileEffect3, finalizer3, find22, findEffect3, flatMap162, matchConcurrency2, flatMapParSwitchBuffer2, flatten122, flattenChunks3, flattenEffect3, flattenExitOption3, flattenIterables3, flattenTake3, forever52, fromAsyncIterable3, fromChannel22, toChannel32, mailboxToStream2, fromChunk3, fromChunkPubSub3, fromChunkQueue3, fromChunks3, fromEffect82, fromEffectOption3, fromPubSub3, fromTPubSub3, fromIterable112, fromIterableEffect3, fromIteratorSucceed3, fromPull22, fromQueue22, fromTQueue3, fromSchedule3, fromReadableStream3, fromReadableStreamByob3, EOF2, readChunkStreamByobReader2, groupAdjacentBy3, grouped3, groupedWithin3, haltWhen3, haltAfter3, haltWhenDeferred3, identityStream2, interleave3, interleaveWith3, intersperse3, intersperseAffixes3, interruptAfter3, interruptWhen22, interruptWhenDeferred22, iterate32, make522, map222, mapAccum52, mapAccumEffect3, mapBoth52, mapChunks3, mapChunksEffect3, mapConcat3, mapConcatChunk3, mapConcatChunkEffect3, mapConcatEffect3, mapEffectSequential2, mapEffectPar2, mapError62, mapErrorCause42, merge92, mergeAll82, mergeWithTag3, mergeEither3, mergeLeft3, mergeRight3, mergeWith32, mkString22, never52, onEnd3, onError32, onDone3, onStart3, orDie52, orDieWith42, orElse92, orElseEither42, orElseFail32, orElseIfEmpty3, orElseIfEmptyChunk3, orElseIfEmptyStream3, orElseSucceed32, paginate3, paginateChunk3, paginateChunkEffect3, paginateEffect3, peel3, partition52, partitionEither3, pipeThrough3, pipeThroughChannel3, pipeThroughChannelOrFail3, prepend42, provideContext52, provideSomeContext22, provideLayer3, provideService52, provideServiceEffect32, provideServiceStream3, mapInputContext52, provideSomeLayer22, range22, race32, raceAll32, rechunk3, rechunkProcess2, StreamRechunker2, refineOrDie5, refineOrDieWith5, repeat22, repeatEffect3, repeatEffectChunk3, repeatEffectChunkOption3, repeatEffectOption3, repeatEither3, repeatElements3, repeatElementsWith3, repeatValue3, repeatWith3, repeatWithSchedule2, repeatEffectWithSchedule3, retry62, withExecutionPlan32, scheduleDefectRefail22, run32, runCollect3, runCount3, runDrain22, runFold3, runFoldEffect3, runFoldScoped3, runFoldScopedEffect3, runFoldWhile3, runFoldWhileEffect3, runFoldWhileScoped3, runFoldWhileScopedEffect3, runForEach3, runForEachChunk3, runForEachChunkScoped3, runForEachScoped3, runForEachWhile3, runForEachWhileScoped3, runHead3, runIntoPubSub3, runIntoPubSubScoped3, runIntoQueue3, runIntoQueueElementsScoped3, runIntoQueueScoped3, runLast3, runScoped22, runSum3, scan3, scanReduce3, scanReduceEffect3, schedule22, scheduleWith3, scanEffect3, scoped62, scopedWith42, some52, someOrElse3, someOrFail3, sliding72, slidingSize3, split3, splitOnChunk3, splitLines22, succeed152, sync102, suspend102, take72, takeRight22, takeUntil32, takeUntilEffect3, takeWhile42, tap62, tapBoth32, tapError52, tapErrorCause52, tapSink3, throttle3, throttleEffect3, throttleEnforceEffect2, throttleShapeEffect2, tick3, timeout32, timeoutFail32, timeoutFailCause32, timeoutTo32, pubsubFromOptions2, toPubSub22, toPull22, toQueue22, toQueueOfElements3, toReadableStream3, toReadableStreamEffect3, toReadableStreamRuntime3, transduce3, toAsyncIterableRuntime3, toAsyncIterable3, toAsyncIterableEffect3, unfold32, unfoldChunk3, unfoldChunkEffect3, unfoldEffect3, void_82, unwrap22, unwrapScoped42, unwrapScopedWith32, updateService42, when32, whenCase3, whenCaseEffect3, whenEffect32, withSpan62, zip82, zipFlatten3, zipAll3, zipAllLeft3, zipAllRight3, zipAllSortedByKey3, zipAllSortedByKeyLeft3, zipAllSortedByKeyRight3, zipAllSortedByKeyWith3, zipAllWith3, zipLatest3, zipLatestAll3, zipLatestWith3, zipLeft62, zipRight92, zipWith122, zipWithChunks3, zipWithIndex3, zipWithNext3, zipWithPrevious3, zipWithPreviousAndNext3, zipChunks2, Do32, bind42, bindTo42, let_42, decodeText3, encodeText3, fromEventListener3, RedactedSymbolKey2, redactedRegistry2, RedactedTypeId3, proto122, isRedacted3, make532, value3, unsafeWipe3, GroupBySymbolKey2, GroupByTypeId2, groupByVariance2, isGroupBy2, evaluate22, make542, groupBy3, mapEffectOptions2, bindEffect3, mapDequeue2, MapDequeue2, groupByKey3, groupByIterable2, Redacted_exports2, RedactedTypeId22, isRedacted22, make552, value22, unsafeWipe22, getEquivalence42, Stream_exports2, StreamTypeId32, DefaultChunkSize22, accumulate22, accumulateChunks22, acquireRelease42, aggregate22, aggregateWithin22, aggregateWithinEither22, as92, _async22, asyncEffect42, asyncPush22, asyncScoped22, branchAfter22, broadcast22, share22, broadcastDynamic22, broadcastedQueues22, broadcastedQueuesDynamic22, buffer22, bufferChunks22, catchAll82, catchAllCause72, catchSome42, catchTag42, catchTags42, catchSomeCause42, changes22, changesWith22, changesWithEffect22, chunks22, chunksWith22, combine102, combineChunks22, concat32, concatAll32, cross22, crossLeft22, crossRight22, crossWith22, debounce22, die122, dieSync82, dieMessage52, distributedWith22, distributedWithDynamic22, drain42, drainFork22, drop42, dropRight22, dropUntil42, dropUntilEffect22, dropWhile52, dropWhileEffect22, either62, empty332, ensuring72, ensuringWith32, context62, contextWith42, contextWithEffect42, contextWithStream22, execute22, fail172, failSync92, failCause152, failCauseSync82, filter92, filterEffect22, filterMap72, filterMapEffect22, filterMapWhile42, filterMapWhileEffect22, finalizer22, find32, findEffect22, flatMap172, flatten132, flattenChunks22, flattenEffect22, flattenExitOption22, flattenIterables22, flattenTake22, forever62, fromAsyncIterable22, fromChannel32, toChannel42, fromChunk22, fromChunkPubSub22, fromChunkQueue22, fromChunks22, fromEffect92, fromEffectOption22, fromPubSub22, fromTPubSub22, fromIterable122, fromIterableEffect22, fromIteratorSucceed22, fromPull32, fromQueue32, fromTQueue22, fromReadableStream22, fromReadableStreamByob22, fromSchedule22, groupAdjacentBy22, groupBy22, groupByKey22, grouped22, groupedWithin22, haltAfter22, haltWhen22, haltWhenDeferred22, identity32, interleave22, interleaveWith22, intersperse22, intersperseAffixes22, interruptAfter22, interruptWhen32, interruptWhenDeferred32, iterate42, make562, map232, mapAccum62, mapAccumEffect22, mapBoth62, mapChunks22, mapChunksEffect22, mapConcat22, mapConcatChunk22, mapConcatChunkEffect22, mapConcatEffect22, mapEffect52, mapError72, mapErrorCause52, merge102, mergeAll92, mergeWithTag22, mergeWith42, mergeEither22, mergeLeft22, mergeRight22, mkString32, never62, onEnd22, onError42, onDone22, onStart22, orDie62, orDieWith52, orElse102, orElseEither52, orElseFail42, orElseIfEmpty22, orElseIfEmptyChunk22, orElseIfEmptyStream22, orElseSucceed42, paginate22, paginateChunk22, paginateChunkEffect22, paginateEffect22, partition62, partitionEither22, peel22, pipeThrough22, pipeThroughChannel22, pipeThroughChannelOrFail22, prepend52, provideContext62, provideSomeContext32, provideLayer22, provideService62, provideServiceEffect42, provideServiceStream22, mapInputContext62, provideSomeLayer32, race42, raceAll42, range32, rechunk22, refineOrDie22, refineOrDieWith22, repeat32, repeatEffect22, repeatEffectChunk22, repeatEffectChunkOption22, repeatEffectOption22, repeatEffectWithSchedule22, repeatEither22, repeatElements22, repeatElementsWith22, repeatValue22, repeatWith22, retry72, withExecutionPlan42, run42, runCollect22, runCount22, runDrain32, runFold22, runFoldEffect22, runFoldScoped22, runFoldScopedEffect22, runFoldWhile22, runFoldWhileEffect22, runFoldWhileScoped22, runFoldWhileScopedEffect22, runForEach22, runForEachChunk22, runForEachChunkScoped22, runForEachScoped22, runForEachWhile22, runForEachWhileScoped22, runHead22, runIntoPubSub22, runIntoPubSubScoped22, runIntoQueue22, runIntoQueueElementsScoped22, runIntoQueueScoped22, runLast22, runScoped32, runSum22, scan22, scanEffect22, scanReduce22, scanReduceEffect22, schedule32, scheduleWith22, scoped72, scopedWith52, sliding82, slidingSize22, some62, someOrElse22, someOrFail22, split22, splitOnChunk22, splitLines32, succeed162, sync112, suspend112, take82, takeRight32, takeUntil42, takeUntilEffect22, takeWhile52, tap72, tapBoth42, tapError62, tapErrorCause62, tapSink22, throttle22, throttleEffect22, tick22, timeout42, timeoutFail42, timeoutFailCause42, timeoutTo42, toPubSub32, toPull32, toQueue32, toQueueOfElements22, toReadableStream22, toReadableStreamEffect22, toReadableStreamRuntime22, toAsyncIterableRuntime22, toAsyncIterableEffect22, toAsyncIterable22, transduce22, unfold42, unfoldChunk22, unfoldChunkEffect22, unfoldEffect22, void_92, unwrap32, unwrapScoped52, unwrapScopedWith42, updateService52, when42, whenCase22, whenCaseEffect22, whenEffect42, withSpan72, zip92, zipFlatten22, zipAll22, zipAllLeft22, zipAllRight22, zipAllSortedByKey22, zipAllSortedByKeyLeft22, zipAllSortedByKeyRight22, zipAllSortedByKeyWith22, zipAllWith22, zipLatest22, zipLatestAll22, zipLatestWith22, zipLeft72, zipRight102, zipWith132, zipWithChunks22, zipWithNext22, zipWithPrevious22, zipWithPreviousAndNext22, zipWithIndex22, Do42, bind52, bindEffect22, bindTo52, let_52, decodeText22, encodeText22, fromEventListener22, ProviderGenerationPort, CredentialPort, record5, SOURCE_MANIFEST_HASH, facts, PROVIDER_PROFILES, fail182, DEFAULT_LIMITS2, id32, PEL_PROFILE2, CORE_FAILURE_BRAND3, PARSE_FAIL3, dataSpan2, maximumDataDepth2, syntheticSpan2, binaryStrict2, unaryXStrict2, builtinArgSpecs2, DESCRIPTOR_BRAND2, REGISTRY_BRAND2, ZERO_SPAN2, MAX_BYTES2, MAX_ENTRIES2, BASE_FAILURE_ID2, registries2, byteSize2, text4, name2, natural4, CODEC_MAX_BYTES2, DEFAULT_RUN_OPTIONS2, CORE_FAILURE_BRAND22, PARSE_FAIL22, BUILTIN_PROVIDER_SCHEMAS, hash22, fail192, apiFailure, disconnected, object2, objects, string22, initialState, noTool, unknownOutput, inertResponseItems, responseToolItems, classifyResponseItem, inertResponseParts, classifyResponsePart, toolSurfaceKeys, hash32, apiPrefixHash, identityKey, unwrap42, statusFailure, xaiResponsesDialect, createXaiResponsesTransport, inertBlocks, toolBlocks, classifyBlock, inertDeltas, toolDeltas, classifyDelta, anthropicMessagesDialect, createAnthropicMessagesTransport, openaiResponsesDialect, createOpenaiResponsesTransport, inertSteps, toolSteps, classifyStep, inertContent, toolContent, classifyContent, googleInteractionsDialect, createGoogleInteractionsTransport, FOREMAN_LAUNCH_VERSION, EXIT_TIMEOUT, EXIT_LAUNCHER_ERROR, HEARTBEAT_KEYS, DETACH_HANDOFF_BOUND_MS, PIDNS_INNER_ENV, HOST_PID_ENV, PIDNS_KIND_ENV, UNSHARE_USERNS_PIDNS_FLAGS, UNSHARE_PIDNS_FLAGS, UNSHARE_PROBE_LADDER, ChildSpawner, ProcessGroupTerminator, WindowsTreeTerminator, ExecveService, UnshareProbeService, HeartbeatWriter, CapabilityWriter, ByteSink, LauncherClock, DetachSpawner, StderrLog, liveClock2, LiveClockLayer, liveChildSpawner, liveProcessGroupTerminator, liveWindowsTreeTerminator, liveExecve, liveUnshareProbe, liveCapabilityWriter, liveHeartbeatWriter, liveByteSink, liveStderrLog, liveDetachSpawner, LiveLauncherLayer, defaultIo, isMain, failure22, fail212, object22, text22, record33, problem, failure32, object3, sha, unwrap5, CredentialStorePort, MAX_BYTES22;
 var init_providers = __esm({
   "packages/providers/dist/providers.js"() {
     "use strict";
@@ -71529,25 +71610,25 @@ var init_providers = __esm({
     cached4 = function() {
       if (arguments.length === 1) {
         const self2 = arguments[0];
-        return function(hash52) {
+        return function(hash62) {
           Object.defineProperty(self2, symbol3, {
             value() {
-              return hash52;
+              return hash62;
             },
             enumerable: false
           });
-          return hash52;
+          return hash62;
         };
       }
       const self = arguments[0];
-      const hash42 = arguments[1];
+      const hash52 = arguments[1];
       Object.defineProperty(self, symbol3, {
         value() {
-          return hash42;
+          return hash52;
         },
         enumerable: false
       });
-      return hash42;
+      return hash52;
     };
     symbol22 = /* @__PURE__ */ Symbol.for("effect/Equal");
     isEqual2 = (u2) => hasProperty2(u2, symbol22);
@@ -73193,11 +73274,11 @@ var init_providers = __esm({
     });
     EmptyNode2 = class _EmptyNode {
       _tag = "EmptyNode";
-      modify(edit, _shift, f2, hash42, key, size152) {
+      modify(edit, _shift, f2, hash52, key, size152) {
         const v2 = f2(none22());
         if (isNone22(v2)) return new _EmptyNode();
         ++size152.value;
-        return new LeafNode2(edit, hash42, key, v2);
+        return new LeafNode2(edit, hash52, key, v2);
       }
     };
     LeafNode2 = class _LeafNode {
@@ -73206,13 +73287,13 @@ var init_providers = __esm({
       key;
       value;
       _tag = "LeafNode";
-      constructor(edit, hash42, key, value32) {
+      constructor(edit, hash52, key, value32) {
         this.edit = edit;
-        this.hash = hash42;
+        this.hash = hash52;
         this.key = key;
         this.value = value32;
       }
-      modify(edit, shift22, f2, hash42, key, size152) {
+      modify(edit, shift22, f2, hash52, key, size152) {
         if (equals5(key, this.key)) {
           const v22 = f2(this.value);
           if (v22 === this.value) return this;
@@ -73224,12 +73305,12 @@ var init_providers = __esm({
             this.value = v22;
             return this;
           }
-          return new _LeafNode(edit, hash42, key, v22);
+          return new _LeafNode(edit, hash52, key, v22);
         }
         const v2 = f2(none22());
         if (isNone22(v2)) return this;
         ++size152.value;
-        return mergeLeaves2(edit, shift22, this.hash, this, hash42, new _LeafNode(edit, hash42, key, v2));
+        return mergeLeaves2(edit, shift22, this.hash, this, hash52, new _LeafNode(edit, hash52, key, v2));
       }
     };
     CollisionNode2 = class _CollisionNode {
@@ -73237,13 +73318,13 @@ var init_providers = __esm({
       hash;
       children;
       _tag = "CollisionNode";
-      constructor(edit, hash42, children32) {
+      constructor(edit, hash52, children32) {
         this.edit = edit;
-        this.hash = hash42;
+        this.hash = hash52;
         this.children = children32;
       }
-      modify(edit, shift22, f2, hash42, key, size152) {
-        if (hash42 === this.hash) {
+      modify(edit, shift22, f2, hash52, key, size152) {
+        if (hash52 === this.hash) {
           const canEdit = canEditNode2(this, edit);
           const list7 = this.updateCollisionList(canEdit, edit, this.hash, this.children, f2, key, size152);
           if (list7 === this.children) return this;
@@ -73252,9 +73333,9 @@ var init_providers = __esm({
         const v2 = f2(none22());
         if (isNone22(v2)) return this;
         ++size152.value;
-        return mergeLeaves2(edit, shift22, this.hash, this, hash42, new LeafNode2(edit, hash42, key, v2));
+        return mergeLeaves2(edit, shift22, this.hash, this, hash52, new LeafNode2(edit, hash52, key, v2));
       }
-      updateCollisionList(mutate42, edit, hash42, list7, f2, key, size152) {
+      updateCollisionList(mutate42, edit, hash52, list7, f2, key, size152) {
         const len = list7.length;
         for (let i = 0; i < len; ++i) {
           const child2 = list7[i];
@@ -73266,13 +73347,13 @@ var init_providers = __esm({
               --size152.value;
               return arraySpliceOut2(mutate42, i, list7);
             }
-            return arrayUpdate2(mutate42, i, new LeafNode2(edit, hash42, key, newValue2), list7);
+            return arrayUpdate2(mutate42, i, new LeafNode2(edit, hash52, key, newValue2), list7);
           }
         }
         const newValue = f2(none22());
         if (isNone22(newValue)) return list7;
         ++size152.value;
-        return arrayUpdate2(mutate42, len, new LeafNode2(edit, hash42, key, newValue), list7);
+        return arrayUpdate2(mutate42, len, new LeafNode2(edit, hash52, key, newValue), list7);
       }
     };
     IndexedNode2 = class _IndexedNode {
@@ -73285,21 +73366,21 @@ var init_providers = __esm({
         this.mask = mask;
         this.children = children32;
       }
-      modify(edit, shift22, f2, hash42, key, size152) {
+      modify(edit, shift22, f2, hash52, key, size152) {
         const mask = this.mask;
         const children32 = this.children;
-        const frag = hashFragment2(shift22, hash42);
+        const frag = hashFragment2(shift22, hash52);
         const bit = toBitmap2(frag);
         const indx = fromBitmap2(mask, bit);
         const exists32 = mask & bit;
         const canEdit = canEditNode2(this, edit);
         if (!exists32) {
-          const _newChild = new EmptyNode2().modify(edit, shift22 + SIZE2, f2, hash42, key, size152);
+          const _newChild = new EmptyNode2().modify(edit, shift22 + SIZE2, f2, hash52, key, size152);
           if (!_newChild) return this;
           return children32.length >= MAX_INDEX_NODE2 ? expand2(edit, frag, _newChild, mask, children32) : new _IndexedNode(edit, mask | bit, arraySpliceIn2(canEdit, indx, _newChild, children32));
         }
         const current22 = children32[indx];
-        const child2 = current22.modify(edit, shift22 + SIZE2, f2, hash42, key, size152);
+        const child2 = current22.modify(edit, shift22 + SIZE2, f2, hash52, key, size152);
         if (current22 === child2) return this;
         let bitmap = mask;
         let newChildren;
@@ -73331,12 +73412,12 @@ var init_providers = __esm({
         this.size = size152;
         this.children = children32;
       }
-      modify(edit, shift22, f2, hash42, key, size152) {
+      modify(edit, shift22, f2, hash52, key, size152) {
         let count32 = this.size;
         const children32 = this.children;
-        const frag = hashFragment2(shift22, hash42);
+        const frag = hashFragment2(shift22, hash52);
         const child2 = children32[frag];
-        const newChild = (child2 || new EmptyNode2()).modify(edit, shift22 + SIZE2, f2, hash42, key, size152);
+        const newChild = (child2 || new EmptyNode2()).modify(edit, shift22 + SIZE2, f2, hash52, key, size152);
         if (child2 === newChild) return this;
         const canEdit = canEditNode2(this, edit);
         let newChildren;
@@ -73368,11 +73449,11 @@ var init_providers = __esm({
         return new HashMapIterator2(this, (k2, v2) => [k2, v2]);
       },
       [symbol3]() {
-        let hash42 = hash4(HashMapSymbolKey2);
+        let hash52 = hash4(HashMapSymbolKey2);
         for (const item of this) {
-          hash42 ^= pipe2(hash4(item[0]), combine11(hash4(item[1])));
+          hash52 ^= pipe2(hash4(item[0]), combine11(hash4(item[1])));
         }
-        return cached4(this, hash42);
+        return cached4(this, hash52);
       },
       [symbol22](that) {
         if (isHashMap2(that)) {
@@ -73488,7 +73569,7 @@ var init_providers = __esm({
     isHashMap2 = (u2) => hasProperty2(u2, HashMapTypeId2);
     isEmpty22 = (self) => self && isEmptyNode2(self._root);
     get52 = /* @__PURE__ */ dual2(2, (self, key) => getHash2(self, key, hash4(key)));
-    getHash2 = /* @__PURE__ */ dual2(3, (self, key, hash42) => {
+    getHash2 = /* @__PURE__ */ dual2(3, (self, key, hash52) => {
       let node = self._root;
       let shift22 = 0;
       while (true) {
@@ -73497,7 +73578,7 @@ var init_providers = __esm({
             return equals5(key, node.key) ? node.value : none22();
           }
           case "CollisionNode": {
-            if (hash42 === node.hash) {
+            if (hash52 === node.hash) {
               const children32 = node.children;
               for (let i = 0, len = children32.length; i < len; ++i) {
                 const child2 = children32[i];
@@ -73509,7 +73590,7 @@ var init_providers = __esm({
             return none22();
           }
           case "IndexedNode": {
-            const frag = hashFragment2(shift22, hash42);
+            const frag = hashFragment2(shift22, hash52);
             const bit = toBitmap2(frag);
             if (node.mask & bit) {
               node = node.children[fromBitmap2(node.mask, bit)];
@@ -73519,7 +73600,7 @@ var init_providers = __esm({
             return none22();
           }
           case "ArrayNode": {
-            node = node.children[hashFragment2(shift22, hash42)];
+            node = node.children[hashFragment2(shift22, hash52)];
             if (node) {
               shift22 += SIZE2;
               break;
@@ -73556,11 +73637,11 @@ var init_providers = __esm({
       return endMutation3(transient);
     });
     modifyAt3 = /* @__PURE__ */ dual2(3, (self, key, f2) => modifyHash2(self, key, hash4(key), f2));
-    modifyHash2 = /* @__PURE__ */ dual2(4, (self, key, hash42, f2) => {
+    modifyHash2 = /* @__PURE__ */ dual2(4, (self, key, hash52, f2) => {
       const size152 = {
         value: self._size
       };
-      const newRoot = self._root.modify(self._editable ? self._edit : NaN, 0, f2, hash42, key, size152);
+      const newRoot = self._root.modify(self._editable ? self._edit : NaN, 0, f2, hash52, key, size152);
       return pipe2(self, setTree2(newRoot, size152.value));
     });
     remove22 = /* @__PURE__ */ dual2(2, (self, key) => modifyAt3(self, key, none22));
@@ -74806,7 +74887,7 @@ var init_providers = __esm({
     });
     keepDefectsAndElectFailures2 = (self) => match42(self, {
       onEmpty: none22(),
-      onFail: (failure42) => some22(die14(failure42)),
+      onFail: (failure52) => some22(die14(failure52)),
       onDie: (defect) => some22(die14(defect)),
       onInterrupt: () => none22(),
       onSequential: mergeWith5(sequential4),
@@ -76522,8 +76603,8 @@ ${this.stack.split("\n").slice(1).join("\n")}` : this.toString();
       if (isEqual2(key) === false) {
         return self.referential.has(key) ? some22(self.referential.get(key)) : none22();
       }
-      const hash42 = key[symbol3]();
-      const bucket = self.buckets.get(hash42);
+      const hash52 = key[symbol3]();
+      const bucket = self.buckets.get(hash52);
       if (bucket === void 0) {
         return none22();
       }
@@ -76548,10 +76629,10 @@ ${this.stack.split("\n").slice(1).join("\n")}` : this.toString();
         self.referential.set(key, value32);
         return self;
       }
-      const hash42 = key[symbol3]();
-      const bucket = self.buckets.get(hash42);
+      const hash52 = key[symbol3]();
+      const bucket = self.buckets.get(hash52);
       if (bucket === void 0) {
-        self.buckets.set(hash42, [[key, value32]]);
+        self.buckets.set(hash52, [[key, value32]]);
         self.bucketsSize++;
         return self;
       }
@@ -76574,14 +76655,14 @@ ${this.stack.split("\n").slice(1).join("\n")}` : this.toString();
         self.referential.delete(key);
         return self;
       }
-      const hash42 = key[symbol3]();
-      const bucket = self.buckets.get(hash42);
+      const hash52 = key[symbol3]();
+      const bucket = self.buckets.get(hash52);
       if (bucket === void 0) {
         return self;
       }
       removeFromBucket2(self, bucket, key);
       if (bucket.length === 0) {
-        self.buckets.delete(hash42);
+        self.buckets.delete(hash52);
       }
       return self;
     });
@@ -77498,8 +77579,8 @@ ${this.stack.split("\n").slice(1).join("\n")}` : this.toString();
           if (typeof value32 === "number" && Number.isFinite(value32)) {
             return Math.max(min3, Math.min(max5 - 1, Math.round(value32)));
           }
-          const hash42 = Math.abs(hash4(value32));
-          return min3 + hash42 % (max5 - min3);
+          const hash52 = Math.abs(hash4(value32));
+          return min3 + hash52 % (max5 - min3);
         });
       }
       shuffle(elements) {
@@ -81052,11 +81133,11 @@ ${this.stack.split("\n").slice(1).join("\n")}` : this.toString();
     RedBlackTreeProto2 = {
       [RedBlackTreeTypeId2]: redBlackTreeVariance2,
       [symbol3]() {
-        let hash42 = hash4(RedBlackTreeSymbolKey2);
+        let hash52 = hash4(RedBlackTreeSymbolKey2);
         for (const item of this) {
-          hash42 ^= pipe2(hash4(item[0]), combine11(hash4(item[1])));
+          hash52 ^= pipe2(hash4(item[0]), combine11(hash4(item[1])));
         }
-        return cached4(this, hash42);
+        return cached4(this, hash52);
       },
       [symbol22](that) {
         if (isRedBlackTree2(that)) {
@@ -84822,8 +84903,8 @@ ${this.stack.split("\n").slice(1).join("\n")}` : this.toString();
         return zipRight13(this.await, self);
       };
     };
-    unsafeMakeLatch3 = (open6) => new Latch2(open6 ?? false);
-    makeLatch3 = (open6) => sync13(() => unsafeMakeLatch3(open6));
+    unsafeMakeLatch3 = (open7) => new Latch2(open7 ?? false);
+    makeLatch3 = (open7) => sync13(() => unsafeMakeLatch3(open7));
     awaitAllChildren3 = (self) => ensuringChildren3(self, fiberAwaitAll2);
     cached22 = /* @__PURE__ */ dual2(2, (self, timeToLive) => map92(cachedInvalidateWithTTL3(self, timeToLive), (tuple22) => tuple22[0]));
     cachedInvalidateWithTTL3 = /* @__PURE__ */ dual2(2, (self, timeToLive) => {
@@ -97076,6 +97157,9 @@ ${this.stack.split("\n").slice(1).join("\n")}` : this.toString();
     object3 = (v2) => v2 !== null && typeof v2 === "object" && !Array.isArray(v2) ? v2 : void 0;
     sha = (value32) => createHash7("sha256").update(value32).digest("hex");
     unwrap5 = (v2) => v2.ok ? Effect_exports2.succeed(v2.value) : Effect_exports2.fail(v2.error);
+    CredentialStorePort = class extends Context_exports2.Tag("@foreman/providers/CredentialStorePort")() {
+    };
+    MAX_BYTES22 = 64 * 1024;
   }
 });
 
@@ -100944,8 +101028,8 @@ var init_supervisor2 = __esm({
 });
 
 // packages/orchestration/src/pel-provider-tools.ts
-function providerFailureToHostFailure(failure11) {
-  return { code: failure11._tag === "OutcomeUnknown" ? "unknown-external-outcome" : "provider-failure", message: "The provider reported a structured failure.", cause: { providerFailure: failure11 } };
+function providerFailureToHostFailure(failure12) {
+  return { code: failure12._tag === "OutcomeUnknown" ? "unknown-external-outcome" : "provider-failure", message: "The provider reported a structured failure.", cause: { providerFailure: failure12 } };
 }
 function cancellationExternalOutcome(observation) {
   if (observation.localCleanup !== "complete" && observation.localCleanup !== "not-required") return "unknown";
@@ -101209,8 +101293,8 @@ function projectPelProviderUsage(binding) {
       if (record11.data.providerIdentity || value4.requestRef) {
         if (!effects.has(record11.data.effectId)) effects.set(record11.data.effectId, void 0);
       }
-      const failure11 = value4.providerFailure;
-      const usage4 = value4.usage ?? failure11?.usage;
+      const failure12 = value4.providerFailure;
+      const usage4 = value4.usage ?? failure12?.usage;
       if (usage4) {
         const valid = yield* Effect_exports.try({ try: () => normalizeUsage(usage4), catch: () => pelFailure("journal-corrupt", "Stored usage dimensions are invalid.") });
         if (!valid.ok) return yield* Effect_exports.fail(pelFailure("journal-corrupt", "Stored usage dimensions are invalid."));
@@ -102545,9 +102629,9 @@ function decodeRetrySelectors(value4) {
   }
   return { ok: true, value: selected };
 }
-function retryCategory(failure11) {
-  if (failure11.code !== "provider-failure" || !failure11.cause || typeof failure11.cause !== "object" || Array.isArray(failure11.cause)) return null;
-  const cause4 = failure11.cause;
+function retryCategory(failure12) {
+  if (failure12.code !== "provider-failure" || !failure12.cause || typeof failure12.cause !== "object" || Array.isArray(failure12.cause)) return null;
+  const cause4 = failure12.cause;
   const provider3 = cause4.providerFailure;
   if (!provider3 || typeof provider3 !== "object") return null;
   switch (provider3._tag) {
@@ -104011,17 +104095,17 @@ function selfScriptArgvPrefix2() {
 function buildSelfScriptArgvPrefix2(execArgv, script) {
   return script ? [...execArgv, script] : [...execArgv];
 }
-function runMain2(argv = process.argv, io7 = defaultIo2, layer = LiveLauncherLayer2) {
+function runMain2(argv = process.argv, io8 = defaultIo2, layer = LiveLauncherLayer2) {
   const raw = stripNodeArgv2(argv);
   const parsed = parseArgs2(raw);
   if (parsed._tag === "Version") {
-    io7.writeStdout(formatVersionLine2() + "\n");
+    io8.writeStdout(formatVersionLine2() + "\n");
     return Promise.resolve(0);
   }
   if (parsed._tag === "UsageError") {
-    io7.writeStderr(`foreman-launch: ${parsed.message}
+    io8.writeStderr(`foreman-launch: ${parsed.message}
 `);
-    io7.writeStderr(usage3() + "\n");
+    io8.writeStderr(usage3() + "\n");
     return Promise.resolve(EXIT_LAUNCHER_ERROR2);
   }
   const args6 = parsed.value;
@@ -107054,7 +107138,8 @@ var init_pel_provider_readiness_live = __esm({
 });
 
 // packages/orchestration/src/pel-native-boundary.ts
-import { lstat as lstat2, realpath as realpath2, stat as stat2, unlink } from "node:fs/promises";
+import { lstat as lstat2, realpath as realpath2, stat as stat2, unlink, mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { randomBytes as randomBytes7 } from "node:crypto";
 import { dirname as dirname13, isAbsolute as isAbsolute16, join as join20, resolve as resolve5, sep as sep4, basename as basename7 } from "node:path";
 function noToolArguments(request3, cmd) {
@@ -107150,8 +107235,30 @@ function makePelNativeBoundary(options2) {
       });
       const selectedEnvironment = { ...environment3 };
       for (const key of options2.environmentKeys) if (secretKeys[request3.transportId]?.includes(key) && launch4.environment[key] !== void 0) selectedEnvironment[key] = launch4.environment[key];
-      for (const key of ["GROK_HOME", "CODEX_HOME", "CLAUDE_CONFIG_DIR"]) if (launch4.environment[key] && launch4.environment[key] !== environment3.HOME) return yield* Effect_exports.fail(denied3());
-      return yield* native.open({ ...launch4, cmd: [admitted.bwrap, ...flags, admitted.executable, ...launch4.cmd.slice(1)], environment: selectedEnvironment });
+      let launchFlags = [...flags];
+      let grokHomeRoot;
+      if (request3.transportId === "grok-acp" && coding) {
+        grokHomeRoot = yield* Effect_exports.acquireRelease(attempt5(() => mkdtemp(join20(tmpdir(), "foreman-grok-login-"))), (path3) => Effect_exports.promise(() => rm(path3, { recursive: true, force: true })).pipe(Effect_exports.orDie));
+        const policyPath = join20(grokHomeRoot, "config.toml");
+        yield* attempt5(() => writeFile(policyPath, '[permission]\nrules = [{ action = "ask", tool = "any" }]\n[ui]\nremember_tool_approvals = false\n', { mode: 384, flag: "wx" }));
+        const insertion = launchFlags.indexOf("--remount-ro");
+        launchFlags = [...launchFlags.slice(0, insertion), "--dir", environment3.HOME + "/.grok", "--ro-bind", policyPath, environment3.HOME + "/.grok/config.toml", ...launchFlags.slice(insertion)];
+        selectedEnvironment.GROK_HOME = environment3.HOME + "/.grok";
+      }
+      if (launch4.grokAuthJson !== void 0) {
+        if (request3.transportId !== "grok-acp" || !coding || !Redacted_exports.isRedacted(launch4.grokAuthJson) || launch4.environment.GROK_HOME !== environment3.HOME + "/.grok") return yield* Effect_exports.fail(denied3());
+        const bytes2 = Redacted_exports.value(launch4.grokAuthJson);
+        if (Buffer.byteLength(bytes2) > 65536 || !bytes2.length) return yield* Effect_exports.fail(denied3());
+        if (!grokHomeRoot) return yield* Effect_exports.fail(denied3());
+        const snapshotPath = join20(grokHomeRoot, "auth.json");
+        yield* attempt5(() => writeFile(snapshotPath, bytes2, { mode: 384, flag: "wx" }));
+        const insertion = launchFlags.indexOf("--remount-ro");
+        launchFlags = [...launchFlags.slice(0, insertion), "--ro-bind", snapshotPath, environment3.HOME + "/.grok/auth.json", ...launchFlags.slice(insertion)];
+        selectedEnvironment.GROK_HOME = environment3.HOME + "/.grok";
+      }
+      for (const key of ["GROK_HOME", "CODEX_HOME", "CLAUDE_CONFIG_DIR"]) if (launch4.environment[key] && launch4.environment[key] !== environment3.HOME && !(key === "GROK_HOME" && grokHomeRoot !== void 0 && launch4.environment[key] === selectedEnvironment.GROK_HOME)) return yield* Effect_exports.fail(denied3());
+      const { grokAuthJson: consumed, ...publicLaunch } = launch4;
+      return yield* native.open({ ...publicLaunch, cmd: [admitted.bwrap, ...launchFlags, admitted.executable, ...launch4.cmd.slice(1)], environment: selectedEnvironment });
     }) };
     const boundary2 = { host: { cwd: admitted.root, environment: environment3, process: nativePort, workspaceGrantId: context11.workspace.grantId, permissionGrantIds: options2.permissionGrantIds, hostPermissionPortRef: options2.hostPermissionPortRef, permissions: options2.permissions, toolPolicyNoneEnforced: !coding, workspaceBoundaryEnforced: true, permissionBoundaryEnforced: coding }, identityRevision: options2.identityRevisionByTransport[request3.transportId] };
     return boundary2;
@@ -107175,9 +107282,9 @@ var init_pel_native_boundary = __esm({
 
 // packages/orchestration/src/pel-native-live.ts
 import { constants as constants8 } from "node:fs";
-import { realpath as realpath3, lstat as lstat3, open as open3, mkdtemp, rm } from "node:fs/promises";
+import { realpath as realpath3, lstat as lstat3, open as open3, mkdtemp as mkdtemp2, rm as rm2 } from "node:fs/promises";
 import { dirname as dirname14, join as join21, resolve as resolve6, isAbsolute as isAbsolute17, sep as sep5 } from "node:path";
-import { tmpdir } from "node:os";
+import { tmpdir as tmpdir2 } from "node:os";
 async function prefix(path3, size16) {
   const fd = await open3(path3, constants8.O_RDONLY | constants8.O_NOFOLLOW);
   try {
@@ -107224,7 +107331,7 @@ function makeLivePelNativeServices(live, ports) {
       }
       return { executable, nodeExecutable, bwrapPath, readOnlyRuntimeRoots };
     });
-    const directory2 = yield* Effect_exports.acquireRelease(io3(() => mkdtemp(join21(tmpdir(), "foreman-native-version-"))), (path3) => Effect_exports.promise(() => rm(path3, { recursive: true, force: true })).pipe(Effect_exports.orDie));
+    const directory2 = yield* Effect_exports.acquireRelease(io3(() => mkdtemp2(join21(tmpdir2(), "foreman-native-version-"))), (path3) => Effect_exports.promise(() => rm2(path3, { recursive: true, force: true })).pipe(Effect_exports.orDie));
     const result4 = yield* captured({ command: facts2.executable, args: ["--version"], cwd: directory2, env: { PATH: [dirname14(facts2.nodeExecutable), "/usr/bin", "/bin"].join(":"), HOME: directory2, TMPDIR: directory2, LANG: "C.UTF-8" }, maxOutputBytes: 4096, timeoutMs: 1e4 }).pipe(Effect_exports.mapError(fail25));
     const text11 = result4.stdout.trim(), version = /\b(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)\b/u.exec(text11)?.[1];
     if (result4.exitCode !== 0 || !version || Buffer.byteLength(text11) > 4096) return yield* Effect_exports.fail(fail25());
@@ -107257,7 +107364,7 @@ var init_pel_native_live = __esm({
     pelNativeSupportedModes = { "grok-acp": ["native-coding"], "codex-app-server": ["native-coding"], "claude-code": ["none"], "gemini-cli": [] };
     names4 = { "grok-acp": "grok", "codex-app-server": "codex", "claude-code": "claude" };
     unsupported = (message) => ({ _tag: "UnsupportedCapability", retryClass: "never", message });
-    hostFailure = (failure11) => ({ code: "capability-denied", message: failure11.message, cause: { providerFailure: { _tag: failure11._tag, retryClass: failure11.retryClass } } });
+    hostFailure = (failure12) => ({ code: "capability-denied", message: failure12.message, cause: { providerFailure: { _tag: failure12._tag, retryClass: failure12.retryClass } } });
     fail25 = () => unsupported("Install a supported native executable and Linux bubblewrap boundary, then refresh the exact provider preflight and qualification evidence. The current installation cannot enforce this request.");
     io3 = (run6) => Effect_exports.tryPromise({ try: run6, catch: fail25 });
     within2 = (root, path3) => path3 === root || path3.startsWith(root + sep5);
@@ -107266,13 +107373,13 @@ var init_pel_native_live = __esm({
 
 // packages/orchestration/src/pel-codex-auth.ts
 import { constants as constants9 } from "node:fs";
-import { lstat as lstat4, realpath as realpath4, open as open4, mkdtemp as mkdtemp2, rm as rm2 } from "node:fs/promises";
+import { lstat as lstat4, realpath as realpath4, open as open4, mkdtemp as mkdtemp3, rm as rm3 } from "node:fs/promises";
 import { dirname as dirname15, isAbsolute as isAbsolute18, join as join23 } from "node:path";
-import { tmpdir as tmpdir2 } from "node:os";
+import { tmpdir as tmpdir3 } from "node:os";
 function refreshManagedAccount(profile, live, deadline, ports) {
   return Effect_exports.scoped(Effect_exports.gen(function* () {
     const installed = ports?.installed ?? (yield* makeLivePelNativeServices(live).installed("codex-app-server"));
-    const cwd = yield* Effect_exports.acquireRelease(io4(() => mkdtemp2(join23(tmpdir2(), "foreman-auth-host-"))), (path3) => Effect_exports.promise(() => rm2(path3, { recursive: true, force: true })));
+    const cwd = yield* Effect_exports.acquireRelease(io4(() => mkdtemp3(join23(tmpdir3(), "foreman-auth-host-"))), (path3) => Effect_exports.promise(() => rm3(path3, { recursive: true, force: true })));
     const peer = yield* (ports?.process ?? createNativeProcessPort()).open({
       cmd: [installed.executable, "app-server", "--stdio"],
       cwd,
@@ -107361,44 +107468,133 @@ var init_pel_codex_auth = __esm({
   }
 });
 
+// packages/orchestration/src/pel-grok-auth.ts
+import { constants as constants10 } from "node:fs";
+import { lstat as lstat5, realpath as realpath5, open as open5 } from "node:fs/promises";
+import { isAbsolute as isAbsolute19, join as join24 } from "node:path";
+function makeGrokLoginCredential(profile) {
+  return Effect_exports.gen(function* () {
+    const identity8 = yield* io5(async () => {
+      if (!isAbsolute19(profile) || await realpath5(profile) !== profile) throw failure7();
+      const info = await lstat5(profile);
+      if (!info.isDirectory() || info.uid !== process.geteuid?.() || (info.mode & 18) !== 0) throw failure7();
+      return { dev: info.dev, ino: info.ino };
+    });
+    const read = (deadline) => io5(async () => {
+      if (deadline !== void 0 && (!Number.isFinite(deadline) || deadline <= Date.now())) throw failure7();
+      const checkDirectory = async () => {
+        const stat6 = await lstat5(profile);
+        if (await realpath5(profile) !== profile || !stat6.isDirectory() || stat6.dev !== identity8.dev || stat6.ino !== identity8.ino || stat6.uid !== process.geteuid?.() || (stat6.mode & 18) !== 0) throw failure7();
+      };
+      await checkDirectory();
+      const file2 = await open5(join24(profile, "auth.json"), constants10.O_RDONLY | constants10.O_NOFOLLOW | constants10.O_NONBLOCK);
+      try {
+        const stat6 = await file2.stat();
+        if (!stat6.isFile() || stat6.size > 65536 || stat6.nlink !== 1 || stat6.uid !== process.geteuid?.() || (stat6.mode & 63) !== 0) throw failure7();
+        const bytes2 = Buffer.alloc(65537);
+        const { bytesRead } = await file2.read(bytes2, 0, bytes2.length, 0);
+        const after4 = await file2.stat();
+        if (bytesRead !== stat6.size || after4.size !== stat6.size || after4.mtimeMs !== stat6.mtimeMs || after4.ctimeMs !== stat6.ctimeMs) throw failure7();
+        const decoded = parseJsonRejectDuplicateKeys(new TextDecoder("utf-8", { fatal: true }).decode(bytes2.subarray(0, bytesRead)));
+        if (isCoreFailure(decoded)) throw failure7();
+        const entries2 = Object.entries(object8(decoded));
+        if (entries2.length !== 1) throw failure7();
+        const [name3, raw] = entries2[0];
+        const source2 = object8(raw);
+        const field = (key2, max5 = 512) => {
+          const value4 = source2[key2];
+          if (typeof value4 !== "string" || !value4.trim() || value4.length > max5 || /[\u0000-\u001f]/u.test(value4)) throw failure7();
+          return value4;
+        };
+        const key = field("key", 32768), auth_mode = field("auth_mode");
+        const oidc_issuer = field("oidc_issuer"), oidc_client_id = field("oidc_client_id");
+        const expires_at = field("expires_at"), expiry = Date.parse(expires_at);
+        const create_time = field("create_time");
+        if (auth_mode !== "oidc" || oidc_issuer !== "https://auth.x.ai" || name3 !== `${oidc_issuer}::${oidc_client_id}` || !Number.isFinite(expiry) || !Number.isFinite(Date.parse(create_time)) || expiry <= (deadline ?? Date.now())) throw failure7();
+        const selected = {
+          key,
+          auth_mode,
+          oidc_issuer,
+          oidc_client_id,
+          expires_at,
+          create_time,
+          user_id: field("user_id"),
+          principal_type: field("principal_type"),
+          principal_id: field("principal_id")
+        };
+        if (source2.team_id !== void 0 && source2.team_id !== null) selected.team_id = field("team_id");
+        const accountIdentity = JSON.stringify([name3, selected.user_id, selected.principal_type, selected.principal_id, selected.team_id ?? null]);
+        await checkDirectory();
+        return { accountIdentity, snapshot: Redacted_exports.make(JSON.stringify({ [name3]: selected })) };
+      } finally {
+        await file2.close();
+      }
+    });
+    const initial = yield* read();
+    return { grokLogin: { snapshot: ({ deadline }) => Effect_exports.gen(function* () {
+      const current3 = yield* read(deadline);
+      if (current3.accountIdentity !== initial.accountIdentity) return yield* Effect_exports.fail(failure7());
+      return current3.snapshot;
+    }) } };
+  });
+}
+var failure7, io5, object8;
+var init_pel_grok_auth = __esm({
+  "packages/orchestration/src/pel-grok-auth.ts"() {
+    "use strict";
+    init_esm();
+    init_src();
+    failure7 = () => ({
+      _tag: "AuthenticationRequired",
+      retryClass: "never",
+      message: "The selected Grok login is unavailable, ambiguous, changed, or expires before this request ends. Sign in with the selected Grok account."
+    });
+    io5 = (run6) => Effect_exports.tryPromise({ try: run6, catch: failure7 });
+    object8 = (v2) => {
+      if (v2 === null || typeof v2 !== "object" || Array.isArray(v2)) throw failure7();
+      return v2;
+    };
+  }
+});
+
 // packages/orchestration/src/pel-provider-live.ts
-import { mkdtemp as mkdtemp3, rm as rm3, writeFile, readdir, lstat as lstat5 } from "node:fs/promises";
-import { join as join24, isAbsolute as isAbsolute19 } from "node:path";
+import { mkdtemp as mkdtemp4, rm as rm4, writeFile as writeFile2, readdir, lstat as lstat6 } from "node:fs/promises";
+import { join as join25, isAbsolute as isAbsolute20 } from "node:path";
 function makeLiveProviderCredentials(context11, transportId) {
   return { resolve: (ref3) => Effect_exports.gen(function* () {
     const selected = environmentKeys[transportId];
     if (ref3 === `env:${selected.key}`) {
       const value4 = context11.environment[selected.key];
       if (!value4)
-        return yield* Effect_exports.fail(failure7("AuthenticationRequired", "The selected credential environment entry is unavailable"));
+        return yield* Effect_exports.fail(failure8("AuthenticationRequired", "The selected credential environment entry is unavailable"));
       return { headers: { [selected.header]: Redacted_exports.make(selected.bearer ? `Bearer ${value4}` : value4) }, environment: { [selected.key]: Redacted_exports.make(value4) } };
     }
     const profile = /^profile:(grok|codex):([A-Za-z0-9][A-Za-z0-9._-]{0,63})$/.exec(ref3);
     if (profile) {
       const vendor = profile[1];
       if (vendor === "grok" && transportId !== "grok-acp" || vendor === "codex" && transportId !== "codex-app-server")
-        return yield* Effect_exports.fail(failure7("AuthenticationRequired", "Credential profile does not match the selected native transport"));
+        return yield* Effect_exports.fail(failure8("AuthenticationRequired", "Credential profile does not match the selected native transport"));
       const resolved = yield* resolveProfile2({ stateRoot: context11.stateRoot, worktreeRoot: context11.worktreeRoot, profileId: profile[2], vendor }).pipe(Effect_exports.provide(liveCredentialProfile));
       if (resolved._tag !== "Ready")
-        return yield* Effect_exports.fail(failure7("AuthenticationRequired", "The selected credential profile is not ready"));
-      return vendor === "codex" ? yield* makeCodexChatGptCredential(resolved.configRoot, context11) : { nativeProfileDirectory: resolved.configRoot };
+        return yield* Effect_exports.fail(failure8("AuthenticationRequired", "The selected credential profile is not ready"));
+      return vendor === "codex" ? yield* makeCodexChatGptCredential(resolved.configRoot, context11) : yield* makeGrokLoginCredential(resolved.configRoot);
     }
     const native = /^native:(claude|gemini|grok|codex):default$/.exec(ref3);
     if (native) {
       const vendor = native[1];
       const expected = { claude: "claude-code", gemini: "gemini-cli", grok: "grok-acp", codex: "codex-app-server" };
       if (expected[vendor] !== transportId)
-        return yield* Effect_exports.fail(failure7("AuthenticationRequired", "Native account reference does not match the selected transport"));
-      const directory2 = join24(context11.userHome, `.${vendor}`);
-      const stat6 = yield* Effect_exports.tryPromise({ try: () => lstat5(directory2), catch: () => failure7("AuthenticationRequired", "The explicitly selected native credential directory is unavailable") });
+        return yield* Effect_exports.fail(failure8("AuthenticationRequired", "Native account reference does not match the selected transport"));
+      const directory2 = join25(context11.userHome, `.${vendor}`);
+      const stat6 = yield* Effect_exports.tryPromise({ try: () => lstat6(directory2), catch: () => failure8("AuthenticationRequired", "The explicitly selected native credential directory is unavailable") });
       if (!stat6.isDirectory() || stat6.isSymbolicLink())
-        return yield* Effect_exports.fail(failure7("AuthenticationRequired", "Native credential directory must be a real directory"));
-      return vendor === "codex" ? yield* makeCodexChatGptCredential(directory2, context11) : { nativeProfileDirectory: directory2 };
+        return yield* Effect_exports.fail(failure8("AuthenticationRequired", "Native credential directory must be a real directory"));
+      return vendor === "codex" ? yield* makeCodexChatGptCredential(directory2, context11) : vendor === "grok" ? yield* makeGrokLoginCredential(directory2) : { nativeProfileDirectory: directory2 };
     }
-    return yield* Effect_exports.fail(failure7("AuthenticationRequired", "Credential reference is unavailable for this transport"));
+    return yield* Effect_exports.fail(failure8("AuthenticationRequired", "Credential reference is unavailable for this transport"));
   }) };
 }
-var failure7, environmentKeys;
+var failure8, environmentKeys;
 var init_pel_provider_live = __esm({
   "packages/orchestration/src/pel-provider-live.ts"() {
     "use strict";
@@ -107410,7 +107606,8 @@ var init_pel_provider_live = __esm({
     init_pel_provider_list_live();
     init_pel_provider_readiness_live();
     init_pel_codex_auth();
-    failure7 = (tag, message) => ({ _tag: tag, retryClass: "never", message });
+    init_pel_grok_auth();
+    failure8 = (tag, message) => ({ _tag: tag, retryClass: "never", message });
     environmentKeys = {
       "xai-responses": { key: "XAI_API_KEY", header: "Authorization", bearer: true },
       "anthropic-messages": { key: "ANTHROPIC_API_KEY", header: "x-api-key", bearer: false },
@@ -107425,16 +107622,16 @@ var init_pel_provider_live = __esm({
 });
 
 // packages/orchestration/src/pel-resource-scope.ts
-import { realpath as realpath5, stat as stat3 } from "node:fs/promises";
-import { dirname as dirname16, isAbsolute as isAbsolute20, join as join25, relative as relative3, resolve as resolve7, sep as sep6 } from "node:path";
+import { realpath as realpath6, stat as stat3 } from "node:fs/promises";
+import { dirname as dirname16, isAbsolute as isAbsolute21, join as join26, relative as relative3, resolve as resolve7, sep as sep6 } from "node:path";
 async function canonical2(path3) {
   try {
-    return await realpath5(path3);
+    return await realpath6(path3);
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
     const parent = dirname16(path3);
     if (parent === path3) throw error;
-    return join25(await canonical2(parent), relative3(parent, path3));
+    return join26(await canonical2(parent), relative3(parent, path3));
   }
 }
 function canonicalWorkspacePath(path3, context11) {
@@ -107442,14 +107639,14 @@ function canonicalWorkspacePath(path3, context11) {
     if (path3.includes("\0") || path3.split(/[\\/]/u).includes("..")) throw denied4();
     const root = context11.workspace.canonicalRoot;
     const info = await stat3(root);
-    if (await realpath5(root) !== root || `${info.dev}:${info.ino}` !== context11.workspace.directoryIdentity) throw denied4();
-    const result4 = await canonical2(isAbsolute20(path3) ? path3 : resolve7(root, path3));
+    if (await realpath6(root) !== root || `${info.dev}:${info.ino}` !== context11.workspace.directoryIdentity) throw denied4();
+    const result4 = await canonical2(isAbsolute21(path3) ? path3 : resolve7(root, path3));
     if (!contains5(root, result4)) throw denied4();
     return result4;
   }, catch: denied4 });
 }
 function overlaps(a, b2) {
-  return a === b2 || isAbsolute20(a) && isAbsolute20(b2) && (contains5(a, b2) || contains5(b2, a));
+  return a === b2 || isAbsolute21(a) && isAbsolute21(b2) && (contains5(a, b2) || contains5(b2, a));
 }
 function conflicts(a, b2) {
   const ar2 = a.reads, aw = [...a.writes, ...a.unknownScope ? [a.unknownScope] : []];
@@ -107468,20 +107665,20 @@ function makePelResourceScope(options2 = {}) {
         if (suffix === context11.workspace.grantId || suffix === context11.workspace.worktreeId) return canonicalWorkspacePath(".", context11);
         return Effect_exports.fail(denied4());
       }
-      if (isAbsolute20(name3) || name3.startsWith("./")) return canonicalWorkspacePath(name3, context11);
+      if (isAbsolute21(name3) || name3.startsWith("./")) return canonicalWorkspacePath(name3, context11);
       if (name3.startsWith("artifact:") || name3 === "host:output") return Effect_exports.succeed(name3);
       return Effect_exports.fail(denied4());
     };
     const acquire = (resources, context11) => Effect_exports.gen(function* () {
       const validate5 = Effect_exports.gen(function* () {
         for (const name3 of [...resources.reads, ...resources.writes, ...resources.unknownScope ? [resources.unknownScope] : []]) {
-          if (!isAbsolute20(name3)) {
+          if (!isAbsolute21(name3)) {
             if (!name3.startsWith("artifact:") && name3 !== "host:output" && !admittedPublication(name3, context11)) return yield* Effect_exports.fail(denied4());
             continue;
           }
           if (yield* canonicalWorkspacePath(name3, context11).pipe(Effect_exports.map((c) => c !== name3))) return yield* Effect_exports.fail(denied4());
         }
-        for (const name3 of resources.writes.filter(isAbsolute20)) {
+        for (const name3 of resources.writes.filter(isAbsolute21)) {
           const allowed = yield* Effect_exports.forEach(context11.workspace.writablePaths, (p2) => canonicalWorkspacePath(p2, context11));
           if (!allowed.some((p2) => contains5(p2, name3))) return yield* Effect_exports.fail(denied4());
         }
@@ -107552,7 +107749,7 @@ var init_pel_resource_scope = __esm({
 });
 
 // packages/orchestration/src/pel-native-permissions.ts
-import { isAbsolute as isAbsolute28, relative as relative6, resolve as resolve11, sep as sep9 } from "node:path";
+import { isAbsolute as isAbsolute29, relative as relative6, resolve as resolve11, sep as sep9 } from "node:path";
 function makePelNativePermissionAuthorizer(request3, context11) {
   return (identity8, tool, policy) => Effect_exports.gen(function* () {
     const profile = resolveProfile(request3.profileId);
@@ -107577,7 +107774,7 @@ function makePelNativePermissionAuthorizer(request3, context11) {
     if (!visit(tool.arguments, 0)) return yield* Effect_exports.fail(denied6());
     const root = yield* canonicalWorkspacePath(".", context11).pipe(Effect_exports.mapError(denied6));
     for (const item of found) {
-      const absolute = isAbsolute28(item.path) ? resolve11(item.path) : resolve11(root, item.path), path3 = yield* canonicalWorkspacePath(absolute, context11).pipe(Effect_exports.mapError(denied6));
+      const absolute = isAbsolute29(item.path) ? resolve11(item.path) : resolve11(root, item.path), path3 = yield* canonicalWorkspacePath(absolute, context11).pipe(Effect_exports.mapError(denied6));
       if (!inside2(root, path3) || relative6(root, path3).split(sep9).some((p2) => p2.toLowerCase() === ".git")) return yield* Effect_exports.fail(denied6());
       if (writes(tool.name) && !item.cwd) {
         const allowed = yield* Effect_exports.forEach(context11.workspace.writablePaths, (p2) => canonicalWorkspacePath(p2, context11).pipe(Effect_exports.mapError(denied6)));
@@ -107608,7 +107805,7 @@ var init_pel_native_permissions = __esm({
     init_pel_resource_scope();
     denied6 = () => ({ _tag: "UnsupportedCapability", retryClass: "never", message: "The native permission request is outside its original effect, provider, writable paths or finite method set." });
     inside2 = (root, path3) => path3 === root || path3.startsWith(root + sep9);
-    paths = /* @__PURE__ */ new Set(["path", "file_path", "filePath", "cwd", "workingDirectory", "working_directory", "sourcePath", "destinationPath", "old_path", "new_path", "grantRoot"]);
+    paths = /* @__PURE__ */ new Set(["path", "file_path", "filePath", "target_directory", "cwd", "workingDirectory", "working_directory", "sourcePath", "destinationPath", "old_path", "new_path", "grantRoot"]);
     method = (transport, name3) => transport === "codex-app-server" ? ["item/fileChange/requestApproval", "item/commandExecution/requestApproval"].includes(name3) : transport === "grok-acp" && ["read", "edit", "delete", "move", "search", "execute"].includes(name3);
     writes = (name3) => ["edit", "delete", "move", "item/fileChange/requestApproval"].includes(name3);
   }
@@ -107621,7 +107818,7 @@ init_esm();
 init_esm();
 init_src2();
 import { realpathSync as realpathSync10, statSync as statSync3 } from "node:fs";
-import { isAbsolute as isAbsolute29 } from "node:path";
+import { isAbsolute as isAbsolute30 } from "node:path";
 
 // packages/orchestration/src/pel-registry-transaction.ts
 init_esm();
@@ -107630,9 +107827,9 @@ init_pel_journal();
 import { constants as constants3, closeSync as closeSync5, openSync as openSync5, mkdirSync as mkdirSync4, realpathSync as realpathSync3, lstatSync as lstatSync5, fstatSync as fstatSync5 } from "node:fs";
 import { dirname as dirname3, isAbsolute as isAbsolute2, normalize as normalize4 } from "node:path";
 function withPelRegistryTransaction(foremanHome, operation) {
-  const io7 = (read) => Effect_exports.try({ try: read, catch: () => pelFailure("binding-mismatch", "The original project registry transaction is busy or unavailable; admission was not changed.") });
+  const io8 = (read) => Effect_exports.try({ try: read, catch: () => pelFailure("binding-mismatch", "The original project registry transaction is busy or unavailable; admission was not changed.") });
   return Effect_exports.scoped(Effect_exports.gen(function* () {
-    const fd = yield* Effect_exports.acquireRelease(io7(() => {
+    const fd = yield* Effect_exports.acquireRelease(io8(() => {
       if (!isAbsolute2(foremanHome) || normalize4(foremanHome) !== foremanHome) throw Error("home");
       let ancestor = foremanHome;
       for (; ; ) {
@@ -107648,12 +107845,12 @@ function withPelRegistryTransaction(foremanHome, operation) {
       if (realpathSync3(foremanHome) !== foremanHome) throw Error("home");
       return openSync5(foremanHome, constants3.O_RDONLY | constants3.O_DIRECTORY | constants3.O_NOFOLLOW);
     }), (handle) => Effect_exports.sync(() => closeSync5(handle)));
-    yield* Effect_exports.acquireRelease(io7(() => {
+    yield* Effect_exports.acquireRelease(io8(() => {
       const held = acquireKernelDirectoryLock(fd, ".pel-registry-transaction", "foreman.pel-registry-transaction.v1");
       if (!held) throw Error("busy");
       return held;
     }), (held) => Effect_exports.sync(held.release));
-    yield* io7(() => {
+    yield* io8(() => {
       const opened = fstatSync5(fd), named = lstatSync5(foremanHome);
       if (opened.dev !== named.dev || opened.ino !== named.ino || named.isSymbolicLink()) throw Error("changed");
     });
@@ -110751,7 +110948,7 @@ init_execution_ledger();
 init_execution_contract();
 import { existsSync as existsSync4, lstatSync as lstatSync14 } from "node:fs";
 import { homedir } from "node:os";
-import { join as join30 } from "node:path";
+import { join as join31 } from "node:path";
 
 // packages/orchestration/src/supervisor-live-services.ts
 import {
@@ -111652,7 +111849,7 @@ init_pel_provider_evidence();
 init_pel_resource_scope();
 init_pel_journal();
 init_pel_run_contract();
-var failure8 = (message) => ({ _tag: "CapabilityUnverified", retryClass: "never", message });
+var failure9 = (message) => ({ _tag: "CapabilityUnverified", retryClass: "never", message });
 var asRun = (error) => pelFailure("binding-mismatch", `Execution provider admission failed: ${error._tag}.`);
 var api = (transportId) => ["xai-responses", "anthropic-messages", "openai-responses", "google-interactions"].includes(transportId);
 function makeExecutionProviderTransport(request3, context11, options2) {
@@ -111669,14 +111866,14 @@ function makeExecutionProviderTransport(request3, context11, options2) {
       case "google-interactions":
         return createGoogleInteractionsTransport(shared);
     }
-    if (!options2.nativeBoundary) return yield* Effect_exports.fail(failure8("Native execution needs an admitted enforcing host boundary."));
-    yield* canonicalWorkspacePath(".", context11).pipe(Effect_exports.mapError(() => failure8("The admitted native workspace identity changed.")));
+    if (!options2.nativeBoundary) return yield* Effect_exports.fail(failure9("Native execution needs an admitted enforcing host boundary."));
+    yield* canonicalWorkspacePath(".", context11).pipe(Effect_exports.mapError(() => failure9("The admitted native workspace identity changed.")));
     const boundary2 = yield* options2.nativeBoundary(request3, context11);
-    if (boundary2.host.cwd !== context11.workspace.canonicalRoot) return yield* Effect_exports.fail(failure8("Native process cwd differs from its admitted worktree."));
+    if (boundary2.host.cwd !== context11.workspace.canonicalRoot) return yield* Effect_exports.fail(failure9("Native process cwd differs from its admitted worktree."));
     const host = { ...boundary2.host, permissions: options2.permissions };
     const checked = validateNativeHost(request3, host);
     if (!checked.ok) return yield* Effect_exports.fail(checked.error);
-    if (request3.toolPolicy.mode === "native-coding" && (request3.toolPolicy.workspaceGrantId !== context11.workspace.grantId || !context11.workspace.writablePaths.length)) return yield* Effect_exports.fail(failure8("Native tool policy does not match its writable workspace grant."));
+    if (request3.toolPolicy.mode === "native-coding" && (request3.toolPolicy.workspaceGrantId !== context11.workspace.grantId || !context11.workspace.writablePaths.length)) return yield* Effect_exports.fail(failure9("Native tool policy does not match its writable workspace grant."));
     const native = { credentials, host, schemaRegistry: context11.checked.snapshot.registry.dataSchemas };
     switch (request3.transportId) {
       case "grok-acp":
@@ -111686,7 +111883,7 @@ function makeExecutionProviderTransport(request3, context11, options2) {
       case "codex-app-server":
         return createCodexAppServerTransport({ ...native, version: request3.transportVersion });
       case "gemini-cli":
-        if (!boundary2.geminiConfiguration) return yield* Effect_exports.fail(failure8("Gemini execution needs immutable host-enforced configuration."));
+        if (!boundary2.geminiConfiguration) return yield* Effect_exports.fail(failure9("Gemini execution needs immutable host-enforced configuration."));
         return createGeminiCliTransport({ ...native, protocolVersion: boundary2.identityRevision, configuration: boundary2.geminiConfiguration });
     }
   });
@@ -111719,7 +111916,7 @@ function loadOriginalPelProviderRequest(identity8, context11, options2) {
 }
 function makePelExecutionProviderPort(options2) {
   const permissionsFor = (request3, context11) => makeDurablePelPermissionPort({ context: context11, journal: options2.journal, runtime: options2.runtime(), authorize: request3.toolPolicy.mode === "native-coding" && options2.nativeAuthorize ? options2.nativeAuthorize(request3, context11) : options2.permissions.authorize });
-  const make64 = (request3, context11, boundary2, permissions = permissionsFor(request3, context11)) => makeExecutionProviderTransport(request3, context11, { ...options2, permissions, ...boundary2 ? { nativeBoundary: () => Effect_exports.succeed(boundary2) } : {}, requestForIdentity: (identity8) => loadOriginalPelProviderRequest(identity8, context11, options2).pipe(Effect_exports.mapError(() => failure8("The original provider request is unavailable."))) });
+  const make64 = (request3, context11, boundary2, permissions = permissionsFor(request3, context11)) => makeExecutionProviderTransport(request3, context11, { ...options2, permissions, ...boundary2 ? { nativeBoundary: () => Effect_exports.succeed(boundary2) } : {}, requestForIdentity: (identity8) => loadOriginalPelProviderRequest(identity8, context11, options2).pipe(Effect_exports.mapError(() => failure9("The original provider request is unavailable."))) });
   return {
     permissions: options2.permissions,
     resolve: (request3, context11) => Effect_exports.gen(function* () {
@@ -111762,7 +111959,7 @@ init_pel();
 init_providers();
 init_execution_contract();
 init_pel_run_contract();
-import { isAbsolute as isAbsolute21, normalize as normalize9 } from "node:path";
+import { isAbsolute as isAbsolute23, normalize as normalize9 } from "node:path";
 var bad3 = (fieldPath) => ({ ok: false, error: { code: "invalid-contract", fieldPath } });
 function record7(value4) {
   if (value4 === null || typeof value4 !== "object" || Array.isArray(value4)) return false;
@@ -111771,7 +111968,7 @@ function record7(value4) {
 }
 var exact4 = (v2, required2) => required2.length === Object.keys(v2).length && required2.every((k2) => Object.hasOwn(v2, k2));
 var text8 = (v2) => typeof v2 === "string" && v2.length > 0 && v2.isWellFormed() && Buffer.byteLength(v2) <= 4096 && !/[\u0000-\u001f\u007f]/.test(v2);
-var path2 = (v2) => text8(v2) && isAbsolute21(v2) && normalize9(v2) === v2;
+var path2 = (v2) => text8(v2) && isAbsolute23(v2) && normalize9(v2) === v2;
 var digest3 = (v2) => typeof v2 === "string" && /^[a-f0-9]{64}$/.test(v2);
 var oid = (v2) => typeof v2 === "string" && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(v2);
 var positive = (v2) => Number.isSafeInteger(v2) && v2 > 0;
@@ -112552,8 +112749,8 @@ init_pel();
 import { execFile as execFile3 } from "node:child_process";
 import { promisify as promisify2 } from "node:util";
 import { createHash as createHash9, randomUUID as randomUUID2 } from "node:crypto";
-import { closeSync as closeSync14, constants as constants10, existsSync as existsSync3, fstatSync as fstatSync11, fsyncSync as fsyncSync10, lstatSync as lstatSync12, mkdirSync as mkdirSync11, openSync as openSync14, readSync as readSync10, realpathSync as realpathSync8, renameSync as renameSync7, statSync as statSync2, unlinkSync as unlinkSync8, writeSync as writeSync6 } from "node:fs";
-import { dirname as dirname17, isAbsolute as isAbsolute23, join as join26, normalize as normalize10, parse as parse2, relative as relative4, sep as sep7 } from "node:path";
+import { closeSync as closeSync14, constants as constants11, existsSync as existsSync3, fstatSync as fstatSync11, fsyncSync as fsyncSync10, lstatSync as lstatSync12, mkdirSync as mkdirSync11, openSync as openSync14, readSync as readSync10, realpathSync as realpathSync8, renameSync as renameSync7, statSync as statSync2, unlinkSync as unlinkSync8, writeSync as writeSync6 } from "node:fs";
+import { dirname as dirname17, isAbsolute as isAbsolute24, join as join27, normalize as normalize10, parse as parse2, relative as relative4, sep as sep7 } from "node:path";
 var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 var MAX_SETTINGS = 1048576;
 var exec = promisify2(execFile3);
@@ -112561,11 +112758,11 @@ var fail27 = (message) => ({ _tag: "PelRunFailure", code: "binding-mismatch", di
 var attempt6 = (work, message) => Effect_exports.try({ try: work, catch: () => fail27(message) });
 var identity6 = (info) => `${info.dev}:${info.ino}`;
 function directory(path3) {
-  if (!isAbsolute23(path3) || normalize10(path3) !== path3 || realpathSync8(path3) !== path3) throw Error("noncanonical directory");
+  if (!isAbsolute24(path3) || normalize10(path3) !== path3 || realpathSync8(path3) !== path3) throw Error("noncanonical directory");
   const root = parse2(path3).root;
   let current3 = root;
   for (const component of relative4(root, path3).split(sep7).filter(Boolean)) {
-    current3 = join26(current3, component);
+    current3 = join27(current3, component);
     const info = lstatSync12(current3);
     if (info.isSymbolicLink() || !info.isDirectory()) throw Error("unsafe ancestor");
   }
@@ -112580,7 +112777,7 @@ function makeDirectory(path3) {
   directory(parent);
   mkdirSync11(path3, { mode: 448 });
   directory(path3);
-  const descriptor5 = openSync14(parent, constants10.O_RDONLY | constants10.O_DIRECTORY | constants10.O_NOFOLLOW);
+  const descriptor5 = openSync14(parent, constants11.O_RDONLY | constants11.O_DIRECTORY | constants11.O_NOFOLLOW);
   try {
     fsyncSync10(descriptor5);
   } finally {
@@ -112591,7 +112788,7 @@ function readBytes(path3, maxBytes, expected) {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > 64 * 1024 * 1024) throw Error("invalid bound");
   const parent = dirname17(path3), before2 = directory(parent), entry = lstatSync12(path3);
   if (!entry.isFile() || entry.isSymbolicLink() || entry.nlink !== 1 || entry.size > maxBytes) throw Error("unsafe input");
-  const fd = openSync14(path3, constants10.O_RDONLY | constants10.O_NOFOLLOW);
+  const fd = openSync14(path3, constants11.O_RDONLY | constants11.O_NOFOLLOW);
   try {
     const opened = fstatSync11(fd);
     if (identity6(opened) !== identity6(entry) || opened.size !== entry.size) throw Error("changed input");
@@ -112635,7 +112832,7 @@ function resolvePelRepository(cwd) {
     const common2 = (yield* git2(["rev-parse", "--path-format=absolute", "--git-common-dir"])).stdout.trim();
     const worktree = (yield* git2(["rev-parse", "--show-toplevel"])).stdout.trim();
     return yield* attempt6(() => {
-      if (!isAbsolute23(common2) || !isAbsolute23(worktree)) throw Error("Git returned relative identity");
+      if (!isAbsolute24(common2) || !isAbsolute24(worktree)) throw Error("Git returned relative identity");
       const gitCommonDir = realpathSync8(common2), worktreePath = realpathSync8(worktree), info = directory(gitCommonDir);
       directory(worktreePath);
       return { repository: { gitCommonDir, identitySha256: hashAuthoringContent({ gitCommonDir, directoryIdentity: identity6(info) }) }, worktreePath };
@@ -112643,19 +112840,19 @@ function resolvePelRepository(cwd) {
   });
 }
 function makeLivePelProjectServices(options2) {
-  const registryPath = join26(options2.foremanHome, "projects.json");
+  const registryPath = join27(options2.foremanHome, "projects.json");
   const admission = makePelInstalledAdmission(options2.entryUrl ?? import.meta.url, options2.foremanHome);
   const readHash = (project4, sha256, max5) => attempt6(() => {
     if (!UUID3.test(project4.projectId) || !/^([a-f0-9]{64})$/.test(sha256)) throw Error("invalid input hash");
     directory(project4.stateRoot);
-    const bytes2 = readBytes(join26(project4.stateRoot, "project-inputs", project4.projectId, `sha256-${sha256}`), max5);
+    const bytes2 = readBytes(join27(project4.stateRoot, "project-inputs", project4.projectId, `sha256-${sha256}`), max5);
     if (createHash9("sha256").update(bytes2).digest("hex") !== sha256) throw Error("hash mismatch");
     return bytes2;
   }, "The registered input hash is missing, unsafe, changed, or exceeds its bound");
   const readInput = (project4, ref3, max5) => attempt6(() => {
     if (!UUID3.test(project4.projectId) || !/^sha256-[a-f0-9]{64}$/.test(ref3.artifactId) || ref3.artifactId !== `sha256-${ref3.sha256}` || !Number.isSafeInteger(ref3.byteLength) || ref3.byteLength < 0) throw Error("invalid input identity");
     directory(project4.stateRoot);
-    return readBytes(join26(project4.stateRoot, "project-inputs", project4.projectId, ref3.artifactId), max5, ref3);
+    return readBytes(join27(project4.stateRoot, "project-inputs", project4.projectId, ref3.artifactId), max5, ref3);
   }, "The registered project input is missing, unsafe, changed, or exceeds its bound");
   const registered = (context11) => attempt6(() => {
     directory(options2.foremanHome);
@@ -112684,7 +112881,7 @@ function makeLivePelProjectServices(options2) {
     }),
     read: (override) => Effect_exports.gen(function* () {
       const location = yield* resolvePelRepository(options2.cwd);
-      const project4 = yield* attempt6(() => decodeSettings(readBytes(join26(location.repository.gitCommonDir, "foreman", "project.json"), MAX_SETTINGS)), "Project settings are missing, malformed, or unsafe");
+      const project4 = yield* attempt6(() => decodeSettings(readBytes(join27(location.repository.gitCommonDir, "foreman", "project.json"), MAX_SETTINGS)), "Project settings are missing, malformed, or unsafe");
       yield* attempt6(() => validateFilesystem(project4, location.repository), "Project settings no longer match the canonical repository or workspace grants");
       yield* validateWorktrees(project4);
       if (override !== void 0 && override !== project4.stateRoot) return yield* Effect_exports.fail(fail27("The requested state root is not the configured registered root"));
@@ -112698,11 +112895,11 @@ function makeLivePelProjectServices(options2) {
       yield* validateWorktrees(project4);
       yield* options2.validateAuthority(project4, (ref3, max5) => readInput(project4, ref3, max5), (sha256, max5) => readHash(project4, sha256, max5));
       yield* admission(attempt6(() => {
-        if (!isAbsolute23(options2.foremanHome)) throw Error("home must be absolute");
+        if (!isAbsolute24(options2.foremanHome)) throw Error("home must be absolute");
         makeDirectory(options2.foremanHome);
-        const parent = join26(location.repository.gitCommonDir, "foreman");
+        const parent = join27(location.repository.gitCommonDir, "foreman");
         makeDirectory(parent);
-        const target = join26(parent, "project.json");
+        const target = join27(parent, "project.json");
         let before2;
         try {
           before2 = lstatSync12(target);
@@ -112710,8 +112907,8 @@ function makeLivePelProjectServices(options2) {
           if (error.code !== "ENOENT") throw error;
         }
         if (before2 && (!before2.isFile() || before2.isSymbolicLink() || before2.nlink !== 1)) throw Error("unsafe settings target");
-        const temporary = join26(parent, `.project-${randomUUID2()}.tmp`);
-        const fd = openSync14(temporary, constants10.O_WRONLY | constants10.O_CREAT | constants10.O_EXCL | constants10.O_NOFOLLOW, 384);
+        const temporary = join27(parent, `.project-${randomUUID2()}.tmp`);
+        const fd = openSync14(temporary, constants11.O_WRONLY | constants11.O_CREAT | constants11.O_EXCL | constants11.O_NOFOLLOW, 384);
         try {
           const content = Buffer.from(canonicalize(project4));
           let offset = 0;
@@ -112727,7 +112924,7 @@ function makeLivePelProjectServices(options2) {
           directory(parent);
           if (before2 ? identity6(lstatSync12(target)) !== identity6(before2) : existsSync3(target)) throw Error("concurrent settings replacement");
           renameSync7(temporary, target);
-          const parentFd = openSync14(parent, constants10.O_RDONLY | constants10.O_DIRECTORY | constants10.O_NOFOLLOW);
+          const parentFd = openSync14(parent, constants11.O_RDONLY | constants11.O_DIRECTORY | constants11.O_NOFOLLOW);
           try {
             fsyncSync10(parentFd);
           } finally {
@@ -112745,21 +112942,21 @@ function makeLivePelProjectServices(options2) {
 // packages/orchestration/src/pel-registered-root.ts
 init_esm();
 import { lstatSync as lstatSync13, realpathSync as realpathSync9 } from "node:fs";
-import { isAbsolute as isAbsolute24, join as join27, normalize as normalize11 } from "node:path";
+import { isAbsolute as isAbsolute25, join as join28, normalize as normalize11 } from "node:path";
 init_pel_journal();
 function resolvePelRegisteredRoot(cwd, foremanHome, override) {
   return Effect_exports.gen(function* () {
     const location = yield* resolvePelRepository(cwd);
     return yield* Effect_exports.try({ try: () => {
       const home = lstatSync13(foremanHome);
-      if (!isAbsolute24(foremanHome) || normalize11(foremanHome) !== foremanHome || realpathSync9(foremanHome) !== foremanHome || !home.isDirectory() || home.isSymbolicLink()) throw Error("home");
-      const loaded = loadProjectRegistryFileV1(join27(foremanHome, "projects.json"));
+      if (!isAbsolute25(foremanHome) || normalize11(foremanHome) !== foremanHome || realpathSync9(foremanHome) !== foremanHome || !home.isDirectory() || home.isSymbolicLink()) throw Error("home");
+      const loaded = loadProjectRegistryFileV1(join28(foremanHome, "projects.json"));
       if (loaded._tag !== "Valid") throw Error("registry");
       const matches2 = loaded.value.projects.filter((p2) => p2.state === "active" && p2.git_common_dir === location.repository.gitCommonDir && (override === void 0 || p2.store_location === override));
       if (matches2.length !== 1) throw Error("association");
       const registration = matches2[0];
       const stateRoot = registration.store_location, stat6 = lstatSync13(stateRoot);
-      if (!isAbsolute24(stateRoot) || normalize11(stateRoot) !== stateRoot || realpathSync9(stateRoot) !== stateRoot || !stat6.isDirectory() || stat6.isSymbolicLink()) throw Error("state root");
+      if (!isAbsolute25(stateRoot) || normalize11(stateRoot) !== stateRoot || realpathSync9(stateRoot) !== stateRoot || !stat6.isDirectory() || stat6.isSymbolicLink()) throw Error("state root");
       return { projectId: registration.project_id, repository: location.repository, stateRoot, worktreePath: location.worktreePath, registration };
     }, catch: () => pelFailure("binding-mismatch", "The requested state root has no matching active repository registration.") });
   });
@@ -112771,7 +112968,7 @@ init_src();
 init_src3();
 init_execution_ledger();
 init_execution_contract();
-import { isAbsolute as isAbsolute25, normalize as normalize12 } from "node:path";
+import { isAbsolute as isAbsolute26, normalize as normalize12 } from "node:path";
 init_pel_run_contract();
 var MAX = 1048576;
 var fail28 = (message) => ({ _tag: "PelRunFailure", code: "binding-mismatch", diagnostic: { code: "binding-mismatch", message, sourceSpan: null, effectId: null, retryable: false, nextAction: "Reference a typed scope whose bytes match existing registered execution authority.", evidenceRefs: [] } });
@@ -112785,7 +112982,7 @@ var list3 = (value4) => Array.isArray(value4) && value4.length <= 1e3 && Object.
 var strings3 = (value4) => list3(value4) && value4.every(text9) && new Set(value4).size === value4.length;
 var map31 = (value4) => record9(value4) && Object.keys(value4).length <= 1e3 && Object.keys(value4).every(text9);
 var same5 = (a, b2) => canonicalize(a) === canonicalize(b2);
-var relativePath = (path3) => path3 === "." || !isAbsolute25(path3) && normalize12(path3) === path3 && !/[\\*?\u0000-\u001f\u007f]/u.test(path3) && path3.split("/").every((part) => part !== "." && part !== ".." && part.length > 0);
+var relativePath = (path3) => path3 === "." || !isAbsolute26(path3) && normalize12(path3) === path3 && !/[\\*?\u0000-\u001f\u007f]/u.test(path3) && path3.split("/").every((part) => part !== "." && part !== ".." && part.length > 0);
 var sorted = (values3) => [...new Set(values3)].sort((a, b2) => Buffer.compare(Buffer.from(a), Buffer.from(b2)));
 function pelAuthorityFileBytes(value4) {
   return Buffer.from(`${canonicalize(value4)}
@@ -112795,7 +112992,7 @@ function pelV1AllowedPathsSha256(grants) {
   return sha256Hex(pelAuthorityFileBytes({ schema: "foreman.execution-paths.v1", allowedPaths: sorted(grants.flatMap((grant) => grant.writablePaths)) }));
 }
 function decodePelProjectAuthorityV1(value4) {
-  if (!record9(value4) || !exact5(value4, ["schemaVersion", "repository", "stateRoot", "workspaceGrants", "taskActions", "gates", "destinations"]) || value4.schemaVersion !== 1 || !decodePelRepositoryIdentityV1(value4.repository).ok || !text9(value4.stateRoot) || !isAbsolute25(value4.stateRoot) || normalize12(value4.stateRoot) !== value4.stateRoot) return bad4("authority");
+  if (!record9(value4) || !exact5(value4, ["schemaVersion", "repository", "stateRoot", "workspaceGrants", "taskActions", "gates", "destinations"]) || value4.schemaVersion !== 1 || !decodePelRepositoryIdentityV1(value4.repository).ok || !text9(value4.stateRoot) || !isAbsolute26(value4.stateRoot) || normalize12(value4.stateRoot) !== value4.stateRoot) return bad4("authority");
   if (!list3(value4.workspaceGrants) || !value4.workspaceGrants.length) return bad4("authority.workspaceGrants");
   const ids4 = /* @__PURE__ */ new Set(), roots4 = /* @__PURE__ */ new Set();
   for (const raw of value4.workspaceGrants) {
@@ -113874,7 +114071,7 @@ var str = (value4) => ({ tag: "string", value: value4 });
 var refValue = (ref3) => str(`artifact:${ref3.artifactId}`);
 var assoc = (fields3) => ({ tag: "list", items: Object.entries(fields3).map(([key, value4]) => ({ tag: "pair", key, value: value4 })) });
 var put3 = (value4, context11) => Effect_exports.flatMap(PelRuntime, (runtime4) => runtime4.artifacts.put(context11.binding.runId, Buffer.from(canonicalize(value4)), PEL_MAX_ARTIFACT_BYTES, "ordinary"));
-var object8 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
+var object9 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
 var args5 = (request3) => {
   const { id: id5, input, destination } = request3.boundArguments;
   return id5?.tag === "string" && destination?.tag === "string" && input && isPelDataValue(input) ? { id: id5.value, input, destination: destination.value } : null;
@@ -113900,7 +114097,7 @@ var serviceInput = (destinationId, input) => ({ destinationId, candidate: pelRel
 function makePelPublishHandler(ports) {
   const load2 = (prepared, context11) => Effect_exports.gen(function* () {
     const value4 = yield* readPelArtifactJson(context11.binding.runId, prepared.inputs);
-    if (!object8(value4) || Object.keys(value4).sort().join(",") !== "id,input,publication,resolved,schemaVersion" || value4.schemaVersion !== 1 || typeof value4.id !== "string" || !isPelDataValue(value4.input) || !object8(value4.resolved) || !object8(value4.publication) || value4.publication.operationDigest !== prepared.operationDigest) return yield* Effect_exports.fail(invalid3("The retained publication preparation is invalid."));
+    if (!object9(value4) || Object.keys(value4).sort().join(",") !== "id,input,publication,resolved,schemaVersion" || value4.schemaVersion !== 1 || typeof value4.id !== "string" || !isPelDataValue(value4.input) || !object9(value4.resolved) || !object9(value4.publication) || value4.publication.operationDigest !== prepared.operationDigest) return yield* Effect_exports.fail(invalid3("The retained publication preparation is invalid."));
     const stored = value4;
     yield* validateInput(stored.resolved, context11);
     if (pelHash(serviceInput(stored.publication.input.destinationId, stored.resolved)) !== pelHash(stored.publication.input) || pelHash(prepared.candidate) !== pelHash(stored.publication.input.candidate)) return yield* Effect_exports.fail(invalid3("The publication preparation does not bind its original candidate evidence."));
@@ -113911,8 +114108,8 @@ function makePelPublishHandler(ports) {
     if (!replay.ok) return yield* Effect_exports.fail(replay.error);
     for (const row of [...replay.value.records].reverse()) if (row.type === "pel.effect.observed.v1" && row.data.effectId === context11.effect.effectId && row.data.externalOutcome === "confirmed-complete") {
       const value4 = yield* readPelArtifactJson(context11.binding.runId, row.data.observationRef);
-      if (!object8(value4) || value4.stage !== "publication-observed") continue;
-      if (Object.keys(value4).sort().join(",") !== "observation,observedAt,operationDigest,stage" || value4.operationDigest !== operationDigest2 || !Number.isSafeInteger(value4.observedAt) || !object8(value4.observation) || value4.observation.kind !== "published" || value4.observation.operationDigest !== operationDigest2) return yield* Effect_exports.fail(invalid3("The retained publication observation is invalid."));
+      if (!object9(value4) || value4.stage !== "publication-observed") continue;
+      if (Object.keys(value4).sort().join(",") !== "observation,observedAt,operationDigest,stage" || value4.operationDigest !== operationDigest2 || !Number.isSafeInteger(value4.observedAt) || !object9(value4.observation) || value4.observation.kind !== "published" || value4.observation.operationDigest !== operationDigest2) return yield* Effect_exports.fail(invalid3("The retained publication observation is invalid."));
       return { report: value4, reportRef: row.data.observationRef };
     }
     return null;
@@ -113935,7 +114132,7 @@ function makePelPublishHandler(ports) {
     let recorded = false;
     for (const row of replay.value.records) if (row.type === "pel.effect.observed.v1" && row.data.effectId === context11.effect.effectId) {
       const value4 = yield* readPelArtifactJson(context11.binding.runId, row.data.observationRef);
-      if (object8(value4) && value4.stage === "host-evidence" && value4.kind === "publication") {
+      if (object9(value4) && value4.stage === "host-evidence" && value4.kind === "publication") {
         if (pelHash(value4.ref) !== pelHash(ref3)) return yield* Effect_exports.fail(invalid3("A different publication receipt is already recorded."));
         recorded = true;
       }
@@ -113989,27 +114186,27 @@ init_execution_ledger();
 init_queue_services();
 init_pel_run_contract();
 init_pel_effects();
-import { realpath as realpath7, stat as stat5 } from "node:fs/promises";
-import { isAbsolute as isAbsolute27, resolve as resolve10 } from "node:path";
+import { realpath as realpath8, stat as stat5 } from "node:fs/promises";
+import { isAbsolute as isAbsolute28, resolve as resolve10 } from "node:path";
 
 // packages/orchestration/src/pel-candidate-capture.ts
 init_esm();
 init_src();
 init_src3();
 init_queue_services();
-import { constants as constants11 } from "node:fs";
-import { lstat as lstat6, stat as stat4, realpath as realpath6, open as open5, readlink, mkdtemp as mkdtemp4, writeFile as writeFile2, rm as rm4 } from "node:fs/promises";
-import { dirname as dirname18, join as join28, isAbsolute as isAbsolute26, resolve as resolve9, sep as sep8 } from "node:path";
-import { tmpdir as tmpdir3 } from "node:os";
+import { constants as constants12 } from "node:fs";
+import { lstat as lstat7, stat as stat4, realpath as realpath7, open as open6, readlink, mkdtemp as mkdtemp5, writeFile as writeFile3, rm as rm5 } from "node:fs/promises";
+import { dirname as dirname18, join as join29, isAbsolute as isAbsolute27, resolve as resolve9, sep as sep8 } from "node:path";
+import { tmpdir as tmpdir4 } from "node:os";
 init_pel_run_contract();
 init_pel_resource_scope();
 init_pel_run_contract();
 var MAX_FILES = 4096;
 var MAX_BYTES3 = 64 * 1024 * 1024;
-var failure9 = (code, message, cause4) => ({ code, message, ...cause4 ? { cause: JSON.parse(canonicalize(cause4)) } : {} });
+var failure10 = (code, message, cause4) => ({ code, message, ...cause4 ? { cause: JSON.parse(canonicalize(cause4)) } : {} });
 var within3 = (root, path3) => path3 === root || path3.startsWith(root + sep8);
 var identity7 = (s3) => `${s3.dev}:${s3.ino}`;
-var io5 = (run6, code = "candidate-changed") => Effect_exports.tryPromise({ try: run6, catch: () => failure9(code, "Candidate filesystem evidence changed or could not be read safely.") });
+var io6 = (run6, code = "candidate-changed") => Effect_exports.tryPromise({ try: run6, catch: () => failure10(code, "Candidate filesystem evidence changed or could not be read safely.") });
 var oid3 = (text11) => {
   const value4 = text11.trim();
   if (!/^[a-f0-9]{40}$/.test(value4)) throw Error("Invalid Git object identity");
@@ -114019,21 +114216,21 @@ var limit = (context11) => Math.min(MAX_BYTES3, context11.binding.limits.maxOutp
 function git(context11, args6, extra = {}, allowedStatuses = [0]) {
   return Effect_exports.gen(function* () {
     const runtime4 = yield* PelRuntime, now = yield* runtime4.clock.now;
-    if (context11.binding.limits.deadline <= now) return yield* Effect_exports.fail(failure9("timeout", "The original candidate capture deadline expired."));
+    if (context11.binding.limits.deadline <= now) return yield* Effect_exports.fail(failure10("timeout", "The original candidate capture deadline expired."));
     const proc = yield* ProcessExec;
-    const result4 = yield* proc.runCaptured({ command: "git", args: gitArgv(["--literal-pathspecs", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.excludesFile=/dev/null", "-c", "core.sparseCheckout=false", "-c", "core.ignoreStat=false", "-c", "core.fileMode=true", "-c", "commit.gpgSign=false", ...args6]), cwd: context11.workspace.canonicalRoot, env: { ...sanitizedGitEnv(), GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", ...extra }, maxOutputBytes: limit(context11), timeoutMs: Math.min(3e4, context11.binding.limits.deadline - now) }).pipe(Effect_exports.mapError(() => failure9("candidate-changed", "The bounded candidate Git operation did not complete.")));
-    if (!allowedStatuses.includes(result4.exitCode)) return yield* Effect_exports.fail(failure9("candidate-changed", "Git rejected the observed candidate operation."));
+    const result4 = yield* proc.runCaptured({ command: "git", args: gitArgv(["--literal-pathspecs", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.excludesFile=/dev/null", "-c", "core.sparseCheckout=false", "-c", "core.ignoreStat=false", "-c", "core.fileMode=true", "-c", "commit.gpgSign=false", ...args6]), cwd: context11.workspace.canonicalRoot, env: { ...sanitizedGitEnv(), GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", ...extra }, maxOutputBytes: limit(context11), timeoutMs: Math.min(3e4, context11.binding.limits.deadline - now) }).pipe(Effect_exports.mapError(() => failure10("candidate-changed", "The bounded candidate Git operation did not complete.")));
+    if (!allowedStatuses.includes(result4.exitCode)) return yield* Effect_exports.fail(failure10("candidate-changed", "Git rejected the observed candidate operation."));
     return result4;
   });
 }
 function put4(context11, bytes2) {
-  return Effect_exports.flatMap(PelRuntime, (runtime4) => runtime4.artifacts.put(context11.binding.runId, bytes2, limit(context11), "ordinary")).pipe(Effect_exports.mapError(() => failure9("artifact-missing", "Candidate evidence could not be retained.")));
+  return Effect_exports.flatMap(PelRuntime, (runtime4) => runtime4.artifacts.put(context11.binding.runId, bytes2, limit(context11), "ordinary")).pipe(Effect_exports.mapError(() => failure10("artifact-missing", "Candidate evidence could not be retained.")));
 }
 function stableFile(path3, max5) {
-  return io5(async () => {
-    const entry = await lstat6(path3);
+  return io6(async () => {
+    const entry = await lstat7(path3);
     if (!entry.isFile() || entry.nlink !== 1 || entry.size > max5) throw Error("Unsafe file");
-    const fd = await open5(path3, constants11.O_RDONLY | constants11.O_NOFOLLOW);
+    const fd = await open6(path3, constants12.O_RDONLY | constants12.O_NOFOLLOW);
     try {
       const before2 = await fd.stat();
       if (identity7(before2) !== identity7(entry) || before2.size > max5 || before2.size < 0) throw Error("Changed file");
@@ -114044,7 +114241,7 @@ function stableFile(path3, max5) {
         if (!read.bytesRead) throw Error("Short file");
         offset += read.bytesRead;
       }
-      const after4 = await fd.stat(), current3 = await lstat6(path3);
+      const after4 = await fd.stat(), current3 = await lstat7(path3);
       if (identity7(after4) !== identity7(current3) || after4.size !== before2.size || after4.mtimeMs !== before2.mtimeMs || after4.ctimeMs !== before2.ctimeMs) throw Error("Changed file");
       return bytes2;
     } finally {
@@ -114055,36 +114252,36 @@ function stableFile(path3, max5) {
 function inspectPelCandidate(context11) {
   return Effect_exports.scoped(Effect_exports.gen(function* () {
     const root = context11.workspace.canonicalRoot;
-    yield* io5(async () => {
-      if (await realpath6(root) !== root || identity7(await stat4(root)) !== context11.workspace.directoryIdentity) throw Error("Changed workspace");
+    yield* io6(async () => {
+      if (await realpath7(root) !== root || identity7(await stat4(root)) !== context11.workspace.directoryIdentity) throw Error("Changed workspace");
     });
     const common2 = (yield* git(context11, ["rev-parse", "--path-format=absolute", "--git-common-dir"])).stdout.trim(), top = (yield* git(context11, ["rev-parse", "--show-toplevel"])).stdout.trim();
-    yield* io5(async () => {
-      const canonical3 = await realpath6(common2), info = await stat4(canonical3);
+    yield* io6(async () => {
+      const canonical3 = await realpath7(common2), info = await stat4(canonical3);
       if (top !== root || canonical3 !== context11.binding.repository.gitCommonDir || canonical3 !== context11.workspace.repository.gitCommonDir || sha256Hex(canonicalize({ gitCommonDir: canonical3, directoryIdentity: identity7(info) })) !== context11.binding.repository.identitySha256 || canonicalize(context11.binding.repository) !== canonicalize(context11.workspace.repository)) throw Error("Changed repository");
     });
-    const headCommit = yield* git(context11, ["rev-parse", "HEAD"]).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure9("candidate-changed", "Invalid HEAD identity.") })));
-    if (headCommit !== context11.workspace.immutableBase) return yield* Effect_exports.fail(failure9("candidate-changed", "HEAD differs from the admitted immutable base."));
-    const headTree = yield* git(context11, ["rev-parse", `${headCommit}^{tree}`]).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure9("candidate-changed", "Invalid tree identity.") })));
+    const headCommit = yield* git(context11, ["rev-parse", "HEAD"]).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure10("candidate-changed", "Invalid HEAD identity.") })));
+    if (headCommit !== context11.workspace.immutableBase) return yield* Effect_exports.fail(failure10("candidate-changed", "HEAD differs from the admitted immutable base."));
+    const headTree = yield* git(context11, ["rev-parse", `${headCommit}^{tree}`]).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure10("candidate-changed", "Invalid tree identity.") })));
     yield* git(context11, ["cat-file", "-e", `${context11.workspace.immutableBase}^{commit}`]);
     const branch = (yield* git(context11, ["symbolic-ref", "--quiet", "HEAD"], {}, [0, 1])).stdout.trim();
-    const scratch = yield* Effect_exports.acquireRelease(io5(() => mkdtemp4(join28(tmpdir3(), "foreman-observation-"))), (path3) => Effect_exports.promise(() => rm4(path3, { recursive: true, force: true })).pipe(Effect_exports.orDie));
-    const environment3 = { GIT_INDEX_FILE: join28(scratch, "index") };
+    const scratch = yield* Effect_exports.acquireRelease(io6(() => mkdtemp5(join29(tmpdir4(), "foreman-observation-"))), (path3) => Effect_exports.promise(() => rm5(path3, { recursive: true, force: true })).pipe(Effect_exports.orDie));
+    const environment3 = { GIT_INDEX_FILE: join29(scratch, "index") };
     yield* git(context11, ["read-tree", headCommit], environment3);
     const tracked = (yield* git(context11, ["diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--name-only", "-z", headCommit, "--"], environment3)).stdout;
     const untracked = (yield* git(context11, ["ls-files", "--others", "--exclude-standard", "-z"], environment3)).stdout;
     const paths2 = [...new Set([...tracked.split("\0"), ...untracked.split("\0")].filter(Boolean))].sort();
-    if (paths2.length > MAX_FILES) return yield* Effect_exports.fail(failure9("task-output-invalid", "Candidate file count exceeds its bound."));
+    if (paths2.length > MAX_FILES) return yield* Effect_exports.fail(failure10("task-output-invalid", "Candidate file count exceeds its bound."));
     const entries2 = [];
     let total = 0;
     for (const path3 of paths2) {
-      if (isAbsolute26(path3) || path3.includes("\uFFFD") || path3.split(/[\\/]/).some((p2) => !p2 || p2 === "." || p2 === ".." || p2 === ".git")) return yield* Effect_exports.fail(failure9("candidate-out-of-scope", "Candidate contains an unsupported or reserved path."));
-      const absolute = join28(root, path3);
-      const info = yield* io5(async () => {
+      if (isAbsolute27(path3) || path3.includes("\uFFFD") || path3.split(/[\\/]/).some((p2) => !p2 || p2 === "." || p2 === ".." || p2 === ".git")) return yield* Effect_exports.fail(failure10("candidate-out-of-scope", "Candidate contains an unsupported or reserved path."));
+      const absolute = join29(root, path3);
+      const info = yield* io6(async () => {
         try {
-          const parent = await realpath6(dirname18(absolute));
+          const parent = await realpath7(dirname18(absolute));
           if (!within3(root, parent)) throw Error("Escaping parent");
-          return await lstat6(absolute);
+          return await lstat7(absolute);
         } catch (error) {
           if (error.code === "ENOENT") return null;
           throw error;
@@ -114094,17 +114291,17 @@ function inspectPelCandidate(context11) {
         entries2.push({ path: path3, mode: "deleted", content: null, unsafeSymlink: false });
         continue;
       }
-      if (!info.isFile() && !info.isSymbolicLink()) return yield* Effect_exports.fail(failure9("candidate-out-of-scope", "Candidate contains an unsupported special file."));
+      if (!info.isFile() && !info.isSymbolicLink()) return yield* Effect_exports.fail(failure10("candidate-out-of-scope", "Candidate contains an unsupported special file."));
       let bytes2, unsafeSymlink = false;
       if (info.isSymbolicLink()) {
-        const target = yield* io5(() => readlink(absolute));
+        const target = yield* io6(() => readlink(absolute));
         bytes2 = Buffer.from(target);
-        unsafeSymlink = isAbsolute26(target) || !within3(root, resolve9(dirname18(absolute), target)) || (yield* canonicalWorkspacePath(resolve9(dirname18(absolute), target), context11).pipe(Effect_exports.either))._tag === "Left";
-        const again = yield* io5(() => lstat6(absolute));
-        if (identity7(again) !== identity7(info) || again.mtimeMs !== info.mtimeMs) return yield* Effect_exports.fail(failure9("candidate-changed", "Candidate symlink changed during capture."));
+        unsafeSymlink = isAbsolute27(target) || !within3(root, resolve9(dirname18(absolute), target)) || (yield* canonicalWorkspacePath(resolve9(dirname18(absolute), target), context11).pipe(Effect_exports.either))._tag === "Left";
+        const again = yield* io6(() => lstat7(absolute));
+        if (identity7(again) !== identity7(info) || again.mtimeMs !== info.mtimeMs) return yield* Effect_exports.fail(failure10("candidate-changed", "Candidate symlink changed during capture."));
       } else bytes2 = yield* stableFile(absolute, limit(context11) - total);
       total += bytes2.byteLength;
-      if (total > limit(context11)) return yield* Effect_exports.fail(failure9("task-output-invalid", "Candidate bytes exceed the admitted artifact bound."));
+      if (total > limit(context11)) return yield* Effect_exports.fail(failure10("task-output-invalid", "Candidate bytes exceed the admitted artifact bound."));
       entries2.push({ path: path3, mode: info.isSymbolicLink() ? "120000" : info.mode & 73 ? "100755" : "100644", content: yield* put4(context11, bytes2), unsafeSymlink });
     }
     const data3 = { schemaVersion: 1, repository: context11.binding.repository, workspaceGrantId: context11.workspace.grantId, workspaceIdentity: context11.workspace.directoryIdentity, baseCommit: context11.workspace.immutableBase, headCommit, headTree, branchRef: branch || null, entries: entries2 };
@@ -114115,15 +114312,15 @@ function inspectPelCandidate(context11) {
 function capturePelCandidate(original, context11) {
   return Effect_exports.gen(function* () {
     const current3 = yield* inspectPelCandidate(context11);
-    for (const key of ["repository", "workspaceGrantId", "workspaceIdentity", "baseCommit", "headCommit", "headTree", "branchRef"]) if (canonicalize(original[key]) !== canonicalize(current3[key])) return yield* Effect_exports.fail(failure9("candidate-changed", "The original candidate, branch, or workspace identity changed."));
+    for (const key of ["repository", "workspaceGrantId", "workspaceIdentity", "baseCommit", "headCommit", "headTree", "branchRef"]) if (canonicalize(original[key]) !== canonicalize(current3[key])) return yield* Effect_exports.fail(failure10("candidate-changed", "The original candidate, branch, or workspace identity changed."));
     const old = new Map(original.entries.map((entry) => [entry.path, entry])), now = new Map(current3.entries.map((entry) => [entry.path, entry]));
     const changedPaths = [.../* @__PURE__ */ new Set([...old.keys(), ...now.keys()])].filter((path3) => canonicalize(old.get(path3) ?? null) !== canonicalize(now.get(path3) ?? null)).sort();
     const allowed = context11.workspace.writablePaths.map((p2) => p2 === "." ? "" : p2.replace(/\/$/, ""));
-    if (current3.entries.some((entry) => entry.unsafeSymlink || !allowed.some((path3) => !path3 || entry.path === path3 || entry.path.startsWith(path3 + "/")))) return yield* Effect_exports.fail(failure9("candidate-out-of-scope", "Observed candidate paths escape the admitted writable set.", { manifestRef: current3.manifestRef, changedPaths }));
+    if (current3.entries.some((entry) => entry.unsafeSymlink || !allowed.some((path3) => !path3 || entry.path === path3 || entry.path.startsWith(path3 + "/")))) return yield* Effect_exports.fail(failure10("candidate-out-of-scope", "Observed candidate paths escape the admitted writable set.", { manifestRef: current3.manifestRef, changedPaths }));
     const base = { repository: context11.binding.repository, workspaceGrantId: context11.workspace.grantId, baseCommit: context11.workspace.immutableBase, allowedPathsSha256: pelV1AllowedPathsSha256([context11.workspace]), changedPaths, attempt: context11.effect.attempt, effectId: context11.effect.effectId };
     if (!changedPaths.length) return { status: "no-change", ...base, commit: null, tree: null, treeDigest: null, artifactManifestSha256: sha256Hex(canonicalize([])), observationRef: current3.manifestRef, artifacts: [], manifestRef: current3.manifestRef, diffRef: yield* put4(context11, Buffer.alloc(0)) };
-    const scratch = yield* Effect_exports.acquireRelease(io5(() => mkdtemp4(join28(tmpdir3(), "foreman-candidate-"))), (path3) => Effect_exports.promise(() => rm4(path3, { recursive: true, force: true })).pipe(Effect_exports.orDie));
-    const environment3 = { GIT_INDEX_FILE: join28(scratch, "index") };
+    const scratch = yield* Effect_exports.acquireRelease(io6(() => mkdtemp5(join29(tmpdir4(), "foreman-candidate-"))), (path3) => Effect_exports.promise(() => rm5(path3, { recursive: true, force: true })).pipe(Effect_exports.orDie));
+    const environment3 = { GIT_INDEX_FILE: join29(scratch, "index") };
     yield* git(context11, ["read-tree", current3.headCommit], environment3);
     const runtime4 = yield* PelRuntime, artifacts = [];
     for (const [index, entry] of current3.entries.entries()) {
@@ -114132,19 +114329,19 @@ function capturePelCandidate(original, context11) {
         artifacts.push({ path: entry.path, change: "deleted", mode: null, gitBlobOid: null, contentSha256: null, artifact: null });
         continue;
       }
-      const bytes2 = yield* runtime4.artifacts.get(context11.binding.runId, entry.content, limit(context11)).pipe(Effect_exports.mapError(() => failure9("artifact-missing", "Captured candidate bytes are unavailable."))), path3 = join28(scratch, `blob-${index}`);
-      yield* io5(() => writeFile2(path3, bytes2, { mode: 384, flag: "wx" }));
-      const hash10 = yield* git(context11, ["hash-object", "-w", "--no-filters", "--", path3], environment3).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure9("candidate-changed", "Invalid captured blob identity.") })));
+      const bytes2 = yield* runtime4.artifacts.get(context11.binding.runId, entry.content, limit(context11)).pipe(Effect_exports.mapError(() => failure10("artifact-missing", "Captured candidate bytes are unavailable."))), path3 = join29(scratch, `blob-${index}`);
+      yield* io6(() => writeFile3(path3, bytes2, { mode: 384, flag: "wx" }));
+      const hash10 = yield* git(context11, ["hash-object", "-w", "--no-filters", "--", path3], environment3).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure10("candidate-changed", "Invalid captured blob identity.") })));
       yield* git(context11, ["update-index", "--add", "--cacheinfo", entry.mode, hash10, entry.path], environment3);
       artifacts.push({ path: entry.path, change: "present", mode: entry.mode, gitBlobOid: hash10, contentSha256: entry.content.sha256, artifact: entry.content });
     }
-    const tree = yield* git(context11, ["write-tree"], environment3).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure9("candidate-changed", "Invalid candidate tree.") })));
+    const tree = yield* git(context11, ["write-tree"], environment3).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure10("candidate-changed", "Invalid candidate tree.") })));
     const date3 = `@${Math.floor(context11.binding.limits.deadline / 1e3)} +0000`;
-    const commit5 = yield* git(context11, ["commit-tree", tree, "-p", current3.headCommit, "-m", `Foreman candidate ${context11.effect.effectId}`], { ...environment3, GIT_AUTHOR_NAME: "Foreman", GIT_AUTHOR_EMAIL: "foreman@invalid", GIT_COMMITTER_NAME: "Foreman", GIT_COMMITTER_EMAIL: "foreman@invalid", GIT_AUTHOR_DATE: date3, GIT_COMMITTER_DATE: date3 }).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure9("candidate-changed", "Invalid candidate commit.") })));
+    const commit5 = yield* git(context11, ["commit-tree", tree, "-p", current3.headCommit, "-m", `Foreman candidate ${context11.effect.effectId}`], { ...environment3, GIT_AUTHOR_NAME: "Foreman", GIT_AUTHOR_EMAIL: "foreman@invalid", GIT_COMMITTER_NAME: "Foreman", GIT_COMMITTER_EMAIL: "foreman@invalid", GIT_AUTHOR_DATE: date3, GIT_COMMITTER_DATE: date3 }).pipe(Effect_exports.flatMap((r) => Effect_exports.try({ try: () => oid3(r.stdout), catch: () => failure10("candidate-changed", "Invalid candidate commit.") })));
     const diff9 = yield* git(context11, ["diff", "--binary", "--full-index", "--no-ext-diff", "--no-textconv", "--no-renames", current3.baseCommit, commit5, "--"]);
     const diffRef = yield* put4(context11, diff9.stdoutBytes ?? Buffer.from(diff9.stdout));
     const final = yield* inspectPelCandidate(context11);
-    if (final.manifestRef.sha256 !== current3.manifestRef.sha256) return yield* Effect_exports.fail(failure9("candidate-changed", "Worktree evidence changed while the immutable candidate was captured.", { commit: commit5, tree, diffRef, manifestRef: current3.manifestRef }));
+    if (final.manifestRef.sha256 !== current3.manifestRef.sha256) return yield* Effect_exports.fail(failure10("candidate-changed", "Worktree evidence changed while the immutable candidate was captured.", { commit: commit5, tree, diffRef, manifestRef: current3.manifestRef }));
     const treeBytes = yield* git(context11, ["cat-file", "tree", tree]);
     const treeDigest = sha256Hex(treeBytes.stdoutBytes ?? Buffer.from(treeBytes.stdout));
     const data3 = { status: "candidate-ready", ...base, commit: commit5, tree, treeDigest, diffRef, observationRef: current3.manifestRef, artifacts };
@@ -114154,22 +114351,22 @@ function capturePelCandidate(original, context11) {
 }
 function observePelCapturedCandidate(candidate3, context11) {
   return Effect_exports.gen(function* () {
-    if (!decodeCandidateRefV1(candidate3).ok || candidate3.workspaceGrantId !== context11.workspace.grantId || canonicalize(candidate3.repository) !== canonicalize(context11.binding.repository) || candidate3.baseCommit !== context11.workspace.immutableBase) return yield* Effect_exports.fail(failure9("candidate-changed", "The candidate is outside its original workspace."));
-    const runtime4 = yield* PelRuntime, bytes2 = yield* runtime4.artifacts.get(context11.binding.runId, candidate3.manifestRef, MAX_BYTES3).pipe(Effect_exports.mapError(() => failure9("artifact-missing", "The original candidate manifest is unavailable.")));
-    const manifest = yield* Effect_exports.try({ try: () => JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes2)), catch: () => failure9("candidate-changed", "The candidate manifest is invalid.") });
+    if (!decodeCandidateRefV1(candidate3).ok || candidate3.workspaceGrantId !== context11.workspace.grantId || canonicalize(candidate3.repository) !== canonicalize(context11.binding.repository) || candidate3.baseCommit !== context11.workspace.immutableBase) return yield* Effect_exports.fail(failure10("candidate-changed", "The candidate is outside its original workspace."));
+    const runtime4 = yield* PelRuntime, bytes2 = yield* runtime4.artifacts.get(context11.binding.runId, candidate3.manifestRef, MAX_BYTES3).pipe(Effect_exports.mapError(() => failure10("artifact-missing", "The original candidate manifest is unavailable.")));
+    const manifest = yield* Effect_exports.try({ try: () => JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes2)), catch: () => failure10("candidate-changed", "The candidate manifest is invalid.") });
     const observation = decodePelArtifactRefV1(manifest.observationRef);
-    if (!observation.ok || !Object.hasOwn(manifest, "attempt") || manifest.commit !== candidate3.commit || manifest.tree !== candidate3.tree || manifest.treeDigest !== candidate3.treeDigest || manifest.effectId !== candidate3.producingEffectId || canonicalize(manifest.attempt) !== canonicalize(candidate3.producingAttempt) || !Array.isArray(manifest.artifacts) || manifest.artifacts.some((a) => !decodeCandidateArtifactV1(a).ok)) return yield* Effect_exports.fail(failure9("candidate-changed", "The candidate manifest changed its immutable Git or attempt identity."));
-    yield* runtime4.artifacts.get(context11.binding.runId, observation.value, MAX_BYTES3).pipe(Effect_exports.mapError(() => failure9("artifact-missing", "The captured worktree observation is unavailable.")));
+    if (!observation.ok || !Object.hasOwn(manifest, "attempt") || manifest.commit !== candidate3.commit || manifest.tree !== candidate3.tree || manifest.treeDigest !== candidate3.treeDigest || manifest.effectId !== candidate3.producingEffectId || canonicalize(manifest.attempt) !== canonicalize(candidate3.producingAttempt) || !Array.isArray(manifest.artifacts) || manifest.artifacts.some((a) => !decodeCandidateArtifactV1(a).ok)) return yield* Effect_exports.fail(failure10("candidate-changed", "The candidate manifest changed its immutable Git or attempt identity."));
+    yield* runtime4.artifacts.get(context11.binding.runId, observation.value, MAX_BYTES3).pipe(Effect_exports.mapError(() => failure10("artifact-missing", "The captured worktree observation is unavailable.")));
     const current3 = yield* inspectPelCandidate(context11);
-    if (current3.manifestRef.sha256 !== observation.value.sha256) return yield* Effect_exports.fail(failure9("candidate-changed", "The current worktree differs from the captured candidate."));
+    if (current3.manifestRef.sha256 !== observation.value.sha256) return yield* Effect_exports.fail(failure10("candidate-changed", "The current worktree differs from the captured candidate."));
     return observation.value.sha256;
   });
 }
 
 // packages/orchestration/src/pel-publication-service.ts
 init_pel_resource_scope();
-var failure10 = (code, message) => ({ code, message });
-var invalid4 = (message) => failure10("publication-authority-invalid", message);
+var failure11 = (code, message) => ({ code, message });
+var invalid4 = (message) => failure11("publication-authority-invalid", message);
 var same6 = (a, b2) => canonicalize(a) === canonicalize(b2);
 var bytes = (value4) => Buffer.from(`${canonicalize(value4)}
 `);
@@ -114177,9 +114374,9 @@ var operationDigest = (value4) => sha256Hex(canonicalize(value4));
 function makePelPublicationService(options2) {
   const git2 = (args6, context11, observation = false) => Effect_exports.gen(function* () {
     const runtime4 = yield* PelRuntime, remaining = context11.binding.limits.deadline - (yield* runtime4.clock.now);
-    if (!observation && remaining <= 0) return yield* Effect_exports.fail(failure10("capability-denied", "The original publication deadline has expired."));
+    if (!observation && remaining <= 0) return yield* Effect_exports.fail(failure11("capability-denied", "The original publication deadline has expired."));
     const env2 = { ...sanitizedGitEnv(), GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
-    return yield* options2.processExec.runCaptured({ command: "git", args: gitArgv(["-c", "core.hooksPath=/dev/null", "-c", "protocol.allow=never", "-c", "protocol.file.allow=always", "-c", "protocol.https.allow=always", "-c", "protocol.ssh.allow=always", "-c", "core.sshCommand=ssh", ...args6]), cwd: context11.workspace.canonicalRoot, env: env2, maxOutputBytes: Math.min(65536, context11.binding.limits.maxOutputBytes), timeoutMs: observation ? 15e3 : Math.min(15e3, remaining) }).pipe(Effect_exports.mapError(() => failure10("publication-authority-invalid", "The bounded Git operation did not produce a reliable result.")));
+    return yield* options2.processExec.runCaptured({ command: "git", args: gitArgv(["-c", "core.hooksPath=/dev/null", "-c", "protocol.allow=never", "-c", "protocol.file.allow=always", "-c", "protocol.https.allow=always", "-c", "protocol.ssh.allow=always", "-c", "core.sshCommand=ssh", ...args6]), cwd: context11.workspace.canonicalRoot, env: env2, maxOutputBytes: Math.min(65536, context11.binding.limits.maxOutputBytes), timeoutMs: observation ? 15e3 : Math.min(15e3, remaining) }).pipe(Effect_exports.mapError(() => failure11("publication-authority-invalid", "The bounded Git operation did not produce a reliable result.")));
   });
   const checkedGit = (args6, context11) => Effect_exports.gen(function* () {
     const result4 = yield* git2(args6, context11);
@@ -114188,39 +114385,39 @@ function makePelPublicationService(options2) {
   });
   const destination = (input, context11) => Effect_exports.gen(function* () {
     const value4 = context11.project.destinations[input.destinationId];
-    if (!value4 || value4.operation !== "publish") return yield* Effect_exports.fail(failure10("publication-destination-unsupported", "Only a host-admitted external Git ref publication is supported."));
+    if (!value4 || value4.operation !== "publish") return yield* Effect_exports.fail(failure11("publication-destination-unsupported", "Only a host-admitted external Git ref publication is supported."));
     if (value4.repositoryIdentitySha256 !== context11.workspace.repository.identitySha256 || value4.repositoryIdentitySha256 !== context11.project.repository.identitySha256 || !/^refs\/(heads|tags)\/[A-Za-z0-9][A-Za-z0-9._/-]*$/u.test(value4.ref) || value4.ref.includes("..") || value4.ref.includes("//") || value4.ref.endsWith("/") || value4.ref.endsWith(".lock")) return yield* Effect_exports.fail(invalid4("The destination differs from the admitted repository or ref."));
     if (value4.expectedOldObject.kind === "exact" && !isCommitSha40(value4.expectedOldObject.oid)) return yield* Effect_exports.fail(invalid4("The expected remote object is invalid."));
-    if (!isAbsolute27(value4.remoteIdentity)) {
+    if (!isAbsolute28(value4.remoteIdentity)) {
       let url;
       try {
         url = new URL(value4.remoteIdentity);
       } catch {
-        return yield* Effect_exports.fail(failure10("publication-destination-unsupported", "Publication requires an exact canonical path, HTTPS URL, or SSH URL."));
+        return yield* Effect_exports.fail(failure11("publication-destination-unsupported", "Publication requires an exact canonical path, HTTPS URL, or SSH URL."));
       }
-      if (!["https:", "ssh:"].includes(url.protocol) || url.password || url.protocol === "https:" && url.username || url.search || url.hash || url.href !== value4.remoteIdentity) return yield* Effect_exports.fail(failure10("publication-destination-unsupported", "The remote transport identity is unsupported."));
+      if (!["https:", "ssh:"].includes(url.protocol) || url.password || url.protocol === "https:" && url.username || url.search || url.hash || url.href !== value4.remoteIdentity) return yield* Effect_exports.fail(failure11("publication-destination-unsupported", "The remote transport identity is unsupported."));
     }
     return value4;
   });
-  const remoteIdentity = (target) => !isAbsolute27(target.remoteIdentity) ? Effect_exports.succeed(null) : Effect_exports.tryPromise({ try: async () => {
-    const path3 = await realpath7(target.remoteIdentity), info = await stat5(path3);
+  const remoteIdentity = (target) => !isAbsolute28(target.remoteIdentity) ? Effect_exports.succeed(null) : Effect_exports.tryPromise({ try: async () => {
+    const path3 = await realpath8(target.remoteIdentity), info = await stat5(path3);
     if (path3 !== target.remoteIdentity || !info.isDirectory()) throw Error("identity");
     return `${info.dev}:${info.ino}`;
   }, catch: () => invalid4("The canonical remote directory identity changed.") });
   const validateCandidate = (input, target, context11) => Effect_exports.gen(function* () {
     yield* canonicalWorkspacePath(".", context11);
-    if (!isCommitSha40(input.candidate.commit) || !isCommitSha40(input.candidate.tree) || input.candidate.candidateSha256 !== sha256Hex(input.candidate.commit)) return yield* Effect_exports.fail(failure10("candidate-changed", "The candidate identity is invalid."));
-    const common2 = yield* checkedGit(["rev-parse", "--git-common-dir"], context11), commonPath = yield* Effect_exports.tryPromise({ try: () => realpath7(resolve10(context11.workspace.canonicalRoot, common2)), catch: () => invalid4("The repository identity is unavailable.") });
+    if (!isCommitSha40(input.candidate.commit) || !isCommitSha40(input.candidate.tree) || input.candidate.candidateSha256 !== sha256Hex(input.candidate.commit)) return yield* Effect_exports.fail(failure11("candidate-changed", "The candidate identity is invalid."));
+    const common2 = yield* checkedGit(["rev-parse", "--git-common-dir"], context11), commonPath = yield* Effect_exports.tryPromise({ try: () => realpath8(resolve10(context11.workspace.canonicalRoot, common2)), catch: () => invalid4("The repository identity is unavailable.") });
     if (commonPath !== context11.workspace.repository.gitCommonDir) return yield* Effect_exports.fail(invalid4("The candidate belongs to another Git repository."));
     const tree = yield* checkedGit(["rev-parse", "--verify", `${input.candidate.commit}^{tree}`], context11);
-    if (tree !== input.candidate.tree) return yield* Effect_exports.fail(failure10("candidate-changed", "The immutable candidate tree changed."));
+    if (tree !== input.candidate.tree) return yield* Effect_exports.fail(failure11("candidate-changed", "The immutable candidate tree changed."));
     if (options2.resolveCapturedCandidate) {
       const candidate3 = yield* options2.resolveCapturedCandidate(input, context11), ref3 = input.evidenceRefs[0];
-      if (!ref3 || !decodeCandidateRefV1(candidate3).ok || !same6({ commit: candidate3.commit, tree: candidate3.tree, candidateSha256: candidate3.candidateSha256 }, input.candidate) || !same6(yield* readPelArtifactJson(context11.binding.runId, ref3), candidate3)) return yield* Effect_exports.fail(failure10("candidate-changed", "The captured candidate differs from its original publication evidence."));
+      if (!ref3 || !decodeCandidateRefV1(candidate3).ok || !same6({ commit: candidate3.commit, tree: candidate3.tree, candidateSha256: candidate3.candidateSha256 }, input.candidate) || !same6(yield* readPelArtifactJson(context11.binding.runId, ref3), candidate3)) return yield* Effect_exports.fail(failure11("candidate-changed", "The captured candidate differs from its original publication evidence."));
       yield* observePelCapturedCandidate(candidate3, context11).pipe(Effect_exports.provideService(ProcessExec, options2.processExec));
     } else {
       const head9 = yield* checkedGit(["rev-parse", "--verify", "HEAD"], context11), dirty = yield* checkedGit(["status", "--porcelain=v1", "--untracked-files=all"], context11);
-      if (head9 !== input.candidate.commit || dirty !== "") return yield* Effect_exports.fail(failure10("candidate-changed", "The candidate worktree or commit changed after evidence capture."));
+      if (head9 !== input.candidate.commit || dirty !== "") return yield* Effect_exports.fail(failure11("candidate-changed", "The candidate worktree or commit changed after evidence capture."));
     }
     yield* checkedGit(["check-ref-format", target.ref], context11);
     const rewrites = yield* git2(["config", "--get-regexp", "^url\\..*\\.(insteadof|pushinsteadof)$"], context11);
@@ -114325,9 +114522,9 @@ init_src();
 init_pel();
 init_pel_run_contract();
 init_pel_journal();
-import { lstat as lstat7 } from "node:fs/promises";
-import { join as join29 } from "node:path";
-var object9 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
+import { lstat as lstat8 } from "node:fs/promises";
+import { join as join30 } from "node:path";
+var object10 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
 var pelArtifactString = (ref3) => `artifact:${ref3.artifactId}`;
 function pelHostField(value4, key) {
   if (value4.tag !== "list" || value4.items.some((item) => item.tag !== "pair")) return void 0;
@@ -114338,7 +114535,7 @@ function resolvePelRunArtifact(reference3, context11) {
   return Effect_exports.gen(function* () {
     if (!/^artifact:sha256-[a-f0-9]{64}$/u.test(reference3)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The result does not contain a run-owned artifact reference."));
     const artifactId = reference3.slice("artifact:".length), sha256 = artifactId.slice("sha256-".length);
-    const info = yield* Effect_exports.tryPromise({ try: () => lstat7(join29(context11.binding.stateRoot, "runs", context11.binding.runId, "artifacts", artifactId)), catch: () => pelFailure("binding-mismatch", "The referenced run artifact is absent.") });
+    const info = yield* Effect_exports.tryPromise({ try: () => lstat8(join30(context11.binding.stateRoot, "runs", context11.binding.runId, "artifacts", artifactId)), catch: () => pelFailure("binding-mismatch", "The referenced run artifact is absent.") });
     if (!info.isFile() || info.isSymbolicLink() || info.size > PEL_MAX_ARTIFACT_BYTES) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The run artifact exceeds its supported type or bound."));
     const ref3 = { artifactId, sha256, byteLength: info.size }, runtime4 = yield* PelRuntime;
     yield* runtime4.artifacts.get(context11.binding.runId, ref3, PEL_MAX_ARTIFACT_BYTES);
@@ -114353,7 +114550,7 @@ function readPelHostEvidenceRecords(context11) {
     for (const record11 of replay.value.records) {
       if (record11.type !== "pel.effect.observed.v1") continue;
       const value4 = yield* readPelArtifactJson(context11.binding.runId, record11.data.observationRef);
-      if (!object9(value4) || value4.stage !== "host-evidence") continue;
+      if (!object10(value4) || value4.stage !== "host-evidence") continue;
       if (Object.keys(value4).sort().join(",") !== "kind,ref,stage" || !["implementation", "verification", "review", "publication"].includes(String(value4.kind)) || !decodePelArtifactRefV1(value4.ref).ok || record11.data.externalOutcome !== "confirmed-complete" || record11.data.providerIdentity !== null)
         return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The host evidence provenance record is invalid."));
       entries2.push({ kind: value4.kind, ref: value4.ref, effectId: record11.data.effectId, sequence: record11.sequence });
@@ -114374,7 +114571,7 @@ function loadPelHostEvidence(ref3, kind, context11) {
       for (const record11 of replay.records) {
         if (record11.type !== "pel.effect.observed.v1" || record11.sequence <= entry.sequence) continue;
         const value4 = yield* readPelArtifactJson(context11.binding.runId, record11.data.observationRef);
-        if (object9(value4) && value4.stage === "review-in-progress" && pelHash(value4.candidateRef) === pelHash(decoded.value.candidateRef))
+        if (object10(value4) && value4.stage === "review-in-progress" && pelHash(value4.candidateRef) === pelHash(decoded.value.candidateRef))
           return yield* Effect_exports.fail(pelFailure("binding-mismatch", "A later review invalidated the previous review receipt."));
       }
     }
@@ -114387,7 +114584,7 @@ function projectPelHostReceiptEvidence(binding, currentCandidateSha256) {
     const newestReview = /* @__PURE__ */ new Map();
     for (const record11 of replay.records) if (record11.type === "pel.effect.observed.v1") {
       const value4 = yield* readPelArtifactJson(binding.runId, record11.data.observationRef);
-      if (object9(value4) && value4.stage === "review-in-progress" && decodePelArtifactRefV1(value4.candidateRef).ok) newestReview.set(pelHash(value4.candidateRef), record11.data.effectId);
+      if (object10(value4) && value4.stage === "review-in-progress" && decodePelArtifactRefV1(value4.candidateRef).ok) newestReview.set(pelHash(value4.candidateRef), record11.data.effectId);
     }
     const receiptRefs = [], receiptCandidates = {};
     for (const entry of entries2) {
@@ -114439,7 +114636,7 @@ function resolvePelCandidateInput(input, context11) {
     const implementation = yield* loadPelHostEvidence(implementationEntry.ref, "implementation", context11);
     if (implementation.kind !== "implementation" || pelHash(implementation.candidateRef) !== pelHash(candidateRef)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Implementation evidence names a different candidate."));
     const manifest = yield* readPelArtifactJson(context11.binding.runId, candidate3.manifestRef);
-    if (!object9(manifest) || !decodePelArtifactRefV1(manifest.observationRef).ok) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The captured candidate manifest has no host observation."));
+    if (!object10(manifest) || !decodePelArtifactRefV1(manifest.observationRef).ok) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The captured candidate manifest has no host observation."));
     return { candidate: candidate3, candidateRef, task: task3, implementation, implementationRef: implementationEntry.ref, manifest, observationRef: manifest.observationRef };
   });
 }
@@ -114534,7 +114731,7 @@ function pelTaskRaceBudget(context11) {
 init_pel_resource_scope();
 var PEL_VERIFICATION_POLICY_V1 = { schema: "foreman.pel-verification-policy.v1", version: 1, maxAgeMs: 864e5 };
 var PEL_REVIEW_POLICY_V1 = { schema: "foreman.pel-review-policy.v1", version: 1, id: "independent-review", differentObservedVendor: true, maxVerificationAgeMs: 864e5 };
-var object10 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
+var object11 = (value4) => value4 !== null && typeof value4 === "object" && !Array.isArray(value4);
 function makeForemanHostRegistry(handlers, registry = createDefaultAuthoringSnapshotV1().registry) {
   for (const id5 of ["fm/task", "fm/verify", "fm/review", "fm/publish"]) if (!handlers.has(id5)) throw Error(`Missing canonical host handler: ${id5}`);
   if (registry.digest !== createDefaultAuthoringSnapshotV1().registry.digest) throw Error("The host library differs from the canonical descriptor registry.");
@@ -114564,7 +114761,7 @@ function makePelHostLibraryServices(options2) {
     const environment3 = {};
     for (const ref3 of refs) {
       const descriptor5 = context11.checked.snapshot.artifactDescriptors.find((value4) => value4.id === ref3);
-      if (!descriptor5 || !object10(descriptor5.content)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The gate environment reference is absent from the bound snapshot."));
+      if (!descriptor5 || !object11(descriptor5.content)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The gate environment reference is absent from the bound snapshot."));
       for (const [key, value4] of Object.entries(descriptor5.content)) {
         if (typeof value4 !== "string" || Object.hasOwn(environment3, key)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Gate environment bindings overlap or contain non-string values."));
         environment3[key] = value4;
@@ -114832,7 +115029,7 @@ init_pel_provider_tools();
 init_queue_services();
 var denied5 = (message) => ({ code: "capability-denied", message });
 var invalid5 = (message) => ({ code: "task-output-invalid", message });
-var object11 = (v2) => v2 !== null && typeof v2 === "object" && !Array.isArray(v2);
+var object12 = (v2) => v2 !== null && typeof v2 === "object" && !Array.isArray(v2);
 var str2 = (value4) => ({ tag: "string", value: value4 });
 var artifact2 = (ref3) => str2(`artifact:${ref3.artifactId}`);
 var list6 = (items) => ({ tag: "list", items });
@@ -114845,13 +115042,13 @@ var put5 = (value4, context11) => Effect_exports.flatMap(PelRuntime, (runtime4) 
 function load(prepared, context11) {
   return Effect_exports.gen(function* () {
     const data3 = yield* readPelArtifactJson(context11.binding.runId, prepared.inputs);
-    if (!object11(data3) || Object.keys(data3).sort().join(",") !== "before,id,requestRef" || typeof data3.id !== "string" || !object11(data3.before) || !decodePelArtifactRefV1(data3.requestRef).ok || pelHash(data3) !== prepared.operationDigest) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The original task preparation changed."));
+    if (!object12(data3) || Object.keys(data3).sort().join(",") !== "before,id,requestRef" || typeof data3.id !== "string" || !object12(data3.before) || !decodePelArtifactRefV1(data3.requestRef).ok || pelHash(data3) !== prepared.operationDigest) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The original task preparation changed."));
     const before2 = data3.before;
     if (!decodePelArtifactRefV1(before2.manifestRef).ok || before2.schemaVersion !== 1 || before2.workspaceGrantId !== context11.workspace.grantId || pelHash(before2.repository) !== pelHash(context11.binding.repository) || before2.workspaceIdentity !== context11.workspace.directoryIdentity || before2.baseCommit !== context11.workspace.immutableBase || !Array.isArray(before2.entries)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The original task observation changed."));
     const { manifestRef, ...facts2 } = before2, storedBefore = yield* readPelArtifactJson(context11.binding.runId, manifestRef);
     if (pelHash(storedBefore) !== pelHash(facts2)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The retained task observation differs from its preparation."));
     const provider3 = yield* readPelArtifactJson(context11.binding.runId, data3.requestRef);
-    if (!object11(provider3) || provider3.schemaVersion !== 1 || provider3.effectId !== context11.effect.effectId || !object11(provider3.toolPolicy) || provider3.toolPolicy.mode !== "native-coding" || provider3.toolPolicy.workspaceGrantId !== context11.workspace.grantId || !object11(provider3.outputSchema) || provider3.outputSchema.id !== "schema:candidate-v1" || pelHash(provider3.outputSchema.content) !== pelHash(context11.checked.snapshot.registry.dataSchemas["schema:candidate-v1"]) || !object11(provider3.limits) || provider3.limits.deadline !== context11.binding.limits.deadline) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The original native task request changed."));
+    if (!object12(provider3) || provider3.schemaVersion !== 1 || provider3.effectId !== context11.effect.effectId || !object12(provider3.toolPolicy) || provider3.toolPolicy.mode !== "native-coding" || provider3.toolPolicy.workspaceGrantId !== context11.workspace.grantId || !object12(provider3.outputSchema) || provider3.outputSchema.id !== "schema:candidate-v1" || pelHash(provider3.outputSchema.content) !== pelHash(context11.checked.snapshot.registry.dataSchemas["schema:candidate-v1"]) || !object12(provider3.limits) || provider3.limits.deadline !== context11.binding.limits.deadline) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "The original native task request changed."));
     return { data: data3, request: provider3 };
   });
 }
@@ -114868,7 +115065,7 @@ function makePelTaskHandler(ports) {
     for (const record11 of [...replay.value.records].reverse()) {
       if (record11.type !== "pel.effect.observed.v1" || record11.data.effectId !== context11.effect.effectId) continue;
       const saved = yield* readPelArtifactJson(context11.binding.runId, record11.data.observationRef);
-      if (!object11(saved) || saved.stage !== "task-completed") continue;
+      if (!object12(saved) || saved.stage !== "task-completed") continue;
       if (Object.keys(saved).sort().join(",") !== "inputs,receiptRef,result,stage" || pelHash(saved.inputs) !== pelHash(prepared.inputs) || !decodePelArtifactRefV1(saved.receiptRef).ok || !isPelDataValue(saved.result) || !validateDataSchema(saved.result, context11.checked.snapshot.registry.dataSchemas["schema:task-result-v1"])) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Retained task completion changed."));
       const receiptRef = saved.receiptRef, decoded = decodeImplementationReceiptV1(yield* readPelArtifactJson(context11.binding.runId, receiptRef));
       if (!decoded.ok || pelHash(decoded.value.effect) !== pelHash(context11.effect) || pelHash(decoded.value.reservation) !== pelHash(token) || pelHash(decoded.value.beforeManifestRef) !== pelHash(original.data.before.manifestRef) || !observedIdentity(original.request, decoded.value.providerIdentity)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Retained implementation receipt changed its authority or provider."));
@@ -114880,7 +115077,7 @@ function makePelTaskHandler(ports) {
         if (!value4.ok || value4.value.producingEffectId !== context11.effect.effectId || pelHash(value4.value.producingAttempt) !== pelHash(context11.effect.attempt) || value4.value.workspaceGrantId !== context11.workspace.grantId || pelHash(value4.value.repository) !== pelHash(context11.binding.repository)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Retained candidate changed its original attempt."));
         candidate3 = value4.value;
         const manifest = yield* readPelArtifactJson(context11.binding.runId, candidate3.manifestRef);
-        if (!object11(manifest) || !Array.isArray(manifest.artifacts) || manifest.artifacts.some((a) => !decodeCandidateArtifactV1(a).ok) || pelHash(manifest.observationRef) !== pelHash(receipt2.afterManifestRef)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Retained candidate artifacts changed."));
+        if (!object12(manifest) || !Array.isArray(manifest.artifacts) || manifest.artifacts.some((a) => !decodeCandidateArtifactV1(a).ok) || pelHash(manifest.observationRef) !== pelHash(receipt2.afterManifestRef)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Retained candidate artifacts changed."));
         artifacts = manifest.artifacts;
         const runtime4 = yield* PelRuntime;
         for (const entry of artifacts) if (entry.artifact) yield* runtime4.artifacts.get(context11.binding.runId, entry.artifact, PEL_MAX_ARTIFACT_BYTES);
@@ -114951,7 +115148,7 @@ function makePelTaskHandler(ports) {
       if (!replay.ok) return yield* Effect_exports.fail(replay.error);
       for (const row of [...replay.value.records].reverse()) if (row.type === "pel.effect.observed.v1" && row.data.effectId === context11.effect.effectId && row.data.providerIdentity) {
         const data3 = yield* readPelArtifactJson(context11.binding.runId, row.data.observationRef);
-        if (object11(data3) && data3.type === "completed") return yield* complete6(prepared, token, { value: outcome.outcome.value, identity: row.data.providerIdentity }, context11);
+        if (object12(data3) && data3.type === "completed") return yield* complete6(prepared, token, { value: outcome.outcome.value, identity: row.data.providerIdentity }, context11);
       }
       return yield* Effect_exports.fail(pelFailure("journal-corrupt", "A successful task lacks durable observed provider identity."));
     }),
@@ -115093,7 +115290,7 @@ function makeLivePelLifecycleBackend(options2) {
         if ("byteLength" in locator) ref3 = locator;
         else {
           if (!/^[a-f0-9]{64}$/.test(locator.sha256)) return yield* Effect_exports.fail(pelFailure("binding-mismatch", "Invalid authority input hash."));
-          const byteLength = yield* Effect_exports.try({ try: () => lstatSync14(join30(root.stateRoot, "runs", runId2, "artifacts", `sha256-${locator.sha256}`)).size, catch: () => pelFailure("binding-mismatch", "The original authority input is missing.") });
+          const byteLength = yield* Effect_exports.try({ try: () => lstatSync14(join31(root.stateRoot, "runs", runId2, "artifacts", `sha256-${locator.sha256}`)).size, catch: () => pelFailure("binding-mismatch", "The original authority input is missing.") });
           ref3 = { artifactId: `sha256-${locator.sha256}`, sha256: locator.sha256, byteLength };
         }
         return yield* artifacts.get(runId2, ref3, max5);
@@ -115211,7 +115408,7 @@ function makeLivePelLifecycleBackend(options2) {
     configured: () => Effect_exports.gen(function* () {
       const location = yield* Effect_exports.either(resolvePelRepository(options2.cwd));
       if (location._tag === "Left") return null;
-      if (!existsSync4(join30(location.right.repository.gitCommonDir, "foreman", "project.json"))) return null;
+      if (!existsSync4(join31(location.right.repository.gitCommonDir, "foreman", "project.json"))) return null;
       return yield* loadProject();
     }),
     preflight: (checked, loaded) => preflight(checked, loaded)
@@ -115245,7 +115442,7 @@ function makeLivePelLifecycleBackend(options2) {
 function makeLivePelSupervisorRecovery(stateRoot, options2) {
   return Layer_exports.succeed(PelSupervisorRecovery, { recover: (runId2, owner) => Effect_exports.gen(function* () {
     const cwd = yield* Effect_exports.try({ try: () => {
-      const registry = loadProjectRegistryFileV1(join30(options2.foremanHome, "projects.json"));
+      const registry = loadProjectRegistryFileV1(join31(options2.foremanHome, "projects.json"));
       if (registry._tag !== "Valid") throw Error("registry");
       const matches2 = registry.value.projects.filter((p2) => p2.state === "active" && p2.store_location === stateRoot);
       if (matches2.length !== 1 || !matches2[0].worktree_paths.length) throw Error("association");
@@ -115259,7 +115456,7 @@ function makeLivePelSupervisorRecovery(stateRoot, options2) {
   }) });
 }
 function defaultPelLifecycleOptions(output) {
-  return { cwd: process.cwd(), foremanHome: process.env.FOREMAN_HOME ?? join30(homedir(), ".foreman"), userHome: homedir(), environment: process.env, output };
+  return { cwd: process.cwd(), foremanHome: process.env.FOREMAN_HOME ?? join31(homedir(), ".foreman"), userHome: homedir(), environment: process.env, output };
 }
 
 // packages/orchestration/src/supervisor-cli.ts
@@ -115336,7 +115533,7 @@ function parseSupervisorArgv(argv) {
 }
 function resolveStateRoot(path3) {
   if (typeof path3 !== "string" || path3.length === 0) return null;
-  if (!isAbsolute29(path3) || path3.includes("\0")) return null;
+  if (!isAbsolute30(path3) || path3.includes("\0")) return null;
   try {
     const st2 = statSync3(path3);
     if (!st2.isDirectory()) return null;
@@ -115352,16 +115549,16 @@ function resumeMaxAttemptsFromEnv(env2) {
   if (!Number.isSafeInteger(n) || n < 1 || n > 100) return 2;
   return n;
 }
-function runSupervisorCli(argv, io7, cliEnv = {}) {
+function runSupervisorCli(argv, io8, cliEnv = {}) {
   return Effect_exports.gen(function* () {
     const parsed = parseSupervisorArgv(argv);
     if (parsed._tag === "Invalid") {
-      io7.writeStderr(USAGE + "\n");
+      io8.writeStderr(USAGE + "\n");
       return EXIT_CONFIG;
     }
     const stateRoot = resolveStateRoot(parsed.stateRoot);
     if (stateRoot === null) {
-      io7.writeStderr(MSG_INVALID_ARGUMENTS + "\n");
+      io8.writeStderr(MSG_INVALID_ARGUMENTS + "\n");
       return EXIT_CONFIG;
     }
     const env2 = cliEnv.env ?? process.env;
@@ -115380,8 +115577,8 @@ function runSupervisorCli(argv, io7, cliEnv = {}) {
           env: env2,
           pelRecovery: (canonicalRoot) => {
             const options2 = defaultPelLifecycleOptions({
-              stdout: (text11) => Effect_exports.sync(() => io7.writeStdout(text11)),
-              stderr: (text11) => Effect_exports.sync(() => io7.writeStderr(text11))
+              stdout: (text11) => Effect_exports.sync(() => io8.writeStdout(text11)),
+              stderr: (text11) => Effect_exports.sync(() => io8.writeStderr(text11))
             });
             return makeLivePelSupervisorRecovery(canonicalRoot, {
               ...options2,
@@ -115394,7 +115591,7 @@ function runSupervisorCli(argv, io7, cliEnv = {}) {
     );
     const exitEither = yield* Effect_exports.either(program);
     if (exitEither._tag === "Left") {
-      io7.writeStderr(MSG_INTERNAL_FAILURE + "\n");
+      io8.writeStderr(MSG_INTERNAL_FAILURE + "\n");
       return EXIT_FAIL;
     }
     const results = exitEither.right;
@@ -115404,14 +115601,14 @@ function runSupervisorCli(argv, io7, cliEnv = {}) {
         overall = EXIT_FAIL;
       }
       for (const line of formatRunResultLines(r)) {
-        io7.writeStderr(line + "\n");
+        io8.writeStderr(line + "\n");
       }
       if (r._tag === "Swept" && overall !== EXIT_FAIL && r.actions.some((a) => a._tag === "LegacyControllerRequired")) overall = 3;
     }
     return overall;
   }).pipe(
     Effect_exports.catchAllDefect(() => {
-      io7.writeStderr(MSG_INTERNAL_FAILURE + "\n");
+      io8.writeStderr(MSG_INTERNAL_FAILURE + "\n");
       return Effect_exports.succeed(EXIT_FAIL);
     })
   );
@@ -115419,7 +115616,7 @@ function runSupervisorCli(argv, io7, cliEnv = {}) {
 
 // packages/orchestration/src/supervisor-main.ts
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname19, join as join31 } from "node:path";
+import { dirname as dirname19, join as join33 } from "node:path";
 function writeFully(stream2, text11) {
   return new Promise((resolve12, reject4) => {
     const onError6 = (err) => {
@@ -115435,7 +115632,7 @@ function writeFully(stream2, text11) {
   });
 }
 var pending7 = [];
-var io6 = {
+var io7 = {
   writeStdout: (text11) => {
     pending7.push(writeFully(process.stdout, text11));
   },
@@ -115449,14 +115646,14 @@ function resolveSkillRoot() {
   }
   try {
     const here = dirname19(fileURLToPath2(import.meta.url));
-    return join31(here, "..", "..");
+    return join33(here, "..", "..");
   } catch {
     return process.cwd();
   }
 }
 var skillRoot = resolveSkillRoot();
 Effect_exports.runPromise(
-  runSupervisorCli(process.argv, io6, {
+  runSupervisorCli(process.argv, io7, {
     skillRoot,
     env: process.env
   })
